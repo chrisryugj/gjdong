@@ -12,8 +12,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Addresses array is required" }, { status: 400 })
     }
 
-    console.log("[v0] Batch resolving addresses:", addresses.length)
-
     const totalAddresses = addresses.length
     let batchSize: number
     let batchDelay: number
@@ -21,11 +19,9 @@ export async function POST(request: NextRequest) {
     if (totalAddresses <= 50) {
       batchSize = 7
       batchDelay = 80
-      console.log("[v0] Using fast settings for ≤50 addresses")
     } else {
       batchSize = 5
       batchDelay = 100
-      console.log("[v0] Using conservative settings for >50 addresses")
     }
 
     const results = []
@@ -54,6 +50,7 @@ export async function POST(request: NextRequest) {
               return {
                 display: address,
                 meta: {
+                  sido: "",
                   gu: "",
                   lon: 127.0845,
                   lat: 37.5384,
@@ -77,6 +74,7 @@ export async function POST(request: NextRequest) {
             results.push({
               display: "변환 실패",
               meta: {
+                sido: "",
                 gu: "",
                 lon: 127.0845,
                 lat: 37.5384,
@@ -89,7 +87,6 @@ export async function POST(request: NextRequest) {
         }
 
         if (errorCount > batch.length * 0.3 && retryAttempts < maxRetries) {
-          console.log("[v0] High error rate detected, adjusting parameters...")
           batchSize = Math.max(3, Math.floor(batchSize * 0.7))
           batchDelay = Math.min(400, batchDelay * 2)
           retryAttempts++
@@ -106,8 +103,6 @@ export async function POST(request: NextRequest) {
         batchDelay = Math.min(400, batchDelay * 2)
       }
     }
-
-    console.log("[v0] Batch resolution complete:", results.length)
 
     currentBatchSize = 7
     currentDelay = 80

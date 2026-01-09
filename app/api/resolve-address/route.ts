@@ -9,11 +9,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Address is required" }, { status: 400 })
     }
 
-    console.log("[v0] Searching address:", address)
-
     const result = await resolveAddress(address)
-
-    console.log("[v0] Resolved address:", result.display)
 
     return NextResponse.json(result)
   } catch (error) {

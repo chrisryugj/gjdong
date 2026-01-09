@@ -1,6 +1,7 @@
 export type ResolvedDisplay = {
   display: string // "광진구 아차산로400(자양동 870번지, 자양1동)"
   meta: {
+    sido?: string // "서울특별시" (시/도)
     gu: string // "광진구"
     roadName?: string // "아차산로"
     buildingNo?: string // "400" or "400-1"
@@ -26,7 +27,6 @@ const CACHE_MAX_SIZE = 100 // 최대 캐시 크기
 export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedDisplay> {
   const cacheKey = inputRaw.trim().toLowerCase()
   if (addressCache.has(cacheKey)) {
-    console.log("[v0] Cache hit for:", inputRaw)
     return addressCache.get(cacheKey)!
   }
 
@@ -57,13 +57,14 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
     return {
       display: inputRaw,
       meta: {
+        sido: "",
         gu: "",
         lon: 127.0845,
         lat: 37.5384,
         source: "FALLBACK",
       },
       fallback: true,
-      message: error.message, // 에러 메시지 추가
+      message: (error as Error).message,
     }
   }
 }

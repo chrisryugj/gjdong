@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Supports single address lookup and batch conversion with Excel export.
+Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Two main features:
+1. **Main Converter** (`/`) - Single/batch address conversion with Excel export
+2. **Tableau Geocoder** (`/tableau-geocoder`) - CSV/Excel file upload for bulk geocoding (adds lat/lon columns)
 
 ## Development Commands
 
@@ -44,8 +46,9 @@ Get API key from [Kakao Developers](https://developers.kakao.com/) - create app,
    - Calls `/api/resolve-address` endpoint
 
 3. **API Routes**
-   - [app/api/resolve-address/route.ts](app/api/resolve-address/route.ts) - Single address lookup
+   - [app/api/resolve-address/route.ts](app/api/resolve-address/route.ts) - Single address lookup (full resolution with all formats)
    - [app/api/resolve-address-batch/route.ts](app/api/resolve-address-batch/route.ts) - Batch processing with adaptive rate limiting
+   - [app/api/geocode/route.ts](app/api/geocode/route.ts) - Simple geocoding (returns only lat/lon) for Tableau Geocoder
 
 4. **Kakao API Integration** ([lib/utils/kakao-api.ts](lib/utils/kakao-api.ts))
    - `resolveAddress()` - Main resolution function combining multiple Kakao APIs
@@ -79,8 +82,11 @@ import { resolveAddress } from "@/lib/utils/kakao-api"
 
 ## Key Implementation Details
 
-- **Rate Limiting**: Batch API uses adaptive batch sizing (5-7 addresses) and delays (80-100ms) based on volume
+- **Rate Limiting**: Batch API uses adaptive batch sizing (5-7 addresses) and delays (80-100ms) based on volume. Automatically reduces batch size and increases delays on high error rates.
+- **Batch Chunking**: Client sends requests in chunks of 10 addresses with retry logic (max 2 retries per chunk)
 - **Unit Extraction**: Complex regex in `removeApartmentUnit()` handles various Korean apartment unit formats (동/층/호)
 - **Building Keywords**: `BUILDING_KEYWORDS` array triggers keyword search for places like 주민센터, 학교, 병원
-- **Caching**: Client-side LRU cache (100 entries) in address-resolver.ts
-- **Map**: Leaflet loaded dynamically, supports batch markers with numbered pins
+- **Caching**: Client-side FIFO cache (100 entries max) in address-resolver.ts - evicts oldest entry when full
+- **Map**: Leaflet loaded dynamically via CDN, supports batch markers with numbered pins
+- **Excel Input**: Supports 2-column paste (address + facility name) detected via tab or 3+ spaces
+- **Encoding Support**: Tableau Geocoder supports UTF-8, EUC-KR, CP949 for Korean CSV files

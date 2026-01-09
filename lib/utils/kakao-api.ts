@@ -49,7 +49,6 @@ export function removeApartmentUnit(address: string): { cleaned: string; unit: s
       ?.trim()
     if (extractedUnit) {
       units.push(extractedUnit)
-      console.log("[v0] Extracted unit part:", extractedUnit)
     }
   }
 
@@ -72,12 +71,6 @@ export function removeApartmentUnit(address: string): { cleaned: string; unit: s
     cleaned = cleaned.replace(/\s+\d+-\d+(?=\s|$|\()/, " ").trim()
 
     unit = unit ? `${unit} ${additionalUnit}` : additionalUnit
-    console.log("[v0] Extracted additional unit:", additionalUnit)
-  }
-
-  console.log("[v0] Final cleaned address:", cleaned)
-  if (unit) {
-    console.log("[v0] Final unit:", unit)
   }
 
   return { cleaned, unit }
@@ -95,8 +88,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2): P
     clearTimeout(timeoutId)
 
     if (response.status === 429 && retries > 0) {
-      console.log(`[v0] Rate limited, retrying after delay... (${retries} attempts left)`)
-      const delay = (3 - retries) * 2000 // 2초, 4초 증가
+      const delay = (3 - retries) * 2000
       await new Promise((resolve) => setTimeout(resolve, delay))
       return fetchWithRetry(url, options, retries - 1)
     }
@@ -106,8 +98,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2): P
     clearTimeout(timeoutId)
 
     if (retries > 0) {
-      console.log(`[v0] Fetch failed, retrying... (${retries} attempts left)`)
-      await new Promise((resolve) => setTimeout(resolve, 1000)) // 1초 대기
+      await new Promise((resolve) => setTimeout(resolve, 1000))
       return fetchWithRetry(url, options, retries - 1)
     }
     throw error
@@ -122,8 +113,6 @@ export async function kakaoSearchAddress(q: string) {
     }
 
     const { cleaned: cleanedQuery } = removeApartmentUnit(q)
-    console.log("[v0] Original query:", q)
-    console.log("[v0] Cleaned query:", cleanedQuery)
 
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(cleanedQuery)}`,
@@ -191,7 +180,6 @@ export async function kakaoCoord2Address(lon: number, lat: number) {
 
     if (!response.ok) {
       if (response.status === 429) {
-        console.log("[v0] Rate limited on coord2address, returning null")
         return null
       }
       console.error("[v0] Kakao API response not ok:", response.status, response.statusText)
@@ -200,7 +188,6 @@ export async function kakaoCoord2Address(lon: number, lat: number) {
 
     const contentType = response.headers.get("content-type")
     if (!contentType || !contentType.includes("application/json")) {
-      console.log("[v0] Non-JSON response received, likely rate limited")
       return null
     }
 
@@ -230,7 +217,6 @@ export async function kakaoCoord2Region(lon: number, lat: number) {
 
     if (!response.ok) {
       if (response.status === 429) {
-        console.log("[v0] Rate limited on coord2region, returning empty array")
         return []
       }
       console.error("[v0] Kakao API response not ok:", response.status, response.statusText)
@@ -239,7 +225,6 @@ export async function kakaoCoord2Region(lon: number, lat: number) {
 
     const contentType = response.headers.get("content-type")
     if (!contentType || !contentType.includes("application/json")) {
-      console.log("[v0] Non-JSON response received, likely rate limited")
       return []
     }
 
@@ -254,6 +239,7 @@ export async function kakaoCoord2Region(lon: number, lat: number) {
 export type ResolvedAddressResult = {
   display: string
   meta: {
+    sido: string
     gu: string
     roadName?: string
     buildingNo?: string
@@ -310,6 +296,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
       return {
         display: address,
         meta: {
+          sido: "",
           gu: "",
           lon: 127.0845,
           lat: 37.5384,
@@ -334,6 +321,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     const roadAddr = addrDoc?.road_address
     const jibunAddr = addrDoc?.address
 
+    const sido = legalRegion?.region_1depth_name || ""
     const gu = legalRegion?.region_2depth_name || ""
     const roadName = roadAddr?.road_name || ""
     const buildingNo = roadAddr?.main_building_no
@@ -352,6 +340,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     return {
       display,
       meta: {
+        sido,
         gu,
         roadName,
         buildingNo, // Keep original building number without unit
@@ -374,6 +363,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     return {
       display: address,
       meta: {
+        sido: "",
         gu: "",
         lon: 127.0845,
         lat: 37.5384,

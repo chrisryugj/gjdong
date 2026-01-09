@@ -227,6 +227,14 @@ export default function AddressGenerator() {
 
     const addresses = parsedData.map((d) => d.address)
 
+    // 대량 변환 경고
+    if (addresses.length >= 200) {
+      const message = addresses.length >= 1000
+        ? `⚠️ 대용량 변환\n\n${addresses.length}개 주소를 변환합니다.\n예상 소요 시간: 약 ${Math.ceil(addresses.length / 50)}분\n\n계속하시겠습니까?`
+        : `${addresses.length}개 주소를 변환합니다.\n예상 소요 시간: 약 ${Math.ceil(addresses.length / 50)}분\n\n계속하시겠습니까?`
+      if (!window.confirm(message)) return
+    }
+
     const hasFacilityName = parsedData.some((d) => d.facilityName)
 
     if (addresses.length === 1 && !hasFacilityName) {
@@ -463,7 +471,7 @@ export default function AddressGenerator() {
 
       const row: Record<string, string | number> = { 번호: idx + 1 }
       if (result.facilityName) row.시설명 = result.facilityName
-      if (selectedFields.has("standard1")) row.표준주소1 = `서울특별시 ${result.display}`
+      if (selectedFields.has("standard1")) row.표준주소1 = `${result.meta.sido} ${result.display}`
       if (selectedFields.has("standard2")) row.표준주소2 = result.display
       if (selectedFields.has("road"))
         row.도로명주소 = result.meta.roadName ? `${result.meta.gu} ${result.meta.roadName}${fullBuildingNo}` : ""
@@ -870,12 +878,12 @@ export default function AddressGenerator() {
               {selectedFields.has("standard1") && (
                 <button
                   className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(`서울특별시 ${resolvedAddress.display}`, 0)}
+                  onClick={() => copyToClipboard(`${resolvedAddress.meta.sido} ${resolvedAddress.display}`, 0)}
                 >
                   <div className="flex-1">
                     <div className="mb-1 text-xs font-medium text-gray-600">표준형식 1 (전체)</div>
                     <div className="text-sm font-medium text-gray-900 text-pretty">
-                      서울특별시 {resolvedAddress.display}
+                      {resolvedAddress.meta.sido} {resolvedAddress.display}
                     </div>
                   </div>
                   {copiedIndex === 0 ? <CheckIcon /> : <CopyIcon />}
@@ -1047,7 +1055,7 @@ export default function AddressGenerator() {
                       const combinedText = batchResults
                         .filter((result) => !result.fallback)
                         .map((result) => {
-                          const address = `서울특별시 ${result.display}`
+                          const address = `${result.meta.sido} ${result.display}`
                           return result.facilityName ? `[${result.facilityName}] ${address}` : address
                         })
                         .join("\n")
@@ -1079,7 +1087,7 @@ export default function AddressGenerator() {
                                   {result.facilityName}
                                 </span>
                               )}
-                              서울특별시 {result.display}
+                              {result.meta.sido} {result.display}
                             </div>
                           )
                         })}
@@ -1380,12 +1388,12 @@ export default function AddressGenerator() {
                         {selectedFields.has("standard1") && (
                           <button
                             className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(`서울특별시 ${result.display}`, idx * 100)}
+                            onClick={() => copyToClipboard(`${result.meta.sido} ${result.display}`, idx * 100)}
                           >
                             <div className="flex-1">
                               <div className="mb-1 text-xs font-medium text-gray-600">표준형식 1 (전체)</div>
                               <div className="text-sm font-medium text-gray-900 text-pretty">
-                                서울특별시 {result.display}
+                                {result.meta.sido} {result.display}
                               </div>
                             </div>
                             {copiedIndex === idx * 100 ? <CheckIcon /> : <CopyIcon />}
