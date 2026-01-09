@@ -6,6 +6,7 @@ import { resolveAddressDisplay, type ResolvedDisplay } from "@/lib/utils/address
 import * as XLSX from "xlsx"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import UsageGuideModal, { UsageGuideButton } from "@/components/usage-guide-modal"
 
 const SearchIcon = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,6 +105,7 @@ export default function AddressGenerator() {
   const [showRecentSearches, setShowRecentSearches] = useState(false)
   const [progress, setProgress] = useState<ProgressState | null>(null)
   const [showFormattedInput, setShowFormattedInput] = useState(false) // Changed default to false
+  const [showUsageGuide, setShowUsageGuide] = useState(false)
   const resultSectionRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -138,6 +140,15 @@ export default function AddressGenerator() {
     setNotification({ message, type })
     setTimeout(() => setNotification(null), 3000)
   }
+
+  // 첫 방문 시 사용법 안내 모달 표시
+  useEffect(() => {
+    const hasVisited = localStorage.getItem("addressGenerator_hasVisited")
+    if (!hasVisited) {
+      setShowUsageGuide(true)
+      localStorage.setItem("addressGenerator_hasVisited", "true")
+    }
+  }, [])
 
   useEffect(() => {
     const savedFields = localStorage.getItem("addressGenerator_selectedFields")
@@ -564,13 +575,16 @@ export default function AddressGenerator() {
 
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
         <div className="flex flex-col space-y-1.5 p-6">
-          <h3
-            className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"
-            style={{ fontFamily: "Shilla, sans-serif" }}
-          >
-            <SearchIcon />
-            무엇을 찾아드리리오?
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3
+              className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"
+              style={{ fontFamily: "Shilla, sans-serif" }}
+            >
+              <SearchIcon />
+              무엇을 찾아드리리오?
+            </h3>
+            <UsageGuideButton onClick={() => setShowUsageGuide(true)} />
+          </div>
           <p className="text-sm text-muted-foreground">
             {isMultiLine
               ? "여러 주소를 한 번에 변환하세요 (줄바꿈으로 구분, 엑셀 2열 데이터 지원)"
@@ -1505,6 +1519,9 @@ export default function AddressGenerator() {
           )}
         </>
       )}
+
+      {/* 사용법 안내 모달 */}
+      <UsageGuideModal open={showUsageGuide} onOpenChange={setShowUsageGuide} />
     </div>
   )
 }
