@@ -18,7 +18,7 @@ export default function Home() {
                 className="text-lg font-medium text-muted-foreground md:text-xl lg:text-2xl"
                 style={{ fontFamily: "Shilla, sans-serif" }}
               >
-                v1.2
+                v1.4
               </span>
             </div>
           </div>
