@@ -215,11 +215,12 @@ export function UsageGuideButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center justify-center rounded-full w-8 h-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 transition-colors"
       title="사용 방법"
       aria-label="사용 방법 보기"
     >
       <HelpCircleIcon />
+      <span>사용법</span>
     </button>
   )
 }
