@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { resolveAddress } from "@/lib/utils/kakao-api"
 
-let currentBatchSize = 7
-let currentDelay = 80
+const MAX_BATCH_SIZE = 1000
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +9,13 @@ export async function POST(request: NextRequest) {
 
     if (!addresses || !Array.isArray(addresses)) {
       return NextResponse.json({ error: "Addresses array is required" }, { status: 400 })
+    }
+
+    if (addresses.length > MAX_BATCH_SIZE) {
+      return NextResponse.json(
+        { error: `최대 ${MAX_BATCH_SIZE}건까지 처리 가능합니다. 현재 ${addresses.length}건` },
+        { status: 400 },
+      )
     }
 
     const totalAddresses = addresses.length
@@ -103,9 +109,6 @@ export async function POST(request: NextRequest) {
         batchDelay = Math.min(400, batchDelay * 2)
       }
     }
-
-    currentBatchSize = 7
-    currentDelay = 80
 
     return NextResponse.json({
       results,

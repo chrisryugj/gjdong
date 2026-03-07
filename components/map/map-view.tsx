@@ -61,10 +61,14 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
         const link = document.createElement("link")
         link.rel = "stylesheet"
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        link.crossOrigin = "anonymous"
         document.head.appendChild(link)
 
         const script = document.createElement("script")
         script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        script.crossOrigin = "anonymous"
         script.async = true
         document.head.appendChild(script)
 
@@ -95,6 +99,12 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
       if (markers && markers.length > 0) {
         const bounds = window.L.latLngBounds()
 
+        const escapeHtml = (text: string) => {
+          const div = document.createElement("div")
+          div.textContent = text
+          return div.innerHTML
+        }
+
         markers.forEach((marker, index) => {
           const markerIcon = window.L.divIcon({
             className: "custom-marker",
@@ -120,11 +130,11 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
 
           const tooltipContent = `
             <div style="font-size: 12px; line-height: 1.4;">
-              ${marker.title ? `<div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #2563eb;">${marker.title}</div>` : ""}
+              ${marker.title ? `<div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #2563eb;">${escapeHtml(marker.title)}</div>` : ""}
               <div style="font-weight: bold; margin-bottom: 4px;">위치 ${index + 1}</div>
-              ${marker.roadName ? `<div>도로명: ${marker.roadName}</div>` : ""}
-              ${marker.jibunAddress ? `<div>지번: ${marker.jibunAddress}</div>` : ""}
-              ${marker.adminDong ? `<div>행정동: ${marker.adminDong}</div>` : ""}
+              ${marker.roadName ? `<div>도로명: ${escapeHtml(marker.roadName)}</div>` : ""}
+              ${marker.jibunAddress ? `<div>지번: ${escapeHtml(marker.jibunAddress)}</div>` : ""}
+              ${marker.adminDong ? `<div>행정동: ${escapeHtml(marker.adminDong)}</div>` : ""}
             </div>
           `
           leafletMarker.bindTooltip(tooltipContent, { direction: "top", offset: [0, -10] })

@@ -1,0 +1,52 @@
+{
+  "name": "gjdong-extension",
+  "displayName": "표준주소실록",
+  "version": "2.0.0",
+  "description": "한국 주소를 표준 형식으로 즉시 변환하는 브라우저 익스텐션",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "dependencies": {
+    "@plasmohq/storage": "^1.13.0",
+    "plasmo": "^0.90.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.7.0"
+  },
+  "manifest": {
+    "permissions": [
+      "contextMenus",
+      "storage",
+      "clipboardRead",
+      "clipboardWrite",
+      "notifications",
+      "activeTab",
+      "scripting"
+    ],
+    "host_permissions": [
+      "<all_urls>"
+    ],
+    "commands": {
+      "convert-clipboard": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+A",
+          "mac": "Command+Shift+A"
+        },
+        "description": "클립보드 주소를 즉시 변환"
+      }
+    },
+    "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://www.openstreetmap.org"
+    }
+  }
+}

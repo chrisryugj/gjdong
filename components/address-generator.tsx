@@ -238,11 +238,14 @@ export default function AddressGenerator() {
 
     const addresses = parsedData.map((d) => d.address)
 
-    // 대량 변환 경고
+    // 대량 변환 제한 및 경고
+    if (addresses.length > 1000) {
+      window.alert(`⚠️ 최대 1,000건까지 변환 가능합니다.\n\n현재 ${addresses.length.toLocaleString()}건이 입력되었습니다.\n1,000건을 초과하는 대용량 변환은 관리자에게 문의해주세요.`)
+      return
+    }
+
     if (addresses.length >= 200) {
-      const message = addresses.length >= 1000
-        ? `⚠️ 대용량 변환\n\n${addresses.length}개 주소를 변환합니다.\n예상 소요 시간: 약 ${Math.ceil(addresses.length / 50)}분\n\n계속하시겠습니까?`
-        : `${addresses.length}개 주소를 변환합니다.\n예상 소요 시간: 약 ${Math.ceil(addresses.length / 50)}분\n\n계속하시겠습니까?`
+      const message = `${addresses.length}개 주소를 변환합니다.\n예상 소요 시간: 약 ${Math.ceil(addresses.length / 50)}분\n\n계속하시겠습니까?`
       if (!window.confirm(message)) return
     }
 
@@ -349,7 +352,8 @@ export default function AddressGenerator() {
                       adminDong: "",
                       postalCode: "",
                       unit: "",
-                      searchMethod: "NONE",
+                      searchMethod: undefined,
+                      source: "FALLBACK",
                     },
                   })
                 })
@@ -963,7 +967,7 @@ export default function AddressGenerator() {
               {selectedFields.has("adminDong") && resolvedAddress.meta.adminDong && (
                 <button
                   className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(resolvedAddress.meta.adminDong, 4)}
+                  onClick={() => copyToClipboard(resolvedAddress.meta.adminDong || "", 4)}
                 >
                   <div className="flex-1">
                     <div className="mb-1 text-xs font-medium text-gray-600">행정동</div>
@@ -1471,7 +1475,7 @@ export default function AddressGenerator() {
                         {selectedFields.has("adminDong") && result.meta.adminDong && (
                           <button
                             className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(result.meta.adminDong, idx * 100 + 4)}
+                            onClick={() => copyToClipboard(result.meta.adminDong || "", idx * 100 + 4)}
                           >
                             <div className="flex-1">
                               <div className="mb-1 text-xs font-medium text-gray-600">행정동</div>

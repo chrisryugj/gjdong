@@ -46,7 +46,7 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
     if (addressCache.size >= CACHE_MAX_SIZE) {
       // Remove oldest entry (first entry in Map)
       const firstKey = addressCache.keys().next().value
-      addressCache.delete(firstKey)
+      if (firstKey !== undefined) addressCache.delete(firstKey)
     }
     addressCache.set(cacheKey, result)
 
