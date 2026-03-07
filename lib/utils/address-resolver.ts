@@ -43,12 +43,14 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
 
     const result = await response.json()
 
-    if (addressCache.size >= CACHE_MAX_SIZE) {
-      // Remove oldest entry (first entry in Map)
-      const firstKey = addressCache.keys().next().value
-      if (firstKey !== undefined) addressCache.delete(firstKey)
+    // fallback(실패) 결과는 캐시하지 않음 — 일시 장애 복구 후 재시도 가능
+    if (!result.fallback) {
+      if (addressCache.size >= CACHE_MAX_SIZE) {
+        const firstKey = addressCache.keys().next().value
+        if (firstKey !== undefined) addressCache.delete(firstKey)
+      }
+      addressCache.set(cacheKey, result)
     }
-    addressCache.set(cacheKey, result)
 
     return result
   } catch (error) {

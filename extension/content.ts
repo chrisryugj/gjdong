@@ -1,20 +1,24 @@
 import type { PlasmoCSConfig } from "plasmo"
+import { Storage } from "@plasmohq/storage"
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
-  run_at: "document_idle"
+  run_at: "document_idle",
+  all_frames: false
 }
 
-// 한국 주소 패턴: 한글 포함 + 주소 키워드
-const ADDRESS_PATTERN = /[가-힣].{2,}(?:동|로|길|번지|구|시|군|읍|면|리)\s*\d*/
+// 한국 주소 패턴: 도로명(로/길+숫자), 지번(동/리+숫자), 구/시/군+도로명/동, 번지
+const ADDRESS_PATTERN = /[가-힣]+(?:로|길)\s*\d+|[가-힣]+(?:동|리)\s+\d+|[가-힣]+(?:구|시|군)\s+[가-힣]+(?:로|길|동)|[가-힣]+번지/
 
+const storage = new Storage()
 let enabled = false
+let lastSentTime = 0
+const COOLDOWN_MS = 3000
 
 // 설정에서 클립보드 감지 활성화 여부 확인
 async function checkEnabled() {
   try {
-    const data = await chrome.storage.sync.get("settings")
-    const settings = data?.settings ? JSON.parse(data.settings) : null
+    const settings = await storage.get<Record<string, any>>("settings")
     enabled = settings?.enableClipboardDetect ?? false
   } catch {
     enabled = false
@@ -24,29 +28,33 @@ async function checkEnabled() {
 checkEnabled()
 
 // 설정 변경 시 실시간 반영
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.settings) {
+storage.watch({
+  settings: (c) => {
     try {
-      const newSettings = JSON.parse(changes.settings.newValue)
-      enabled = newSettings?.enableClipboardDetect ?? false
+      const settings = c.newValue
+      enabled = settings?.enableClipboardDetect ?? false
     } catch {
       enabled = false
     }
   }
 })
 
-// 복사 이벤트 감지
-document.addEventListener("copy", () => {
+function trySendAddress(text: string | undefined) {
   if (!enabled) return
+  if (!text || text.length < 4 || text.length > 200) return
+  if (!ADDRESS_PATTERN.test(text)) return
 
-  setTimeout(() => {
-    const text = window.getSelection()?.toString()?.trim()
-    if (!text || text.length < 4 || text.length > 200) return
-    if (!ADDRESS_PATTERN.test(text)) return
+  const now = Date.now()
+  if (now - lastSentTime < COOLDOWN_MS) return
+  lastSentTime = now
 
-    chrome.runtime.sendMessage({
-      type: "clipboard-address-detected",
-      text
-    })
-  }, 100)
-})
+  chrome.runtime.sendMessage({
+    type: "clipboard-address-detected",
+    text
+  }).catch(() => { /* 서비스 워커 비활성 시 무시 */ })
+}
+
+// 복사 이벤트 감지 (capture 단계)
+document.addEventListener("copy", () => {
+  trySendAddress(window.getSelection()?.toString()?.trim())
+}, true)

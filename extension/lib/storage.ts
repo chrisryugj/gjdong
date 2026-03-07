@@ -1,5 +1,5 @@
 import { Storage } from "@plasmohq/storage"
-import type { HistoryItem, ExtensionSettings, DEFAULT_SETTINGS } from "./types"
+import type { HistoryItem, ExtensionSettings } from "./types"
 
 const storage = new Storage()
 const MAX_HISTORY = 20

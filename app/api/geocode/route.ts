@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
     try {
-        const { address } = await req.json();
+        const body = await req.json();
+        const { address } = body;
 
-        if (!address) {
+        if (!address || typeof address !== "string") {
             return NextResponse.json(
                 { error: 'Address is required' },
+                { status: 400 }
+            );
+        }
+
+        if (address.length > 500) {
+            return NextResponse.json(
+                { error: 'Address too long' },
                 { status: 400 }
             );
         }
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ x: null, y: null });
         }
     } catch (error) {
-        console.error('Geocoding error:', error);
+        console.error('Geocoding error:', error instanceof Error ? error.message : "Unknown error");
         return NextResponse.json(
             { error: 'Failed to geocode address' },
             { status: 500 }

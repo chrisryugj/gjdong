@@ -1,5 +1,5 @@
 import { Storage } from "@plasmohq/storage"
-import type { ResolvedDisplay, ExtensionSettings, DEFAULT_SETTINGS } from "./types"
+import type { ResolvedDisplay, ExtensionSettings } from "./types"
 
 const storage = new Storage()
 

@@ -4,6 +4,7 @@ import {
   type ExtensionSettings,
   type OutputField,
   type MapProvider,
+  type ClipboardAction,
   FIELD_LABELS,
   FIELD_EXAMPLES,
   DEFAULT_SETTINGS
@@ -180,7 +181,7 @@ function IndexOptions() {
           <label className="flex items-center justify-between py-1">
             <div>
               <span className="text-sm text-gray-700">클립보드 주소 자동 감지</span>
-              <p className="text-[11px] text-gray-400">웹 페이지에서 주소 복사 시 자동 변환 + 알림</p>
+              <p className="text-[11px] text-gray-400">웹 페이지에서 주소 복사 시 자동 변환</p>
             </div>
             <input
               type="checkbox"
@@ -189,6 +190,55 @@ function IndexOptions() {
               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
             />
           </label>
+
+          {local.enableClipboardDetect && (
+            <div className="ml-1 pl-3 border-l-2 border-blue-200 space-y-1.5">
+              <span className="text-xs text-gray-500 block">감지 후 동작</span>
+              <div className="flex gap-2">
+                {([
+                  { value: "notification", label: "알림으로 표시", desc: "변환 결과를 클립보드에 복사 + 데스크톱 알림" },
+                  { value: "popup", label: "팝업으로 열기", desc: "변환 팝업 창을 열어 결과 확인" }
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => update("clipboardAction", opt.value as ClipboardAction)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-left transition-all ${
+                      (local.clipboardAction || "popup") === opt.value
+                        ? "bg-blue-50 border-2 border-blue-500"
+                        : "bg-gray-50 border border-gray-200 hover:bg-gray-100"
+                    }`}>
+                    <span className={`text-sm font-medium block ${
+                      (local.clipboardAction || "popup") === opt.value ? "text-blue-700" : "text-gray-700"
+                    }`}>
+                      {opt.label}
+                    </span>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-1 border-t border-gray-100">
+            <span className="text-xs text-gray-500 block mb-1.5">우클릭 '표준주소 변환' 동작</span>
+            <div className="flex gap-2">
+              {([
+                { value: "popup", label: "팝업으로 열기" },
+                { value: "notification", label: "자동 복사 + 알림" }
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => update("contextMenuAction", opt.value as ClipboardAction)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    (local.contextMenuAction || "popup") === opt.value
+                      ? "bg-blue-50 border-2 border-blue-500 text-blue-700"
+                      : "bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100"
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* 키보드 단축키 */}
@@ -211,7 +261,11 @@ function IndexOptions() {
             단축키가 작동하지 않으면 아래 버튼에서 직접 설정하세요.
           </p>
           <button
-            onClick={() => chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}
+            onClick={() => {
+              chrome.tabs.create({ url: "chrome://extensions/shortcuts" }).catch(() => {
+                alert("Chrome 주소창에 chrome://extensions/shortcuts 를 직접 입력해주세요.")
+              })
+            }}
             className="w-full py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
             단축키 변경 설정 열기
           </button>

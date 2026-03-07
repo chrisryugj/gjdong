@@ -13,6 +13,7 @@ import {
   DEFAULT_SETTINGS
 } from "~lib/types"
 import { addHistory, getHistory, toggleFavorite, clearHistory } from "~lib/storage"
+import * as XLSX from "xlsx"
 
 import "./style.css"
 
@@ -27,11 +28,13 @@ function MiniMap({ lat, lon }: { lat: number; lon: number }) {
       className="w-full h-[150px] rounded-lg border-0"
       loading="lazy"
       title="위치 미리보기"
+      sandbox="allow-scripts allow-same-origin"
+      referrerPolicy="no-referrer"
     />
   )
 }
 
-function getMapUrl(provider: string, address: string, lat: number, lon: number): string {
+function getMapUrl(provider: string, address: string): string {
   const encoded = encodeURIComponent(address)
   if (provider === "naver") {
     return `https://map.naver.com/v5/search/${encoded}`
@@ -50,6 +53,7 @@ function IndexPopup() {
   const [batchResults, setBatchResults] = useState<ResolvedDisplay[]>([])
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [showGuide, setShowGuide] = useState(false)
+  const [batchLines, setBatchLines] = useState<string[]>([])  // 배치 검색 시 고정된 lines
 
   const [settings] = useStorage<ExtensionSettings>("settings", DEFAULT_SETTINGS)
   const [selectedFields, setSelectedFields] = useStorage<OutputField[]>(
@@ -90,23 +94,27 @@ function IndexPopup() {
 
   const handleBatchSearch = async () => {
     if (lines.length === 0 || isLoading) return
+    const searchLines = [...lines]  // 검색 시점의 lines 고정
+    setBatchLines(searchLines)
     setIsLoading(true)
     setError("")
     setResult(null)
     setBatchResults([])
-    setBatchProgress({ current: 0, total: lines.length })
+    setBatchProgress({ current: 0, total: searchLines.length })
     try {
       const CHUNK = 10
       const allResults: ResolvedDisplay[] = []
-      for (let i = 0; i < lines.length; i += CHUNK) {
-        const chunk = lines.slice(i, i + CHUNK)
+      for (let i = 0; i < searchLines.length; i += CHUNK) {
+        const chunk = searchLines.slice(i, i + CHUNK)
         const res = await fetch(
           `${settings?.apiBaseUrl || "https://gjdong.vercel.app"}/api/resolve-address-batch`,
           { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addresses: chunk }) }
         )
+        if (!res.ok) throw new Error(`API error: ${res.status}`)
         const data = await res.json()
+        if (!Array.isArray(data?.results)) throw new Error("Invalid response format")
         allResults.push(...data.results)
-        setBatchProgress({ current: Math.min(i + CHUNK, lines.length), total: lines.length })
+        setBatchProgress({ current: Math.min(i + CHUNK, searchLines.length), total: searchLines.length })
       }
       setBatchResults(allResults)
     } catch {
@@ -130,10 +138,13 @@ function IndexPopup() {
   useEffect(() => {
     loadHistory()
     const params = new URLSearchParams(window.location.search)
-    const address = params.get("address")
-    if (address) {
-      setInput(address)
-      doSearch(address)
+    const raw = params.get("address")
+    if (raw) {
+      const address = raw.trim().slice(0, 200)
+      if (address.length >= 2) {
+        setInput(address)
+        doSearch(address)
+      }
     } else {
       inputRef.current?.focus()
     }
@@ -173,6 +184,30 @@ function IndexPopup() {
     await copyToClipboard(values, `batch-${field}`)
   }
 
+  const exportToExcel = () => {
+    if (batchResults.length === 0) return
+    const excelData = batchResults.map((r, idx) => {
+      const row: Record<string, string | number> = { 번호: idx + 1, 입력주소: batchLines[idx] || "" }
+      if (r.fallback) {
+        fields.forEach(f => { row[FIELD_LABELS[f]] = "변환 실패" })
+        return row
+      }
+      fields.forEach(f => { row[FIELD_LABELS[f]] = getFieldValue(r, f) })
+      return row
+    })
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "주소변환결과")
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" })
+    const blob = new Blob([wbout], { type: "application/octet-stream" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `주소변환결과_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const searchFromHistory = (item: HistoryItem) => {
     setInput(item.input)
     setResult(item.result)
@@ -196,7 +231,7 @@ function IndexPopup() {
     const provider = settings?.mapProvider || "kakao"
     const address = getFieldValue(result, "road") || result.display || ""
     chrome.tabs.create({
-      url: getMapUrl(provider, address, result.meta.lat, result.meta.lon)
+      url: getMapUrl(provider, address)
     })
   }
 
@@ -276,7 +311,7 @@ function IndexPopup() {
               onKeyDown={handleKeyDown}
               onFocus={() => !isBatch && history.length > 0 && setShowHistory(true)}
               onBlur={() => setTimeout(() => setShowHistory(false), 200)}
-              placeholder="찾을 주소를 입력하시오&#10;여러 주소는 줄바꿈으로 구분"
+              placeholder="찾을 주소를 입력하시오 | 2건 이상: Shift+Enter로 구분"
               className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[13px] placeholder-gray-400 placeholder:text-[11px] focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent resize-none"
               rows={isBatch ? Math.min(lines.length + 1, 5) : 1}
               style={{ minHeight: isBatch ? undefined : "38px" }}
@@ -466,42 +501,83 @@ function IndexPopup() {
 
       {/* 일괄 결과 */}
       {batchResults.length > 0 && (
-        <div className="mx-3 mt-2 bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-1.5">
-          <div className="text-[10px] text-gray-400 font-medium">{batchResults.length}건 변환 완료 — 포맷별 전체 복사</div>
-          {fields.map(field => {
-            const key = `batch-${field}`
-            const values = batchResults.map(r => getFieldValue(r, field))
-            if (!values.some(v => v && v !== "변환 실패")) return null
-            return (
+        <div className="mx-3 mt-2 space-y-1.5">
+          {/* 헤더: 전체 복사 + 엑셀 */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[10px] text-gray-400 font-medium">{batchResults.length}건 변환 완료</span>
+            <div className="flex items-center gap-1">
               <button
-                key={field}
-                onClick={() => copyBatchResults(field)}
-                title={`${FIELD_LABELS[field]} 전체 복사 (줄바꿈 구분)`}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-left transition-all ${
-                  copiedField === key
-                    ? "bg-green-50 border-green-300"
-                    : "bg-gray-50 border-gray-100 hover:bg-blue-50 hover:border-blue-200"
-                }`}>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[10px] text-gray-400 font-medium">{FIELD_LABELS[field]}</span>
-                  <p className="text-[11px] text-gray-600 truncate">{values[0]} 외 {values.length - 1}건</p>
-                </div>
-                <span className="ml-2 shrink-0 flex items-center gap-1">
-                  <span className="text-[10px] text-gray-400">전체복사</span>
-                  {copiedField === key ? (
-                    <svg className="w-3.5 h-3.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                    </svg>
-                  )}
-                </span>
+                onClick={exportToExcel}
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                title="엑셀 내보내기">
+                Excel
               </button>
-            )
-          })}
+              {fields.map(field => {
+                const key = `batch-${field}`
+                return (
+                  <button
+                    key={field}
+                    onClick={() => copyBatchResults(field)}
+                    className={`px-1.5 py-0.5 rounded-full text-[9px] transition-colors ${
+                      copiedField === key
+                        ? "bg-green-100 text-green-600"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                    title={`${FIELD_LABELS[field]} 전체 복사`}>
+                    {copiedField === key ? "복사됨" : FIELD_LABELS[field]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 주소별 개별 결과 */}
+          {batchResults.map((bResult, idx) => (
+            <div key={idx} className="bg-white rounded-xl border border-gray-200 shadow-sm p-2.5 space-y-1">
+              <div className="text-[10px] text-gray-400 font-medium truncate">
+                {idx + 1}. {batchLines[idx] || ""}
+              </div>
+              {bResult.fallback ? (
+                <div className="px-2.5 py-1 bg-red-50 text-red-500 text-[10px] rounded-md">
+                  변환 실패: {bResult.message || "주소를 찾을 수 없습니다"}
+                </div>
+              ) : (
+                fields.map(field => {
+                  const value = getFieldValue(bResult, field)
+                  if (!value) return null
+                  const key = `batch-${idx}-${field}`
+                  return (
+                    <button
+                      key={field}
+                      onClick={() => copyToClipboard(value, key)}
+                      title={`${FIELD_LABELS[field]} 복사: ${value}`}
+                      className={`w-full flex items-center justify-between px-2.5 py-1 rounded-lg border text-left transition-all ${
+                        copiedField === key
+                          ? "bg-green-50 border-green-300"
+                          : "bg-gray-50 border-gray-100 hover:bg-blue-50 hover:border-blue-200"
+                      }`}>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[9px] text-gray-400">{FIELD_LABELS[field]}</span>
+                        <p className="text-[11px] truncate">{value}</p>
+                      </div>
+                      <span className="ml-1.5 shrink-0">
+                        {copiedField === key ? (
+                          <svg className="w-3 h-3 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                          </svg>
+                        )}
+                      </span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          ))}
         </div>
       )}
 

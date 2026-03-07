@@ -1,8 +1,8 @@
-# 표준주소실록 v1.4
+# 표준주소실록 v2.0
 
-> 전국 주소를 표준 형식으로 변환하는 도구
+> 전국 주소를 표준 형식으로 변환하는 도구 (웹 + Chrome 익스텐션)
 
-**[사용해보기 (gjdong.vercel.app)](https://gjdong.vercel.app)**
+**[웹에서 사용하기 (gjdong.vercel.app)](https://gjdong.vercel.app)**
 
 ---
 
@@ -57,6 +57,15 @@ CSV/엑셀 파일을 업로드하면 위도/경도 컬럼을 추가해줍니다.
 - `/tableau-geocoder` 페이지에서 사용
 - Tableau, Power BI 등 BI 도구에서 지도 시각화용
 
+### 5. Chrome 익스텐션
+브라우저에서 바로 주소를 변환할 수 있는 확장 프로그램입니다.
+- **팝업 변환**: 익스텐션 아이콘 클릭 → 단일/일괄 주소 변환
+- **우클릭 변환**: 웹페이지에서 주소 드래그 → 우클릭 → "표준주소 변환"
+- **단축키 변환**: `Ctrl+Shift+C` (Mac: `Cmd+Shift+C`) → 클립보드 주소 즉시 변환
+- **자동 감지**: 웹페이지에서 주소 복사 시 자동으로 변환 (설정에서 활성화)
+- **7가지 출력 포맷**: 표준형식, 도로명, 지번, 행정동, 우편번호, 세부주소
+- **즐겨찾기/히스토리**: 최근 변환 기록 저장 및 즐겨찾기
+
 ---
 
 ## 사용 방법
@@ -86,16 +95,23 @@ CSV/엑셀 파일을 업로드하면 위도/경도 컬럼을 추가해줍니다.
 
 ### 설치 및 실행
 
+**웹 앱 (Next.js)**
 ```bash
-# 의존성 설치
 npm install --legacy-peer-deps
-
-# 개발 서버 실행
-npm run dev
-
-# 프로덕션 빌드
-npm run build
+npm run dev      # 개발 서버 (http://localhost:3000)
+npm run build    # 프로덕션 빌드
 ```
+
+**Chrome 익스텐션 (Plasmo)**
+```bash
+cd extension
+npm install
+npm run dev      # 개발 모드 (핫 리로드)
+npm run build    # 프로덕션 빌드 (build/ 폴더)
+npm run package  # .zip 패키징 (Web Store 배포용)
+```
+
+빌드 후 `chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램을 로드합니다" → `extension/build/chrome-mv3-prod` 폴더 선택
 
 ### 환경 변수
 
@@ -112,11 +128,18 @@ KAKAO_REST_API_KEY=your_kakao_rest_api_key
 
 ### 기술 스택
 
+**웹 앱**
 - **Framework**: Next.js 15 (App Router), React 19
 - **UI**: Tailwind CSS 4, shadcn/ui
 - **지도**: Leaflet.js (OpenStreetMap)
 - **API**: Kakao Local API
 - **엑셀**: xlsx 라이브러리
+
+**Chrome 익스텐션**
+- **Framework**: Plasmo, React 19, TypeScript
+- **UI**: Tailwind CSS 3
+- **저장소**: @plasmohq/storage (chrome.storage 래핑)
+- **Manifest**: V3 (service worker, content script)
 
 ### Vercel 배포
 

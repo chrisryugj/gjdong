@@ -5,7 +5,8 @@ const MAX_BATCH_SIZE = 1000
 
 export async function POST(request: NextRequest) {
   try {
-    const { addresses } = await request.json()
+    const body = await request.json()
+    const { addresses } = body
 
     if (!addresses || !Array.isArray(addresses)) {
       return NextResponse.json({ error: "Addresses array is required" }, { status: 400 })
@@ -16,6 +17,14 @@ export async function POST(request: NextRequest) {
         { error: `최대 ${MAX_BATCH_SIZE}건까지 처리 가능합니다. 현재 ${addresses.length}건` },
         { status: 400 },
       )
+    }
+
+    // 각 주소 항목 검증
+    for (const item of addresses) {
+      const addr = typeof item === "string" ? item : item?.address
+      if (typeof addr !== "string" || addr.length > 500) {
+        return NextResponse.json({ error: "Invalid address in array" }, { status: 400 })
+      }
     }
 
     const totalAddresses = addresses.length
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("[v0] Batch resolve error:", error)
+    console.error("[v0] Batch resolve error:", error instanceof Error ? error.message : "Unknown error")
     return NextResponse.json({ error: "Failed to resolve addresses" }, { status: 500 })
   }
 }

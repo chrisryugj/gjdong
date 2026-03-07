@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Two main features:
+Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Three main surfaces:
 1. **Main Converter** (`/`) - Single/batch address conversion with Excel export
 2. **Tableau Geocoder** (`/tableau-geocoder`) - CSV/Excel file upload for bulk geocoding (adds lat/lon columns)
+3. **Chrome Extension** (`extension/`) - Browser extension for instant address conversion (popup, right-click, shortcut, auto-detect)
 
 ## Development Commands
 
@@ -79,6 +80,39 @@ Uses `@/*` mapping to project root (configured in tsconfig.json):
 import { Button } from "@/components/ui/button"
 import { resolveAddress } from "@/lib/utils/kakao-api"
 ```
+
+## Chrome Extension (`extension/`)
+
+### Tech Stack
+- Plasmo framework (Manifest V3), React 19, TypeScript, Tailwind CSS 3
+- `@plasmohq/storage` for chrome.storage persistence
+
+### Extension Commands
+```bash
+cd extension
+npm install       # Install extension dependencies
+npm run dev       # Dev mode with hot reload
+npm run build     # Production build → build/chrome-mv3-prod
+npm run package   # Package as .zip for distribution
+```
+
+### Structure
+- **popup.tsx** - Main popup UI (single/batch conversion, 7 output formats, history, favorites)
+- **background.ts** - Service worker (context menu, keyboard shortcut `Ctrl+Shift+C`, auto-detect handler)
+- **content.ts** - Content script (clipboard address auto-detection on web pages)
+- **options.tsx** - Settings page (API server, default format, map provider, notifications, auto-detect)
+- **lib/api.ts** - API client (calls web app's `/api/resolve-address` and `/api/resolve-address-batch`)
+- **lib/types.ts** - Types, constants, field labels/examples
+- **lib/storage.ts** - History (max 20 + unlimited favorites), settings management
+- **lib/format.ts** - Field value extraction for 7 output formats
+
+### Key Features
+- 7 output formats: 표준형식1, 표준형식2, 도로명주소, 지번주소, 행정동, 우편번호, 세부주소
+- Context menu "표준주소 변환" on text selection
+- Clipboard shortcut with desktop notification
+- Content script auto-detection with Korean address regex pattern
+- Independent popup window mode (stays open after clicking away)
+- Configurable API base URL (defaults to https://gjdong.vercel.app)
 
 ## Key Implementation Details
 

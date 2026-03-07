@@ -21,17 +21,20 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Download, Upload, MapPin, Play } from 'lucide-react';
+import { Download, Upload, Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
+const MAX_ROWS = 5000;
+
 export default function TableauGeocoderPage() {
-    const [data, setData] = useState<any[]>([]);
+    const [data, setData] = useState<Record<string, any>[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
     const [addressColumn, setAddressColumn] = useState<string>('');
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [progress, setProgress] = useState(0);
     const [encoding, setEncoding] = useState('EUC-KR');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const abortRef = useRef<AbortController | null>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -45,10 +48,8 @@ export default function TableauGeocoderPage() {
             let wb;
 
             if (isCsv && typeof bstr === 'string') {
-                // For CSVs read as text, parse manually or use XLSX.read with type 'string'
                 wb = XLSX.read(bstr, { type: 'string' });
             } else {
-                // For Excel or binary read
                 wb = XLSX.read(bstr, { type: 'binary' });
             }
 
@@ -57,24 +58,28 @@ export default function TableauGeocoderPage() {
             const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
             if (jsonData.length > 0) {
-                const headers = jsonData[0] as string[];
-                const rows = jsonData.slice(1).map((row: any) => {
-                    const rowData: any = {};
-                    headers.forEach((header, index) => {
+                const fileHeaders = jsonData[0] as string[];
+                let rows = jsonData.slice(1).map((row: any) => {
+                    const rowData: Record<string, any> = {};
+                    fileHeaders.forEach((header, index) => {
                         rowData[header] = row[index];
                     });
                     return rowData;
                 });
 
-                setHeaders(headers);
+                if (rows.length > MAX_ROWS) {
+                    toast.warning(`최대 ${MAX_ROWS}행까지 처리 가능합니다. ${rows.length}행 중 ${MAX_ROWS}행만 로드합니다.`);
+                    rows = rows.slice(0, MAX_ROWS);
+                }
+
+                setHeaders(fileHeaders);
                 setData(rows);
 
-                // Try to auto-detect address column
-                const likelyAddress = headers.find(h => h.toLowerCase().includes('address') || h.toLowerCase().includes('주소'));
+                const likelyAddress = fileHeaders.find(h => h.toLowerCase().includes('address') || h.toLowerCase().includes('주소'));
                 if (likelyAddress) {
                     setAddressColumn(likelyAddress);
-                } else if (headers.length > 0) {
-                    setAddressColumn(headers[0]);
+                } else if (fileHeaders.length > 0) {
+                    setAddressColumn(fileHeaders[0]);
                 }
             }
         };
@@ -86,18 +91,32 @@ export default function TableauGeocoderPage() {
         }
     };
 
+    const handleCancel = () => {
+        abortRef.current?.abort();
+    };
+
     const handleGeocode = async () => {
         if (!addressColumn) {
-            toast.error('Please select an address column');
+            toast.error('주소 컬럼을 선택해주세요');
             return;
         }
 
+        const controller = new AbortController();
+        abortRef.current = controller;
         setIsGeocoding(true);
         setProgress(0);
-        const newData = [...data];
+
+        // 깊은 복사 — 원본 state 변이 방지
+        const newData = data.map(row => ({ ...row }));
         let completed = 0;
+        let cancelled = false;
 
         for (let i = 0; i < newData.length; i++) {
+            if (controller.signal.aborted) {
+                cancelled = true;
+                break;
+            }
+
             const address = newData[i][addressColumn];
             if (address) {
                 try {
@@ -105,12 +124,20 @@ export default function TableauGeocoderPage() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ address }),
+                        signal: controller.signal,
                     });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const result = await response.json();
-                    newData[i]['Latitude'] = result.y;
-                    newData[i]['Longitude'] = result.x;
+                    if (result.x != null && result.y != null) {
+                        newData[i]['Latitude'] = result.y;
+                        newData[i]['Longitude'] = result.x;
+                    }
                 } catch (error) {
-                    console.error('Error geocoding row', i, error);
+                    if (controller.signal.aborted) {
+                        cancelled = true;
+                        break;
+                    }
+                    // 개별 행 에러는 건너뜀
                 }
             }
             completed++;
@@ -119,7 +146,13 @@ export default function TableauGeocoderPage() {
 
         setData(newData);
         setIsGeocoding(false);
-        toast.success('Geocoding completed!');
+        abortRef.current = null;
+
+        if (cancelled) {
+            toast.info(`${completed}/${newData.length}건 처리 후 취소됨`);
+        } else {
+            toast.success('지오코딩 완료!');
+        }
     };
 
     const handleDownload = () => {
@@ -170,6 +203,7 @@ export default function TableauGeocoderPage() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                         * If Korean characters appear broken, try selecting <strong>EUC-KR</strong> or <strong>CP949</strong> before uploading.
+                        (Max {MAX_ROWS.toLocaleString()} rows)
                     </p>
                 </CardContent>
             </Card>
@@ -196,15 +230,15 @@ export default function TableauGeocoderPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <Button onClick={handleGeocode} disabled={isGeocoding}>
-                                {isGeocoding ? (
-                                    'Processing...'
-                                ) : (
-                                    <>
-                                        <Play className="mr-2 h-4 w-4" /> Start Geocoding
-                                    </>
-                                )}
-                            </Button>
+                            {isGeocoding ? (
+                                <Button onClick={handleCancel} variant="destructive">
+                                    <Square className="mr-2 h-4 w-4" /> Cancel
+                                </Button>
+                            ) : (
+                                <Button onClick={handleGeocode} disabled={isGeocoding}>
+                                    <Play className="mr-2 h-4 w-4" /> Start Geocoding
+                                </Button>
+                            )}
                         </div>
 
                         {isGeocoding && <Progress value={progress} className="w-full" />}

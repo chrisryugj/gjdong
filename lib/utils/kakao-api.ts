@@ -311,6 +311,16 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     const lon = Number.parseFloat(result.x)
     const lat = Number.parseFloat(result.y)
 
+    if (isNaN(lon) || isNaN(lat)) {
+      return {
+        display: address,
+        meta: { sido: "", gu: "", lon: 127.0845, lat: 37.5384, source: "FALLBACK" },
+        fallback: true,
+        message: "좌표 정보를 파싱할 수 없습니다.",
+        originalInput: address,
+      }
+    }
+
     // 5. 좌표 → 주소 변환
     const addrDoc = await kakaoCoord2Address(lon, lat)
     const regions = await kakaoCoord2Region(lon, lat)

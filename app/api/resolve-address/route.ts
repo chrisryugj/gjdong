@@ -3,17 +3,22 @@ import { resolveAddress } from "@/lib/utils/kakao-api"
 
 export async function POST(request: NextRequest) {
   try {
-    const { address } = await request.json()
+    const body = await request.json()
+    const { address } = body
 
-    if (!address) {
+    if (!address || typeof address !== "string") {
       return NextResponse.json({ error: "Address is required" }, { status: 400 })
+    }
+
+    if (address.length > 500) {
+      return NextResponse.json({ error: "Address too long" }, { status: 400 })
     }
 
     const result = await resolveAddress(address)
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error("[v0] Resolve address error:", error)
+    console.error("[v0] Resolve address error:", error instanceof Error ? error.message : "Unknown error")
     return NextResponse.json({ error: "Failed to resolve address" }, { status: 500 })
   }
 }

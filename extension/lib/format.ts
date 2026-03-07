@@ -4,13 +4,13 @@ export function getFieldValue(result: ResolvedDisplay, field: OutputField): stri
   if (result.fallback) return "변환 실패"
 
   const { meta } = result
-  const fullBuildingNo = meta.unit
-    ? `${meta.buildingNo} ${meta.unit}`
-    : meta.buildingNo
+  const fullBuildingNo = meta.buildingNo
+    ? (meta.unit ? `${meta.buildingNo} ${meta.unit}` : meta.buildingNo)
+    : (meta.unit || "")
 
   switch (field) {
     case "standard1":
-      return `${meta.sido} ${result.display}`
+      return meta.sido ? `${meta.sido} ${result.display}` : result.display
     case "standard2":
       return result.display
     case "road":
@@ -19,7 +19,7 @@ export function getFieldValue(result: ResolvedDisplay, field: OutputField): stri
         : ""
     case "jibun":
       return meta.legalDong
-        ? `${meta.gu} ${meta.legalDong} ${meta.jibunNo}`
+        ? `${meta.gu} ${meta.legalDong} ${meta.jibunNo || ""}`
         : ""
     case "adminDong":
       return meta.adminDong || ""
