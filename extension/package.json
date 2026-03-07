@@ -39,8 +39,8 @@
     "commands": {
       "convert-clipboard": {
         "suggested_key": {
-          "default": "Ctrl+Shift+A",
-          "mac": "Command+Shift+A"
+          "default": "Ctrl+Shift+C",
+          "mac": "Command+Shift+C"
         },
         "description": "클립보드 주소를 즉시 변환"
       }

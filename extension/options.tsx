@@ -16,7 +16,7 @@ function IndexOptions() {
   const [local, setLocal] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const [currentShortcut, setCurrentShortcut] = useState("Ctrl+Shift+A")
+  const [currentShortcut, setCurrentShortcut] = useState("Ctrl+Shift+C")
 
   useEffect(() => {
     if (storedSettings) setLocal(storedSettings)

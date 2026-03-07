@@ -211,17 +211,17 @@ function IndexPopup() {
   }
 
   return (
-    <div className="flex flex-col bg-gray-50 text-gray-800" style={{ width: 400 }}>
+    <div className="flex flex-col bg-gray-50 text-gray-800" style={{ width: 400, minWidth: 400 }}>
       {/* 헤더 */}
-      <div className="text-center pt-3 pb-1 px-4">
+      <div className="flex items-baseline justify-center gap-2 pt-3 pb-1 px-4">
         <h1
-          className="text-[28px] font-black tracking-tight text-gray-900"
+          className="text-[34px] font-black tracking-tight text-gray-900"
           style={{ fontFamily: "Shilla, sans-serif" }}
         >
           표준주소실록
         </h1>
         <span
-          className="text-[11px] text-gray-400"
+          className="text-[14px] text-gray-400"
           style={{ fontFamily: "Shilla, sans-serif" }}
         >
           v{version}
@@ -508,6 +508,27 @@ function IndexPopup() {
       {/* 푸터 */}
       <div className="px-3 py-2 mt-1 text-center space-y-1">
         <div className="flex items-center justify-center gap-3 text-[10px]">
+          <button
+            onClick={() => {
+              chrome.windows.create({
+                url: chrome.runtime.getURL("popup.html"),
+                type: "popup",
+                width: 500,
+                height: 540,
+                focused: true
+              })
+              window.close()
+            }}
+            className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1"
+            title="독립 창으로 열기 (닫히지 않음)">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            새 창
+          </button>
+          <span className="text-gray-200">·</span>
           <button
             onClick={openWebApp}
             className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1"
