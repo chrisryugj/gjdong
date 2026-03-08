@@ -296,14 +296,15 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
     const addrDoc = await kakaoCoord2Address(lon, lat)
     const regions = await kakaoCoord2Region(lon, lat)
 
-    // reverse geocode 실패 시 부분 성공 처리
-    const isPartial = !addrDoc && regions.length === 0
-
     const adminRegion = regions.find((r) => r.region_type === "H")
     const legalRegion = regions.find((r) => r.region_type === "B")
 
     const roadAddr = addrDoc?.road_address
     const jibunAddr = addrDoc?.address
+
+    // reverse geocode 실패 시 부분 성공 처리
+    // addrDoc이 null이면 도로명/지번 정보가 없으므로 isPartial
+    const isPartial = !roadAddr && !jibunAddr
 
     const sido = legalRegion?.region_1depth_name || ""
     const gu = legalRegion?.region_2depth_name || ""

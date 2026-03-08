@@ -353,7 +353,7 @@ export default function AddressGenerator() {
           const now = Date.now()
           const elapsedTime = now - startTime
           const processedCount = allResults.length
-          const avgTimePerAddress = elapsedTime / processedCount
+          const avgTimePerAddress = processedCount > 0 ? elapsedTime / processedCount : 0
           const remainingCount = addresses.length - processedCount
 
           setProgress({

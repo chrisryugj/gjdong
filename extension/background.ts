@@ -77,8 +77,39 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 })
 
+// 클립보드 자동감지: 설정 변경 시 content script 동적 등록/해제
+const CONTENT_SCRIPT_ID = "clipboard-detect"
+
+async function updateContentScriptRegistration() {
+  const settings = await storage.get<ExtensionSettings>("settings")
+  const enabled = settings?.enableClipboardDetect ?? false
+
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [CONTENT_SCRIPT_ID] })
+    if (enabled && existing.length === 0) {
+      await chrome.scripting.registerContentScripts([{
+        id: CONTENT_SCRIPT_ID,
+        matches: ["<all_urls>"],
+        js: ["content.js"],
+        runAt: "document_idle",
+        allFrames: false,
+      }])
+    } else if (!enabled && existing.length > 0) {
+      await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] })
+    }
+  } catch {
+    // content script 등록 실패 무시
+  }
+}
+
+// 설치/업데이트 시 + 설정 변경 시 content script 등록 상태 동기화
+chrome.runtime.onInstalled.addListener(() => updateContentScriptRegistration())
+storage.watch({
+  settings: () => updateContentScriptRegistration()
+})
+
 // 콘텐트 스크립트에서 클립보드 주소 감지 메시지 수신
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, _sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false
   if (!sender.tab?.id) return false
 
@@ -108,7 +139,7 @@ async function handleClipboardDetect(address: string, tabId?: number) {
   }
 }
 
-// 단축키/감지용 무음 변환
+// 단축키용 무음 변환
 async function convertAndNotify(address: string, tabId?: number) {
   try {
     const settings = await storage.get<ExtensionSettings>("settings")

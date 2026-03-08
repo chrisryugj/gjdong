@@ -24,7 +24,9 @@ import { Download, Upload, Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MAX_ROWS = 5000;
-const GEOCODE_CHUNK_SIZE = 20;
+const GEOCODE_CHUNK_SIZE = 5;
+const GEOCODE_CHUNK_DELAY_MS = 200;
+const GEOCODE_MAX_RETRIES = 2;
 
 type DataRow = Record<string, string | number | undefined>;
 
@@ -128,19 +130,27 @@ export default function TableauGeocoderPage() {
                     const address = row[addressColumn];
                     if (!address) return;
 
-                    const response = await fetch('/api/geocode', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ address }),
-                        signal: controller.signal,
-                    });
+                    for (let retry = 0; retry <= GEOCODE_MAX_RETRIES; retry++) {
+                        const response = await fetch('/api/geocode', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address }),
+                            signal: controller.signal,
+                        });
 
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const result = await response.json();
+                        if (response.status === 429 && retry < GEOCODE_MAX_RETRIES) {
+                            await new Promise(resolve => setTimeout(resolve, 2000 * (retry + 1)));
+                            continue;
+                        }
 
-                    if (result.x != null && result.y != null) {
-                        newData[i + j]['Latitude'] = result.y;
-                        newData[i + j]['Longitude'] = result.x;
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const result = await response.json();
+
+                        if (result.x != null && result.y != null) {
+                            newData[i + j]['Latitude'] = result.y;
+                            newData[i + j]['Longitude'] = result.x;
+                        }
+                        break;
                     }
                 })
             );
@@ -162,6 +172,11 @@ export default function TableauGeocoderPage() {
 
             completed += chunk.length;
             setProgress(Math.round((completed / newData.length) * 100));
+
+            // 청크 간 딜레이 (rate limit 방어)
+            if (i + GEOCODE_CHUNK_SIZE < newData.length) {
+                await new Promise(resolve => setTimeout(resolve, GEOCODE_CHUNK_DELAY_MS));
+            }
         }
 
         setData(newData);

@@ -35,7 +35,8 @@
       "scripting"
     ],
     "host_permissions": [
-      "<all_urls>"
+      "https://gjdong.vercel.app/*",
+      "http://localhost:3000/*"
     ],
     "commands": {
       "convert-clipboard": {

@@ -133,7 +133,21 @@ export async function POST(request: NextRequest) {
           await new Promise((resolve) => setTimeout(resolve, batchDelay))
         }
       } catch (batchError) {
-        console.error("[v0] Batch processing error:", batchError)
+        console.error("[v0] Batch processing error:", batchError instanceof Error ? batchError.message : "Unknown error")
+        // 실패한 배치의 주소들을 fallback 결과로 추가 (조용히 누락 방지)
+        for (const item of batch) {
+          const address = typeof item === "string" ? item : item?.address || ""
+          const facilityName =
+            typeof item === "object" && typeof item?.facilityName === "string" ? item.facilityName : undefined
+          results.push({
+            display: address,
+            meta: { sido: "", gu: "", ...FALLBACK_COORDS, source: "FALLBACK" },
+            fallback: true,
+            message: "주소 변환 중 오류가 발생했습니다.",
+            originalInput: address,
+            facilityName,
+          })
+        }
         batchSize = Math.max(3, Math.floor(batchSize * 0.7))
         batchDelay = Math.min(400, batchDelay * 2)
         i += currentBatchSize

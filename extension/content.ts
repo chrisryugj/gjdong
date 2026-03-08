@@ -1,8 +1,10 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { Storage } from "@plasmohq/storage"
 
+// content script는 background.ts에서 chrome.scripting.registerContentScripts로 동적 등록
+// 여기서는 Plasmo 빌드용으로만 존재 (matches 없음 → 자동 주입 안 됨)
 export const config: PlasmoCSConfig = {
-  matches: ["<all_urls>"],
+  matches: [],
   run_at: "document_idle",
   all_frames: false
 }
@@ -18,8 +20,8 @@ const COOLDOWN_MS = 3000
 // 설정에서 클립보드 감지 활성화 여부 확인
 async function checkEnabled() {
   try {
-    const settings = await storage.get<Record<string, any>>("settings")
-    enabled = settings?.enableClipboardDetect ?? false
+    const settings = await storage.get<Record<string, unknown>>("settings")
+    enabled = (settings?.enableClipboardDetect as boolean) ?? false
   } catch {
     enabled = false
   }

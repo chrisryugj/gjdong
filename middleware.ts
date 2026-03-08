@@ -15,13 +15,12 @@ export function middleware(request: NextRequest) {
   const isExtensionAllowed = extensionId ? origin === `chrome-extension://${extensionId}` : false
   const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtensionAllowed
 
-  // 비허용 origin 처리
+  // 비허용 origin → 요청 자체를 차단 (route 도달 방지)
   if (!isAllowed) {
-    if (request.method === "OPTIONS") {
-      return new NextResponse(null, { status: 403 })
-    }
-    // CORS 헤더 없이 응답 (브라우저가 차단)
-    return NextResponse.next()
+    return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    })
   }
 
   // OPTIONS 프리플라이트 요청 처리

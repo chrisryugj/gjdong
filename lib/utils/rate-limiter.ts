@@ -1,4 +1,6 @@
 // IP 기반 sliding window rate limiter
+// ⚠️ 주의: 인메모리 Map 기반이므로 Vercel 서버리스에서는 인스턴스마다 독립적으로 동작
+// 프로덕션에서 확실한 rate limiting이 필요하면 Upstash Redis(@upstash/ratelimit)로 교체 필요
 
 type RateLimitEntry = {
   timestamps: number[]
@@ -7,7 +9,7 @@ type RateLimitEntry = {
 const ipMap = new Map<string, RateLimitEntry>()
 const WINDOW_MS = 60_000 // 1분
 
-// 주기적 만료 엔트리 정리
+// 주기적 만료 엔트리 정리 (인스턴스 수명 동안만 유효)
 if (typeof setInterval !== "undefined") {
   setInterval(() => {
     const now = Date.now()
@@ -22,8 +24,8 @@ export type RateLimitType = "single" | "batch" | "geocode"
 
 const LIMITS: Record<RateLimitType, number> = {
   single: 30,
-  batch: 5,
-  geocode: 10,
+  batch: 30,
+  geocode: 300,
 }
 
 export function checkRateLimit(
