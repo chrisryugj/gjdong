@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Maximize2 } from "lucide-react"
+import type { DivIcon, Map as LeafletMap } from "leaflet"
 import { Button } from "@/components/ui/button"
 
 interface MapViewProps {
@@ -12,24 +13,18 @@ interface MapViewProps {
     lat: number
     lon: number
     address: string
-    title?: string // Added title field for facility name
+    title?: string
     roadName?: string
     jibunAddress?: string
     adminDong?: string
   }>
 }
 
-declare global {
-  interface Window {
-    L: any
-  }
-}
-
 export default function MapView({ lat, lon, address, markers }: MapViewProps) {
+  const [mapError, setMapError] = useState<string | null>(null)
   const mapRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const leafletLoadedRef = useRef(false)
+  const mapInstanceRef = useRef<LeafletMap | null>(null)
 
   const handleFullscreen = async () => {
     if (!containerRef.current) return
@@ -40,9 +35,7 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
       } else {
         await containerRef.current.requestFullscreen()
         setTimeout(() => {
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.invalidateSize()
-          }
+          mapInstanceRef.current?.invalidateSize()
         }, 100)
       }
     } catch (err) {
@@ -51,62 +44,33 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
   }
 
   useEffect(() => {
-    const loadLeaflet = () => {
-      if (leafletLoadedRef.current || window.L) {
-        leafletLoadedRef.current = true
-        return Promise.resolve()
-      }
-
-      return new Promise<void>((resolve) => {
-        const link = document.createElement("link")
-        link.rel = "stylesheet"
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        link.crossOrigin = "anonymous"
-        document.head.appendChild(link)
-
-        const script = document.createElement("script")
-        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        script.crossOrigin = "anonymous"
-        script.async = true
-        document.head.appendChild(script)
-
-        script.onload = () => {
-          leafletLoadedRef.current = true
-          resolve()
-        }
-      })
-    }
+    let cancelled = false
 
     const initMap = async () => {
-      await loadLeaflet()
+      try {
+        const L = await import("leaflet")
 
-      if (!mapRef.current || !window.L) return
+        if (cancelled || !mapRef.current) return
+        setMapError(null)
 
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
-
-      const map = window.L.map(mapRef.current).setView([lat, lon], markers && markers.length > 1 ? 13 : 15)
-      mapInstanceRef.current = map
-
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-      }).addTo(map)
-
-      if (markers && markers.length > 0) {
-        const bounds = window.L.latLngBounds()
-
-        const escapeHtml = (text: string) => {
-          const div = document.createElement("div")
-          div.textContent = text
-          return div.innerHTML
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove()
+          mapInstanceRef.current = null
         }
 
-        markers.forEach((marker, index) => {
-          const markerIcon = window.L.divIcon({
+        const createSingleMarkerIcon = (): DivIcon =>
+          L.divIcon({
+            className: "custom-marker",
+            html: `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
+              <path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="#2563eb"/>
+              <circle cx="12.5" cy="12.5" r="6" fill="white"/>
+            </svg>`,
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+          })
+
+        const createNumberedMarkerIcon = (index: number): DivIcon =>
+          L.divIcon({
             className: "custom-marker",
             html: `<div style="
               background: #3b82f6;
@@ -126,52 +90,67 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
             iconAnchor: [16, 16],
           })
 
-          const leafletMarker = window.L.marker([marker.lat, marker.lon], { icon: markerIcon }).addTo(map)
+        const map = L.map(mapRef.current).setView([lat, lon], markers && markers.length > 1 ? 13 : 15)
+        mapInstanceRef.current = map
 
-          const tooltipContent = `
-            <div style="font-size: 12px; line-height: 1.4;">
-              ${marker.title ? `<div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #2563eb;">${escapeHtml(marker.title)}</div>` : ""}
-              <div style="font-weight: bold; margin-bottom: 4px;">위치 ${index + 1}</div>
-              ${marker.roadName ? `<div>도로명: ${escapeHtml(marker.roadName)}</div>` : ""}
-              ${marker.jibunAddress ? `<div>지번: ${escapeHtml(marker.jibunAddress)}</div>` : ""}
-              ${marker.adminDong ? `<div>행정동: ${escapeHtml(marker.adminDong)}</div>` : ""}
-            </div>
-          `
-          leafletMarker.bindTooltip(tooltipContent, { direction: "top", offset: [0, -10] })
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "© OpenStreetMap contributors",
+        }).addTo(map)
 
-          bounds.extend([marker.lat, marker.lon])
-        })
+        if (markers && markers.length > 0) {
+          const bounds = L.latLngBounds(markers.map((marker) => [marker.lat, marker.lon] as [number, number]))
 
-        map.fitBounds(bounds, { padding: [50, 50] })
-      } else {
-        const markerIcon = window.L.icon({
-          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-          iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-          iconSize: [25, 41],
-          iconAnchor: [12, 41],
-        })
-        window.L.marker([lat, lon], { icon: markerIcon }).addTo(map)
+          const escapeHtml = (text: string) => {
+            const div = document.createElement("div")
+            div.textContent = text
+            return div.innerHTML
+          }
+
+          markers.forEach((marker, index) => {
+            const leafletMarker = L.marker([marker.lat, marker.lon], {
+              icon: createNumberedMarkerIcon(index),
+            }).addTo(map)
+
+            const tooltipContent = `
+              <div style="font-size: 12px; line-height: 1.4;">
+                ${marker.title ? `<div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #2563eb;">${escapeHtml(marker.title)}</div>` : ""}
+                <div style="font-weight: bold; margin-bottom: 4px;">위치 ${index + 1}</div>
+                ${marker.roadName ? `<div>도로명 ${escapeHtml(marker.roadName)}</div>` : ""}
+                ${marker.jibunAddress ? `<div>지번 ${escapeHtml(marker.jibunAddress)}</div>` : ""}
+                ${marker.adminDong ? `<div>행정동 ${escapeHtml(marker.adminDong)}</div>` : ""}
+              </div>
+            `
+            leafletMarker.bindTooltip(tooltipContent, { direction: "top", offset: [0, -10] })
+
+            bounds.extend([marker.lat, marker.lon])
+          })
+
+          map.fitBounds(bounds, { padding: [50, 50] })
+        } else {
+          L.marker([lat, lon], { icon: createSingleMarkerIcon() }).addTo(map)
+        }
+      } catch (error) {
+        console.error("Map initialization error:", error)
+        if (!cancelled) {
+          setMapError("지도를 불러오지 못했습니다.")
+        }
       }
     }
 
-    initMap()
+    void initMap()
 
     const handleFullscreenChange = () => {
       setTimeout(() => {
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.invalidateSize()
-        }
+        mapInstanceRef.current?.invalidateSize()
       }, 100)
     }
 
     document.addEventListener("fullscreenchange", handleFullscreenChange)
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-      }
+      cancelled = true
+      mapInstanceRef.current?.remove()
+      mapInstanceRef.current = null
       document.removeEventListener("fullscreenchange", handleFullscreenChange)
     }
   }, [lat, lon, markers])
@@ -179,6 +158,11 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
   return (
     <div ref={containerRef} className="relative w-full rounded-lg border border-border overflow-hidden h-[300px]">
       <div ref={mapRef} className="w-full h-full" />
+      {mapError && (
+        <div className="absolute inset-0 z-[1002] flex items-center justify-center bg-background/95 px-4 text-center text-sm text-muted-foreground">
+          {mapError}
+        </div>
+      )}
 
       <Button
         onClick={handleFullscreen}

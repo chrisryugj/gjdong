@@ -11,13 +11,15 @@ const WINDOW_MS = 60_000 // 1분
 
 // 주기적 만료 엔트리 정리 (인스턴스 수명 동안만 유효)
 if (typeof setInterval !== "undefined") {
-  setInterval(() => {
+  const cleanupTimer = setInterval(() => {
     const now = Date.now()
     for (const [key, entry] of ipMap) {
       entry.timestamps = entry.timestamps.filter((t) => now - t < WINDOW_MS)
       if (entry.timestamps.length === 0) ipMap.delete(key)
     }
   }, 60_000)
+
+  cleanupTimer.unref?.()
 }
 
 export type RateLimitType = "single" | "batch" | "geocode"

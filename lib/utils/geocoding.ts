@@ -2,7 +2,7 @@ export type GeocodingResult = {
   lat: number
   lng: number
   display_name: string
-  address: any
+  address: Record<string, string | undefined>
 }
 
 const API_URL = "https://nominatim.openstreetmap.org/search"

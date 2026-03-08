@@ -1,10 +1,8 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { Storage } from "@plasmohq/storage"
 
-// content script는 background.ts에서 chrome.scripting.registerContentScripts로 동적 등록
-// 여기서는 Plasmo 빌드용으로만 존재 (matches 없음 → 자동 주입 안 됨)
 export const config: PlasmoCSConfig = {
-  matches: [],
+  matches: ["<all_urls>"],
   run_at: "document_idle",
   all_frames: false
 }

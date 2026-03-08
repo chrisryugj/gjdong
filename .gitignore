@@ -1,6 +1,7 @@
 # dependencies
 node_modules
 .pnpm-store
+extension/.plasmo
 
 # next.js
 .next/

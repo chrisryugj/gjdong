@@ -2,20 +2,16 @@ import { NextResponse, type NextRequest } from "next/server"
 
 const ALLOWED_ORIGINS = ["https://gjdong.vercel.app", "http://localhost:3000"]
 
-export function middleware(request: NextRequest) {
-  // API 경로만 CORS 처리
+export function proxy(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.next()
   }
 
   const origin = request.headers.get("origin") || ""
-
-  // 특정 Chrome 익스텐션 ID만 허용 (env 설정 시)
   const extensionId = process.env.CHROME_EXTENSION_ID
   const isExtensionAllowed = extensionId ? origin === `chrome-extension://${extensionId}` : false
   const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtensionAllowed
 
-  // 비허용 origin → 요청 자체를 차단 (route 도달 방지)
   if (!isAllowed) {
     return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
@@ -23,7 +19,6 @@ export function middleware(request: NextRequest) {
     })
   }
 
-  // OPTIONS 프리플라이트 요청 처리
   if (request.method === "OPTIONS") {
     return new NextResponse(null, {
       status: 204,
@@ -31,7 +26,6 @@ export function middleware(request: NextRequest) {
     })
   }
 
-  // 응답에 CORS 헤더 추가
   const response = NextResponse.next()
   for (const [key, value] of Object.entries(corsHeaders(origin))) {
     response.headers.set(key, value)
