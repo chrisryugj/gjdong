@@ -112,6 +112,7 @@ export default function TableauGeocoderPage() {
 
         const newData = data.map(row => ({ ...row }));
         let completed = 0;
+        let totalFail = 0;
         let cancelled = false;
 
         // 청크 단위 병렬 처리
@@ -144,6 +145,15 @@ export default function TableauGeocoderPage() {
                 })
             );
 
+            // 실패 건수 집계
+            results.forEach((r, j) => {
+                if (r.status === 'rejected') {
+                    totalFail++;
+                } else if (newData[i + j]['Latitude'] == null && newData[i + j][addressColumn]) {
+                    totalFail++;
+                }
+            });
+
             // 취소 확인
             if (controller.signal.aborted) {
                 cancelled = true;
@@ -159,7 +169,9 @@ export default function TableauGeocoderPage() {
         abortRef.current = null;
 
         if (cancelled) {
-            toast.info(`${completed}/${newData.length}건 처리 후 취소됨`);
+            toast.info(`${completed}/${newData.length}건 처리 후 취소됨${totalFail > 0 ? ` (실패: ${totalFail}건)` : ''}`);
+        } else if (totalFail > 0) {
+            toast.warning(`지오코딩 완료 (성공: ${newData.length - totalFail}건, 실패: ${totalFail}건)`);
         } else {
             toast.success('지오코딩 완료!');
         }

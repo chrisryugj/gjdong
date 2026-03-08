@@ -55,8 +55,9 @@ export async function POST(request: NextRequest) {
     let retryAttempts = 0
     const maxRetries = 2
 
-    for (let i = 0; i < addresses.length; i += batchSize) {
-      const batch = addresses.slice(i, i + batchSize)
+    for (let i = 0; i < addresses.length; ) {
+      const currentBatchSize = batchSize
+      const batch = addresses.slice(i, i + currentBatchSize)
 
       try {
         const batchResults = await Promise.allSettled(
@@ -126,13 +127,16 @@ export async function POST(request: NextRequest) {
 
         errorCount = 0
 
-        if (i + batchSize < addresses.length) {
+        i += currentBatchSize
+
+        if (i < addresses.length) {
           await new Promise((resolve) => setTimeout(resolve, batchDelay))
         }
       } catch (batchError) {
         console.error("[v0] Batch processing error:", batchError)
         batchSize = Math.max(3, Math.floor(batchSize * 0.7))
         batchDelay = Math.min(400, batchDelay * 2)
+        i += currentBatchSize
       }
     }
 

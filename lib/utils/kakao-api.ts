@@ -296,6 +296,9 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
     const addrDoc = await kakaoCoord2Address(lon, lat)
     const regions = await kakaoCoord2Region(lon, lat)
 
+    // reverse geocode 실패 시 부분 성공 처리
+    const isPartial = !addrDoc && regions.length === 0
+
     const adminRegion = regions.find((r) => r.region_type === "H")
     const legalRegion = regions.find((r) => r.region_type === "B")
 
@@ -316,7 +319,9 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
     const postalCode = roadAddr?.zone_no || jibunAddr?.zip_code || ""
 
     const buildingNoDisplay = apartmentUnit ? `${buildingNo} ${apartmentUnit}` : buildingNo
-    const display = `${gu} ${roadName}${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
+    const display = isPartial
+      ? address
+      : `${gu} ${roadName}${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
 
     return {
       display,
@@ -337,6 +342,10 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
         searchMethod,
         placeName: searchMethod === "KEYWORD" ? result.place_name : undefined,
       },
+      ...(isPartial && {
+        fallback: true,
+        message: "좌표는 확인되었으나 상세 주소를 가져올 수 없습니다.",
+      }),
       originalInput: address,
     }
   } catch (error) {
