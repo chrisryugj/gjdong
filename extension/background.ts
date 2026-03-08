@@ -1,8 +1,22 @@
 import { Storage } from "@plasmohq/storage"
+import type { ExtensionSettings } from "~lib/types"
+import { getFieldValue } from "~lib/format"
 
 export {}
 
 const storage = new Storage()
+const DEFAULT_API_URL = "https://gjdong.vercel.app"
+
+function validateApiBaseUrl(url: string): string {
+  if (!url) return DEFAULT_API_URL
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== "https:") return DEFAULT_API_URL
+    return parsed.origin
+  } catch {
+    return DEFAULT_API_URL
+  }
+}
 
 // 컨텍스트 메뉴 등록 + 최초 설치 시 설정 페이지 열기
 chrome.runtime.onInstalled.addListener((details) => {
@@ -24,7 +38,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "convert-address" && info.selectionText) {
     const address = info.selectionText.trim()
 
-    const settings = await storage.get<Record<string, any>>("settings")
+    const settings = await storage.get<ExtensionSettings>("settings")
     const action = settings?.contextMenuAction || "popup"
 
     if (action === "popup") {
@@ -58,14 +72,13 @@ chrome.commands.onCommand.addListener(async (command) => {
     })
     const text = results?.[0]?.result?.trim()
     if (text) await convertAndNotify(text, tab.id)
-  } catch (err) {
-    console.error("[gjdong] Shortcut failed:", err instanceof Error ? err.message : err)
+  } catch {
+    // 단축키 실행 실패 - 무시
   }
 })
 
 // 콘텐트 스크립트에서 클립보드 주소 감지 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // 자체 익스텐션에서 온 메시지만 처리
   if (sender.id !== chrome.runtime.id) return false
   if (!sender.tab?.id) return false
 
@@ -78,7 +91,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // 클립보드 감지 시 설정에 따라 알림 또는 팝업
 async function handleClipboardDetect(address: string, tabId?: number) {
-  const settings = await storage.get<Record<string, any>>("settings")
+  const settings = await storage.get<ExtensionSettings>("settings")
   const action = settings?.clipboardAction || "notification"
 
   if (action === "popup") {
@@ -98,15 +111,16 @@ async function handleClipboardDetect(address: string, tabId?: number) {
 // 단축키/감지용 무음 변환
 async function convertAndNotify(address: string, tabId?: number) {
   try {
-    const settings = await storage.get<Record<string, any>>("settings")
-    const baseUrl = settings?.apiBaseUrl || "https://gjdong.vercel.app"
+    const settings = await storage.get<ExtensionSettings>("settings")
+    const baseUrl = validateApiBaseUrl(settings?.apiBaseUrl || "")
     const defaultFormat = settings?.defaultFormat || "standard1"
     const notificationsEnabled = settings?.enableNotifications ?? true
 
+    const sanitized = address.trim().slice(0, 200)
     const response = await fetch(`${baseUrl}/api/resolve-address`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address })
+      body: JSON.stringify({ address: sanitized })
     })
 
     if (!response.ok) throw new Error(`API error: ${response.status}`)
@@ -114,12 +128,12 @@ async function convertAndNotify(address: string, tabId?: number) {
 
     if (result.fallback) {
       if (notificationsEnabled) {
-        showNotification("변환 실패", `"${address}" 주소를 찾을 수 없습니다.`)
+        showNotification("변환 실패", `"${sanitized}" 주소를 찾을 수 없습니다.`)
       }
       return
     }
 
-    const formatted = formatResult(result, defaultFormat)
+    const formatted = getFieldValue(result, defaultFormat)
 
     let copied = false
     if (tabId) {
@@ -131,7 +145,6 @@ async function convertAndNotify(address: string, tabId?: number) {
               await navigator.clipboard.writeText(text)
               return true
             } catch {
-              // fallback
               const el = document.createElement("textarea")
               el.value = text
               el.style.position = "fixed"
@@ -158,7 +171,7 @@ async function convertAndNotify(address: string, tabId?: number) {
       )
     }
   } catch {
-    const settings = await storage.get<Record<string, any>>("settings")
+    const settings = await storage.get<ExtensionSettings>("settings")
     if (settings?.enableNotifications ?? true) {
       showNotification("변환 실패", "API 서버 연결을 확인하세요.")
     }
@@ -170,7 +183,7 @@ function showNotification(title: string, message: string) {
   const iconFile = icons["128"] || icons["48"] || ""
   const iconUrl = iconFile ? chrome.runtime.getURL(iconFile) : ""
 
-  chrome.notifications.create(`gjdong-${Date.now()}`, {
+  chrome.notifications.create(`gjdong-${crypto.randomUUID()}`, {
     type: "basic",
     iconUrl,
     title,
@@ -181,23 +194,4 @@ function showNotification(title: string, message: string) {
       // 알림 실패 무시
     }
   })
-}
-
-function formatResult(result: any, field: string): string {
-  if (result.fallback) return "변환 실패"
-  const m = result.meta
-  const bldg = m.buildingNo
-    ? (m.unit ? `${m.buildingNo} ${m.unit}` : m.buildingNo)
-    : (m.unit || "")
-
-  switch (field) {
-    case "standard1": return m.sido ? `${m.sido} ${result.display}` : result.display
-    case "standard2": return result.display
-    case "road": return m.roadName ? `${m.gu} ${m.roadName}${bldg}` : ""
-    case "jibun": return m.legalDong ? `${m.gu} ${m.legalDong} ${m.jibunNo || ""}` : ""
-    case "adminDong": return m.adminDong || ""
-    case "postalCode": return m.postalCode || ""
-    case "unit": return m.unit || ""
-    default: return ""
-  }
 }

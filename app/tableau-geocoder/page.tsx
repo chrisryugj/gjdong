@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -25,9 +24,12 @@ import { Download, Upload, Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MAX_ROWS = 5000;
+const GEOCODE_CHUNK_SIZE = 20;
+
+type DataRow = Record<string, string | number | undefined>;
 
 export default function TableauGeocoderPage() {
-    const [data, setData] = useState<Record<string, any>[]>([]);
+    const [data, setData] = useState<DataRow[]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
     const [addressColumn, setAddressColumn] = useState<string>('');
     const [isGeocoding, setIsGeocoding] = useState(false);
@@ -43,7 +45,8 @@ export default function TableauGeocoderPage() {
         const reader = new FileReader();
         const isCsv = file.name.toLowerCase().endsWith('.csv');
 
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
+            const XLSX = await import('xlsx');
             const bstr = evt.target?.result;
             let wb;
 
@@ -58,11 +61,12 @@ export default function TableauGeocoderPage() {
             const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
             if (jsonData.length > 0) {
-                const fileHeaders = jsonData[0] as string[];
-                let rows = jsonData.slice(1).map((row: any) => {
-                    const rowData: Record<string, any> = {};
+                const fileHeaders = (jsonData[0] as unknown[]).map(String);
+                let rows = jsonData.slice(1).map((row: unknown) => {
+                    const rowData: DataRow = {};
+                    const rowArr = row as unknown[];
                     fileHeaders.forEach((header, index) => {
-                        rowData[header] = row[index];
+                        rowData[header] = rowArr[index] as string | number | undefined;
                     });
                     return rowData;
                 });
@@ -106,41 +110,47 @@ export default function TableauGeocoderPage() {
         setIsGeocoding(true);
         setProgress(0);
 
-        // 깊은 복사 — 원본 state 변이 방지
         const newData = data.map(row => ({ ...row }));
         let completed = 0;
         let cancelled = false;
 
-        for (let i = 0; i < newData.length; i++) {
+        // 청크 단위 병렬 처리
+        for (let i = 0; i < newData.length; i += GEOCODE_CHUNK_SIZE) {
             if (controller.signal.aborted) {
                 cancelled = true;
                 break;
             }
 
-            const address = newData[i][addressColumn];
-            if (address) {
-                try {
+            const chunk = newData.slice(i, i + GEOCODE_CHUNK_SIZE);
+            const results = await Promise.allSettled(
+                chunk.map(async (row, j) => {
+                    const address = row[addressColumn];
+                    if (!address) return;
+
                     const response = await fetch('/api/geocode', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ address }),
                         signal: controller.signal,
                     });
+
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const result = await response.json();
+
                     if (result.x != null && result.y != null) {
-                        newData[i]['Latitude'] = result.y;
-                        newData[i]['Longitude'] = result.x;
+                        newData[i + j]['Latitude'] = result.y;
+                        newData[i + j]['Longitude'] = result.x;
                     }
-                } catch (error) {
-                    if (controller.signal.aborted) {
-                        cancelled = true;
-                        break;
-                    }
-                    // 개별 행 에러는 건너뜀
-                }
+                })
+            );
+
+            // 취소 확인
+            if (controller.signal.aborted) {
+                cancelled = true;
+                break;
             }
-            completed++;
+
+            completed += chunk.length;
             setProgress(Math.round((completed / newData.length) * 100));
         }
 
@@ -155,7 +165,8 @@ export default function TableauGeocoderPage() {
         }
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
+        const XLSX = await import('xlsx');
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Geocoded Data');
@@ -271,14 +282,14 @@ export default function TableauGeocoderPage() {
                                         <TableRow key={i}>
                                             {headers.map((header) => (
                                                 <TableCell key={`${i}-${header}`}>
-                                                    {row[header]}
+                                                    {row[header] as string}
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right font-mono">
-                                                {row.Latitude || '-'}
+                                                {(row.Latitude as string) || '-'}
                                             </TableCell>
                                             <TableCell className="text-right font-mono">
-                                                {row.Longitude || '-'}
+                                                {(row.Longitude as string) || '-'}
                                             </TableCell>
                                         </TableRow>
                                     ))}

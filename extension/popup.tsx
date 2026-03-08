@@ -13,7 +13,7 @@ import {
   DEFAULT_SETTINGS
 } from "~lib/types"
 import { addHistory, getHistory, toggleFavorite, clearHistory } from "~lib/storage"
-import * as XLSX from "xlsx"
+import type * as XLSXType from "xlsx"
 
 import "./style.css"
 
@@ -184,8 +184,9 @@ function IndexPopup() {
     await copyToClipboard(values, `batch-${field}`)
   }
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (batchResults.length === 0) return
+    const XLSX = await import("xlsx")
     const excelData = batchResults.map((r, idx) => {
       const row: Record<string, string | number> = { 번호: idx + 1, 입력주소: batchLines[idx] || "" }
       if (r.fallback) {

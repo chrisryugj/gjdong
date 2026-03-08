@@ -82,7 +82,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   showMapLink: true,
   showMiniMap: true,
   mapProvider: "naver",
-  enableClipboardDetect: true,
+  enableClipboardDetect: false,
   clipboardAction: "popup",
   contextMenuAction: "popup",
   selectedFields: ["standard1", "standard2", "road", "jibun", "adminDong", "postalCode", "unit"]

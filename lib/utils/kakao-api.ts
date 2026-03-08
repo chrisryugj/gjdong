@@ -1,4 +1,15 @@
-const KAKAO_REST_KEY = process.env.KAKAO_REST_API_KEY
+import { FALLBACK_COORDS } from "@/lib/constants"
+import type {
+  KakaoAddressDocument,
+  KakaoKeywordDocument,
+  KakaoCoord2AddressDocument,
+  KakaoRegionDocument,
+  ResolvedDisplay,
+} from "@/lib/types"
+
+function getKakaoApiKey(): string | undefined {
+  return process.env.KAKAO_REST_API_KEY
+}
 
 const BUILDING_KEYWORDS = [
   "주민센터",
@@ -42,7 +53,6 @@ export function removeApartmentUnit(address: string): { cleaned: string; unit: s
 
   let match
   while ((match = clearUnitPattern.exec(cleaned)) !== null) {
-    // 매칭된 그룹 중 첫 번째 non-null 값 찾기
     const extractedUnit = match
       .slice(1)
       .find((g) => g !== undefined)
@@ -52,24 +62,19 @@ export function removeApartmentUnit(address: string): { cleaned: string; unit: s
     }
   }
 
-  // 추출된 모든 세부주소 패턴 제거
   if (units.length > 0) {
     cleaned = cleaned.replace(clearUnitPattern, " ").trim()
-    // 연속된 공백을 하나로 정리
     cleaned = cleaned.replace(/\s+/g, " ").trim()
-    // 쉼표 뒤 공백 정리
     cleaned = cleaned.replace(/,\s*$/, "").trim()
     unit = units.join(" ")
   }
 
-  // 2단계: 남은 주소에서 "건물번호 + 추가 숫자-숫자" 패턴 확인
   const additionalUnitPattern = /(\d+(?:-\d+)?)\s+(\d+-\d+)(?=\s|$|\()/
   const additionalMatch = cleaned.match(additionalUnitPattern)
 
   if (additionalMatch) {
     const additionalUnit = additionalMatch[2]
     cleaned = cleaned.replace(/\s+\d+-\d+(?=\s|$|\()/, " ").trim()
-
     unit = unit ? `${unit} ${additionalUnit}` : additionalUnit
   }
 
@@ -78,7 +83,7 @@ export function removeApartmentUnit(address: string): { cleaned: string; unit: s
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 2): Promise<Response> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
 
   try {
     const response = await fetch(url, {
@@ -105,9 +110,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2): P
   }
 }
 
-export async function kakaoSearchAddress(q: string) {
+export async function kakaoSearchAddress(q: string): Promise<KakaoAddressDocument | null> {
   try {
-    if (!KAKAO_REST_KEY) {
+    const apiKey = getKakaoApiKey()
+    if (!apiKey) {
       console.error("[v0] KAKAO_REST_API_KEY is not set")
       return null
     }
@@ -117,9 +123,7 @@ export async function kakaoSearchAddress(q: string) {
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(cleanedQuery)}`,
       {
-        headers: {
-          Authorization: `KakaoAK ${KAKAO_REST_KEY}`,
-        },
+        headers: { Authorization: `KakaoAK ${apiKey}` },
       },
     )
 
@@ -135,9 +139,10 @@ export async function kakaoSearchAddress(q: string) {
   }
 }
 
-export async function kakaoKeywordSearch(q: string) {
+export async function kakaoKeywordSearch(q: string): Promise<KakaoKeywordDocument[] | null> {
   try {
-    if (!KAKAO_REST_KEY) {
+    const apiKey = getKakaoApiKey()
+    if (!apiKey) {
       console.error("[v0] KAKAO_REST_API_KEY is not set")
       return null
     }
@@ -147,9 +152,7 @@ export async function kakaoKeywordSearch(q: string) {
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(cleanedQuery)}&size=5`,
       {
-        headers: {
-          Authorization: `KakaoAK ${KAKAO_REST_KEY}`,
-        },
+        headers: { Authorization: `KakaoAK ${apiKey}` },
       },
     )
 
@@ -165,31 +168,26 @@ export async function kakaoKeywordSearch(q: string) {
   }
 }
 
-export async function kakaoCoord2Address(lon: number, lat: number) {
+export async function kakaoCoord2Address(lon: number, lat: number): Promise<KakaoCoord2AddressDocument | null> {
   try {
-    if (!KAKAO_REST_KEY) {
+    const apiKey = getKakaoApiKey()
+    if (!apiKey) {
       console.error("[v0] KAKAO_REST_API_KEY is not set")
       return null
     }
 
     const response = await fetchWithRetry(`https://dapi.kakao.com/v2/local/geo/coord2address.json?x=${lon}&y=${lat}`, {
-      headers: {
-        Authorization: `KakaoAK ${KAKAO_REST_KEY}`,
-      },
+      headers: { Authorization: `KakaoAK ${apiKey}` },
     })
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return null
-      }
+      if (response.status === 429) return null
       console.error("[v0] Kakao API response not ok:", response.status, response.statusText)
       return null
     }
 
     const contentType = response.headers.get("content-type")
-    if (!contentType || !contentType.includes("application/json")) {
-      return null
-    }
+    if (!contentType || !contentType.includes("application/json")) return null
 
     const data = await response.json()
     return data.documents && data.documents.length > 0 ? data.documents[0] : null
@@ -199,9 +197,10 @@ export async function kakaoCoord2Address(lon: number, lat: number) {
   }
 }
 
-export async function kakaoCoord2Region(lon: number, lat: number) {
+export async function kakaoCoord2Region(lon: number, lat: number): Promise<KakaoRegionDocument[]> {
   try {
-    if (!KAKAO_REST_KEY) {
+    const apiKey = getKakaoApiKey()
+    if (!apiKey) {
       console.error("[v0] KAKAO_REST_API_KEY is not set")
       return []
     }
@@ -209,24 +208,18 @@ export async function kakaoCoord2Region(lon: number, lat: number) {
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${lon}&y=${lat}`,
       {
-        headers: {
-          Authorization: `KakaoAK ${KAKAO_REST_KEY}`,
-        },
+        headers: { Authorization: `KakaoAK ${apiKey}` },
       },
     )
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return []
-      }
+      if (response.status === 429) return []
       console.error("[v0] Kakao API response not ok:", response.status, response.statusText)
       return []
     }
 
     const contentType = response.headers.get("content-type")
-    if (!contentType || !contentType.includes("application/json")) {
-      return []
-    }
+    if (!contentType || !contentType.includes("application/json")) return []
 
     const data = await response.json()
     return data.documents || []
@@ -236,49 +229,28 @@ export async function kakaoCoord2Region(lon: number, lat: number) {
   }
 }
 
-export type ResolvedAddressResult = {
-  display: string
-  meta: {
-    sido: string
-    gu: string
-    roadName?: string
-    buildingNo?: string
-    unit?: string
-    legalDong?: string
-    jibunNo?: string
-    adminDong?: string
-    postalCode?: string
-    lon: number
-    lat: number
-    source: "KAKAO" | "FALLBACK"
-    bcode?: string
-    searchMethod?: "ADDRESS" | "KEYWORD"
-    placeName?: string
-  }
-  fallback?: boolean
-  message?: string
-  originalInput?: string
-}
+// Re-export for backwards compatibility
+export type ResolvedAddressResult = ResolvedDisplay
 
-export async function resolveAddress(address: string): Promise<ResolvedAddressResult> {
+export async function resolveAddress(address: string): Promise<ResolvedDisplay> {
   try {
     const { cleaned: cleanedAddress, unit: apartmentUnit } = removeApartmentUnit(address)
 
-    let result = null
+    let result: (KakaoAddressDocument & KakaoKeywordDocument) | null = null
     let searchMethod: "ADDRESS" | "KEYWORD" = "ADDRESS"
 
     // 1. 건물 키워드가 있으면 키워드 검색 우선
     if (containsBuildingKeyword(cleanedAddress)) {
       const keywordResults = await kakaoKeywordSearch(cleanedAddress)
       if (keywordResults && keywordResults.length > 0) {
-        result = keywordResults[0]
+        result = keywordResults[0] as KakaoAddressDocument & KakaoKeywordDocument
         searchMethod = "KEYWORD"
       }
     }
 
     // 2. 주소 검색
     if (!result) {
-      result = await kakaoSearchAddress(cleanedAddress)
+      result = (await kakaoSearchAddress(cleanedAddress)) as (KakaoAddressDocument & KakaoKeywordDocument) | null
       searchMethod = "ADDRESS"
     }
 
@@ -286,7 +258,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     if (!result && !containsBuildingKeyword(cleanedAddress)) {
       const keywordResults = await kakaoKeywordSearch(cleanedAddress)
       if (keywordResults && keywordResults.length > 0) {
-        result = keywordResults[0]
+        result = keywordResults[0] as KakaoAddressDocument & KakaoKeywordDocument
         searchMethod = "KEYWORD"
       }
     }
@@ -298,8 +270,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
         meta: {
           sido: "",
           gu: "",
-          lon: 127.0845,
-          lat: 37.5384,
+          ...FALLBACK_COORDS,
           source: "FALLBACK",
         },
         fallback: true,
@@ -314,7 +285,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     if (isNaN(lon) || isNaN(lat)) {
       return {
         display: address,
-        meta: { sido: "", gu: "", lon: 127.0845, lat: 37.5384, source: "FALLBACK" },
+        meta: { sido: "", gu: "", ...FALLBACK_COORDS, source: "FALLBACK" },
         fallback: true,
         message: "좌표 정보를 파싱할 수 없습니다.",
         originalInput: address,
@@ -325,8 +296,8 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
     const addrDoc = await kakaoCoord2Address(lon, lat)
     const regions = await kakaoCoord2Region(lon, lat)
 
-    const adminRegion = regions.find((r: any) => r.region_type === "H")
-    const legalRegion = regions.find((r: any) => r.region_type === "B")
+    const adminRegion = regions.find((r) => r.region_type === "H")
+    const legalRegion = regions.find((r) => r.region_type === "B")
 
     const roadAddr = addrDoc?.road_address
     const jibunAddr = addrDoc?.address
@@ -353,12 +324,12 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
         sido,
         gu,
         roadName,
-        buildingNo, // Keep original building number without unit
-        unit: apartmentUnit || undefined, // Store unit separately
+        buildingNo,
+        unit: apartmentUnit || undefined,
         legalDong,
         jibunNo,
         adminDong,
-        postalCode, // Added postal code
+        postalCode,
         lon,
         lat,
         source: "KAKAO",
@@ -375,8 +346,7 @@ export async function resolveAddress(address: string): Promise<ResolvedAddressRe
       meta: {
         sido: "",
         gu: "",
-        lon: 127.0845,
-        lat: 37.5384,
+        ...FALLBACK_COORDS,
         source: "FALLBACK",
       },
       fallback: true,

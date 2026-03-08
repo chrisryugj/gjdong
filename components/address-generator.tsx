@@ -1,12 +1,20 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import MapView from "@/components/map/map-view"
-import { resolveAddressDisplay, type ResolvedDisplay } from "@/lib/utils/address-resolver"
-import * as XLSX from "xlsx"
+import { resolveAddressDisplay } from "@/lib/utils/address-resolver"
+import type { ResolvedDisplay } from "@/lib/types"
+import type { OutputField } from "@/lib/constants"
+import { OUTPUT_FIELDS, OUTPUT_FIELD_LABELS } from "@/lib/constants"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import UsageGuideModal, { UsageGuideButton } from "@/components/usage-guide-modal"
+import {
+  ResultFieldButton,
+  CombinedBatchField,
+  IndividualResultFields,
+  getFieldDisplayValue,
+} from "@/components/batch-result-field"
 
 const SearchIcon = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -19,19 +27,6 @@ const MapPinIcon = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" strokeWidth="2" />
     <circle cx="12" cy="10" r="3" strokeWidth="2" />
-  </svg>
-)
-
-const CopyIcon = () => (
-  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" strokeWidth="2" />
-    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" strokeWidth="2" />
-  </svg>
-)
-
-const CheckIcon = () => (
-  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <polyline points="20 6 9 17 4 12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 
@@ -81,8 +76,6 @@ type BatchResult = ResolvedDisplay & {
 }
 type DisplayMode = "combined" | "individual"
 
-type OutputField = "standard1" | "standard2" | "road" | "jibun" | "adminDong" | "postalCode" | "unit"
-
 type ProgressState = {
   current: number
   total: number
@@ -90,58 +83,95 @@ type ProgressState = {
   estimatedTimeRemaining: number
 }
 
+const FIELD_EXAMPLES: Record<OutputField, string> = {
+  standard1: "서울특별시 광진구 아차산로400(자양동 870, 자양2동)",
+  standard2: "광진구 아차산로400(자양동 870, 자양2동)",
+  road: "광진구 아차산로400",
+  jibun: "광진구 자양동 870",
+  adminDong: "자양2동",
+  postalCode: "05050",
+  unit: "102동 304호",
+}
+
+const EXCEL_LABELS: Record<OutputField, string> = {
+  standard1: "표준주소1",
+  standard2: "표준주소2",
+  road: "도로명주소",
+  jibun: "지번주소",
+  adminDong: "행정동",
+  postalCode: "우편번호",
+  unit: "세부주소",
+}
+
+const INPUT_GUIDE_ITEMS = [
+  "도로명주소, 지번주소, 건물명 검색어 입력",
+  "여러 주소 검색은 줄바꿔서 입력 (대량 데이터 복사+붙여넣기 지원)",
+  "엑셀 n행×2열 데이터 복사+붙여넣기 입력지원 [주소+시설명(태그)]",
+  "타이핑 n행×2열 데이터 입력지원 (주소 뒤 빈칸 3칸 + 시설명 입력)",
+]
+
+function InputGuideContent({ dark = false }: { dark?: boolean }) {
+  const numColor = dark ? "text-blue-400" : "text-blue-600"
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-sm mb-2">입력 방법 안내</p>
+      <div className="space-y-1.5 text-xs">
+        {INPUT_GUIDE_ITEMS.map((text, i) => (
+          <div key={i} className="flex gap-2">
+            <span className={`${numColor} font-bold`}>{i + 1}.</span>
+            <span>{text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AddressGenerator() {
   const [inputValue, setInputValue] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedDisplay | null>(null)
   const [batchResults, setBatchResults] = useState<BatchResult[]>([])
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null)
   const [displayMode, setDisplayMode] = useState<DisplayMode>("combined")
-  const [selectedFields, setSelectedFields] = useState<Set<OutputField>>(
-    new Set(["standard1", "standard2", "road", "jibun", "adminDong", "postalCode", "unit"]),
-  )
+  const [selectedFields, setSelectedFields] = useState<Set<OutputField>>(new Set(OUTPUT_FIELDS))
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [showRecentSearches, setShowRecentSearches] = useState(false)
   const [progress, setProgress] = useState<ProgressState | null>(null)
-  const [showFormattedInput, setShowFormattedInput] = useState(false) // Changed default to false
+  const [showFormattedInput, setShowFormattedInput] = useState(false)
   const [showUsageGuide, setShowUsageGuide] = useState(false)
   const resultSectionRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const batchAbortRef = useRef<AbortController | null>(null)
 
-  const lines = inputValue.split("\n").filter((line) => line.trim().length > 0)
-  const isMultiLine = lines.length > 1
-
-  const parsedInputData = lines.map((line) => {
-    const parts = line.split(/\t|\s{3,}/)
-    if (parts.length >= 2) {
-      return {
-        address: parts[0].trim(),
-        facilityName: parts[1].trim(),
+  const { lines, parsedInputData } = useMemo(() => {
+    const ls = inputValue.split("\n").filter((line) => line.trim().length > 0)
+    const parsed = ls.map((line) => {
+      const parts = line.split(/\t|\s{3,}/)
+      if (parts.length >= 2) {
+        return { address: parts[0].trim(), facilityName: parts[1].trim() }
       }
-    }
-    return {
-      address: line.trim(),
-      facilityName: undefined,
-    }
-  })
+      return { address: line.trim(), facilityName: undefined }
+    })
+    return { lines: ls, parsedInputData: parsed }
+  }, [inputValue])
 
+  const isMultiLine = lines.length > 1
   const hasTwoColumnData = parsedInputData.some((d) => d.facilityName)
-
   const hasLongFacilityName = parsedInputData.some((d) => d.facilityName && d.facilityName.length >= 10)
 
   useEffect(() => {
-    if (hasLongFacilityName) {
-      setShowFormattedInput(true)
-    }
+    if (hasLongFacilityName) setShowFormattedInput(true)
   }, [hasLongFacilityName])
 
   const showNotification = (message: string, type: "success" | "error" | "info" = "success") => {
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current)
     setNotification({ message, type })
-    setTimeout(() => setNotification(null), 3000)
+    notificationTimerRef.current = setTimeout(() => setNotification(null), 3000)
   }
 
-  // 첫 방문 시 사용법 안내 모달 표시
   useEffect(() => {
     const hasVisited = localStorage.getItem("addressGenerator_hasVisited")
     if (!hasVisited) {
@@ -154,10 +184,9 @@ export default function AddressGenerator() {
     const savedFields = localStorage.getItem("addressGenerator_selectedFields")
     if (savedFields) {
       try {
-        const fields = JSON.parse(savedFields) as OutputField[]
-        setSelectedFields(new Set(fields))
-      } catch (e) {
-        console.error("Failed to load selected fields from localStorage", e)
+        setSelectedFields(new Set(JSON.parse(savedFields) as OutputField[]))
+      } catch {
+        /* ignore corrupted data */
       }
     }
   }, [])
@@ -170,10 +199,9 @@ export default function AddressGenerator() {
     const savedSearches = localStorage.getItem("addressGenerator_recentSearches")
     if (savedSearches) {
       try {
-        const searches = JSON.parse(savedSearches) as string[]
-        setRecentSearches(searches)
-      } catch (e) {
-        console.error("Failed to load recent searches from localStorage", e)
+        setRecentSearches(JSON.parse(savedSearches) as string[])
+      } catch {
+        /* ignore corrupted data */
       }
     }
   }, [])
@@ -181,11 +209,9 @@ export default function AddressGenerator() {
   const saveToRecentSearches = (address: string) => {
     const trimmedAddress = address.trim()
     if (!trimmedAddress) return
-
     setRecentSearches((prev) => {
-      // Remove if already exists, then add to front
       const filtered = prev.filter((s) => s !== trimmedAddress)
-      const updated = [trimmedAddress, ...filtered].slice(0, 5) // Keep only last 5
+      const updated = [trimmedAddress, ...filtered].slice(0, 5)
       localStorage.setItem("addressGenerator_recentSearches", JSON.stringify(updated))
       return updated
     })
@@ -193,12 +219,10 @@ export default function AddressGenerator() {
 
   useEffect(() => {
     if (textareaRef.current && !showFormattedInput) {
-      // Calculate height based on number of lines
-      const lineHeight = 24 // 1.5rem = 24px
-      const padding = 16 // py-2 = 8px top + 8px bottom = 16px total
+      const lineHeight = 24
+      const padding = 16
       const minHeight = 60
       const calculatedHeight = lines.length * lineHeight + padding
-
       textareaRef.current.style.height = `${Math.max(minHeight, calculatedHeight)}px`
     }
   }, [inputValue, showFormattedInput, lines.length])
@@ -216,31 +240,12 @@ export default function AddressGenerator() {
 
   const handleSearch = async () => {
     if (!inputValue.trim()) return
+    const addresses = parsedInputData.map((d) => d.address)
 
-    const lines = inputValue
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-
-    const parsedData = lines.map((line) => {
-      const parts = line.split(/\t|\s{3,}/)
-      if (parts.length >= 2) {
-        return {
-          address: parts[0].trim(),
-          facilityName: parts[1].trim(),
-        }
-      }
-      return {
-        address: line.trim(),
-        facilityName: undefined,
-      }
-    })
-
-    const addresses = parsedData.map((d) => d.address)
-
-    // 대량 변환 제한 및 경고
     if (addresses.length > 1000) {
-      window.alert(`⚠️ 최대 1,000건까지 변환 가능합니다.\n\n현재 ${addresses.length.toLocaleString()}건이 입력되었습니다.\n1,000건을 초과하는 대용량 변환은 관리자에게 문의해주세요.`)
+      window.alert(
+        `⚠️ 최대 1,000건까지 변환 가능합니다.\n\n현재 ${addresses.length.toLocaleString()}건이 입력되었습니다.\n1,000건을 초과하는 대용량 변환은 관리자에게 문의해주세요.`,
+      )
       return
     }
 
@@ -249,18 +254,16 @@ export default function AddressGenerator() {
       if (!window.confirm(message)) return
     }
 
-    const hasFacilityName = parsedData.some((d) => d.facilityName)
+    const hasFacilityName = parsedInputData.some((d) => d.facilityName)
 
     if (addresses.length === 1 && !hasFacilityName) {
       saveToRecentSearches(addresses[0])
-
       setIsSearching(true)
       setBatchResults([])
       setProgress(null)
       try {
         const result = await resolveAddressDisplay(addresses[0])
         setResolvedAddress(result)
-
         if (result.fallback) {
           showNotification(result.message || "정확한 주소를 찾을 수 없습니다. 다시 시도해주세요.", "error")
         } else if (result.meta.searchMethod === "KEYWORD" && result.meta.placeName) {
@@ -271,36 +274,35 @@ export default function AddressGenerator() {
             showNotification("주소 변환 완료! 아래에서 복사하세요.", "success")
           }
         }
-      } catch (error) {
+      } catch {
         showNotification("주소 검색 중 오류가 발생했습니다.", "error")
       } finally {
         setIsSearching(false)
       }
     } else {
+      const controller = new AbortController()
+      batchAbortRef.current = controller
       saveToRecentSearches(addresses.join("\n"))
-
       setIsSearching(true)
       setResolvedAddress(null)
 
       const startTime = Date.now()
-      setProgress({
-        current: 0,
-        total: addresses.length,
-        startTime,
-        estimatedTimeRemaining: 0,
-      })
+      setProgress({ current: 0, total: addresses.length, startTime, estimatedTimeRemaining: 0 })
 
       try {
         showNotification(`${addresses.length}개 주소 변환 중...`, "info")
-
         const CHUNK_SIZE = 10
         const allResults: BatchResult[] = []
         const MAX_RETRIES = 2
+        let cancelled = false
 
         for (let i = 0; i < addresses.length; i += CHUNK_SIZE) {
-          const chunk = addresses.slice(i, i + CHUNK_SIZE)
-          const chunkWithNames = parsedData.slice(i, i + CHUNK_SIZE)
+          if (controller.signal.aborted) {
+            cancelled = true
+            break
+          }
 
+          const chunkWithNames = parsedInputData.slice(i, i + CHUNK_SIZE)
           let retries = 0
           let success = false
 
@@ -315,25 +317,23 @@ export default function AddressGenerator() {
                     facilityName: d.facilityName,
                   })),
                 }),
+                signal: controller.signal,
               })
 
-              if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`)
-              }
-
+              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
               const data = await response.json()
               allResults.push(...data.results)
               success = true
-            } catch (error) {
+            } catch {
+              if (controller.signal.aborted) {
+                cancelled = true
+                break
+              }
               retries++
               if (retries <= MAX_RETRIES) {
-                console.log(
-                  `[v0] Chunk ${i / CHUNK_SIZE + 1} failed, retrying... (${MAX_RETRIES - retries + 1} attempts left)`,
-                )
                 await new Promise((resolve) => setTimeout(resolve, 1000 * retries))
               } else {
-                console.error(`[v0] Chunk ${i / CHUNK_SIZE + 1} failed after ${MAX_RETRIES} retries`)
-                showNotification(`일부 주소 변환에 실패했습니다. 계속 진행합니다...`, "error")
+                showNotification("일부 주소 변환에 실패했습니다. 계속 진행합니다...", "error")
                 chunkWithNames.forEach((data) => {
                   allResults.push({
                     display: "",
@@ -341,85 +341,74 @@ export default function AddressGenerator() {
                     message: "네트워크 오류로 변환에 실패했습니다",
                     originalInput: data.address,
                     facilityName: data.facilityName,
-                    meta: {
-                      lat: 0,
-                      lon: 0,
-                      gu: "",
-                      roadName: "",
-                      buildingNo: "",
-                      legalDong: "",
-                      jibunNo: "",
-                      adminDong: "",
-                      postalCode: "",
-                      unit: "",
-                      searchMethod: undefined,
-                      source: "FALLBACK",
-                    },
+                    meta: { lat: 0, lon: 0, gu: "", source: "FALLBACK" },
                   })
                 })
               }
             }
           }
 
+          if (cancelled) break
+
           const now = Date.now()
           const elapsedTime = now - startTime
           const processedCount = allResults.length
           const avgTimePerAddress = elapsedTime / processedCount
           const remainingCount = addresses.length - processedCount
-          const estimatedTimeRemaining = avgTimePerAddress * remainingCount
 
           setProgress({
             current: processedCount,
             total: addresses.length,
             startTime,
-            estimatedTimeRemaining: Math.max(0, estimatedTimeRemaining),
+            estimatedTimeRemaining: Math.max(0, avgTimePerAddress * remainingCount),
           })
 
           setBatchResults([...allResults])
         }
 
-        setProgress({
-          current: addresses.length,
-          total: addresses.length,
-          startTime,
-          estimatedTimeRemaining: 0,
-        })
-
+        setProgress({ current: addresses.length, total: addresses.length, startTime, estimatedTimeRemaining: 0 })
         setBatchResults(allResults)
 
-        const successCount = allResults.filter((r: BatchResult) => !r.fallback).length
-        const failureCount = allResults.filter((r: BatchResult) => r.fallback).length
-
-        if (failureCount > 0) {
-          showNotification(
-            `${successCount}/${addresses.length}개 주소 변환 완료 (${failureCount}개 실패)`,
-            failureCount > successCount ? "error" : "info",
-          )
+        if (cancelled) {
+          showNotification(`${allResults.length}/${addresses.length}개 처리 후 취소됨`, "info")
         } else {
-          showNotification(`${successCount}/${addresses.length}개 주소 변환 완료`, "success")
+          const successCount = allResults.filter((r) => !r.fallback).length
+          const failureCount = allResults.filter((r) => r.fallback).length
+          if (failureCount > 0) {
+            showNotification(
+              `${successCount}/${addresses.length}개 주소 변환 완료 (${failureCount}개 실패)`,
+              failureCount > successCount ? "error" : "info",
+            )
+          } else {
+            showNotification(`${successCount}/${addresses.length}개 주소 변환 완료`, "success")
+          }
         }
 
         setTimeout(() => {
           resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
         }, 300)
-      } catch (error) {
-        console.error("[v0] Batch search error:", error)
+      } catch {
         showNotification("일괄 변환 중 오류가 발생했습니다.", "error")
         setProgress(null)
       } finally {
         setIsSearching(false)
+        batchAbortRef.current = null
         setTimeout(() => setProgress(null), 1500)
       }
     }
   }
 
-  const copyToClipboard = async (text: string, index: number) => {
+  const handleCancelBatch = () => {
+    batchAbortRef.current?.abort()
+  }
+
+  const copyToClipboard = async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      setCopiedIndex(index)
+      setCopiedKey(key)
       showNotification("클립보드에 복사되었습니다.", "success")
-      setTimeout(() => setCopiedIndex(null), 2000)
-    } catch (err) {
+      setTimeout(() => setCopiedKey(null), 2000)
+    } catch {
       showNotification("클립보드 복사에 실패했습니다.", "error")
     }
   }
@@ -434,26 +423,6 @@ export default function AddressGenerator() {
     setSelectedFields(newFields)
   }
 
-  const fieldExamples: Record<OutputField, string> = {
-    standard1: "서울특별시 광진구 아차산로400(자양동 870, 자양2동)",
-    standard2: "광진구 아차산로400(자양동 870, 자양2동)",
-    road: "광진구 아차산로400",
-    jibun: "광진구 자양동 870",
-    adminDong: "자양2동",
-    postalCode: "05050",
-    unit: "102동 304호",
-  }
-
-  const fieldLabels: Record<OutputField, string> = {
-    standard1: "표준형식1",
-    standard2: "표준형식2",
-    road: "도로명주소",
-    jibun: "지번주소",
-    adminDong: "행정동",
-    postalCode: "우편번호",
-    unit: "세부주소",
-  }
-
   const loadRecentSearch = (search: string) => {
     setInputValue(search)
     setShowRecentSearches(false)
@@ -465,44 +434,23 @@ export default function AddressGenerator() {
     setShowRecentSearches(false)
   }
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (batchResults.length === 0) return
+    const XLSX = await import("xlsx")
 
     const excelData = batchResults.map((result, idx) => {
-      if (result.fallback) {
-        const row: Record<string, string | number> = { 번호: idx + 1 }
-        if (result.facilityName) row.시설명 = result.facilityName
-        if (selectedFields.has("standard1")) row.표준주소1 = "변환 실패"
-        if (selectedFields.has("standard2")) row.표준주소2 = "변환 실패"
-        if (selectedFields.has("road")) row.도로명주소 = "변환 실패"
-        if (selectedFields.has("jibun")) row.지번주소 = "변환 실패"
-        if (selectedFields.has("adminDong")) row.행정동 = "변환 실패"
-        if (selectedFields.has("postalCode")) row.우편번호 = "변환 실패"
-        if (selectedFields.has("unit")) row.세부주소 = "변환 실패"
-        return row
-      }
-
-      const fullBuildingNo = result.meta.unit ? `${result.meta.buildingNo} ${result.meta.unit}` : result.meta.buildingNo
-
       const row: Record<string, string | number> = { 번호: idx + 1 }
       if (result.facilityName) row.시설명 = result.facilityName
-      if (selectedFields.has("standard1")) row.표준주소1 = `${result.meta.sido} ${result.display}`
-      if (selectedFields.has("standard2")) row.표준주소2 = result.display
-      if (selectedFields.has("road"))
-        row.도로명주소 = result.meta.roadName ? `${result.meta.gu} ${result.meta.roadName}${fullBuildingNo}` : ""
-      if (selectedFields.has("jibun"))
-        row.지번주소 = result.meta.legalDong ? `${result.meta.gu} ${result.meta.legalDong} ${result.meta.jibunNo}` : ""
-      if (selectedFields.has("adminDong")) row.행정동 = result.meta.adminDong || ""
-      if (selectedFields.has("postalCode")) row.우편번호 = result.meta.postalCode || ""
-      if (selectedFields.has("unit")) row.세부주소 = result.meta.unit || ""
+      for (const field of OUTPUT_FIELDS) {
+        if (!selectedFields.has(field)) continue
+        row[EXCEL_LABELS[field]] = result.fallback ? "변환 실패" : getFieldDisplayValue(result, field)
+      }
       return row
     })
 
-    // 워크시트 생성
     const worksheet = XLSX.utils.json_to_sheet(excelData)
-
-    const colWidths: { wch: number }[] = [{ wch: 8 }] // 번호
-    if (batchResults.some((r) => r.facilityName)) colWidths.push({ wch: 25 }) // 시설명
+    const colWidths: { wch: number }[] = [{ wch: 8 }]
+    if (batchResults.some((r) => r.facilityName)) colWidths.push({ wch: 25 })
     if (selectedFields.has("standard1")) colWidths.push({ wch: 50 })
     if (selectedFields.has("standard2")) colWidths.push({ wch: 45 })
     if (selectedFields.has("road")) colWidths.push({ wch: 40 })
@@ -512,17 +460,10 @@ export default function AddressGenerator() {
     if (selectedFields.has("unit")) colWidths.push({ wch: 20 })
     worksheet["!cols"] = colWidths
 
-    // 워크북 생성
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "주소변환결과")
-
-    // 브라우저에서 파일 다운로드
     const fileName = `주소변환결과_${new Date().toISOString().slice(0, 10)}.xlsx`
-
-    // 워크북을 바이너리 문자열로 변환
     const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" })
-
-    // Blob 생성 및 다운로드
     const blob = new Blob([wbout], { type: "application/octet-stream" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -532,7 +473,6 @@ export default function AddressGenerator() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-
     showNotification("엑셀 파일이 다운로드되었습니다.", "success")
   }
 
@@ -573,6 +513,14 @@ export default function AddressGenerator() {
                 <span>약 {Math.ceil(progress.estimatedTimeRemaining / 1000)}초 남음</span>
               )}
             </div>
+            {isSearching && (
+              <button
+                onClick={handleCancelBatch}
+                className="w-full mt-1 inline-flex items-center justify-center rounded-md text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 h-8 px-3 transition-colors"
+              >
+                취소
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -659,27 +607,7 @@ export default function AddressGenerator() {
                       </button>
                     </PopoverTrigger>
                     <PopoverContent side="bottom" align="end" className="w-80">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-sm mb-2">입력 방법 안내</p>
-                        <div className="space-y-1.5 text-xs">
-                          <div className="flex gap-2">
-                            <span className="text-blue-600 font-bold">1.</span>
-                            <span>도로명주소, 지번주소, 건물명 검색어 입력</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-600 font-bold">2.</span>
-                            <span>여러 주소 검색은 줄바꿔서 입력 (대량 데이터 복사+붙여넣기 지원)</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-600 font-bold">3.</span>
-                            <span>엑셀 n행×2열 데이터 복사+붙여넣기 입력지원 [주소+시설명(태그)]</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-600 font-bold">4.</span>
-                            <span>타이핑 n행×2열 데이터 입력지원 (주소 뒤 빈칸 3칸 + 시설명 입력)</span>
-                          </div>
-                        </div>
-                      </div>
+                      <InputGuideContent />
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -710,9 +638,7 @@ export default function AddressGenerator() {
                           onFocus={() => setShowRecentSearches(true)}
                           onBlur={() => {
                             setTimeout(() => setShowRecentSearches(false), 200)
-                            if (hasTwoColumnData) {
-                              setShowFormattedInput(true)
-                            }
+                            if (hasTwoColumnData) setShowFormattedInput(true)
                           }}
                           className="flex min-h-[60px] w-full rounded-md border border-input bg-background pl-12 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                           rows={1}
@@ -754,27 +680,7 @@ export default function AddressGenerator() {
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-md p-4">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-sm mb-2">입력 방법 안내</p>
-                        <div className="space-y-1.5 text-xs">
-                          <div className="flex gap-2">
-                            <span className="text-blue-400 font-bold">1.</span>
-                            <span>도로명주소, 지번주소, 건물명 검색어 입력</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-400 font-bold">2.</span>
-                            <span>여러 주소 검색은 줄바꿔서 입력 (대량 데이터 복사+붙여넣기 지원)</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-400 font-bold">3.</span>
-                            <span>엑셀 n행×2열 데이터 복사+붙여넣기 입력지원 [주소+시설명(태그)]</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-blue-400 font-bold">4.</span>
-                            <span>타이핑 n행×2열 데이터 입력지원 (주소 뒤 빈칸 3칸 + 시설명 입력)</span>
-                          </div>
-                        </div>
-                      </div>
+                      <InputGuideContent dark />
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -785,7 +691,7 @@ export default function AddressGenerator() {
               <label className="text-sm font-semibold text-foreground mb-3 block">출력 항목 선택</label>
               <TooltipProvider delayDuration={200}>
                 <div className="flex flex-wrap gap-2">
-                  {(Object.keys(fieldLabels) as OutputField[]).map((field) => (
+                  {OUTPUT_FIELDS.map((field) => (
                     <Tooltip key={field}>
                       <TooltipTrigger asChild>
                         <button
@@ -796,12 +702,12 @@ export default function AddressGenerator() {
                               : "bg-white text-gray-300 hover:bg-gray-50 hover:text-gray-500 border border-gray-200 hover:border-gray-300"
                           }`}
                         >
-                          {fieldLabels[field]}
+                          {OUTPUT_FIELD_LABELS[field]}
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <p className="text-xs font-medium mb-1 text-gray-100">출력 예시:</p>
-                        <p className="text-xs text-gray-200">{fieldExamples[field]}</p>
+                        <p className="text-xs text-gray-200">{FIELD_EXAMPLES[field]}</p>
                       </TooltipContent>
                     </Tooltip>
                   ))}
@@ -813,26 +719,19 @@ export default function AddressGenerator() {
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">결과 표시 방법</label>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setDisplayMode("combined")}
-                    className={`flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 ${
-                      displayMode === "combined"
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                    }`}
-                  >
-                    한번에 출력
-                  </button>
-                  <button
-                    onClick={() => setDisplayMode("individual")}
-                    className={`flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 ${
-                      displayMode === "individual"
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                    }`}
-                  >
-                    주소별 개별 출력
-                  </button>
+                  {(["combined", "individual"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setDisplayMode(mode)}
+                      className={`flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 ${
+                        displayMode === mode
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                      }`}
+                    >
+                      {mode === "combined" ? "한번에 출력" : "주소별 개별 출력"}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -876,11 +775,7 @@ export default function AddressGenerator() {
               <p className="text-sm text-muted-foreground">지도에서 위치를 확인하세요</p>
             </div>
             <div className="p-6 pt-0">
-              <MapView
-                lat={resolvedAddress.meta.lat}
-                lon={resolvedAddress.meta.lon}
-                address={resolvedAddress.display}
-              />
+              <MapView lat={resolvedAddress.meta.lat} lon={resolvedAddress.meta.lon} address={resolvedAddress.display} />
             </div>
           </div>
 
@@ -893,119 +788,19 @@ export default function AddressGenerator() {
               <p className="text-sm text-muted-foreground">클릭하여 클립보드에 복사하세요</p>
             </div>
             <div className="p-6 pt-0 space-y-3">
-              {selectedFields.has("standard1") && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(`${resolvedAddress.meta.sido} ${resolvedAddress.display}`, 0)}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">표준형식 1 (전체)</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">
-                      {resolvedAddress.meta.sido} {resolvedAddress.display}
-                    </div>
-                  </div>
-                  {copiedIndex === 0 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("standard2") && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(resolvedAddress.display, 1)}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">표준형식 2 (구부터)</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">{resolvedAddress.display}</div>
-                  </div>
-                  {copiedIndex === 1 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("road") && resolvedAddress.meta.roadName && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => {
-                    const fullBuildingNo = resolvedAddress.meta.unit
-                      ? `${resolvedAddress.meta.buildingNo} ${resolvedAddress.meta.unit}`
-                      : resolvedAddress.meta.buildingNo
-                    copyToClipboard(`${resolvedAddress.meta.gu} ${resolvedAddress.meta.roadName}${fullBuildingNo}`, 2)
-                  }}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">도로명 주소</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">
-                      {resolvedAddress.meta.gu} {resolvedAddress.meta.roadName}
-                      {resolvedAddress.meta.unit
-                        ? `${resolvedAddress.meta.buildingNo} ${resolvedAddress.meta.unit}`
-                        : resolvedAddress.meta.buildingNo}
-                    </div>
-                  </div>
-                  {copiedIndex === 2 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("jibun") && resolvedAddress.meta.legalDong && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() =>
-                    copyToClipboard(
-                      `${resolvedAddress.meta.gu} ${resolvedAddress.meta.legalDong} ${resolvedAddress.meta.jibunNo}`,
-                      3,
-                    )
-                  }
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">지번 주소</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">
-                      {resolvedAddress.meta.gu} {resolvedAddress.meta.legalDong} {resolvedAddress.meta.jibunNo}
-                    </div>
-                  </div>
-                  {copiedIndex === 3 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("adminDong") && resolvedAddress.meta.adminDong && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(resolvedAddress.meta.adminDong || "", 4)}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">행정동</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">
-                      {resolvedAddress.meta.adminDong}
-                    </div>
-                  </div>
-                  {copiedIndex === 4 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("postalCode") && resolvedAddress.meta.postalCode && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(resolvedAddress.meta.postalCode!, 5)}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">우편번호</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">
-                      {resolvedAddress.meta.postalCode}
-                    </div>
-                  </div>
-                  {copiedIndex === 5 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
-
-              {selectedFields.has("unit") && resolvedAddress.meta.unit && (
-                <button
-                  className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  onClick={() => copyToClipboard(resolvedAddress.meta.unit!, 6)}
-                >
-                  <div className="flex-1">
-                    <div className="mb-1 text-xs font-medium text-gray-600">세부주소</div>
-                    <div className="text-sm font-medium text-gray-900 text-pretty">{resolvedAddress.meta.unit}</div>
-                  </div>
-                  {copiedIndex === 6 ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              )}
+              {OUTPUT_FIELDS.filter((field) => {
+                if (!selectedFields.has(field)) return false
+                return !!getFieldDisplayValue(resolvedAddress, field)
+              }).map((field) => (
+                <ResultFieldButton
+                  key={field}
+                  label={OUTPUT_FIELD_LABELS[field]}
+                  value={getFieldDisplayValue(resolvedAddress, field)}
+                  copiedKey={`single-${field}`}
+                  currentCopiedKey={copiedKey}
+                  onCopy={copyToClipboard}
+                />
+              ))}
             </div>
           </div>
         </>
@@ -1066,307 +861,21 @@ export default function AddressGenerator() {
                 </div>
               </div>
               <div className="p-6 pt-0 space-y-3">
-                {selectedFields.has("standard1") && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .filter((result) => !result.fallback)
-                        .map((result) => {
-                          const address = `${result.meta.sido} ${result.display}`
-                          return result.facilityName ? `[${result.facilityName}] ${address}` : address
-                        })
-                        .join("\n")
-                      copyToClipboard(combinedText, 9999)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (표준형식 1)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback) {
-                            return (
-                              <div key={idx} className="mb-1 text-red-600">
-                                <span className="text-gray-400">{idx + 1}. </span>
-                                {result.facilityName && (
-                                  <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                    {result.facilityName}
-                                  </span>
-                                )}
-                                변환 실패: {result.message || "주소를 찾을 수 없습니다"}
-                              </div>
-                            )
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.sido} {result.display}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9999 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("standard2") && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .filter((result) => !result.fallback)
-                        .map((result) =>
-                          result.facilityName ? `[${result.facilityName}] ${result.display}` : result.display,
-                        )
-                        .join("\n")
-                      copyToClipboard(combinedText, 9998)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (표준형식 2 - 구부터)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback) {
-                            return (
-                              <div key={idx} className="mb-1 text-red-600">
-                                <span className="text-gray-400">{idx + 1}. </span>
-                                {result.facilityName && (
-                                  <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                    {result.facilityName}
-                                  </span>
-                                )}
-                                변환 실패: {result.message || "주소를 찾을 수 없습니다"}
-                              </div>
-                            )
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.display}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9998 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("road") && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .filter((result) => !result.fallback && result.meta.roadName)
-                        .map((result) => {
-                          const address = `${result.meta.gu} ${result.meta.roadName}${result.meta.buildingNo}`
-                          return result.facilityName ? `[${result.facilityName}] ${address}` : address
-                        })
-                        .join("\n")
-                      copyToClipboard(combinedText, 9997)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (도로명 주소)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback || !result.meta.roadName) {
-                            return null
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.gu} {result.meta.roadName}
-                              {result.meta.buildingNo}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9997 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("jibun") && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .filter((result) => !result.fallback && result.meta.legalDong)
-                        .map((result) => {
-                          const address = `${result.meta.gu} ${result.meta.legalDong} ${result.meta.jibunNo}`
-                          return result.facilityName ? `[${result.facilityName}] ${address}` : address
-                        })
-                        .join("\n")
-                      copyToClipboard(combinedText, 9996)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (지번 주소)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback || !result.meta.legalDong) {
-                            return null
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.gu} {result.meta.legalDong} {result.meta.jibunNo}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9996 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("adminDong") && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .filter((result) => !result.fallback && result.meta.adminDong)
-                        .map((result) =>
-                          result.facilityName
-                            ? `[${result.facilityName}] ${result.meta.adminDong}`
-                            : result.meta.adminDong,
-                        )
-                        .join("\n")
-                      copyToClipboard(combinedText, 9995)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (행정동)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback || !result.meta.adminDong) {
-                            return null
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.adminDong}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9995 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("postalCode") && batchResults.some((r) => !r.fallback && r.meta.postalCode) && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .map((result) => {
-                          if (result.fallback) return ""
-                          const postalCode = result.meta.postalCode || ""
-                          return result.facilityName ? `[${result.facilityName}] ${postalCode}` : postalCode
-                        })
-                        .join("\n")
-                      copyToClipboard(combinedText, 9993)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (우편번호)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback) {
-                            return (
-                              <div key={idx} className="mb-1 text-gray-400">
-                                <span className="text-gray-400">{idx + 1}. </span>
-                              </div>
-                            )
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.postalCode || ""}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9993 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-
-                {selectedFields.has("unit") && batchResults.some((r) => !r.fallback && r.meta.unit) && (
-                  <button
-                    className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    onClick={() => {
-                      const combinedText = batchResults
-                        .map((result) => {
-                          if (result.fallback) return ""
-                          const unit = result.meta.unit || ""
-                          return result.facilityName ? `[${result.facilityName}] ${unit}` : unit
-                        })
-                        .join("\n")
-                      copyToClipboard(combinedText, 9994)
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="mb-2 text-xs font-medium text-gray-600">전체 결과 (세부주소)</div>
-                      <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
-                        {batchResults.map((result, idx) => {
-                          if (result.fallback) {
-                            return (
-                              <div key={idx} className="mb-1 text-gray-400">
-                                <span className="text-gray-400">{idx + 1}. </span>
-                              </div>
-                            )
-                          }
-                          return (
-                            <div key={idx} className="mb-1">
-                              <span className="text-gray-400">{idx + 1}. </span>
-                              {result.facilityName && (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 mr-2 border border-blue-300">
-                                  {result.facilityName}
-                                </span>
-                              )}
-                              {result.meta.unit || ""}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {copiedIndex === 9994 ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
+                {OUTPUT_FIELDS.filter((field) => {
+                  if (!selectedFields.has(field)) return false
+                  if (field === "postalCode") return batchResults.some((r) => !r.fallback && r.meta.postalCode)
+                  if (field === "unit") return batchResults.some((r) => !r.fallback && r.meta.unit)
+                  return true
+                }).map((field) => (
+                  <CombinedBatchField
+                    key={field}
+                    field={field}
+                    results={batchResults}
+                    copiedKey={`combined-${field}`}
+                    currentCopiedKey={copiedKey}
+                    onCopy={copyToClipboard}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -1397,125 +906,13 @@ export default function AddressGenerator() {
                     {!result.fallback && <p className="text-sm text-gray-600">클릭하여 클립보드에 복사하세요</p>}
                   </div>
                   <div className="p-6 pt-0 space-y-3">
-                    {result.fallback ? (
-                      <div className="text-sm text-red-600 bg-red-50 p-3 rounded border border-red-200">
-                        {result.message || "주소를 찾을 수 없습니다"}
-                      </div>
-                    ) : (
-                      <>
-                        {selectedFields.has("standard1") && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(`${result.meta.sido} ${result.display}`, idx * 100)}
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">표준형식 1 (전체)</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">
-                                {result.meta.sido} {result.display}
-                              </div>
-                            </div>
-                            {copiedIndex === idx * 100 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("standard2") && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(result.display, idx * 100 + 1)}
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">표준형식 2 (구부터)</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">{result.display}</div>
-                            </div>
-                            {copiedIndex === idx * 100 + 1 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("road") && result.meta.roadName && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() =>
-                              copyToClipboard(
-                                `${result.meta.gu} ${result.meta.roadName}${result.meta.buildingNo}`,
-                                idx * 100 + 2,
-                              )
-                            }
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">도로명 주소</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">
-                                {result.meta.gu} {result.meta.roadName}
-                                {result.meta.buildingNo}
-                              </div>
-                            </div>
-                            {copiedIndex === idx * 100 + 2 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("jibun") && result.meta.legalDong && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() =>
-                              copyToClipboard(
-                                `${result.meta.gu} ${result.meta.legalDong} ${result.meta.jibunNo}`,
-                                idx * 100 + 3,
-                              )
-                            }
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">지번 주소</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">
-                                {result.meta.gu} {result.meta.legalDong} {result.meta.jibunNo}
-                              </div>
-                            </div>
-                            {copiedIndex === idx * 100 + 3 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("adminDong") && result.meta.adminDong && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(result.meta.adminDong || "", idx * 100 + 4)}
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">행정동</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">
-                                {result.meta.adminDong}
-                              </div>
-                            </div>
-                            {copiedIndex === idx * 100 + 4 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("postalCode") && result.meta.postalCode && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(result.meta.postalCode!, idx * 100 + 6)}
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">우편번호</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">
-                                {result.meta.postalCode}
-                              </div>
-                            </div>
-                            {copiedIndex === idx * 100 + 6 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-
-                        {selectedFields.has("unit") && result.meta.unit && (
-                          <button
-                            className="inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                            onClick={() => copyToClipboard(result.meta.unit!, idx * 100 + 7)}
-                          >
-                            <div className="flex-1">
-                              <div className="mb-1 text-xs font-medium text-gray-600">세부주소</div>
-                              <div className="text-sm font-medium text-gray-900 text-pretty">{result.meta.unit}</div>
-                            </div>
-                            {copiedIndex === idx * 100 + 7 ? <CheckIcon /> : <CopyIcon />}
-                          </button>
-                        )}
-                      </>
-                    )}
+                    <IndividualResultFields
+                      result={result}
+                      idx={idx}
+                      selectedFields={selectedFields}
+                      copiedKey={copiedKey}
+                      onCopy={copyToClipboard}
+                    />
                   </div>
                 </div>
               ))}
@@ -1524,7 +921,6 @@ export default function AddressGenerator() {
         </>
       )}
 
-      {/* 사용법 안내 모달 */}
       <UsageGuideModal open={showUsageGuide} onOpenChange={setShowUsageGuide} />
     </div>
   )

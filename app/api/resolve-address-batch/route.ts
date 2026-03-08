@@ -1,10 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { resolveAddress } from "@/lib/utils/kakao-api"
+import { checkRateLimit } from "@/lib/utils/rate-limiter"
+import { FALLBACK_COORDS } from "@/lib/constants"
 
-const MAX_BATCH_SIZE = 1000
+const MAX_BATCH_SIZE = 100
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const { allowed } = checkRateLimit(ip, "batch")
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": "60" } },
+      )
+    }
+
     const body = await request.json()
     const { addresses } = body
 
@@ -51,7 +62,10 @@ export async function POST(request: NextRequest) {
         const batchResults = await Promise.allSettled(
           batch.map(async (item) => {
             const address = typeof item === "string" ? item : item.address
-            const facilityName = typeof item === "object" ? item.facilityName : undefined
+            const facilityName =
+              typeof item === "object" && typeof item.facilityName === "string"
+                ? item.facilityName.slice(0, 200)
+                : undefined
 
             try {
               const resolved = await resolveAddress(address)
@@ -60,15 +74,19 @@ export async function POST(request: NextRequest) {
                 facilityName,
               }
             } catch (error) {
-              console.error("[v0] Failed to resolve address:", address, error)
+              const sanitized = address.replace(/[\n\r]/g, "").slice(0, 100)
+              console.error(
+                "[v0] Failed to resolve address:",
+                sanitized,
+                error instanceof Error ? error.message : "Unknown error",
+              )
               errorCount++
               return {
                 display: address,
                 meta: {
                   sido: "",
                   gu: "",
-                  lon: 127.0845,
-                  lat: 37.5384,
+                  ...FALLBACK_COORDS,
                   source: "FALLBACK",
                 },
                 fallback: true,
@@ -91,8 +109,7 @@ export async function POST(request: NextRequest) {
               meta: {
                 sido: "",
                 gu: "",
-                lon: 127.0845,
-                lat: 37.5384,
+                ...FALLBACK_COORDS,
                 source: "FALLBACK",
               },
               fallback: true,

@@ -1,28 +1,11 @@
-export type ResolvedDisplay = {
-  display: string // "광진구 아차산로400(자양동 870번지, 자양1동)"
-  meta: {
-    sido?: string // "서울특별시" (시/도)
-    gu: string // "광진구"
-    roadName?: string // "아차산로"
-    buildingNo?: string // "400" or "400-1"
-    unit?: string
-    legalDong?: string // "자양동" (법정동)
-    jibunNo?: string // "870" or "870-2"
-    adminDong?: string // "자양1동" (행정동)
-    postalCode?: string
-    lon: number // 경도
-    lat: number // 위도
-    source: "KAKAO" | "FALLBACK"
-    bcode?: string // 법정동 코드
-    searchMethod?: "ADDRESS" | "KEYWORD" // 검색 방법 추가
-    placeName?: string // 건물명 추가
-  }
-  fallback?: boolean
-  message?: string // 에러 메시지 추가
-}
+import { FALLBACK_COORDS } from "@/lib/constants"
+
+// Re-export from canonical location
+export type { ResolvedDisplay } from "@/lib/types"
+import type { ResolvedDisplay } from "@/lib/types"
 
 const addressCache = new Map<string, ResolvedDisplay>()
-const CACHE_MAX_SIZE = 100 // 최대 캐시 크기
+const CACHE_MAX_SIZE = 100
 
 export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedDisplay> {
   const cacheKey = inputRaw.trim().toLowerCase()
@@ -43,7 +26,7 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
 
     const result = await response.json()
 
-    // fallback(실패) 결과는 캐시하지 않음 — 일시 장애 복구 후 재시도 가능
+    // fallback(실패) 결과는 캐시하지 않음
     if (!result.fallback) {
       if (addressCache.size >= CACHE_MAX_SIZE) {
         const firstKey = addressCache.keys().next().value
@@ -54,15 +37,12 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
 
     return result
   } catch (error) {
-    console.error("[v0] Address resolution error:", error)
-    // Fallback
     return {
       display: inputRaw,
       meta: {
         sido: "",
         gu: "",
-        lon: 127.0845,
-        lat: 37.5384,
+        ...FALLBACK_COORDS,
         source: "FALLBACK",
       },
       fallback: true,

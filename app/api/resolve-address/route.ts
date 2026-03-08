@@ -1,8 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { resolveAddress } from "@/lib/utils/kakao-api"
+import { checkRateLimit } from "@/lib/utils/rate-limiter"
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const { allowed } = checkRateLimit(ip, "single")
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": "60" } },
+      )
+    }
+
     const body = await request.json()
     const { address } = body
 
