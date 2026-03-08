@@ -1,5 +1,5 @@
 import { Storage } from "@plasmohq/storage"
-import type { ExtensionSettings } from "~lib/types"
+import { type ExtensionSettings, DEFAULT_SETTINGS } from "~lib/types"
 import { getFieldValue } from "~lib/format"
 
 export {}
@@ -29,6 +29,10 @@ chrome.runtime.onInstalled.addListener((details) => {
   })
 
   if (details.reason === "install") {
+    // 기본 설정을 storage에 저장 (content script가 읽을 수 있도록)
+    storage.get<ExtensionSettings>("settings").then(existing => {
+      if (!existing) storage.set("settings", DEFAULT_SETTINGS)
+    })
     chrome.runtime.openOptionsPage()
   }
 })
@@ -77,37 +81,6 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 })
 
-// 클립보드 자동감지: 설정 변경 시 content script 동적 등록/해제
-const CONTENT_SCRIPT_ID = "clipboard-detect"
-
-async function updateContentScriptRegistration() {
-  const settings = await storage.get<ExtensionSettings>("settings")
-  const enabled = settings?.enableClipboardDetect ?? false
-
-  try {
-    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [CONTENT_SCRIPT_ID] })
-    if (enabled && existing.length === 0) {
-      await chrome.scripting.registerContentScripts([{
-        id: CONTENT_SCRIPT_ID,
-        matches: ["<all_urls>"],
-        js: ["content.js"],
-        runAt: "document_idle",
-        allFrames: false,
-      }])
-    } else if (!enabled && existing.length > 0) {
-      await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] })
-    }
-  } catch {
-    // content script 등록 실패 무시
-  }
-}
-
-// 설치/업데이트 시 + 설정 변경 시 content script 등록 상태 동기화
-chrome.runtime.onInstalled.addListener(() => updateContentScriptRegistration())
-storage.watch({
-  settings: () => updateContentScriptRegistration()
-})
-
 // 콘텐트 스크립트에서 클립보드 주소 감지 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, _sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false
@@ -123,6 +96,10 @@ chrome.runtime.onMessage.addListener((message, sender, _sendResponse) => {
 // 클립보드 감지 시 설정에 따라 알림 또는 팝업
 async function handleClipboardDetect(address: string, tabId?: number) {
   const settings = await storage.get<ExtensionSettings>("settings")
+
+  // 클립보드 감지 비활성화 시 무시
+  if (settings && settings.enableClipboardDetect === false) return
+
   const action = settings?.clipboardAction || "notification"
 
   if (action === "popup") {
