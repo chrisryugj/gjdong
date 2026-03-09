@@ -13,6 +13,9 @@ let lastSentTime = 0
 const COOLDOWN_MS = 3000
 
 function handleCopyAction() {
+  // 익스텐션 리로드/업데이트 시 context 무효화 → runtime이 undefined
+  if (!chrome.runtime?.id) return
+
   const text = window.getSelection()?.toString()?.trim()
   if (!text || text.length < 4 || text.length > 200) return
   if (!ADDRESS_PATTERN.test(text)) return

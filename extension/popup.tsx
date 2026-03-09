@@ -247,7 +247,7 @@ function IndexPopup() {
   }
 
   return (
-    <div className="flex flex-col bg-gray-50 text-gray-800" style={{ width: 400, minWidth: 400 }}>
+    <div className="flex flex-col bg-gray-50 text-gray-800 w-full min-w-[360px] max-w-[500px]">
       {/* 헤더 */}
       <div className="flex items-baseline justify-center gap-2 pt-3 pb-1 px-4">
         <h1
