@@ -8,7 +8,8 @@ function validateApiBaseUrl(url: string): string {
   if (!url) return DEFAULT_API_URL
   try {
     const parsed = new URL(url)
-    if (parsed.protocol !== "https:") return DEFAULT_API_URL
+    const isLocalhost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1"
+    if (parsed.protocol !== "https:" && !isLocalhost) return DEFAULT_API_URL
     return parsed.origin
   } catch {
     return DEFAULT_API_URL
