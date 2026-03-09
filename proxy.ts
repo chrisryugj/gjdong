@@ -8,9 +8,8 @@ export function proxy(request: NextRequest) {
   }
 
   const origin = request.headers.get("origin") || ""
-  const extensionId = process.env.CHROME_EXTENSION_ID
-  const isExtensionAllowed = extensionId ? origin === `chrome-extension://${extensionId}` : false
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtensionAllowed
+  const isExtension = origin.startsWith("chrome-extension://") || origin.startsWith("moz-extension://")
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtension
 
   if (!isAllowed) {
     return new NextResponse(JSON.stringify({ error: "Forbidden" }), {
