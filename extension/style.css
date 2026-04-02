@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: "Shilla";
-  src: url("./assets/Shilla_CultureB-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-display: swap;
+    font-family: 'Shilla';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2206-02@1.0/Shilla_CultureM-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-display: swap;
 }
 
 html, body {
