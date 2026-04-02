@@ -322,7 +322,7 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
     const buildingNoDisplay = apartmentUnit ? `${buildingNo} ${apartmentUnit}` : buildingNo
     const display = isPartial
       ? address
-      : `${gu} ${roadName}${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
+      : `${gu} ${roadName} ${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
 
     return {
       display,

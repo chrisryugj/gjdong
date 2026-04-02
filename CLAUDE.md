@@ -70,7 +70,7 @@ The resolver uses a multi-step approach:
 ### Output Formats
 
 `ResolvedDisplay` type contains:
-- `display`: Formatted string like "광진구 아차산로400(자양동 870, 자양2동)"
+- `display`: Formatted string like "광진구 아차산로 400(자양동 870, 자양2동)"
 - `meta`: Structured data with gu, roadName, buildingNo, unit, legalDong, jibunNo, adminDong, postalCode, coordinates
 
 ### Path Aliases

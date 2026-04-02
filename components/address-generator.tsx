@@ -84,9 +84,9 @@ type ProgressState = {
 }
 
 const FIELD_EXAMPLES: Record<OutputField, string> = {
-  standard1: "서울특별시 광진구 아차산로400(자양동 870, 자양2동)",
-  standard2: "광진구 아차산로400(자양동 870, 자양2동)",
-  road: "광진구 아차산로400",
+  standard1: "서울특별시 광진구 아차산로 400(자양동 870, 자양2동)",
+  standard2: "광진구 아차산로 400(자양동 870, 자양2동)",
+  road: "광진구 아차산로 400",
   jibun: "광진구 자양동 870",
   adminDong: "자양2동",
   postalCode: "05050",
@@ -477,10 +477,10 @@ export default function AddressGenerator() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {notification && (
         <div
-          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm ${
+          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-2.5 shadow-lg backdrop-blur-sm text-sm ${
             notification.type === "error"
               ? "bg-red-500/95 text-white"
               : notification.type === "info"
@@ -493,305 +493,193 @@ export default function AddressGenerator() {
       )}
 
       {progress && progress.total > 1 && (
-        <div className="fixed top-20 right-4 z-50 rounded-lg bg-white border-2 border-gray-900 shadow-xl p-4 min-w-[280px]">
-          <div className="space-y-2">
+        <div className="fixed top-16 right-4 z-50 rounded-lg bg-white border border-gray-200 shadow-xl p-3 min-w-[260px]">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between text-sm font-medium">
               <span>처리 중...</span>
-              <span className="text-gray-600">
-                {progress.current} / {progress.total}
-              </span>
+              <span className="text-gray-500 text-xs">{progress.current}/{progress.total}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${(progress.current / progress.total) * 100}%` }}
-              />
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div className="bg-gray-800 h-1.5 rounded-full transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>{Math.round((progress.current / progress.total) * 100)}% 완료</span>
-              {progress.estimatedTimeRemaining > 0 && (
-                <span>약 {Math.ceil(progress.estimatedTimeRemaining / 1000)}초 남음</span>
-              )}
+            <div className="flex items-center justify-between text-[11px] text-gray-400">
+              <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+              {progress.estimatedTimeRemaining > 0 && <span>약 {Math.ceil(progress.estimatedTimeRemaining / 1000)}초</span>}
             </div>
             {isSearching && (
-              <button
-                onClick={handleCancelBatch}
-                className="w-full mt-1 inline-flex items-center justify-center rounded-md text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 h-8 px-3 transition-colors"
-              >
-                취소
-              </button>
+              <button onClick={handleCancelBatch} className="w-full rounded-md text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 h-7 transition-colors">취소</button>
             )}
           </div>
         </div>
       )}
 
-      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-        <div className="flex flex-col space-y-1.5 p-6">
-          <div className="flex items-center justify-between">
-            <h3
-              className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"
-              style={{ fontFamily: "Shilla, sans-serif" }}
-            >
-              <SearchIcon />
-              무엇을 찾아드리리오?
-            </h3>
-            <UsageGuideButton onClick={() => setShowUsageGuide(true)} />
+      {/* === 헤더 + 입력 통합 카드 === */}
+      <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+        {/* 헤더: 타이틀 + 액션 */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>표준주소실록</h1>
+            <span className="text-xs text-muted-foreground/50 font-medium">v2.0</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {isMultiLine
-              ? "여러 주소를 한 번에 변환하세요 (줄바꿈으로 구분, 엑셀 2열 데이터 지원)"
-              : "입력한 주소를 표준주소 형식으로 변환하고, 지도에 표시하오"}
-          </p>
+          <div className="flex items-center gap-1">
+            <a href="/tableau-geocoder" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tableau Geocoder">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+            </a>
+            <button onClick={() => setShowUsageGuide(true)} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="사용법">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            </button>
+          </div>
         </div>
-        <div className="p-6 pt-0">
-          <div className="space-y-4">
-            {hasTwoColumnData && showFormattedInput ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">입력 데이터 ({lines.length}개)</span>
-                  <button
-                    onClick={() => setShowFormattedInput(false)}
-                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    <EditIcon />
-                    텍스트로 편집
-                  </button>
-                </div>
-                <div className="rounded-lg border-2 border-gray-300 bg-white overflow-hidden">
-                  <div className="max-h-96 overflow-y-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0">
-                        <tr>
-                          <th className="w-12 px-3 py-2 text-xs font-bold text-gray-600 text-center">#</th>
-                          <th className="px-4 py-2 text-xs font-bold text-gray-600 text-left">주소</th>
-                          <th className="w-48 px-4 py-2 text-xs font-bold text-gray-600 text-left">시설명</th>
+
+        <div className="px-5 pb-4 space-y-3">
+          {/* 입력 영역 */}
+          {hasTwoColumnData && showFormattedInput ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500">{lines.length}개 입력됨</span>
+                <button onClick={() => setShowFormattedInput(false)} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  <EditIcon /> 편집
+                </button>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                <div className="max-h-72 overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                      <tr>
+                        <th className="w-10 px-2 py-1.5 text-[10px] font-semibold text-gray-500 text-center">#</th>
+                        <th className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 text-left">주소</th>
+                        <th className="w-40 px-3 py-1.5 text-[10px] font-semibold text-gray-500 text-left">시설명</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedInputData.map((data, idx) => (
+                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-2 py-1.5 text-center text-xs text-gray-400">{idx + 1}</td>
+                          <td className="px-3 py-1.5 text-sm text-gray-800">{data.address}</td>
+                          <td className="px-3 py-1.5">
+                            {data.facilityName ? (
+                              <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">{data.facilityName}</span>
+                            ) : (
+                              <span className="text-xs text-gray-300">-</span>
+                            )}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {parsedInputData.map((data, idx) => (
-                          <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                            <td className="px-3 py-3 text-center">
-                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-xs font-bold">
-                                {idx + 1}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{data.address}</td>
-                            <td className="px-4 py-3">
-                              {data.facilityName ? (
-                                <span className="inline-flex items-center rounded-md bg-blue-100 px-3 py-1 text-sm font-bold text-blue-800 border border-blue-300">
-                                  {data.facilityName}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">주소 입력</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium rounded-md px-2 py-1 hover:bg-blue-50 transition-colors"
-                        type="button"
-                      >
-                        <InfoIcon />
-                        입력 방법
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent side="bottom" align="end" className="w-80">
-                      <InputGuideContent />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="relative">
-                        <div
-                          className="absolute left-0 top-0 w-10 bg-gray-100 border-r border-gray-300 rounded-l-md flex flex-col text-xs text-gray-400 font-mono pt-2 pointer-events-none z-10"
-                          style={{ height: textareaRef.current?.style.height || "auto", lineHeight: "1.5rem" }}
-                        >
-                          {lines.map((_, idx) => (
-                            <div
-                              key={idx}
-                              className="h-6 flex items-center justify-center"
-                              style={{ lineHeight: "1.5rem" }}
-                            >
-                              {idx + 1}
-                            </div>
-                          ))}
-                        </div>
-                        <textarea
-                          ref={textareaRef}
-                          placeholder="찾을 주소를 입력하시오, 여러주소는 줄바꿈하시오"
-                          value={inputValue}
-                          onChange={(e) => setInputValue(e.target.value)}
-                          onFocus={() => setShowRecentSearches(true)}
-                          onBlur={() => {
-                            setTimeout(() => setShowRecentSearches(false), 200)
-                            if (hasTwoColumnData) setShowFormattedInput(true)
-                          }}
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-background pl-12 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                          rows={1}
-                          style={{ lineHeight: "1.5rem" }}
-                        />
-
-                        {showRecentSearches && recentSearches.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
-                              <div className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                                <ClockIcon />
-                                최근 검색
-                              </div>
-                              <button
-                                onClick={clearRecentSearches}
-                                className="text-xs text-gray-500 hover:text-gray-700"
-                              >
-                                전체 삭제
-                              </button>
-                            </div>
-                            {recentSearches.map((search, idx) => {
-                              const isBatch = search.includes("\n")
-                              const displayText = isBatch
-                                ? `${search.split("\n")[0]}... (외 ${search.split("\n").length - 1}개)`
-                                : search
-
-                              return (
-                                <button
-                                  key={idx}
-                                  onClick={() => loadRecentSearch(search)}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-b-0"
-                                >
-                                  {displayText}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-md p-4">
-                      <InputGuideContent dark />
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            )}
-
-            <div className="rounded-lg bg-muted/30 border border-border/50 p-4">
-              <label className="text-sm font-semibold text-foreground mb-3 block">출력 항목 선택</label>
-              <TooltipProvider delayDuration={200}>
-                <div className="flex flex-wrap gap-2">
-                  {OUTPUT_FIELDS.map((field) => (
-                    <Tooltip key={field}>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => toggleField(field)}
-                          className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm transition-all duration-200 ${
-                            selectedFields.has(field)
-                              ? "bg-gray-200 text-gray-900 font-bold shadow-md hover:shadow-lg hover:bg-gray-300"
-                              : "bg-white text-gray-300 hover:bg-gray-50 hover:text-gray-500 border border-gray-200 hover:border-gray-300"
-                          }`}
-                        >
-                          {OUTPUT_FIELD_LABELS[field]}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs">
-                        <p className="text-xs font-medium mb-1 text-gray-100">출력 예시:</p>
-                        <p className="text-xs text-gray-200">{FIELD_EXAMPLES[field]}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              </TooltipProvider>
             </div>
+          ) : (
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                placeholder="주소 입력 (Enter 검색, Shift+Enter 줄바꿈으로 일괄 변환)"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onFocus={() => setShowRecentSearches(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowRecentSearches(false), 200)
+                  if (hasTwoColumnData) setShowFormattedInput(true)
+                }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSearch() } }}
+                className="flex min-h-[48px] w-full rounded-lg border border-input bg-background pl-3 pr-12 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                rows={1}
+                style={{ lineHeight: "1.5rem" }}
+              />
+              {/* 검색 버튼 (입력창 우측) */}
+              <button
+                onClick={handleSearch}
+                disabled={isSearching || !inputValue.trim()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title={isMultiLine ? `일괄 변환 (${lines.length}건)` : "검색 (Enter)"}
+              >
+                {isSearching ? (
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="currentColor" strokeWidth="2.5" /></svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
+                )}
+              </button>
 
-            {isMultiLine && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">결과 표시 방법</label>
-                <div className="flex gap-2">
-                  {(["combined", "individual"] as const).map((mode) => (
+              {/* 최근 검색 드롭다운 */}
+              {showRecentSearches && recentSearches.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100">
+                    <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1"><ClockIcon /> 최근 검색</span>
+                    <button onClick={clearRecentSearches} className="text-[10px] text-gray-400 hover:text-red-500">삭제</button>
+                  </div>
+                  {recentSearches.map((search, idx) => {
+                    const isBatchSearch = search.includes("\n")
+                    const displayText = isBatchSearch ? `${search.split("\n")[0]}... (외 ${search.split("\n").length - 1}개)` : search
+                    return (
+                      <button key={idx} onClick={() => loadRecentSearch(search)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0">{displayText}</button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 출력 칩 + 표시모드 (한 줄) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <TooltipProvider delayDuration={200}>
+              {OUTPUT_FIELDS.map((field) => (
+                <Tooltip key={field}>
+                  <TooltipTrigger asChild>
                     <button
-                      key={mode}
-                      onClick={() => setDisplayMode(mode)}
-                      className={`flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 ${
-                        displayMode === mode
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => toggleField(field)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                        selectedFields.has(field)
+                          ? "bg-gray-800 text-white"
+                          : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
                       }`}
                     >
-                      {mode === "combined" ? "한번에 출력" : "주소별 개별 출력"}
+                      {OUTPUT_FIELD_LABELS[field]}
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs text-gray-200">{FIELD_EXAMPLES[field]}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </TooltipProvider>
 
-            <button
-              onClick={handleSearch}
-              disabled={isSearching}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 w-full"
-            >
-              {isSearching ? (
-                <>
-                  <svg className="h-5 w-5 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  변환 중...
-                </>
-              ) : (
-                <>
-                  <SearchIcon />
-                  <span className="ml-2">{isMultiLine ? "일괄 검색" : "검색"}</span>
-                </>
-              )}
-            </button>
+            {isMultiLine && (
+              <>
+                <span className="text-gray-200 mx-0.5">|</span>
+                {(["combined", "individual"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDisplayMode(mode)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
+                      displayMode === mode
+                        ? "bg-blue-100 text-blue-700"
+                        : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    {mode === "combined" ? "한번에" : "개별"}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </div>
 
+      {/* === 단건 결과 === */}
       {resolvedAddress && !resolvedAddress.fallback && (
         <>
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6">
-              <h3 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
-                <MapPinIcon />
-                위치 확인
-              </h3>
-              <p className="text-sm text-muted-foreground">지도에서 위치를 확인하세요</p>
-            </div>
-            <div className="p-6 pt-0">
-              <MapView lat={resolvedAddress.meta.lat} lon={resolvedAddress.meta.lon} address={resolvedAddress.display} />
-            </div>
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <MapView lat={resolvedAddress.meta.lat} lon={resolvedAddress.meta.lon} address={resolvedAddress.display} />
           </div>
 
-          <div
-            ref={resultSectionRef}
-            className="rounded-lg border-2 border-gray-900 bg-white text-card-foreground shadow-sm"
-          >
-            <div className="flex flex-col space-y-1.5 p-6">
-              <h3 className="text-2xl font-semibold leading-none tracking-tight text-gray-900">표준주소 결과</h3>
-              <p className="text-sm text-muted-foreground">클릭하여 클립보드에 복사하세요</p>
+          <div ref={resultSectionRef} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
+            <div className="px-5 pt-4 pb-2">
+              <h3 className="text-lg font-semibold text-gray-900">변환 결과</h3>
+              <p className="text-xs text-muted-foreground">클릭하여 복사</p>
             </div>
-            <div className="p-6 pt-0 space-y-3">
-              {OUTPUT_FIELDS.filter((field) => {
-                if (!selectedFields.has(field)) return false
-                return !!getFieldDisplayValue(resolvedAddress, field)
-              }).map((field) => (
+            <div className="px-5 pb-4 space-y-2">
+              {OUTPUT_FIELDS.filter((field) => selectedFields.has(field) && !!getFieldDisplayValue(resolvedAddress, field)).map((field) => (
                 <ResultFieldButton
                   key={field}
                   label={OUTPUT_FIELD_LABELS[field]}
@@ -806,113 +694,75 @@ export default function AddressGenerator() {
         </>
       )}
 
+      {/* === 배치 결과 === */}
       {batchResults.length > 0 && (
         <>
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6">
-              <h3 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
-                <MapPinIcon />
-                위치 확인
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                지도에서 모든 위치를 확인하세요 (마커에 마우스를 올려보세요)
-              </p>
-            </div>
-            <div className="p-6 pt-0">
-              <MapView
-                lat={batchResults[0].meta.lat}
-                lon={batchResults[0].meta.lon}
-                address="일괄 변환 결과"
-                markers={batchResults
-                  .filter((r) => !r.fallback)
-                  .map((r) => ({
-                    lat: r.meta.lat,
-                    lon: r.meta.lon,
-                    address: r.display,
-                    title: r.facilityName,
-                    roadName: r.meta.roadName ? `${r.meta.gu} ${r.meta.roadName}${r.meta.buildingNo}` : undefined,
-                    jibunAddress: r.meta.legalDong ? `${r.meta.legalDong} ${r.meta.jibunNo}` : undefined,
-                    adminDong: r.meta.adminDong,
-                  }))}
-              />
-            </div>
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <MapView
+              lat={batchResults[0].meta.lat}
+              lon={batchResults[0].meta.lon}
+              address="일괄 변환 결과"
+              markers={batchResults
+                .filter((r) => !r.fallback)
+                .map((r) => ({
+                  lat: r.meta.lat,
+                  lon: r.meta.lon,
+                  address: r.display,
+                  title: r.facilityName,
+                  roadName: r.meta.roadName ? `${r.meta.gu} ${r.meta.roadName} ${r.meta.buildingNo}` : undefined,
+                  jibunAddress: r.meta.legalDong ? `${r.meta.legalDong} ${r.meta.jibunNo}` : undefined,
+                  adminDong: r.meta.adminDong,
+                }))}
+            />
           </div>
 
           {displayMode === "combined" && (
-            <div
-              ref={resultSectionRef}
-              className="rounded-lg border-2 border-gray-900 bg-white text-card-foreground shadow-sm"
-            >
-              <div className="flex flex-col space-y-1.5 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-semibold leading-none tracking-tight text-gray-900">
-                      일괄 변환 결과 (한번에)
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">전체 결과를 한번에 복사할 수 있습니다</p>
-                  </div>
-                  <button
-                    onClick={exportToExcel}
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-green-600 text-white hover:bg-green-700 h-10 px-4 gap-2"
-                  >
-                    <DownloadIcon />
-                    엑셀 다운로드
-                  </button>
+            <div ref={resultSectionRef} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
+              <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">일괄 결과</h3>
+                  <p className="text-xs text-muted-foreground">전체 복사 가능</p>
                 </div>
+                <button
+                  onClick={exportToExcel}
+                  className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-8 px-3 transition-colors"
+                >
+                  <DownloadIcon /> Excel
+                </button>
               </div>
-              <div className="p-6 pt-0 space-y-3">
+              <div className="px-5 pb-4 space-y-2">
                 {OUTPUT_FIELDS.filter((field) => {
                   if (!selectedFields.has(field)) return false
                   if (field === "postalCode") return batchResults.some((r) => !r.fallback && r.meta.postalCode)
                   if (field === "unit") return batchResults.some((r) => !r.fallback && r.meta.unit)
                   return true
                 }).map((field) => (
-                  <CombinedBatchField
-                    key={field}
-                    field={field}
-                    results={batchResults}
-                    copiedKey={`combined-${field}`}
-                    currentCopiedKey={copiedKey}
-                    onCopy={copyToClipboard}
-                  />
+                  <CombinedBatchField key={field} field={field} results={batchResults} copiedKey={`combined-${field}`} currentCopiedKey={copiedKey} onCopy={copyToClipboard} />
                 ))}
               </div>
             </div>
           )}
 
           {displayMode === "individual" && (
-            <div ref={resultSectionRef} className="space-y-4">
+            <div ref={resultSectionRef} className="space-y-3">
               <div className="flex justify-end">
-                <button
-                  onClick={exportToExcel}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-green-600 text-white hover:bg-green-700 h-10 px-4 gap-2"
-                >
-                  <DownloadIcon />
-                  엑셀 다운로드
+                <button onClick={exportToExcel} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-8 px-3 transition-colors">
+                  <DownloadIcon /> Excel
                 </button>
               </div>
               {batchResults.map((result, idx) => (
-                <div key={idx} className="rounded-lg border-2 border-gray-900 bg-white text-card-foreground shadow-sm">
-                  <div className="flex flex-col space-y-1.5 p-6">
-                    <h3 className="text-xl font-semibold leading-none tracking-tight text-gray-900">
+                <div key={idx} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
+                  <div className="px-5 pt-3 pb-1">
+                    <h3 className="text-sm font-semibold text-gray-900">
                       {idx + 1}.{" "}
                       {result.facilityName && (
-                        <span className="inline-flex items-center rounded-md bg-blue-100 px-3 py-1 text-sm font-bold text-blue-800 mr-2 border border-blue-300">
-                          {result.facilityName}
-                        </span>
+                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 mr-1.5 border border-blue-200">{result.facilityName}</span>
                       )}
                       {result.originalInput}
                     </h3>
-                    {!result.fallback && <p className="text-sm text-gray-600">클릭하여 클립보드에 복사하세요</p>}
                   </div>
-                  <div className="p-6 pt-0 space-y-3">
-                    <IndividualResultFields
-                      result={result}
-                      idx={idx}
-                      selectedFields={selectedFields}
-                      copiedKey={copiedKey}
-                      onCopy={copyToClipboard}
-                    />
+                  <div className="px-5 pb-3 space-y-2">
+                    <IndividualResultFields result={result} idx={idx} selectedFields={selectedFields} copiedKey={copiedKey} onCopy={copyToClipboard} />
                   </div>
                 </div>
               ))}

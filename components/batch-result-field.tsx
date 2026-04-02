@@ -37,7 +37,7 @@ export function getFieldDisplayValue(
     case "standard2":
       return result.display
     case "road":
-      return m.roadName ? `${m.gu} ${m.roadName}${fullBuildingNo}` : ""
+      return m.roadName ? `${m.gu} ${m.roadName} ${fullBuildingNo}` : ""
     case "jibun":
       return m.legalDong ? `${m.gu} ${m.legalDong} ${m.jibunNo}` : ""
     case "adminDong":

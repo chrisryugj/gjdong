@@ -15,7 +15,7 @@ export function getFieldValue(result: ResolvedDisplay, field: OutputField): stri
       return result.display
     case "road":
       return meta.roadName
-        ? `${meta.gu} ${meta.roadName}${fullBuildingNo}`
+        ? `${meta.gu} ${meta.roadName} ${fullBuildingNo}`
         : ""
     case "jibun":
       return meta.legalDong

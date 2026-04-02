@@ -41,9 +41,9 @@ export const FIELD_LABELS: Record<OutputField, string> = {
 }
 
 export const FIELD_EXAMPLES: Record<OutputField, string> = {
-  standard1: "서울특별시 광진구 아차산로400(자양동 870, 자양2동)",
-  standard2: "광진구 아차산로400(자양동 870, 자양2동)",
-  road: "광진구 아차산로400",
+  standard1: "서울특별시 광진구 아차산로 400(자양동 870, 자양2동)",
+  standard2: "광진구 아차산로 400(자양동 870, 자양2동)",
+  road: "광진구 아차산로 400",
   jibun: "광진구 자양동 870",
   adminDong: "자양2동",
   postalCode: "05050",

@@ -181,11 +181,11 @@ export default function UsageGuideModal({ open, onOpenChange }: UsageGuideModalP
                 <tbody className="text-gray-700">
                   <tr className="border-b">
                     <td className="py-1.5">광진구 아차산로 400</td>
-                    <td>서울특별시 광진구 아차산로400(자양동 870, 자양2동)</td>
+                    <td>서울특별시 광진구 아차산로 400(자양동 870, 자양2동)</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-1.5">자양동 870</td>
-                    <td>서울특별시 광진구 아차산로400(자양동 870, 자양2동)</td>
+                    <td>서울특별시 광진구 아차산로 400(자양동 870, 자양2동)</td>
                   </tr>
                   <tr>
                     <td className="py-1.5">경기도 성남시 분당구 판교역로 235</td>
