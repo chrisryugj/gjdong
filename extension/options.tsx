@@ -223,18 +223,20 @@ function IndexOptions() {
             <span className="text-xs text-gray-500 block mb-1.5">우클릭 '표준주소 변환' 동작</span>
             <div className="flex gap-2">
               {([
-                { value: "popup", label: "팝업으로 열기" },
-                { value: "notification", label: "자동 복사 + 알림" }
+                { value: "inline", label: "인라인 카드", desc: "선택 위치에 결과 표시" },
+                { value: "popup", label: "팝업으로 열기", desc: "별도 창에서 상세 보기" },
+                { value: "notification", label: "자동 복사 + 알림", desc: "빠른 복사" }
               ] as const).map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => update("contextMenuAction", opt.value as ClipboardAction)}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    (local.contextMenuAction || "popup") === opt.value
+                  className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                    (local.contextMenuAction || "inline") === opt.value
                       ? "bg-blue-50 border-2 border-blue-500 text-blue-700"
                       : "bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100"
                   }`}>
                   {opt.label}
+                  {opt.desc && <p className="text-[10px] text-gray-400 mt-0.5 font-normal">{opt.desc}</p>}
                 </button>
               ))}
             </div>

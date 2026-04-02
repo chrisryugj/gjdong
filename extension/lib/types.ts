@@ -58,7 +58,7 @@ export type HistoryItem = {
 }
 
 export type MapProvider = "kakao" | "naver"
-export type ClipboardAction = "notification" | "popup"
+export type ClipboardAction = "notification" | "popup" | "inline"
 
 export type ExtensionSettings = {
   apiBaseUrl: string
@@ -84,6 +84,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   mapProvider: "naver",
   enableClipboardDetect: true,
   clipboardAction: "popup",
-  contextMenuAction: "popup",
+  contextMenuAction: "inline",
   selectedFields: ["standard1", "standard2", "road", "jibun", "adminDong", "postalCode", "unit"]
 }

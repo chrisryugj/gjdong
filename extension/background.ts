@@ -7,6 +7,17 @@ export {}
 const storage = new Storage()
 const DEFAULT_API_URL = "https://gjdong.vercel.app"
 
+// 네이버 지도 등에서 복사 시 "복사", "지번", "도로명" UI 텍스트 제거
+function cleanAddress(raw: string): string {
+  return raw
+    .replace(/복사\s*$/gm, "")
+    .replace(/^(?:지번|도로명|우편번호)\s*/gm, "")
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l.length >= 4)[0]
+    || raw.replace(/복사\s*$/g, "").trim()
+}
+
 function validateApiBaseUrl(url: string): string {
   if (!url) return DEFAULT_API_URL
   try {
@@ -37,15 +48,30 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 })
 
-// 우클릭 → 설정에 따라 팝업 또는 알림
+// 우클릭 → 인라인 카드 (기본) / 팝업 / 알림
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "convert-address" && info.selectionText) {
-    const address = info.selectionText.trim()
+    const address = cleanAddress(info.selectionText.trim())
 
     const settings = await storage.get<ExtensionSettings>("settings")
-    const action = settings?.contextMenuAction || "popup"
+    const action = settings?.contextMenuAction || "inline"
 
-    if (action === "popup") {
+    if (action === "inline" && tab?.id) {
+      // 현재 탭의 content script에 인라인 카드 표시 요청
+      chrome.tabs.sendMessage(tab.id, {
+        type: "show-inline-card",
+        address
+      }).catch(() => {
+        // content script 없으면 팝업으로 fallback
+        chrome.windows.create({
+          url: chrome.runtime.getURL(`popup.html?address=${encodeURIComponent(address)}`),
+          type: "popup",
+          width: 500,
+          height: 540,
+          focused: true
+        })
+      })
+    } else if (action === "popup") {
       chrome.windows.create({
         url: chrome.runtime.getURL(`popup.html?address=${encodeURIComponent(address)}`),
         type: "popup",
@@ -74,21 +100,34 @@ chrome.commands.onCommand.addListener(async (command) => {
         catch { return null }
       }
     })
-    const text = results?.[0]?.result?.trim()
-    if (text) await convertAndNotify(text, tab.id)
+    const raw = results?.[0]?.result?.trim()
+    if (raw) await convertAndNotify(cleanAddress(raw), tab.id)
   } catch {
     // 단축키 실행 실패 - 무시
   }
 })
 
-// 콘텐트 스크립트에서 클립보드 주소 감지 메시지 수신
-chrome.runtime.onMessage.addListener((message, sender, _sendResponse) => {
+// 콘텐트 스크립트에서 메시지 수신
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false
+
+  // 인라인 카드용 주소 변환 요청
+  if (message.type === "inline-resolve-address" && message.address) {
+    if (typeof message.address !== "string" || message.address.length > 200) {
+      sendResponse({ error: "잘못된 주소 형식" })
+      return false
+    }
+    inlineResolve(message.address).then(sendResponse).catch(() => {
+      sendResponse({ error: "API 서버 연결 실패" })
+    })
+    return true // async sendResponse
+  }
+
   if (!sender.tab?.id) return false
 
   if (message.type === "clipboard-address-detected" && message.text) {
     if (typeof message.text !== "string" || message.text.length > 200) return false
-    handleClipboardDetect(message.text, sender.tab.id)
+    handleClipboardDetect(cleanAddress(message.text), sender.tab.id)
   }
   return false
 })
@@ -183,6 +222,27 @@ async function convertAndNotify(address: string, tabId?: number) {
     if (settings?.enableNotifications ?? true) {
       showNotification("변환 실패", "API 서버 연결을 확인하세요.")
     }
+  }
+}
+
+// 인라인 카드용 주소 변환
+async function inlineResolve(address: string): Promise<{ result?: unknown; error?: string }> {
+  try {
+    const settings = await storage.get<ExtensionSettings>("settings")
+    const baseUrl = validateApiBaseUrl(settings?.apiBaseUrl || "")
+    const sanitized = address.trim().slice(0, 200)
+
+    const response = await fetch(`${baseUrl}/api/resolve-address`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: sanitized })
+    })
+
+    if (!response.ok) return { error: `API 오류: ${response.status}` }
+    const result = await response.json()
+    return { result }
+  } catch {
+    return { error: "API 서버 연결 실패" }
   }
 }
 
