@@ -22,7 +22,7 @@ export default function Home() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Last updated at 2025.10.27. 17:16</p>
+                  <p className="text-xs">Last updated at 2026.04.02</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

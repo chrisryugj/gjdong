@@ -519,7 +519,7 @@ export default function AddressGenerator() {
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="flex items-baseline gap-2">
             <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>표준주소실록</h1>
-            <span className="text-xs text-muted-foreground/50 font-medium">v2.0</span>
+            <span className="text-xs text-muted-foreground/50 font-medium">v3.0</span>
           </div>
           <div className="flex items-center gap-1">
             <a href="/tableau-geocoder" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tableau Geocoder">
@@ -673,23 +673,21 @@ export default function AddressGenerator() {
             <MapView lat={resolvedAddress.meta.lat} lon={resolvedAddress.meta.lon} address={resolvedAddress.display} />
           </div>
 
-          <div ref={resultSectionRef} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
-            <div className="px-5 pt-4 pb-2">
-              <h3 className="text-lg font-semibold text-gray-900">변환 결과</h3>
-              <p className="text-xs text-muted-foreground">클릭하여 복사</p>
+          <div ref={resultSectionRef} className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-semibold text-gray-900">변환 결과</h3>
+              <p className="text-[11px] text-muted-foreground">클릭하여 복사</p>
             </div>
-            <div className="px-5 pb-4 space-y-2">
-              {OUTPUT_FIELDS.filter((field) => selectedFields.has(field) && !!getFieldDisplayValue(resolvedAddress, field)).map((field) => (
-                <ResultFieldButton
-                  key={field}
-                  label={OUTPUT_FIELD_LABELS[field]}
-                  value={getFieldDisplayValue(resolvedAddress, field)}
-                  copiedKey={`single-${field}`}
-                  currentCopiedKey={copiedKey}
-                  onCopy={copyToClipboard}
-                />
-              ))}
-            </div>
+            {OUTPUT_FIELDS.filter((field) => selectedFields.has(field) && !!getFieldDisplayValue(resolvedAddress, field)).map((field) => (
+              <ResultFieldButton
+                key={field}
+                label={OUTPUT_FIELD_LABELS[field]}
+                value={getFieldDisplayValue(resolvedAddress, field)}
+                copiedKey={`single-${field}`}
+                currentCopiedKey={copiedKey}
+                onCopy={copyToClipboard}
+              />
+            ))}
           </div>
         </>
       )}
@@ -717,51 +715,47 @@ export default function AddressGenerator() {
           </div>
 
           {displayMode === "combined" && (
-            <div ref={resultSectionRef} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
-              <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">일괄 결과</h3>
-                  <p className="text-xs text-muted-foreground">전체 복사 가능</p>
-                </div>
+            <div ref={resultSectionRef} className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-semibold text-gray-900">일괄 결과 <span className="text-muted-foreground font-normal text-[11px] ml-1">클릭하여 복사</span></h3>
                 <button
                   onClick={exportToExcel}
-                  className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-8 px-3 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors"
                 >
                   <DownloadIcon /> Excel
                 </button>
               </div>
-              <div className="px-5 pb-4 space-y-2">
-                {OUTPUT_FIELDS.filter((field) => {
-                  if (!selectedFields.has(field)) return false
-                  if (field === "postalCode") return batchResults.some((r) => !r.fallback && r.meta.postalCode)
-                  if (field === "unit") return batchResults.some((r) => !r.fallback && r.meta.unit)
-                  return true
-                }).map((field) => (
-                  <CombinedBatchField key={field} field={field} results={batchResults} copiedKey={`combined-${field}`} currentCopiedKey={copiedKey} onCopy={copyToClipboard} />
-                ))}
-              </div>
+              {OUTPUT_FIELDS.filter((field) => {
+                if (!selectedFields.has(field)) return false
+                if (field === "postalCode") return batchResults.some((r) => !r.fallback && r.meta.postalCode)
+                if (field === "unit") return batchResults.some((r) => !r.fallback && r.meta.unit)
+                return true
+              }).map((field) => (
+                <CombinedBatchField key={field} field={field} results={batchResults} copiedKey={`combined-${field}`} currentCopiedKey={copiedKey} onCopy={copyToClipboard} />
+              ))}
             </div>
           )}
 
           {displayMode === "individual" && (
             <div ref={resultSectionRef} className="space-y-3">
-              <div className="flex justify-end">
-                <button onClick={exportToExcel} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-8 px-3 transition-colors">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-semibold text-gray-900">개별 결과</h3>
+                <button onClick={exportToExcel} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors">
                   <DownloadIcon /> Excel
                 </button>
               </div>
               {batchResults.map((result, idx) => (
-                <div key={idx} className="rounded-xl border-2 border-gray-900 bg-white shadow-sm">
-                  <div className="px-5 pt-3 pb-1">
+                <div key={idx} className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="px-4 pt-3 pb-1">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      {idx + 1}.{" "}
+                      <span className="text-gray-400 mr-1">{idx + 1}.</span>
                       {result.facilityName && (
                         <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 mr-1.5 border border-blue-200">{result.facilityName}</span>
                       )}
                       {result.originalInput}
                     </h3>
                   </div>
-                  <div className="px-5 pb-3 space-y-2">
+                  <div className="px-4 pb-3 space-y-1.5">
                     <IndividualResultFields result={result} idx={idx} selectedFields={selectedFields} copiedKey={copiedKey} onCopy={copyToClipboard} />
                   </div>
                 </div>

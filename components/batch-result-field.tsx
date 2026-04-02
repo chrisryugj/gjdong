@@ -52,7 +52,7 @@ export function getFieldDisplayValue(
 }
 
 const BUTTON_CLASS =
-  "inline-flex items-center justify-between w-full rounded-md border-2 border-gray-900 bg-white hover:bg-gray-50 h-auto p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+  "inline-flex items-center justify-between w-full rounded-lg border border-gray-200 bg-white hover:bg-gray-50 h-auto px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
 
 // 단일 결과 필드 버튼
 export function ResultFieldButton({
@@ -70,11 +70,13 @@ export function ResultFieldButton({
 }) {
   return (
     <button className={BUTTON_CLASS} onClick={() => onCopy(value, copiedKey)}>
-      <div className="flex-1">
-        <div className="mb-1 text-xs font-medium text-gray-600">{label}</div>
-        <div className="text-sm font-medium text-gray-900 text-pretty">{value}</div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-medium text-gray-400 mb-0.5">{label}</div>
+        <div className="text-sm text-gray-900 text-pretty">{value}</div>
       </div>
-      {currentCopiedKey === copiedKey ? <CheckIcon /> : <CopyIcon />}
+      <div className="flex-shrink-0 ml-3 text-gray-300">
+        {currentCopiedKey === copiedKey ? <CheckIcon /> : <CopyIcon />}
+      </div>
     </button>
   )
 }
@@ -177,15 +179,17 @@ export function CombinedBatchField({
 
   return (
     <button className={BUTTON_CLASS} onClick={() => onCopy(getCopyText(), copiedKey)}>
-      <div className="flex-1">
-        <div className="mb-2 text-xs font-medium text-gray-600">{label}</div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-medium text-gray-400 mb-1">{label}</div>
         <div className="text-sm font-mono text-gray-900 whitespace-pre-wrap">
           {results.map((result, idx) => (
             <BatchResultRow key={idx} result={result} idx={idx} field={field} />
           ))}
         </div>
       </div>
-      {currentCopiedKey === copiedKey ? <CheckIcon /> : <CopyIcon />}
+      <div className="flex-shrink-0 ml-3 text-gray-300 self-start mt-1">
+        {currentCopiedKey === copiedKey ? <CheckIcon /> : <CopyIcon />}
+      </div>
     </button>
   )
 }
