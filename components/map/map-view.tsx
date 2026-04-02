@@ -156,7 +156,7 @@ export default function MapView({ lat, lon, address, markers }: MapViewProps) {
   }, [lat, lon, markers])
 
   return (
-    <div ref={containerRef} className="relative w-full rounded-lg border border-border overflow-hidden h-[300px]">
+    <div ref={containerRef} className="relative w-full rounded-lg border border-border overflow-hidden h-[300px] isolate">
       <div ref={mapRef} className="w-full h-full" />
       {mapError && (
         <div className="absolute inset-0 z-[1002] flex items-center justify-center bg-background/95 px-4 text-center text-sm text-muted-foreground">
