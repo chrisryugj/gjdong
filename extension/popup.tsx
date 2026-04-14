@@ -76,17 +76,23 @@ function IndexPopup() {
     setError("")
     setResult(null)
     setBatchResults([])
+    let resolved: ResolvedDisplay
     try {
-      const resolved = await resolveAddress(query)
-      setResult(resolved)
-      if (!resolved.fallback) {
-        await addHistory({ input: query, result: resolved })
-        await loadHistory()
-      }
+      resolved = await resolveAddress(query)
     } catch {
       setError("주소 변환 실패. API 서버 연결을 확인하세요.")
-    } finally {
       setIsLoading(false)
+      return
+    }
+    setResult(resolved)
+    setIsLoading(false)
+    if (!resolved.fallback) {
+      try {
+        await addHistory({ input: query, result: resolved })
+        await loadHistory()
+      } catch {
+        // 이력 저장 실패는 무시 (변환 결과는 이미 표시됨)
+      }
     }
   }
 
