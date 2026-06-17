@@ -14,7 +14,6 @@ let shadowHost: HTMLElement | null = null
 let shadowRoot: ShadowRoot | null = null
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let currentAddress = ""
-let highlightMarks: HTMLElement[] = []
 
 // 토글 칩 상태 (기본값: 도로명, 지번, 행정동 ON / 우편번호, 좌표 OFF)
 type FieldKey = "road" | "jibun" | "admin" | "postal" | "coord"
@@ -59,7 +58,6 @@ function showTrigger(rect: DOMRect, text: string) {
   removeTrigger()
   removeCard()
   currentAddress = text
-  applyHighlight()
   const root = ensureShadowHost()
 
   triggerEl = document.createElement("div")
@@ -81,7 +79,7 @@ function showTrigger(rect: DOMRect, text: string) {
   })
 
   root.appendChild(triggerEl)
-  hideTimer = setTimeout(() => { removeTrigger(); if (!cardEl) removeHighlight() }, 5000)
+  hideTimer = setTimeout(() => { removeTrigger() }, 5000)
 }
 
 function removeTrigger() {
@@ -90,72 +88,7 @@ function removeTrigger() {
   triggerEl = null
 }
 function removeCard() { cardEl?.remove(); cardEl = null }
-function removeHighlight() {
-  highlightMarks.forEach(mark => {
-    const parent = mark.parentNode
-    if (!parent) return
-    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark)
-    parent.removeChild(mark)
-    parent.normalize()
-  })
-  highlightMarks = []
-}
-function removeAll() { removeTrigger(); removeCard(); removeHighlight() }
-
-let hlStyleEl: HTMLStyleElement | null = null
-
-function ensureHlStyles() {
-  if (hlStyleEl) return
-  hlStyleEl = document.createElement("style")
-  hlStyleEl.textContent = `
-    @keyframes gjdong-hl-sweep {
-      0% { background-position: 100% 0; }
-      100% { background-position: 0 0; }
-    }
-    @keyframes gjdong-hl-glow {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(91,95,199,.0); }
-      50% { box-shadow: 0 0 10px 3px rgba(91,95,199,.25); }
-    }
-    gjdong-hl {
-      background: linear-gradient(90deg, rgba(91,95,199,.18) 0%, rgba(91,95,199,.10) 50%, transparent 100%);
-      background-size: 200% 100%;
-      background-position: 100% 0;
-      border-bottom: 2.5px solid rgba(91,95,199,.6);
-      border-radius: 2px;
-      padding: 1px 2px;
-      box-decoration-break: clone;
-      -webkit-box-decoration-break: clone;
-      animation: gjdong-hl-sweep .4s cubic-bezier(.22,.61,.36,1) forwards,
-                 gjdong-hl-glow 1.6s .4s ease-in-out 2;
-      transition: background .3s;
-    }
-  `
-  document.head.appendChild(hlStyleEl)
-}
-
-function applyHighlight() {
-  removeHighlight()
-  ensureHlStyles()
-  const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
-  try {
-    const range = sel.getRangeAt(0)
-    const mark = document.createElement("gjdong-hl")
-    range.surroundContents(mark)
-    highlightMarks.push(mark)
-    sel.removeAllRanges()
-  } catch {
-    try {
-      const range = sel.getRangeAt(0)
-      const mark = document.createElement("gjdong-hl")
-      const fragment = range.extractContents()
-      mark.appendChild(fragment)
-      range.insertNode(mark)
-      highlightMarks.push(mark)
-      sel.removeAllRanges()
-    } catch {}
-  }
-}
+function removeAll() { removeTrigger(); removeCard() }
 
 function showCard(anchorRect: DOMRect, address: string) {
   removeCard()
