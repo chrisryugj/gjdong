@@ -5,6 +5,7 @@ import {
   type OutputField,
   type MapProvider,
   type ClipboardAction,
+  type PopupMode,
   FIELD_LABELS,
   FIELD_EXAMPLES,
   DEFAULT_SETTINGS
@@ -241,6 +242,34 @@ function IndexOptions() {
               ))}
             </div>
           </div>
+
+          {(local.clipboardAction === "popup" || local.contextMenuAction === "popup") && (
+            <div className="pt-1 border-t border-gray-100">
+              <span className="text-xs text-gray-500 block mb-1.5">팝업 창 열기 방식</span>
+              <div className="flex gap-2">
+                {([
+                  { value: "reuse", label: "기존 창 갱신", desc: "한 창에서 연속 조회 (복붙 多)" },
+                  { value: "new", label: "매번 새 창", desc: "결과를 창마다 따로 보관" }
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => update("popupMode", opt.value as PopupMode)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-left transition-all ${
+                      (local.popupMode || "reuse") === opt.value
+                        ? "bg-blue-50 border-2 border-blue-500"
+                        : "bg-gray-50 border border-gray-200 hover:bg-gray-100"
+                    }`}>
+                    <span className={`text-sm font-medium block ${
+                      (local.popupMode || "reuse") === opt.value ? "text-blue-700" : "text-gray-700"
+                    }`}>
+                      {opt.label}
+                    </span>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* 키보드 단축키 */}

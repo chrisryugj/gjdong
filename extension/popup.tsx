@@ -150,6 +150,21 @@ function IndexPopup() {
     }
   }, [])
 
+  // 기존 창 갱신 모드: background가 새 주소를 보내면 리로드 없이 재조회
+  useEffect(() => {
+    const listener = (msg: { type?: string; address?: string }) => {
+      if (msg?.type === "popup-set-address" && typeof msg.address === "string") {
+        const address = msg.address.trim().slice(0, 200)
+        if (address.length >= 2) {
+          setInput(address)
+          doSearch(address)
+        }
+      }
+    }
+    chrome.runtime.onMessage.addListener(listener)
+    return () => chrome.runtime.onMessage.removeListener(listener)
+  }, [])
+
   const pasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText()

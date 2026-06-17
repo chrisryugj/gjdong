@@ -29,6 +29,66 @@ function validateApiBaseUrl(url: string): string {
   }
 }
 
+// 재사용 중인 팝업 창 id (MV3 서비스 워커가 죽어도 유지되도록 session storage 사용)
+async function getPopupWindowId(): Promise<number | null> {
+  try {
+    const r = await chrome.storage.session.get("popupWindowId")
+    return typeof r.popupWindowId === "number" ? r.popupWindowId : null
+  } catch {
+    return null
+  }
+}
+
+async function setPopupWindowId(id: number | null) {
+  try {
+    if (id == null) await chrome.storage.session.remove("popupWindowId")
+    else await chrome.storage.session.set({ popupWindowId: id })
+  } catch {
+    // session storage 접근 실패 - 무시 (다음 호출 시 새 창 생성)
+  }
+}
+
+// 팝업 창이 닫히면 저장된 id 정리
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  if ((await getPopupWindowId()) === windowId) await setPopupWindowId(null)
+})
+
+// 설정에 따라 기존 팝업 창을 갱신하거나 새 창을 연다
+async function openOrReusePopup(address: string) {
+  const settings = await storage.get<ExtensionSettings>("settings")
+  const reuse = (settings?.popupMode ?? "reuse") === "reuse"
+  const cleaned = address.trim().slice(0, 200)
+  const url = chrome.runtime.getURL(`popup.html?address=${encodeURIComponent(cleaned)}`)
+
+  if (reuse) {
+    const winId = await getPopupWindowId()
+    if (winId != null) {
+      try {
+        const win = await chrome.windows.get(winId)
+        // 최소화 상태면 normal로 복원 + 포커스 (최소화된 채 갱신 방지)
+        const updateInfo: chrome.windows.UpdateInfo = { focused: true }
+        if (win.state === "minimized") updateInfo.state = "normal"
+        await chrome.windows.update(winId, updateInfo)
+        // 리로드 없이 주소만 갱신 (떠있는 팝업이 메시지를 받아 재조회)
+        chrome.runtime.sendMessage({ type: "popup-set-address", address: cleaned }).catch(() => {})
+        return
+      } catch {
+        // 창이 이미 닫힘 - 아래에서 새로 생성
+        await setPopupWindowId(null)
+      }
+    }
+  }
+
+  const created = await chrome.windows.create({
+    url,
+    type: "popup",
+    width: 500,
+    height: 540,
+    focused: true
+  })
+  if (reuse && created?.id != null) await setPopupWindowId(created.id)
+}
+
 // 컨텍스트 메뉴 등록 + 최초 설치 시 설정 페이지 열기
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.removeAll(() => {
@@ -63,22 +123,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         address
       }).catch(() => {
         // content script 없으면 팝업으로 fallback
-        chrome.windows.create({
-          url: chrome.runtime.getURL(`popup.html?address=${encodeURIComponent(address)}`),
-          type: "popup",
-          width: 500,
-          height: 540,
-          focused: true
-        })
+        openOrReusePopup(address)
       })
     } else if (action === "popup") {
-      chrome.windows.create({
-        url: chrome.runtime.getURL(`popup.html?address=${encodeURIComponent(address)}`),
-        type: "popup",
-        width: 500,
-        height: 540,
-        focused: true
-      })
+      await openOrReusePopup(address)
     } else {
       convertAndNotify(address, tab?.id)
     }
@@ -142,14 +190,7 @@ async function handleClipboardDetect(address: string, tabId?: number) {
   const action = settings?.clipboardAction || "notification"
 
   if (action === "popup") {
-    const encoded = encodeURIComponent(address.trim())
-    chrome.windows.create({
-      url: chrome.runtime.getURL(`popup.html?address=${encoded}`),
-      type: "popup",
-      width: 500,
-      height: 540,
-      focused: true
-    })
+    await openOrReusePopup(address)
   } else {
     convertAndNotify(address, tabId)
   }
