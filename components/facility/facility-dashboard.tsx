@@ -22,7 +22,10 @@ type BatchItem = ResolvedDisplay & { facilityName?: string }
 
 const RESOLVE_CHUNK = 10
 
-async function resolveRows(rows: ParsedRow[]): Promise<(BatchItem | null)[]> {
+async function resolveRows(
+  rows: ParsedRow[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<(BatchItem | null)[]> {
   const out: (BatchItem | null)[] = new Array(rows.length).fill(null)
   for (let i = 0; i < rows.length; i += RESOLVE_CHUNK) {
     const slice = rows.slice(i, i + RESOLVE_CHUNK)
@@ -43,6 +46,7 @@ async function resolveRows(rows: ParsedRow[]): Promise<(BatchItem | null)[]> {
     } catch {
       // 이 청크만 실패(null 유지) 처리하고 나머지는 계속 — 429 등으로 전체가 날아가지 않게
     }
+    onProgress?.(Math.min(i + RESOLVE_CHUNK, rows.length), rows.length)
   }
   return out
 }
@@ -119,8 +123,14 @@ export default function FacilityDashboard() {
 
   // 입력(직접/엑셀/붙여넣기) → 변환 → 병합 저장. 결과 카운트를 FacilityAdd에 반환.
   const addFacilities = async (rows: ParsedRow[]): Promise<{ added: number; skipped: number; failed: number }> => {
+    // 대량 변환은 청크 단위 진행률을 실시간 토스트로 노출 (소량은 깜빡임 방지로 생략)
+    const showProgress = rows.length > RESOLVE_CHUNK
+    const progressId = showProgress ? toast.loading(`주소 변환 중… 0/${rows.length}`) : undefined
     try {
-      const results = await resolveRows(rows)
+      const results = await resolveRows(rows, (done, total) => {
+        if (showProgress) toast.loading(`주소 변환 중… ${done}/${total}`, { id: progressId })
+      })
+      if (progressId !== undefined) toast.dismiss(progressId)
       const newInputs: NewFacilityInput[] = []
       let failed = 0
       results.forEach((r, i) => {
@@ -156,6 +166,7 @@ export default function FacilityDashboard() {
       else toast.info("추가된 시설이 없습니다")
       return { added, skipped, failed }
     } catch {
+      if (progressId !== undefined) toast.dismiss(progressId)
       toast.error("시설 변환 중 오류가 발생했습니다. 다시 시도해 주세요.")
       return { added: 0, skipped: 0, failed: rows.length }
     }

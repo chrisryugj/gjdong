@@ -122,8 +122,15 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
       const headers = (aoa[0] as unknown[]).map((h) => String(h ?? "").trim())
       const findCol = (...keys: string[]) => headers.findIndex((h) => keys.some((k) => h.includes(k)))
       let ai = findCol("주소", "소재지", "address")
-      let ni = findCol("시설명", "name")
+      let ni = findCol("시설명", "기관명", "명칭", "상호", "업체", "name")
       let ci = findCol("분류", "유형", "구분", "category", "type")
+      // 명시 키워드로 못 찾으면 '어린이집명·학교명·병원명'처럼 '명'으로 끝나는 열을
+      // 시설명으로 간주 (주소/분류/행정동·연번 열은 제외)
+      if (ni === -1) {
+        ni = headers.findIndex(
+          (h, idx) => idx !== ai && idx !== ci && h.endsWith("명") && !h.includes("동") && !h.includes("주소"),
+        )
+      }
       let dataRows = aoa.slice(1)
       if (ai === -1) {
         // 인식 가능한 헤더가 없으면 1열=주소,2열=시설명,3열=분류로 가정하고 첫 줄도 데이터로
