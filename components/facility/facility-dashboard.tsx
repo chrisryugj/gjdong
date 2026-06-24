@@ -1,7 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Camera, Download, Eye, EyeOff, FileText, Filter, MapPin, Maximize, Tag, Trash2 } from "lucide-react"
+import {
+  Camera,
+  Download,
+  Eye,
+  EyeOff,
+  FileText,
+  Filter,
+  MapPin,
+  Maximize,
+  PanelLeft,
+  PanelLeftClose,
+  Plus,
+  Tag,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 import FacilityMap from "@/components/facility/facility-map"
 import FacilityAdd from "@/components/facility/facility-add"
@@ -74,6 +88,9 @@ export default function FacilityDashboard() {
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
   const [fitSignal, setFitSignal] = useState(0)
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+  // 좌측 사이드패널 — [시설추가 | 목록] 탭 전환 + 접기(지도 풀폭)
+  const [panelTab, setPanelTab] = useState<"add" | "list">("add")
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
   const skipFirstSaveRef = useRef(true)
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
@@ -274,7 +291,10 @@ export default function FacilityDashboard() {
       })
 
       const { merged, added, skipped } = mergeFacilities(facilities, newInputs)
-      if (added) setFacilities(merged)
+      if (added) {
+        setFacilities(merged)
+        setPanelTab("list") // 추가 직후엔 목록·지도로 자연스럽게 전환
+      }
 
       const failed = failedRows.length
       const totalSkipped = skipped + preSkipped
@@ -435,20 +455,165 @@ export default function FacilityDashboard() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr] lg:items-start">
-      {/* === 시설 추가 (모바일 1번째 / 데스크탑 좌상) === */}
-      <div className="lg:col-start-1 lg:row-start-1">
-        <FacilityAdd
-          existingCategories={categoryCounts.entries.map(([c]) => c)}
-          styles={styles}
-          onSetCategoryStyle={setCategoryStyle}
-          onAdd={addFacilities}
-        />
-      </div>
+    <div className="lg:flex lg:items-start lg:gap-4">
+      {/* === 좌측 사이드패널 (접이식) — [시설 추가 | 목록] 탭. 지도와 나란히 둬 목록↔지도 동시 시야 === */}
+      {!panelCollapsed && (
+        <div className="mb-4 space-y-3 lg:mb-0 lg:w-[360px] lg:shrink-0">
+          <div className="flex gap-1 rounded-xl border bg-card p-1 shadow-sm">
+            <button
+              onClick={() => setPanelTab("add")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                panelTab === "add" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              <Plus className="h-4 w-4" /> 시설 추가
+            </button>
+            <button
+              onClick={() => setPanelTab("list")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                panelTab === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              <Tag className="h-4 w-4" /> 목록{facilities.length > 0 ? ` ${facilities.length}` : ""}
+            </button>
+          </div>
 
-      {/* === 지도 + 툴바 (모바일 2번째 / 데스크탑 우측 전체높이) === */}
-      <div className="space-y-3 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          {/* 추가 탭 */}
+          {panelTab === "add" && (
+            <FacilityAdd
+              existingCategories={categoryCounts.entries.map(([c]) => c)}
+              styles={styles}
+              onSetCategoryStyle={setCategoryStyle}
+              onAdd={addFacilities}
+            />
+          )}
+
+          {/* 목록 탭 */}
+          {panelTab === "list" && (
+            <div className="rounded-xl border bg-card shadow-sm">
+              <div className="flex items-center justify-between border-b px-4 py-2.5">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                  <Tag className="h-4 w-4" /> 시설 목록
+                  <span className="text-xs font-normal text-muted-foreground">({facilities.length})</span>
+                </h2>
+                {facilities.length > 0 && (
+                  <button onClick={handleClearAll} className="text-[11px] text-gray-400 hover:text-red-500">
+                    전체삭제
+                  </button>
+                )}
+              </div>
+
+              {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
+              {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
+                <div className="border-b px-4 py-2">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
+                      <Filter className="h-3 w-3" /> 분류 필터
+                      {selectedCats.size > 0 && <span className="text-gray-500">· {selectedCats.size}개 선택</span>}
+                    </span>
+                    {selectedCats.size > 0 && (
+                      <button onClick={() => setSelectedCats(new Set())} className="text-[10px] text-gray-400 hover:text-gray-700">
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
+                  {dongGroups.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
+                      <span className="mr-0.5 text-[10px] text-gray-400">동 전체</span>
+                      {dongGroups.map((g) => (
+                        <FilterChip
+                          key={g.base}
+                          active={g.cats.every((c) => selectedCats.has(c))}
+                          onClick={() => toggleDongGroup(g.cats)}
+                          label={`${g.base} ${g.count}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
+                    {categoryCounts.entries.map(([cat, count]) => (
+                      <FilterChip
+                        key={cat}
+                        active={selectedCats.has(cat)}
+                        onClick={() => toggleCat(cat)}
+                        label={`${cat} ${count}`}
+                        color={resolveStyle(cat, styles).color}
+                      />
+                    ))}
+                    {categoryCounts.uncategorized > 0 && (
+                      <FilterChip
+                        active={selectedCats.has("__none__")}
+                        onClick={() => toggleCat("__none__")}
+                        label={`미분류 ${categoryCounts.uncategorized}`}
+                        color={resolveStyle(undefined, styles).color}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="max-h-[420px] divide-y divide-gray-100 overflow-y-auto lg:max-h-[calc(100vh-340px)]">
+                {visibleFacilities.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "해당 분류의 시설이 없습니다."}
+                  </div>
+                ) : (
+                  visibleFacilities.map((f) => (
+                    <div key={f.id} className="group px-4 py-2.5 hover:bg-gray-50">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 shrink-0">
+                          <ShapeIcon {...resolveStyle(f.category, styles)} size={16} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-gray-900">{f.name}</span>
+                            {f.category && (
+                              <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{f.category}</span>
+                            )}
+                          </div>
+                          <p className="truncate text-xs text-gray-500">{f.address || f.originalInput}</p>
+                          <input
+                            value={f.memo ?? ""}
+                            onChange={(e) => handleMemoChange(f.id, e.target.value)}
+                            placeholder="메모 (담당자·점검일 등)"
+                            className="mt-1 w-full border-0 border-b border-transparent bg-transparent px-0 py-0.5 text-[11px] text-gray-600 placeholder:text-gray-300 focus:border-gray-300 focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <button
+                            onClick={() => setFocus({ id: f.id, tick: Date.now() })}
+                            title="지도에서 보기"
+                            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleRemove(f.id)}
+                            title="삭제"
+                            className="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-red-500 group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* === 우측 지도 + 툴바 (가로 풀폭·크게) === */}
+      <div className="space-y-3 lg:min-w-0 lg:flex-1">
         <div className="flex flex-wrap items-center gap-2">
+          <ToolbarButton onClick={() => setPanelCollapsed((v) => !v)}>
+            {panelCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {panelCollapsed ? "패널 열기" : "패널 접기"}
+          </ToolbarButton>
           <ToolbarButton onClick={() => setShowLabels((v) => !v)} active={showLabels}>
             {showLabels ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />} 라벨
           </ToolbarButton>
@@ -467,7 +632,7 @@ export default function FacilityDashboard() {
           </ToolbarButton>
         </div>
 
-        <div className="h-[420px] overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[560px]">
+        <div className="h-[55vh] overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[calc(100vh-150px)]">
           <FacilityMap
             ref={mapWrapRef}
             facilities={mapFacilities}
@@ -476,124 +641,6 @@ export default function FacilityDashboard() {
             focus={focus}
             fitSignal={fitSignal}
           />
-        </div>
-      </div>
-
-      {/* === 시설 목록 (모바일 3번째 / 데스크탑 좌하) === */}
-      <div className="lg:col-start-1 lg:row-start-2">
-        {/* 시설 목록 */}
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-              <Tag className="h-4 w-4" /> 시설 목록
-              <span className="text-xs font-normal text-muted-foreground">({facilities.length})</span>
-            </h2>
-            {facilities.length > 0 && (
-              <button onClick={handleClearAll} className="text-[11px] text-gray-400 hover:text-red-500">
-                전체삭제
-              </button>
-            )}
-          </div>
-
-          {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
-          {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
-            <div className="border-b px-4 py-2">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
-                  <Filter className="h-3 w-3" /> 분류 필터
-                  {selectedCats.size > 0 && <span className="text-gray-500">· {selectedCats.size}개 선택</span>}
-                </span>
-                {selectedCats.size > 0 && (
-                  <button onClick={() => setSelectedCats(new Set())} className="text-[10px] text-gray-400 hover:text-gray-700">
-                    초기화
-                  </button>
-                )}
-              </div>
-              {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
-              {dongGroups.length > 0 && (
-                <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
-                  <span className="mr-0.5 text-[10px] text-gray-400">동 전체</span>
-                  {dongGroups.map((g) => (
-                    <FilterChip
-                      key={g.base}
-                      active={g.cats.every((c) => selectedCats.has(c))}
-                      onClick={() => toggleDongGroup(g.cats)}
-                      label={`${g.base} ${g.count}`}
-                    />
-                  ))}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-1.5">
-                <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
-                {categoryCounts.entries.map(([cat, count]) => (
-                  <FilterChip
-                    key={cat}
-                    active={selectedCats.has(cat)}
-                    onClick={() => toggleCat(cat)}
-                    label={`${cat} ${count}`}
-                    color={resolveStyle(cat, styles).color}
-                  />
-                ))}
-                {categoryCounts.uncategorized > 0 && (
-                  <FilterChip
-                    active={selectedCats.has("__none__")}
-                    onClick={() => toggleCat("__none__")}
-                    label={`미분류 ${categoryCounts.uncategorized}`}
-                    color={resolveStyle(undefined, styles).color}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="max-h-[460px] divide-y divide-gray-100 overflow-y-auto">
-            {visibleFacilities.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "해당 분류의 시설이 없습니다."}
-              </div>
-            ) : (
-              visibleFacilities.map((f) => (
-                <div key={f.id} className="group px-4 py-2.5 hover:bg-gray-50">
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0">
-                      <ShapeIcon {...resolveStyle(f.category, styles)} size={16} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-semibold text-gray-900">{f.name}</span>
-                        {f.category && (
-                          <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{f.category}</span>
-                        )}
-                      </div>
-                      <p className="truncate text-xs text-gray-500">{f.address || f.originalInput}</p>
-                      <input
-                        value={f.memo ?? ""}
-                        onChange={(e) => handleMemoChange(f.id, e.target.value)}
-                        placeholder="메모 (담당자·점검일 등)"
-                        className="mt-1 w-full border-0 border-b border-transparent bg-transparent px-0 py-0.5 text-[11px] text-gray-600 placeholder:text-gray-300 focus:border-gray-300 focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <button
-                        onClick={() => setFocus({ id: f.id, tick: Date.now() })}
-                        title="지도에서 보기"
-                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-                      >
-                        <MapPin className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleRemove(f.id)}
-                        title="삭제"
-                        className="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-red-500 group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       </div>
     </div>
