@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Camera, Download, Eye, EyeOff, FileText, MapPin, Maximize, Tag, Trash2 } from "lucide-react"
+import { Camera, Download, Eye, EyeOff, FileText, Filter, MapPin, Maximize, Tag, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import FacilityMap from "@/components/facility/facility-map"
 import FacilityAdd from "@/components/facility/facility-add"
@@ -52,7 +52,7 @@ export default function FacilityDashboard() {
   const [showLabels, setShowLabels] = useState(true)
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
   const [fitSignal, setFitSignal] = useState(0)
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
   const skipFirstSaveRef = useRef(true)
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
@@ -94,11 +94,19 @@ export default function FacilityDashboard() {
     return { entries: Array.from(counts.entries()), uncategorized }
   }, [facilities])
 
+  // 분류 다중선택 필터 (빈 Set = 전체 표시). 키: 분류명 또는 "__none__"(미분류)
   const visibleFacilities = useMemo(() => {
-    if (activeCategory === null) return facilities
-    if (activeCategory === "__none__") return facilities.filter((f) => !f.category?.trim())
-    return facilities.filter((f) => f.category?.trim() === activeCategory)
-  }, [facilities, activeCategory])
+    if (selectedCats.size === 0) return facilities
+    return facilities.filter((f) => selectedCats.has(f.category?.trim() || "__none__"))
+  }, [facilities, selectedCats])
+
+  const toggleCat = (key: string) =>
+    setSelectedCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
   // 지도 관련 필드 시그니처가 바뀔 때만 새 배열 참조를 넘긴다.
@@ -168,7 +176,7 @@ export default function FacilityDashboard() {
     if (facilities.length === 0) return
     if (!window.confirm(`저장된 시설 ${facilities.length}개를 모두 삭제할까요? 되돌릴 수 없습니다.`)) return
     setFacilities([])
-    setActiveCategory(null)
+    setSelectedCats(new Set())
     toast.success("모든 시설을 삭제했습니다")
   }
 
@@ -334,27 +342,40 @@ export default function FacilityDashboard() {
             )}
           </div>
 
-          {/* 분류 필터 */}
+          {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
           {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
-            <div className="flex flex-wrap gap-1.5 border-b px-4 py-2">
-              <FilterChip active={activeCategory === null} onClick={() => setActiveCategory(null)} label={`전체 ${facilities.length}`} />
-              {categoryCounts.entries.map(([cat, count]) => (
-                <FilterChip
-                  key={cat}
-                  active={activeCategory === cat}
-                  onClick={() => setActiveCategory(cat)}
-                  label={`${cat} ${count}`}
-                  color={resolveStyle(cat, styles).color}
-                />
-              ))}
-              {categoryCounts.uncategorized > 0 && (
-                <FilterChip
-                  active={activeCategory === "__none__"}
-                  onClick={() => setActiveCategory("__none__")}
-                  label={`미분류 ${categoryCounts.uncategorized}`}
-                  color={resolveStyle(undefined, styles).color}
-                />
-              )}
+            <div className="border-b px-4 py-2">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
+                  <Filter className="h-3 w-3" /> 분류 필터
+                  {selectedCats.size > 0 && <span className="text-gray-500">· {selectedCats.size}개 선택</span>}
+                </span>
+                {selectedCats.size > 0 && (
+                  <button onClick={() => setSelectedCats(new Set())} className="text-[10px] text-gray-400 hover:text-gray-700">
+                    초기화
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
+                {categoryCounts.entries.map(([cat, count]) => (
+                  <FilterChip
+                    key={cat}
+                    active={selectedCats.has(cat)}
+                    onClick={() => toggleCat(cat)}
+                    label={`${cat} ${count}`}
+                    color={resolveStyle(cat, styles).color}
+                  />
+                ))}
+                {categoryCounts.uncategorized > 0 && (
+                  <FilterChip
+                    active={selectedCats.has("__none__")}
+                    onClick={() => toggleCat("__none__")}
+                    label={`미분류 ${categoryCounts.uncategorized}`}
+                    color={resolveStyle(undefined, styles).color}
+                  />
+                )}
+              </div>
             </div>
           )}
 

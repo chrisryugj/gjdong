@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { FileDown, FileUp, Loader2, MapPin, Plus, Sparkles } from "lucide-react"
+import { FileDown, FileUp, Loader2, MapPin, Plus, Sparkles, X } from "lucide-react"
 import { toast } from "sonner"
 import MarkerStylePicker, { ShapeIcon } from "@/components/facility/marker-style-picker"
 import { resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
@@ -34,13 +34,21 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
   const [tab, setTab] = useState<Tab>("form")
   const [busy, setBusy] = useState(false)
 
-  // 직접입력
-  const [addr, setAddr] = useState("")
-  const [fname, setFname] = useState("")
-  const [cat, setCat] = useState("")
-  const [showPicker, setShowPicker] = useState(false)
-  const trimmedCat = cat.trim()
-  const curStyle = resolveStyle(trimmedCat || undefined, styles)
+  // 직접입력 — 다중 행 그리드
+  const emptyRow = (): ParsedRow => ({ address: "", name: "", category: "" })
+  const [rows, setRows] = useState<ParsedRow[]>(() => [emptyRow(), emptyRow(), emptyRow()])
+  const filledRows = rows.filter((r) => r.address.trim())
+  const setRow = (i: number, patch: Partial<ParsedRow>) =>
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const addRow = () => setRows((rs) => [...rs, emptyRow()])
+  const removeRow = (i: number) =>
+    setRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : [emptyRow()]))
+
+  // 마커 스타일(분류별) — 접이식 보조 패널
+  const [showStyle, setShowStyle] = useState(false)
+  const [styleCat, setStyleCat] = useState("")
+  const styleTarget = styleCat.trim()
+  const curStyle = resolveStyle(styleTarget || undefined, styles)
 
   // 붙여넣기
   const [paste, setPaste] = useState("")
@@ -167,71 +175,104 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
       </div>
 
       <div className="p-4">
-        {/* === 직접 입력 === */}
+        {/* === 직접 입력 (다중 행) === */}
         {tab === "form" && (
-          <div className="space-y-2.5">
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold text-gray-500">주소 또는 건물명 *</label>
-              <input
-                value={addr}
-                onChange={(e) => setAddr(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && run([{ address: addr, name: fname, category: cat }], () => { setAddr(""); setFname("") })}
-                placeholder="예) 광진구 아차산로 400 / 세종대학교"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+          <div className="space-y-2">
+            <datalist id="facility-cat-list">
+              {existingCategories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            {/* 컬럼 헤더 */}
+            <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-semibold text-gray-400">
+              <span className="flex-[2]">주소 / 건물명 *</span>
+              <span className="flex-1">시설명</span>
+              <span className="flex-1">분류</span>
+              <span className="w-5" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-gray-500">시설명</label>
-                <input
-                  value={fname}
-                  onChange={(e) => setFname(e.target.value)}
-                  placeholder="예) 자양보건지소"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-gray-500">분류</label>
-                <input
-                  value={cat}
-                  onChange={(e) => setCat(e.target.value)}
-                  list="facility-cat-list"
-                  placeholder="예) 보건소"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <datalist id="facility-cat-list">
-                  {existingCategories.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
+            {/* 입력 행들 */}
+            <div className="space-y-1.5">
+              {rows.map((r, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input
+                    value={r.address}
+                    onChange={(e) => setRow(i, { address: e.target.value })}
+                    placeholder="광진구 아차산로 400"
+                    className="h-9 flex-[2] rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <input
+                    value={r.name}
+                    onChange={(e) => setRow(i, { name: e.target.value })}
+                    placeholder="시설명"
+                    className="h-9 flex-1 rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <input
+                    value={r.category}
+                    onChange={(e) => setRow(i, { category: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && i === rows.length - 1 && r.address.trim()) addRow()
+                    }}
+                    list="facility-cat-list"
+                    placeholder="분류"
+                    className="h-9 flex-1 rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    title="행 삭제"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-300 hover:bg-gray-100 hover:text-red-500"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
+            <button
+              type="button"
+              onClick={addRow}
+              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+            >
+              <Plus className="h-3.5 w-3.5" /> 행 추가
+            </button>
 
-            {/* 마커 스타일 */}
-            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-2">
-              <ShapeIcon shape={curStyle.shape} color={curStyle.color} size={22} />
-              <span className="text-xs text-gray-500">
-                {trimmedCat ? `'${trimmedCat}' 마커` : "분류 입력 시 마커 모양·색 지정 가능"}
-              </span>
+            {/* 마커 스타일 (접이식) */}
+            <div className="rounded-lg bg-gray-50 px-2.5 py-2">
               <button
                 type="button"
-                disabled={!trimmedCat}
-                onClick={() => setShowPicker((v) => !v)}
-                className="ml-auto inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                onClick={() => setShowStyle((v) => !v)}
+                className="flex w-full items-center gap-2 text-xs text-gray-600"
               >
-                <Sparkles className="h-3 w-3" /> 스타일
+                <Sparkles className="h-3.5 w-3.5" /> 분류별 마커 스타일
+                <span className="ml-auto text-gray-400">{showStyle ? "닫기" : "열기"}</span>
               </button>
+              {showStyle && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ShapeIcon shape={curStyle.shape} color={curStyle.color} size={20} />
+                    <input
+                      value={styleCat}
+                      onChange={(e) => setStyleCat(e.target.value)}
+                      list="facility-cat-list"
+                      placeholder="스타일을 바꿀 분류명"
+                      className="h-8 flex-1 rounded-md border border-input bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
+                  {styleTarget ? (
+                    <MarkerStylePicker value={curStyle} onChange={(s) => onSetCategoryStyle(styleTarget, s)} />
+                  ) : (
+                    <p className="text-[11px] text-gray-400">분류명을 입력하면 모양·색을 바꿀 수 있어요.</p>
+                  )}
+                </div>
+              )}
             </div>
-            {showPicker && trimmedCat && (
-              <MarkerStylePicker value={curStyle} onChange={(s) => onSetCategoryStyle(trimmedCat, s)} />
-            )}
 
             <button
-              onClick={() => run([{ address: addr, name: fname, category: cat }], () => { setAddr(""); setFname("") })}
-              disabled={busy || !addr.trim()}
+              onClick={() => run(filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })), () => setRows([emptyRow(), emptyRow(), emptyRow()]))}
+              disabled={busy || filledRows.length === 0}
               className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} 시설 추가
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {filledRows.length > 0 ? `${filledRows.length}개 ` : ""}시설 추가
             </button>
           </div>
         )}
