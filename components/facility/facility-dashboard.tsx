@@ -31,6 +31,7 @@ async function resolveRows(rows: ParsedRow[]): Promise<(BatchItem | null)[]> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          addressOnly: true, // 주소 검색만 — 시설명/이름으로 인한 전국 동명시설 오매칭 방지
           addresses: slice.map((r) => ({ address: r.address, facilityName: r.name || undefined })),
         }),
       })

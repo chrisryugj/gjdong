@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { resolveAddress } from "@/lib/utils/kakao-api"
+import { resolveAddress, resolveAddressStrict } from "@/lib/utils/kakao-api"
 import { checkRateLimit } from "@/lib/utils/rate-limiter"
 import { FALLBACK_COORDS } from "@/lib/constants"
 
@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { addresses } = body
+    const { addresses, addressOnly } = body
+    // addressOnly: 시설관리용 — 주소 검색만(이름/키워드 검색 금지)으로 동명 시설 오매칭 방지
+    const resolveFn = addressOnly ? resolveAddressStrict : resolveAddress
 
     if (!addresses || !Array.isArray(addresses)) {
       return NextResponse.json({ error: "Addresses array is required" }, { status: 400 })
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
                 : undefined
 
             try {
-              const resolved = await resolveAddress(address)
+              const resolved = await resolveFn(address)
               return {
                 ...resolved,
                 facilityName,

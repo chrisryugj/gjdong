@@ -232,6 +232,114 @@ export async function kakaoCoord2Region(lon: number, lat: number): Promise<Kakao
 // Re-export for backwards compatibility
 export type ResolvedAddressResult = ResolvedDisplay
 
+function fallbackResult(address: string, message: string): ResolvedDisplay {
+  return {
+    display: address,
+    meta: { sido: "", gu: "", ...FALLBACK_COORDS, source: "FALLBACK" },
+    fallback: true,
+    message,
+    originalInput: address,
+  }
+}
+
+// 매칭 좌표 → 역지오코딩으로 표준주소/행정동 등 완성 (resolveAddress / resolveAddressStrict 공용)
+async function finalizeResolved(
+  lon: number,
+  lat: number,
+  apartmentUnit: string | null,
+  address: string,
+  searchMethod: "ADDRESS" | "KEYWORD",
+  placeName?: string,
+): Promise<ResolvedDisplay> {
+  const addrDoc = await kakaoCoord2Address(lon, lat)
+  const regions = await kakaoCoord2Region(lon, lat)
+
+  const adminRegion = regions.find((r) => r.region_type === "H")
+  const legalRegion = regions.find((r) => r.region_type === "B")
+  const roadAddr = addrDoc?.road_address
+  const jibunAddr = addrDoc?.address
+  const isPartial = !roadAddr && !jibunAddr
+
+  const sido = legalRegion?.region_1depth_name || ""
+  const gu = legalRegion?.region_2depth_name || ""
+  const roadName = roadAddr?.road_name || ""
+  const buildingNo = roadAddr?.main_building_no
+    ? `${roadAddr.main_building_no}${roadAddr.sub_building_no ? `-${roadAddr.sub_building_no}` : ""}`
+    : ""
+  const legalDong = legalRegion?.region_3depth_name || ""
+  const jibunNo = jibunAddr?.main_address_no
+    ? `${jibunAddr.main_address_no}${jibunAddr.sub_address_no ? `-${jibunAddr.sub_address_no}` : ""}`
+    : ""
+  const adminDong = adminRegion?.region_3depth_name || legalDong
+  const postalCode = roadAddr?.zone_no || jibunAddr?.zip_code || ""
+
+  const buildingNoDisplay = apartmentUnit ? `${buildingNo} ${apartmentUnit}` : buildingNo
+  const display = isPartial
+    ? address
+    : `${gu} ${roadName} ${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
+
+  return {
+    display,
+    meta: {
+      sido,
+      gu,
+      roadName,
+      buildingNo,
+      unit: apartmentUnit || undefined,
+      legalDong,
+      jibunNo,
+      adminDong,
+      postalCode,
+      lon,
+      lat,
+      source: "KAKAO",
+      bcode: legalRegion?.code,
+      searchMethod,
+      placeName,
+    },
+    ...(isPartial && {
+      fallback: true,
+      message: "좌표는 확인되었으나 상세 주소를 가져올 수 없습니다.",
+    }),
+    originalInput: address,
+  }
+}
+
+/**
+ * 시설관리 전용: 주소 검색만 사용(키워드/이름 검색 금지 → 동명 시설 전국 오매칭 방지).
+ * 주소 뒤 군더더기(괄호 보조표기·건물명 등)는 뒤에서부터 한 토큰씩 떼며 주소 검색을 재시도한다.
+ */
+export async function resolveAddressStrict(address: string): Promise<ResolvedDisplay> {
+  try {
+    const { cleaned, unit } = removeApartmentUnit(address)
+    const base = cleaned
+      .replace(/\([^)]*\)/g, " ") // "(화양동)" 같은 보조표기 제거
+      .replace(/\s+/g, " ")
+      .trim()
+    const tokens = base.split(" ").filter(Boolean)
+    if (tokens.length === 0) return fallbackResult(address, "주소가 비어 있습니다.")
+
+    const tried = new Set<string>()
+    let doc: KakaoAddressDocument | null = null
+    for (let end = tokens.length; end >= 2 && !doc; end--) {
+      const cand = tokens.slice(0, end).join(" ")
+      if (tried.has(cand)) continue
+      tried.add(cand)
+      doc = await kakaoSearchAddress(cand)
+    }
+    if (!doc && tokens.length === 1) doc = await kakaoSearchAddress(tokens[0])
+    if (!doc) return fallbackResult(address, "주소를 찾을 수 없습니다. 도로명/지번 주소를 확인하세요.")
+
+    const lon = Number.parseFloat(doc.x)
+    const lat = Number.parseFloat(doc.y)
+    if (isNaN(lon) || isNaN(lat)) return fallbackResult(address, "좌표 정보를 파싱할 수 없습니다.")
+    return finalizeResolved(lon, lat, unit, address, "ADDRESS")
+  } catch (error) {
+    console.error("[v0] strict resolve error:", error instanceof Error ? error.message : error)
+    return fallbackResult(address, "주소 변환 중 오류가 발생했습니다.")
+  }
+}
+
 export async function resolveAddress(address: string): Promise<ResolvedDisplay> {
   try {
     const { cleaned: cleanedAddress, unit: apartmentUnit } = removeApartmentUnit(address)
@@ -265,103 +373,26 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
 
     // 4. 결과 없으면 fallback
     if (!result) {
-      return {
-        display: address,
-        meta: {
-          sido: "",
-          gu: "",
-          ...FALLBACK_COORDS,
-          source: "FALLBACK",
-        },
-        fallback: true,
-        message: "정확한 주소를 찾을 수 없습니다.",
-        originalInput: address,
-      }
+      return fallbackResult(address, "정확한 주소를 찾을 수 없습니다.")
     }
 
     const lon = Number.parseFloat(result.x)
     const lat = Number.parseFloat(result.y)
-
     if (isNaN(lon) || isNaN(lat)) {
-      return {
-        display: address,
-        meta: { sido: "", gu: "", ...FALLBACK_COORDS, source: "FALLBACK" },
-        fallback: true,
-        message: "좌표 정보를 파싱할 수 없습니다.",
-        originalInput: address,
-      }
+      return fallbackResult(address, "좌표 정보를 파싱할 수 없습니다.")
     }
 
     // 5. 좌표 → 주소 변환
-    const addrDoc = await kakaoCoord2Address(lon, lat)
-    const regions = await kakaoCoord2Region(lon, lat)
-
-    const adminRegion = regions.find((r) => r.region_type === "H")
-    const legalRegion = regions.find((r) => r.region_type === "B")
-
-    const roadAddr = addrDoc?.road_address
-    const jibunAddr = addrDoc?.address
-
-    // reverse geocode 실패 시 부분 성공 처리
-    // addrDoc이 null이면 도로명/지번 정보가 없으므로 isPartial
-    const isPartial = !roadAddr && !jibunAddr
-
-    const sido = legalRegion?.region_1depth_name || ""
-    const gu = legalRegion?.region_2depth_name || ""
-    const roadName = roadAddr?.road_name || ""
-    const buildingNo = roadAddr?.main_building_no
-      ? `${roadAddr.main_building_no}${roadAddr.sub_building_no ? `-${roadAddr.sub_building_no}` : ""}`
-      : ""
-    const legalDong = legalRegion?.region_3depth_name || ""
-    const jibunNo = jibunAddr?.main_address_no
-      ? `${jibunAddr.main_address_no}${jibunAddr.sub_address_no ? `-${jibunAddr.sub_address_no}` : ""}`
-      : ""
-    const adminDong = adminRegion?.region_3depth_name || legalDong
-    const postalCode = roadAddr?.zone_no || jibunAddr?.zip_code || ""
-
-    const buildingNoDisplay = apartmentUnit ? `${buildingNo} ${apartmentUnit}` : buildingNo
-    const display = isPartial
-      ? address
-      : `${gu} ${roadName} ${buildingNoDisplay}(${legalDong} ${jibunNo}, ${adminDong})`
-
-    return {
-      display,
-      meta: {
-        sido,
-        gu,
-        roadName,
-        buildingNo,
-        unit: apartmentUnit || undefined,
-        legalDong,
-        jibunNo,
-        adminDong,
-        postalCode,
-        lon,
-        lat,
-        source: "KAKAO",
-        bcode: legalRegion?.code,
-        searchMethod,
-        placeName: searchMethod === "KEYWORD" ? result.place_name : undefined,
-      },
-      ...(isPartial && {
-        fallback: true,
-        message: "좌표는 확인되었으나 상세 주소를 가져올 수 없습니다.",
-      }),
-      originalInput: address,
-    }
+    return finalizeResolved(
+      lon,
+      lat,
+      apartmentUnit,
+      address,
+      searchMethod,
+      searchMethod === "KEYWORD" ? result.place_name : undefined,
+    )
   } catch (error) {
     console.error("[v0] Address resolution error:", error instanceof Error ? error.message : error)
-    return {
-      display: address,
-      meta: {
-        sido: "",
-        gu: "",
-        ...FALLBACK_COORDS,
-        source: "FALLBACK",
-      },
-      fallback: true,
-      message: "주소 변환 중 오류가 발생했습니다.",
-      originalInput: address,
-    }
+    return fallbackResult(address, "주소 변환 중 오류가 발생했습니다.")
   }
 }
