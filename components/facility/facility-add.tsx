@@ -183,47 +183,48 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                 <option key={c} value={c} />
               ))}
             </datalist>
-            {/* 컬럼 헤더 */}
-            <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-semibold text-gray-400">
-              <span className="flex-[2]">주소 / 건물명 *</span>
-              <span className="flex-1">시설명</span>
-              <span className="flex-1">분류</span>
-              <span className="w-5" />
-            </div>
-            {/* 입력 행들 */}
-            <div className="space-y-1.5">
+            <p className="px-0.5 text-[10px] font-semibold text-gray-400">행마다 주소·시설명·분류 입력 (주소 필수)</p>
+            {/* 입력 행들 — 주소는 한 줄, 시설명·분류는 아랫줄(좁은 패널·모바일 대응) */}
+            <div className="space-y-2">
               {rows.map((r, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input
-                    value={r.address}
-                    onChange={(e) => setRow(i, { address: e.target.value })}
-                    placeholder="광진구 아차산로 400"
-                    className="h-9 flex-[2] rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <input
-                    value={r.name}
-                    onChange={(e) => setRow(i, { name: e.target.value })}
-                    placeholder="시설명"
-                    className="h-9 flex-1 rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <input
-                    value={r.category}
-                    onChange={(e) => setRow(i, { category: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && i === rows.length - 1 && r.address.trim()) addRow()
-                    }}
-                    list="facility-cat-list"
-                    placeholder="분류"
-                    className="h-9 flex-1 rounded-md border border-input bg-background px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    title="행 삭제"
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-300 hover:bg-gray-100 hover:text-red-500"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                <div key={i} className="space-y-1.5 rounded-lg bg-gray-50 p-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-4 shrink-0 text-center text-[10px] font-medium text-gray-400">{i + 1}</span>
+                    <input
+                      value={r.address}
+                      onChange={(e) => setRow(i, { address: e.target.value })}
+                      placeholder="주소 / 건물명 *"
+                      className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    {rows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        title="행 삭제"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-300 hover:bg-gray-200 hover:text-red-500"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5 pl-5">
+                    <input
+                      value={r.name}
+                      onChange={(e) => setRow(i, { name: e.target.value })}
+                      placeholder="시설명"
+                      className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <input
+                      value={r.category}
+                      onChange={(e) => setRow(i, { category: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && i === rows.length - 1 && r.address.trim()) addRow()
+                      }}
+                      list="facility-cat-list"
+                      placeholder="분류"
+                      className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
               ))}
             </div>

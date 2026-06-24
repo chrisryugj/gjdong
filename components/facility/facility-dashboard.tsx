@@ -302,7 +302,7 @@ export default function FacilityDashboard() {
           <ToolbarButton onClick={() => setFitSignal((n) => n + 1)}>
             <Maximize className="h-4 w-4" /> 전체보기
           </ToolbarButton>
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
           <ToolbarButton onClick={handleReport}>
             <FileText className="h-4 w-4" /> 보고서
           </ToolbarButton>
@@ -314,7 +314,7 @@ export default function FacilityDashboard() {
           </ToolbarButton>
         </div>
 
-        <div className="h-[560px] overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="h-[420px] overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[560px]">
           <FacilityMap
             ref={mapWrapRef}
             facilities={mapFacilities}
