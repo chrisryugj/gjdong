@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react"
 import MapView from "@/components/map/map-view"
 import { resolveAddressDisplay } from "@/lib/utils/address-resolver"
+import { loadFacilities, mergeFacilities, saveFacilities, type NewFacilityInput } from "@/lib/facility-storage"
 import type { ResolvedDisplay } from "@/lib/types"
 import type { OutputField } from "@/lib/constants"
 import { OUTPUT_FIELDS, OUTPUT_FIELD_LABELS } from "@/lib/constants"
@@ -476,6 +477,33 @@ export default function AddressGenerator() {
     showNotification("엑셀 파일이 다운로드되었습니다.", "success")
   }
 
+  const sendToFacilities = () => {
+    const newInputs: NewFacilityInput[] = batchResults
+      .filter((r) => !r.fallback && r.meta.lat && r.meta.lon)
+      .map((r) => ({
+        name: r.facilityName || r.display,
+        category: undefined,
+        originalInput: r.originalInput || r.display,
+        address: r.display,
+        road: r.meta.roadName ? `${r.meta.gu} ${r.meta.roadName} ${r.meta.buildingNo ?? ""}`.trim() : undefined,
+        jibun: r.meta.legalDong ? `${r.meta.legalDong} ${r.meta.jibunNo ?? ""}`.trim() : undefined,
+        adminDong: r.meta.adminDong,
+        postalCode: r.meta.postalCode,
+        lat: r.meta.lat,
+        lon: r.meta.lon,
+      }))
+    if (newInputs.length === 0) {
+      showNotification("추가할 변환 결과가 없습니다.", "error")
+      return
+    }
+    const { merged, added, skipped } = mergeFacilities(loadFacilities(), newInputs)
+    saveFacilities(merged)
+    showNotification(`시설관리에 ${added}개 추가${skipped ? ` (중복 ${skipped} 제외)` : ""} — 이동합니다`, "success")
+    setTimeout(() => {
+      window.location.href = "/facility"
+    }, 600)
+  }
+
   return (
     <div className="space-y-4">
       {notification && (
@@ -522,6 +550,9 @@ export default function AddressGenerator() {
             <span className="text-xs text-muted-foreground/50 font-medium">v3.0</span>
           </div>
           <div className="flex items-center gap-1">
+            <a href="/facility" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="시설관리 대시보드">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01" /><path d="M9 12v.01" /><path d="M9 15v.01" /></svg>
+            </a>
             <a href="/tableau-geocoder" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tableau Geocoder">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
             </a>
@@ -718,12 +749,20 @@ export default function AddressGenerator() {
             <div ref={resultSectionRef} className="space-y-2">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-semibold text-gray-900">일괄 결과 <span className="text-muted-foreground font-normal text-[11px] ml-1">클릭하여 복사</span></h3>
-                <button
-                  onClick={exportToExcel}
-                  className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors"
-                >
-                  <DownloadIcon /> Excel
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={sendToFacilities}
+                    className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 h-7 px-2.5 transition-colors"
+                  >
+                    <MapPinIcon /> 시설관리에 추가
+                  </button>
+                  <button
+                    onClick={exportToExcel}
+                    className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors"
+                  >
+                    <DownloadIcon /> Excel
+                  </button>
+                </div>
               </div>
               {OUTPUT_FIELDS.filter((field) => {
                 if (!selectedFields.has(field)) return false
@@ -740,9 +779,14 @@ export default function AddressGenerator() {
             <div ref={resultSectionRef} className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-semibold text-gray-900">개별 결과</h3>
-                <button onClick={exportToExcel} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors">
-                  <DownloadIcon /> Excel
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={sendToFacilities} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 h-7 px-2.5 transition-colors">
+                    <MapPinIcon /> 시설관리에 추가
+                  </button>
+                  <button onClick={exportToExcel} className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 h-7 px-2.5 transition-colors">
+                    <DownloadIcon /> Excel
+                  </button>
+                </div>
               </div>
               {batchResults.map((result, idx) => (
                 <div key={idx} className="rounded-xl border border-gray-200 bg-white shadow-sm">

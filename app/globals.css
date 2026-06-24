@@ -143,3 +143,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 시설관리 대시보드 — 마커 위 항상 표시되는 시설명 라벨 */
+.leaflet-tooltip.facility-label {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid var(--facility-color, #2563eb);
+  border-radius: 9999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #1f2937;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* 기본 leaflet 툴팁 화살표 제거 (라벨은 핀 위에 깔끔하게) */
+.leaflet-tooltip.facility-label::before {
+  display: none;
+}
