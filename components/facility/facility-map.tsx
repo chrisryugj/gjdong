@@ -3,10 +3,12 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap } from "leaflet"
 import { FALLBACK_COORDS } from "@/lib/constants"
-import { getCategoryColor, UNCATEGORIZED_COLOR, type Facility } from "@/lib/facility-storage"
+import type { Facility } from "@/lib/facility-storage"
+import { markerIcon, markerSvg, resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 
 interface FacilityMapProps {
   facilities: Facility[]
+  styles: Record<string, CategoryStyle>
   showLabels: boolean
   focus: { id: string; tick: number } | null
   fitSignal: number
@@ -18,16 +20,9 @@ function escapeHtml(text: string): string {
   return div.innerHTML
 }
 
-function pinSvg(color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
-    <path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="${color}"/>
-    <circle cx="12.5" cy="12.5" r="5" fill="white"/>
-  </svg>`
-}
-
-/** 시설관리 전용 지도 — 분류별 색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
+/** 시설관리 전용 지도 — 분류별 모양·색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
 const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function FacilityMap(
-  { facilities, showLabels, focus, fitSignal },
+  { facilities, styles, showLabels, focus, fitSignal },
   ref,
 ) {
   const mapElRef = useRef<HTMLDivElement>(null)
@@ -37,19 +32,25 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   // ref가 아닌 state: 지도 준비 완료 시 마커 effect가 "신선한" facilities 클로저로 재실행되도록
   const [mapReady, setMapReady] = useState(false)
 
-  // 범례: 등장하는 분류 → 색상 (미분류 포함)
+  // 범례: 등장하는 분류 → 스타일(모양+색, 미분류 포함)
   const legend = useMemo(() => {
-    const cats = new Map<string, string>()
+    const cats = new Set<string>()
     let hasUncategorized = false
     for (const f of facilities) {
       const c = f.category?.trim()
-      if (c) cats.set(c, getCategoryColor(c))
+      if (c) cats.add(c)
       else hasUncategorized = true
     }
-    const entries = Array.from(cats.entries()).map(([label, color]) => ({ label, color }))
-    if (hasUncategorized) entries.push({ label: "미분류", color: UNCATEGORIZED_COLOR })
+    const entries = Array.from(cats).map((label) => {
+      const st = resolveStyle(label, styles)
+      return { label, ...st }
+    })
+    if (hasUncategorized) {
+      const st = resolveStyle(undefined, styles)
+      entries.push({ label: "미분류", ...st })
+    }
     return entries
-  }, [facilities])
+  }, [facilities, styles])
 
   // 1) 지도 1회 초기화
   useEffect(() => {
@@ -90,19 +91,20 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     layer.clearLayers()
 
     facilities.forEach((f) => {
-      const color = getCategoryColor(f.category)
+      const st = resolveStyle(f.category, styles)
+      const ic = markerIcon(st.shape, st.color)
       const icon = L.divIcon({
         className: "facility-marker",
-        html: pinSvg(color),
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
+        html: ic.html,
+        iconSize: ic.size,
+        iconAnchor: ic.anchor,
       })
       const marker = L.marker([f.lat, f.lon], { icon }).addTo(layer)
 
       // 클릭 시 상세 팝업
       marker.bindPopup(
         `<div style="font-size:12px;line-height:1.5;min-width:140px">
-          <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:3px">${escapeHtml(f.name)}</div>
+          <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(f.name)}</div>
           ${f.category ? `<div style="color:#6b7280;margin-bottom:3px">분류: ${escapeHtml(f.category)}</div>` : ""}
           <div>${escapeHtml(f.address || f.originalInput)}</div>
           ${f.memo ? `<div style="margin-top:3px;color:#6b7280">📝 ${escapeHtml(f.memo)}</div>` : ""}
@@ -114,20 +116,20 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
           permanent: true,
           direction: "top",
           className: "facility-label",
-          offset: [0, -38],
+          offset: st.shape === "pin" ? [0, -38] : [0, -16],
         })
         marker.openTooltip()
         const el = marker.getTooltip()?.getElement()
-        if (el) el.style.setProperty("--facility-color", color)
+        if (el) el.style.setProperty("--facility-color", st.color)
       }
     })
   }
 
-  // 마커 재그리기 (라벨 토글 포함)
+  // 마커 재그리기 (라벨 토글·스타일 변경 포함)
   useEffect(() => {
     if (!mapReady) return
     renderMarkers()
-  }, [facilities, showLabels, mapReady])
+  }, [facilities, styles, showLabels, mapReady])
 
   // 전체 맞춤은 시설 집합이 바뀔 때만 (라벨 토글로는 뷰가 점프하지 않게 분리)
   useEffect(() => {
@@ -176,7 +178,11 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
           <div className="flex flex-wrap gap-x-2.5 gap-y-1">
             {legend.map((l) => (
               <span key={l.label} className="inline-flex items-center gap-1 text-[11px] text-gray-600">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                <span
+                  className="inline-flex"
+                  style={{ width: 13, height: 13, lineHeight: 0 }}
+                  dangerouslySetInnerHTML={{ __html: markerSvg(l.shape, l.color, 13) }}
+                />
                 {l.label}
               </span>
             ))}
