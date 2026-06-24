@@ -7,9 +7,11 @@ import FacilityMap from "@/components/facility/facility-map"
 import FacilityAdd from "@/components/facility/facility-add"
 import { ShapeIcon } from "@/components/facility/marker-style-picker"
 import {
+  baseAdminDong,
   loadFacilities,
   mergeFacilities,
   saveFacilities,
+  STORAGE_KEY,
   type Facility,
   type NewFacilityInput,
   type ParsedRow,
@@ -25,9 +27,11 @@ const RESOLVE_CHUNK = 10
 async function resolveRows(
   rows: ParsedRow[],
   onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<(BatchItem | null)[]> {
   const out: (BatchItem | null)[] = new Array(rows.length).fill(null)
   for (let i = 0; i < rows.length; i += RESOLVE_CHUNK) {
+    if (signal?.aborted) break // 사용자가 취소하면 남은 청크 중단
     const slice = rows.slice(i, i + RESOLVE_CHUNK)
     try {
       const res = await fetch("/api/resolve-address-batch", {
@@ -37,6 +41,7 @@ async function resolveRows(
           addressOnly: true, // 주소 검색만 — 시설명/이름으로 인한 전국 동명시설 오매칭 방지
           addresses: slice.map((r) => ({ address: r.address, facilityName: r.name || undefined })),
         }),
+        signal,
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -44,11 +49,22 @@ async function resolveRows(
         out[i + j] = r
       })
     } catch {
-      // 이 청크만 실패(null 유지) 처리하고 나머지는 계속 — 429 등으로 전체가 날아가지 않게
+      // 취소면 즉시 종료, 아니면 이 청크만 실패(null 유지)하고 계속 — 429 등으로 전체가 날아가지 않게
+      if (signal?.aborted) break
     }
     onProgress?.(Math.min(i + RESOLVE_CHUNK, rows.length), rows.length)
   }
   return out
+}
+
+// 입력 주소 정규화 — 재import 사전 중복 판정용(공백 차이 무시)
+function normInput(s: string): string {
+  return s.trim().replace(/\s+/g, " ")
+}
+
+// 엑셀/CSV formula injection 방지 — 수식 트리거 문자로 시작하는 셀 앞에 작은따옴표를 붙여 텍스트로 강제
+function csvSafe(v: string): string {
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
 }
 
 export default function FacilityDashboard() {
@@ -61,23 +77,68 @@ export default function FacilityDashboard() {
   const skipFirstSaveRef = useRef(true)
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
+  // 최신 facilities를 ref로도 보관 — 언마운트 시 보류 중이던 저장을 flush하기 위함
+  const facilitiesRef = useRef(facilities)
+  facilitiesRef.current = facilities
+  const restoredRef = useRef(false)
+  const saveFailedRef = useRef(false)
+  const [exporting, setExporting] = useState(false)
 
   // 마운트 시 localStorage 복원
   useEffect(() => {
     setFacilities(loadFacilities())
     setStyles(loadStyles())
+    restoredRef.current = true
   }, [])
 
   // 변경 시 자동 저장 — 마운트 직후의 빈 값 1회 저장은 건너뛰고(복원값 덮어쓰기 방지),
   // 메모 타이핑 등 잦은 변경은 디바운스해 매 키 입력당 동기 직렬화를 피한다.
+  // 저장 실패(quota 초과)는 조용히 삼키지 않고 사용자에게 알린다.
   useEffect(() => {
     if (skipFirstSaveRef.current) {
       skipFirstSaveRef.current = false
       return
     }
-    const t = setTimeout(() => saveFacilities(facilities), 400)
+    const t = setTimeout(() => {
+      const ok = saveFacilities(facilities)
+      if (!ok && !saveFailedRef.current) {
+        saveFailedRef.current = true
+        toast.error("브라우저 저장 공간이 부족합니다 — 일부 시설을 삭제하거나 엑셀로 내보낸 뒤 정리하세요")
+      } else if (ok) {
+        saveFailedRef.current = false
+      }
+    }, 400)
     return () => clearTimeout(t)
   }, [facilities])
+
+  // 언마운트 시 보류 중이던 마지막 변경을 즉시 저장 (디바운스 trailing edge 유실 방지)
+  useEffect(() => {
+    return () => {
+      if (restoredRef.current) saveFacilities(facilitiesRef.current)
+    }
+  }, [])
+
+  // 다른 탭이 시설 목록을 갱신하면 감지해 병합 — stale 배열 blind overwrite로 추가분이 유실되는 것 방지.
+  // 양쪽 추가분을 모두 보존(union by id)하고, 변화가 없으면 기존 참조를 유지해 저장 핑퐁을 막는다.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return
+      const incoming = loadFacilities()
+      setFacilities((cur) => {
+        const byId = new Map(incoming.map((f) => [f.id, f]))
+        let changed = incoming.length !== cur.length
+        for (const f of cur) {
+          if (!byId.has(f.id)) {
+            byId.set(f.id, f)
+            changed = true
+          }
+        }
+        return changed ? Array.from(byId.values()) : cur
+      })
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
+  }, [])
 
   useEffect(() => {
     if (skipFirstStyleSaveRef.current) {
@@ -113,6 +174,35 @@ export default function FacilityDashboard() {
       return next
     })
 
+  // 분류값 중 행정동 패턴('~동')을 상위 동으로 묶은 그룹 — "해당 동 전체" 필터용.
+  // 예) 자양제1동·자양제2동·자양제3동 → '자양동' 그룹(세부 분류가 2개 이상일 때만 노출).
+  const dongGroups = useMemo(() => {
+    const groups = new Map<string, { cats: string[]; count: number }>()
+    for (const [cat, count] of categoryCounts.entries) {
+      if (!/동$/.test(cat)) continue
+      const base = baseAdminDong(cat)
+      const g = groups.get(base) ?? { cats: [], count: 0 }
+      g.cats.push(cat)
+      g.count += count
+      groups.set(base, g)
+    }
+    return Array.from(groups.entries())
+      .filter(([, g]) => g.cats.length >= 2)
+      .map(([base, g]) => ({ base, cats: g.cats, count: g.count }))
+  }, [categoryCounts])
+
+  // 상위 동 그룹 클릭 → 그 동에 속한 세부 분류를 한꺼번에 선택/해제
+  const toggleDongGroup = (cats: string[]) =>
+    setSelectedCats((prev) => {
+      const next = new Set(prev)
+      const allOn = cats.every((c) => next.has(c))
+      for (const c of cats) {
+        if (allOn) next.delete(c)
+        else next.add(c)
+      }
+      return next
+    })
+
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
   // 지도 관련 필드 시그니처가 바뀔 때만 새 배열 참조를 넘긴다.
   const mapSig = useMemo(
@@ -122,28 +212,57 @@ export default function FacilityDashboard() {
   const mapFacilities = useMemo(() => visibleFacilities, [mapSig])
 
   // 입력(직접/엑셀/붙여넣기) → 변환 → 병합 저장. 결과 카운트를 FacilityAdd에 반환.
-  const addFacilities = async (rows: ParsedRow[]): Promise<{ added: number; skipped: number; failed: number }> => {
-    // 대량 변환은 청크 단위 진행률을 실시간 토스트로 노출 (소량은 깜빡임 방지로 생략)
-    const showProgress = rows.length > RESOLVE_CHUNK
-    const progressId = showProgress ? toast.loading(`주소 변환 중… 0/${rows.length}`) : undefined
+  const addFacilities = async (
+    rows: ParsedRow[],
+  ): Promise<{ added: number; skipped: number; failed: number; failedRows: ParsedRow[] }> => {
+    // 1) 재import 사전 필터 — 이미 등록된 (입력주소+시설명) 조합은 지오코딩 호출 없이 건너뛴다.
+    //    시설명이 있을 때만 사전 스킵(빈 이름은 저장 시 폴백명이 달라져 매칭이 불확실 → mergeFacilities에 위임).
+    const existingKeys = new Set(facilities.map((f) => `${normInput(f.originalInput)}__${f.name.trim()}`))
+    const fresh: ParsedRow[] = []
+    let preSkipped = 0
+    for (const row of rows) {
+      if (row.name.trim() && existingKeys.has(`${normInput(row.address)}__${row.name.trim()}`)) {
+        preSkipped++
+        continue
+      }
+      fresh.push(row)
+    }
+    if (fresh.length === 0) {
+      toast.info(preSkipped ? `이미 등록된 ${preSkipped}개 — 추가할 새 시설이 없습니다` : "추가할 주소가 없습니다")
+      return { added: 0, skipped: preSkipped, failed: 0, failedRows: [] }
+    }
+
+    // 2) 대량 변환은 청크 단위 진행률 + 취소 액션을 실시간 토스트로 노출(소량은 깜빡임 방지로 생략)
+    const showProgress = fresh.length > RESOLVE_CHUNK
+    const controller = new AbortController()
+    const cancelAction = { label: "취소", onClick: () => controller.abort() }
+    const progressId = showProgress
+      ? toast.loading(`주소 변환 중… 0/${fresh.length}`, { action: cancelAction })
+      : undefined
     try {
-      const results = await resolveRows(rows, (done, total) => {
-        if (showProgress) toast.loading(`주소 변환 중… ${done}/${total}`, { id: progressId })
-      })
+      const results = await resolveRows(
+        fresh,
+        (done, total) => {
+          if (showProgress) toast.loading(`주소 변환 중… ${done}/${total}`, { id: progressId, action: cancelAction })
+        },
+        controller.signal,
+      )
       if (progressId !== undefined) toast.dismiss(progressId)
+
       const newInputs: NewFacilityInput[] = []
-      let failed = 0
+      const failedRows: ParsedRow[] = []
       results.forEach((r, i) => {
-        if (!r || r.fallback) {
-          failed++
+        // fallback이라도 partial(좌표 유효)이면 살린다. 좌표가 깨졌거나 진짜 실패면 입력을 보존해 재시도 가능하게.
+        if (!r || (r.fallback && !r.partial) || !Number.isFinite(r.meta.lat) || !Number.isFinite(r.meta.lon)) {
+          failedRows.push(fresh[i])
           return
         }
         const m = r.meta
         newInputs.push({
           // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
-          name: rows[i].name || m.placeName || rows[i].address,
-          category: rows[i].category || undefined,
-          originalInput: rows[i].address,
+          name: fresh[i].name || m.placeName || fresh[i].address,
+          category: fresh[i].category || undefined,
+          originalInput: fresh[i].address,
           address: r.display,
           road: m.roadName ? `${m.gu} ${m.roadName} ${m.buildingNo ?? ""}`.trim() : undefined,
           jibun: m.legalDong ? `${m.legalDong} ${m.jibunNo ?? ""}`.trim() : undefined,
@@ -157,18 +276,22 @@ export default function FacilityDashboard() {
       const { merged, added, skipped } = mergeFacilities(facilities, newInputs)
       if (added) setFacilities(merged)
 
+      const failed = failedRows.length
+      const totalSkipped = skipped + preSkipped
       const parts: string[] = []
+      if (controller.signal.aborted) parts.push("취소됨")
       if (added) parts.push(`${added}개 추가`)
-      if (skipped) parts.push(`중복 ${skipped}개 제외`)
+      if (totalSkipped) parts.push(`중복 ${totalSkipped}개 제외`)
       if (failed) parts.push(`변환 실패 ${failed}개`)
-      if (added) toast.success(parts.join(" · "))
-      else if (parts.length) toast.warning(parts.join(" · "))
-      else toast.info("추가된 시설이 없습니다")
-      return { added, skipped, failed }
+      const msg = parts.join(" · ") || "추가된 시설이 없습니다"
+      if (added) toast.success(msg)
+      else if (parts.length) toast.warning(msg)
+      else toast.info(msg)
+      return { added, skipped: totalSkipped, failed, failedRows }
     } catch {
       if (progressId !== undefined) toast.dismiss(progressId)
       toast.error("시설 변환 중 오류가 발생했습니다. 다시 시도해 주세요.")
-      return { added: 0, skipped: 0, failed: rows.length }
+      return { added: 0, skipped: 0, failed: rows.length, failedRows: rows }
     }
   }
 
@@ -193,10 +316,12 @@ export default function FacilityDashboard() {
   }
 
   const handleScreenshot = async () => {
+    if (exporting) return
     if (!mapWrapRef.current || facilities.length === 0) {
       toast.info("지도에 표시할 시설이 없습니다")
       return
     }
+    setExporting(true)
     try {
       const { toPng } = await import("html-to-image")
       // 이동 애니메이션·타일 로딩이 끝나도록 잠깐 대기 후 캡처 (회색 미완료 타일 방지)
@@ -213,84 +338,100 @@ export default function FacilityDashboard() {
       toast.success("지도 스크린샷이 저장되었습니다")
     } catch {
       toast.error("스크린샷 생성 실패 — 브라우저 화면 캡처(⌘⇧4 / Win+Shift+S)를 이용해 주세요")
+    } finally {
+      setExporting(false)
     }
   }
 
   const handleExcel = async () => {
+    if (exporting) return
     if (facilities.length === 0) {
       toast.info("내보낼 시설이 없습니다")
       return
     }
-    const XLSX = await import("xlsx")
-    const rows = facilities.map((f, i) => ({
-      번호: i + 1,
-      시설명: f.name,
-      분류: f.category ?? "",
-      입력주소: f.originalInput,
-      표준주소: f.address,
-      도로명주소: f.road ?? "",
-      지번주소: f.jibun ?? "",
-      행정동: f.adminDong ?? "",
-      우편번호: f.postalCode ?? "",
-      위도: f.lat,
-      경도: f.lon,
-      메모: f.memo ?? "",
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
-    ws["!cols"] = [
-      { wch: 6 },
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 30 },
-      { wch: 42 },
-      { wch: 32 },
-      { wch: 24 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 24 },
-    ]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "시설목록")
-    XLSX.writeFile(wb, `시설목록_${new Date().toISOString().slice(0, 10)}.xlsx`)
-    toast.success("엑셀 파일이 저장되었습니다")
+    setExporting(true)
+    try {
+      const XLSX = await import("xlsx")
+      const rows = facilities.map((f, i) => ({
+        번호: i + 1,
+        시설명: csvSafe(f.name),
+        분류: csvSafe(f.category ?? ""),
+        입력주소: csvSafe(f.originalInput),
+        표준주소: csvSafe(f.address),
+        도로명주소: csvSafe(f.road ?? ""),
+        지번주소: csvSafe(f.jibun ?? ""),
+        행정동: csvSafe(f.adminDong ?? ""),
+        우편번호: csvSafe(f.postalCode ?? ""),
+        위도: f.lat,
+        경도: f.lon,
+        메모: csvSafe(f.memo ?? ""),
+      }))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      ws["!cols"] = [
+        { wch: 6 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 42 },
+        { wch: 32 },
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 24 },
+      ]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "시설목록")
+      XLSX.writeFile(wb, `시설목록_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast.success("엑셀 파일이 저장되었습니다")
+    } catch {
+      toast.error("엑셀 생성에 실패했습니다. 다시 시도해 주세요")
+    } finally {
+      setExporting(false)
+    }
   }
 
   // 시설현황 보고서: 지도 캡처 + 집계/표를 독립 HTML로 새 탭 출력 → 인쇄/PDF 저장
   const handleReport = async () => {
+    if (exporting) return
     if (facilities.length === 0) {
       toast.info("보고서로 만들 시설이 없습니다")
       return
     }
-    let mapImage: string | null = null
+    setExporting(true)
     try {
-      if (mapWrapRef.current) {
-        const { toPng } = await import("html-to-image")
-        await new Promise((r) => setTimeout(r, 350))
-        mapImage = await toPng(mapWrapRef.current, {
-          pixelRatio: 2,
-          filter: (node) => !(node instanceof HTMLElement && node.classList?.contains("leaflet-control-zoom")),
-        })
+      let mapImage: string | null = null
+      try {
+        if (mapWrapRef.current) {
+          const { toPng } = await import("html-to-image")
+          await new Promise((r) => setTimeout(r, 350))
+          mapImage = await toPng(mapWrapRef.current, {
+            pixelRatio: 2,
+            filter: (node) => !(node instanceof HTMLElement && node.classList?.contains("leaflet-control-zoom")),
+          })
+        }
+      } catch {
+        /* 지도 캡처 실패해도 표는 출력 */
       }
-    } catch {
-      /* 지도 캡처 실패해도 표는 출력 */
+      const html = buildReportHtml({
+        facilities,
+        styles,
+        mapImage,
+        generatedAt: new Date().toLocaleString("ko-KR"),
+      })
+      const w = window.open("", "_blank")
+      if (!w) {
+        toast.error("팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요")
+        return
+      }
+      w.document.open()
+      w.document.write(html)
+      w.document.close()
+      toast.success("보고서를 새 탭에서 열었습니다")
+    } finally {
+      setExporting(false)
     }
-    const html = buildReportHtml({
-      facilities,
-      styles,
-      mapImage,
-      generatedAt: new Date().toLocaleString("ko-KR"),
-    })
-    const w = window.open("", "_blank")
-    if (!w) {
-      toast.error("팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요")
-      return
-    }
-    w.document.open()
-    w.document.write(html)
-    w.document.close()
-    toast.success("보고서를 새 탭에서 열었습니다")
   }
 
   return (
@@ -315,13 +456,13 @@ export default function FacilityDashboard() {
             <Maximize className="h-4 w-4" /> 전체보기
           </ToolbarButton>
           <div className="hidden flex-1 sm:block" />
-          <ToolbarButton onClick={handleReport}>
+          <ToolbarButton onClick={handleReport} disabled={exporting}>
             <FileText className="h-4 w-4" /> 보고서
           </ToolbarButton>
-          <ToolbarButton onClick={handleScreenshot}>
+          <ToolbarButton onClick={handleScreenshot} disabled={exporting}>
             <Camera className="h-4 w-4" /> 스크린샷
           </ToolbarButton>
-          <ToolbarButton onClick={handleExcel}>
+          <ToolbarButton onClick={handleExcel} disabled={exporting}>
             <Download className="h-4 w-4" /> 엑셀
           </ToolbarButton>
         </div>
@@ -368,6 +509,20 @@ export default function FacilityDashboard() {
                   </button>
                 )}
               </div>
+              {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
+              {dongGroups.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
+                  <span className="mr-0.5 text-[10px] text-gray-400">동 전체</span>
+                  {dongGroups.map((g) => (
+                    <FilterChip
+                      key={g.base}
+                      active={g.cats.every((c) => selectedCats.has(c))}
+                      onClick={() => toggleDongGroup(g.cats)}
+                      label={`${g.base} ${g.count}`}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
                 {categoryCounts.entries.map(([cat, count]) => (
@@ -472,16 +627,19 @@ function FilterChip({
 function ToolbarButton({
   onClick,
   active,
+  disabled,
   children,
 }: {
   onClick: () => void
   active?: boolean
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
     <button
       onClick={onClick}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+      disabled={disabled}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         active
           ? "border-gray-900 bg-gray-900 text-white"
           : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"

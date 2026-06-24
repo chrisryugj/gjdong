@@ -22,6 +22,24 @@ if (typeof setInterval !== "undefined") {
   cleanupTimer.unref?.()
 }
 
+// 신뢰 가능한 클라이언트 IP를 추출한다.
+// x-forwarded-for의 '맨 왼쪽'은 클라이언트가 임의로 위조할 수 있어(Vercel은 실제 IP를 오른쪽에 append)
+// rate-limit 키로 쓰면 헤더 변조로 우회된다. Vercel이 신뢰값으로 채우는 x-real-ip를 우선하고,
+// 없으면 XFF의 '마지막' 값(프록시가 본 실제 IP에 가장 가까움)을 쓴다.
+export function getClientIp(headers: Headers): string {
+  const realIp = headers.get("x-real-ip")?.trim()
+  if (realIp) return realIp
+  const xff = headers.get("x-forwarded-for")
+  if (xff) {
+    const parts = xff
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
+  return "unknown"
+}
+
 export type RateLimitType = "single" | "batch" | "geocode"
 
 const LIMITS: Record<RateLimitType, number> = {

@@ -21,6 +21,11 @@ export type CategoryStyle = { shape: MarkerShape; color: string }
 
 const STYLE_KEY = "gjdong_facility_styles_v1"
 
+// HTML 속성에 보간해도 안전한 색상값(#rrggbb / #rgb)만 통과
+function isHexColor(c: unknown): c is string {
+  return typeof c === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)
+}
+
 export function loadStyles(): Record<string, CategoryStyle> {
   if (typeof window === "undefined") return {}
   try {
@@ -31,7 +36,9 @@ export function loadStyles(): Record<string, CategoryStyle> {
     const out: Record<string, CategoryStyle> = {}
     for (const [k, v] of Object.entries(parsed)) {
       const s = v as Partial<CategoryStyle>
-      if (s && typeof s.color === "string" && typeof s.shape === "string" && MARKER_SHAPES.includes(s.shape as MarkerShape)) {
+      // color는 hex(#rrggbb)만 허용 — 이 값이 보고서/지도 HTML 속성에 보간되므로,
+      // localStorage가 조작된 경우 속성 탈출(XSS)을 차단(저장형 입력 검증).
+      if (s && isHexColor(s.color) && typeof s.shape === "string" && MARKER_SHAPES.includes(s.shape as MarkerShape)) {
         out[k] = { shape: s.shape as MarkerShape, color: s.color }
       }
     }

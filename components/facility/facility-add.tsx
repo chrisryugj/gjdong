@@ -8,7 +8,8 @@ import { resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 import type { ParsedRow } from "@/lib/facility-storage"
 
 type Tab = "form" | "excel" | "paste"
-type AddResult = { added: number; skipped: number; failed: number }
+// failedRows: 변환 실패한 입력 행 — 호출부가 입력칸에 남겨 사용자가 수정·재시도할 수 있게 한다.
+type AddResult = { added: number; skipped: number; failed: number; failedRows: ParsedRow[] }
 
 interface Props {
   existingCategories: string[]
@@ -59,7 +60,8 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
   const [excelName, setExcelName] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const run = async (rows: ParsedRow[], onDone: () => void) => {
+  // onDone은 실패행 목록을 받아 입력칸을 정리한다 — 성공분은 비우고 실패행은 남겨 재시도 가능하게.
+  const run = async (rows: ParsedRow[], onDone: (failedRows: ParsedRow[]) => void) => {
     if (busy) return
     if (rows.length === 0) {
       toast.info("추가할 주소가 없습니다")
@@ -72,7 +74,8 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
     setBusy(true)
     try {
       const r = await onAdd(rows)
-      if (r.added > 0) onDone()
+      // 성공·중복이 하나라도 처리됐으면 입력을 정리(실패행만 남김). 전부 실패면 입력 그대로 둔다.
+      if (r.added > 0 || r.skipped > 0) onDone(r.failedRows)
     } finally {
       setBusy(false)
     }
@@ -124,20 +127,49 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
       let ai = findCol("주소", "소재지", "address")
       let ni = findCol("시설명", "기관명", "명칭", "상호", "업체", "name")
       let ci = findCol("분류", "유형", "구분", "category", "type")
-      // 명시 키워드로 못 찾으면 '어린이집명·학교명·병원명'처럼 '명'으로 끝나는 열을
-      // 시설명으로 간주 (주소/분류/행정동·연번 열은 제외)
-      if (ni === -1) {
-        ni = headers.findIndex(
-          (h, idx) => idx !== ai && idx !== ci && h.endsWith("명") && !h.includes("동") && !h.includes("주소"),
-        )
-      }
+
+      // 주소 열을 못 찾으면 무헤더 표로 보고 1·2·3열을 주소/시설명/분류로 가정한다.
+      // 단 시설명·분류가 헤더로 이미 인식됐다면 그 인덱스를 보존하고(덮어쓰지 않음),
+      // 헤더가 하나라도 인식됐다면 첫 줄은 헤더이므로 데이터에 섞지 않는다.
       let dataRows = aoa.slice(1)
       if (ai === -1) {
-        // 인식 가능한 헤더가 없으면 1열=주소,2열=시설명,3열=분류로 가정하고 첫 줄도 데이터로
         ai = 0
-        ni = 1
-        ci = 2
-        dataRows = aoa
+        const hasRecognizedHeader = ni !== -1 || ci !== -1
+        if (ni === -1) ni = 1
+        if (ci === -1) ci = 2
+        if (!hasRecognizedHeader) dataRows = aoa
+      }
+
+      // 시설명 열을 명시 키워드로 못 찾았을 때의 폴백: '어린이집명·학교명'처럼 시설 계열
+      // 접미가 붙은 '명' 열을 우선 채택하고, '대표자명·담당자명·도로명' 같은 사람/주소 열은 제외.
+      // (ai/ci 확정 후 실행하므로 음수 인덱스 가드 불필요, 이미 1열 가정으로 채워진 ni는 건드리지 않음)
+      if (ni === -1) {
+        const usable = (idx: number) => idx !== ai && idx !== ci
+        const isNameCol = (h: string) =>
+          h.endsWith("명") &&
+          !/대표자|시설장|담당자|관리자|작성자|보호자|성명|이름|도로|증명|설명|품명|과목/.test(h) &&
+          !h.includes("동") &&
+          !h.includes("주소")
+        // 1순위: 시설 계열 접미(어린이집/학교/병원/기관/시설/업소/업체/점/원/관/소)명
+        ni = headers.findIndex(
+          (h, idx) => usable(idx) && isNameCol(h) && /(어린이집|학교|병원|기관|시설|업소|업체|점|원|관|소)명$/.test(h),
+        )
+        // 2순위: 그 외 '~명' 열
+        if (ni === -1) ni = headers.findIndex((h, idx) => usable(idx) && isNameCol(h))
+      }
+
+      // 분류 열을 명시 키워드로 못 찾으면, 주소·시설명·연번이 아닌 나머지 열을 분류로 인식한다.
+      // 예) 어린이집 현황표의 '행정동' 열 → 분류 → 동별 마커 색상 + 분류 필터(세부동·상위동 그룹) 활용.
+      // 단 마커 색상 분류로 부적합한 식별자 열(연번·대표자명·연락처·도로명 등)은 제외.
+      if (ci === -1) {
+        ci = headers.findIndex(
+          (h, idx) =>
+            idx !== ai &&
+            idx !== ni &&
+            h !== "" &&
+            !/연번|순번|번호|순서|index|^no\.?$|^#$/i.test(h) &&
+            !/대표자|시설장|담당자|관리자|작성자|보호자|성명|이름|전화|연락처|도로명/.test(h),
+        )
       }
       const rows = (dataRows as unknown[][])
         .map((r) => ({
@@ -275,7 +307,12 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             </div>
 
             <button
-              onClick={() => run(filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })), () => setRows([emptyRow(), emptyRow(), emptyRow()]))}
+              onClick={() =>
+                run(
+                  filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })),
+                  (failed) => setRows(failed.length ? failed : [emptyRow(), emptyRow(), emptyRow()]),
+                )
+              }
               disabled={busy || filledRows.length === 0}
               className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
             >
@@ -313,7 +350,15 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                   <b>{excelName}</b> — {excelRows.length}건 인식 (분류 지정 {excelRows.filter((r) => r.category).length}건)
                 </div>
                 <button
-                  onClick={() => run(excelRows, () => { setExcelRows([]); setExcelName("") })}
+                  onClick={() =>
+                    run(excelRows, (failed) => {
+                      if (failed.length) setExcelRows(failed)
+                      else {
+                        setExcelRows([])
+                        setExcelName("")
+                      }
+                    })
+                  }
                   disabled={busy}
                   className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-30"
                 >
@@ -355,7 +400,11 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
               <p className="text-[11px] text-amber-600">시설명 미지정 행은 입력 주소가 라벨로 쓰여요.</p>
             )}
             <button
-              onClick={() => run(parsed, () => setPaste(""))}
+              onClick={() =>
+                run(parsed, (failed) =>
+                  setPaste(failed.map((r) => [r.address, r.name, r.category].join("\t").replace(/\t+$/, "")).join("\n")),
+                )
+              }
               disabled={busy || parsed.length === 0}
               className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
             >

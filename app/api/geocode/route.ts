@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { checkRateLimit } from "@/lib/utils/rate-limiter"
+import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const ip = getClientIp(req.headers)
     const { allowed } = checkRateLimit(ip, "geocode")
     if (!allowed) {
       return NextResponse.json(

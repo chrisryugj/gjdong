@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { resolveAddress } from "@/lib/utils/kakao-api"
-import { checkRateLimit } from "@/lib/utils/rate-limiter"
+import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const ip = getClientIp(request.headers)
     const { allowed } = checkRateLimit(ip, "single")
     if (!allowed) {
       return NextResponse.json(
