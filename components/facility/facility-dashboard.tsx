@@ -95,6 +95,18 @@ export default function FacilityDashboard() {
       .filter((r) => r.address)
   }, [inputValue])
 
+  // textarea에서 Tab은 기본적으로 포커스 이동 → 가로채서 실제 탭 문자 삽입(열 구분자로 사용 가능하게)
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Tab" || e.shiftKey) return
+    e.preventDefault()
+    const ta = e.currentTarget
+    const { selectionStart: s, selectionEnd: en } = ta
+    setInputValue((v) => v.slice(0, s) + "\t" + v.slice(en))
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = s + 1
+    })
+  }
+
   // 분류별 집계 (필터 칩)
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -267,10 +279,14 @@ export default function FacilityDashboard() {
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleTextareaKeyDown}
               placeholder={"주소 [Tab 또는 띄어쓰기 2칸] 시설명 [Tab] 분류\n\n예) 광진구 아차산로 400  자양보건지소  보건소\n예) 능동로 209  세종대학교  교육시설"}
               rows={4}
               className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+            <p className="text-[11px] text-muted-foreground">
+              Tab으로 칸 구분(붙여넣기도 가능) · 칸에서 빠져나가려면 Shift+Tab · 또는 띄어쓰기 2칸
+            </p>
             {parsedRows.length > 0 && (
               <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200">
                 <table className="w-full text-xs">
