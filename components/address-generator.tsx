@@ -549,9 +549,18 @@ export default function AddressGenerator() {
             <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>표준주소실록</h1>
             <span className="text-xs text-muted-foreground/50 font-medium">v3.0</span>
           </div>
-          <div className="flex items-center gap-1">
-            <a href="/facility" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="시설관리 대시보드">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01" /><path d="M9 12v.01" /><path d="M9 15v.01" /></svg>
+          <div className="flex items-center gap-1.5">
+            <a
+              href="/facility"
+              className="relative inline-flex items-center gap-1 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 px-2 py-1 text-white shadow-sm transition hover:brightness-110"
+              title="시설관리 대시보드 (NEW)"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01" /><path d="M9 12v.01" /><path d="M9 15v.01" /></svg>
+              <span className="hidden text-[11px] font-bold sm:inline">시설관리</span>
+              <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+              </span>
             </a>
             <a href="/tableau-geocoder" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tableau Geocoder">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>

@@ -63,6 +63,18 @@ export default function HomeInfoTabs() {
               에 CSV 업로드 → 위·경도 자동 추가.
             </p>
           </div>
+          <div className="bg-white p-4 ring-1 ring-inset ring-indigo-100">
+            <p className="text-[13px] font-semibold text-slate-900">
+              시설관리 대시보드
+              <span className="ml-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0 text-[9px] font-semibold text-indigo-700">NEW</span>
+            </p>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              <Link href="/facility" className="text-indigo-600 hover:text-indigo-700 underline underline-offset-2">
+                시설관리 대시보드
+              </Link>
+              에 시설 주소 등록 → 분류별 마커·라벨 지도 + 엑셀·스크린샷·현황 보고서.
+            </p>
+          </div>
         </div>
       </TabsContent>
 

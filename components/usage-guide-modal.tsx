@@ -33,17 +33,55 @@ export default function UsageGuideModal({ open, onOpenChange }: UsageGuideModalP
             표준주소실록 사용 가이드
           </DialogTitle>
           <DialogDescription>
-            다양한 형태의 주소를 표준 형식으로 변환하고 지도에서 위치를 확인하세요
+            주소를 표준 형식으로 변환하고, 관리 시설을 지도 대시보드로 한눈에 정리하세요
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-4">
-          {/* 사용 방법 — 가장 먼저 */}
+          {/* 시설관리 대시보드 — NEW, 최상단 강조 */}
+          <section className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01" /><path d="M9 12v.01" /><path d="M9 15v.01" /></svg>
+              </span>
+              <h3 className="text-sm font-bold text-gray-900">시설관리 대시보드</h3>
+              <span className="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[9px] font-extrabold text-white">NEW</span>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-gray-700">
+              관리하는 시설(경로당·어린이집·CCTV 등)의 주소를 등록하면 지도에 <strong>분류별 색·모양 마커</strong>와 <strong>시설명 라벨</strong>로 표시됩니다. 데이터는 이 브라우저에 저장돼 새로고침해도 유지됩니다.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg bg-white/70 px-3 py-2">
+                <p className="text-xs font-semibold text-gray-900">3가지 입력 방식</p>
+                <p className="mt-0.5 text-[11px] text-gray-600">직접 입력(행 추가) · 엑셀 양식 업로드 · 표 붙여넣기</p>
+              </div>
+              <div className="rounded-lg bg-white/70 px-3 py-2">
+                <p className="text-xs font-semibold text-gray-900">마커 꾸미기</p>
+                <p className="mt-0.5 text-[11px] text-gray-600">분류별 모양 6종(핀·원·사각·마름모·삼각·별)·색상 지정</p>
+              </div>
+              <div className="rounded-lg bg-white/70 px-3 py-2">
+                <p className="text-xs font-semibold text-gray-900">분류 필터</p>
+                <p className="mt-0.5 text-[11px] text-gray-600">여러 분류를 골라 지도·목록에 동시 표시</p>
+              </div>
+              <div className="rounded-lg bg-white/70 px-3 py-2">
+                <p className="text-xs font-semibold text-gray-900">내보내기</p>
+                <p className="mt-0.5 text-[11px] text-gray-600">지도 스크린샷(PNG)·엑셀·시설현황 보고서(인쇄/PDF)</p>
+              </div>
+            </div>
+            <a
+              href="/facility"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+            >
+              시설관리 대시보드 열기 →
+            </a>
+          </section>
+
+          {/* 사용 방법 — 주소 변환 */}
           <section>
-            <h3 className="text-sm font-bold text-gray-900 mb-3 border-b pb-2">사용 방법</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-3 border-b pb-2">주소 변환 기본</h3>
             <div className="space-y-3">
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-900 mb-2">주소 변환</p>
+                <p className="text-sm font-semibold text-gray-900 mb-2">단건 변환</p>
                 <ol className="text-xs text-gray-700 space-y-1.5 list-decimal list-inside">
                   <li>입력창에 주소 입력 (예: <code className="bg-gray-200 px-1 rounded">광진구 아차산로 400</code>)</li>
                   <li><strong>Enter</strong> 또는 오른쪽 검색 아이콘 클릭</li>
@@ -56,6 +94,7 @@ export default function UsageGuideModal({ open, onOpenChange }: UsageGuideModalP
                   <li><strong>Shift+Enter</strong>로 줄바꿈하며 여러 주소 입력</li>
                   <li><strong>Enter</strong>로 일괄 검색 시작</li>
                   <li>결과 클릭하여 복사하거나 <strong>Excel</strong> 버튼으로 다운로드</li>
+                  <li>변환 결과를 <strong>"시설관리에 추가"</strong>로 대시보드에 바로 등록</li>
                 </ol>
                 <p className="text-xs text-gray-500 mt-2">
                   상단 칩으로 <strong>한번에/개별</strong> 표시 전환 가능
