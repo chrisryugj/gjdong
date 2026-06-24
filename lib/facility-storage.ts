@@ -20,7 +20,7 @@ export type Facility = {
 const STORAGE_KEY = "gjdong_facilities_v1"
 
 // 분류별로 자동 배정되는 마커 색상 (분류 문자열 해시 → 팔레트 인덱스)
-const CATEGORY_PALETTE = [
+export const CATEGORY_PALETTE = [
   "#2563eb", // blue
   "#16a34a", // green
   "#db2777", // pink
@@ -84,6 +84,9 @@ export function saveFacilities(facilities: Facility[]): void {
 }
 
 export type NewFacilityInput = Omit<Facility, "id" | "createdAt">
+
+// 입력 한 줄 파싱 결과 (직접입력/엑셀/붙여넣기 공용)
+export type ParsedRow = { address: string; name: string; category: string }
 
 // 기존 목록에 새 시설들을 병합. 중복(시설명+좌표)은 건너뜀.
 // added: 실제 추가된 수, skipped: 중복으로 제외된 수

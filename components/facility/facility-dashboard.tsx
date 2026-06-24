@@ -1,32 +1,23 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import {
-  Camera,
-  Download,
-  Eye,
-  EyeOff,
-  Loader2,
-  MapPin,
-  Maximize,
-  Plus,
-  Tag,
-  Trash2,
-} from "lucide-react"
+import { Camera, Download, Eye, EyeOff, FileText, MapPin, Maximize, Tag, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import FacilityMap from "@/components/facility/facility-map"
+import FacilityAdd from "@/components/facility/facility-add"
+import { ShapeIcon } from "@/components/facility/marker-style-picker"
 import {
-  getCategoryColor,
   loadFacilities,
   mergeFacilities,
   saveFacilities,
-  UNCATEGORIZED_COLOR,
   type Facility,
   type NewFacilityInput,
+  type ParsedRow,
 } from "@/lib/facility-storage"
+import { loadStyles, resolveStyle, saveStyles, type CategoryStyle } from "@/lib/facility-markers"
+import { buildReportHtml } from "@/lib/facility-report"
 import type { ResolvedDisplay } from "@/lib/types"
 
-type ParsedRow = { address: string; name: string; category: string }
 type BatchItem = ResolvedDisplay & { facilityName?: string }
 
 const RESOLVE_CHUNK = 10
@@ -57,21 +48,22 @@ async function resolveRows(rows: ParsedRow[]): Promise<(BatchItem | null)[]> {
 
 export default function FacilityDashboard() {
   const [facilities, setFacilities] = useState<Facility[]>([])
-  const [inputValue, setInputValue] = useState("")
-  const [isAdding, setIsAdding] = useState(false)
+  const [styles, setStyles] = useState<Record<string, CategoryStyle>>({})
   const [showLabels, setShowLabels] = useState(true)
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
   const [fitSignal, setFitSignal] = useState(0)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const skipFirstSaveRef = useRef(true)
+  const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
 
   // 마운트 시 localStorage 복원
   useEffect(() => {
     setFacilities(loadFacilities())
+    setStyles(loadStyles())
   }, [])
 
-  // 변경 시 자동 저장 — 마운트 직후의 빈 배열 1회 저장은 건너뛰고(복원값 덮어쓰기 방지),
+  // 변경 시 자동 저장 — 마운트 직후의 빈 값 1회 저장은 건너뛰고(복원값 덮어쓰기 방지),
   // 메모 타이핑 등 잦은 변경은 디바운스해 매 키 입력당 동기 직렬화를 피한다.
   useEffect(() => {
     if (skipFirstSaveRef.current) {
@@ -82,30 +74,13 @@ export default function FacilityDashboard() {
     return () => clearTimeout(t)
   }, [facilities])
 
-  const parsedRows = useMemo<ParsedRow[]>(() => {
-    return inputValue
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((line) => {
-        // Tab이 있으면 Tab으로만 분리(엑셀 붙여넣기 안전) — 없을 때만 공백 2칸+ 규칙 적용
-        const parts = (line.includes("\t") ? line.split("\t") : line.split(/\s{2,}/)).map((p) => p.trim())
-        return { address: parts[0] || "", name: parts[1] || "", category: parts[2] || "" }
-      })
-      .filter((r) => r.address)
-  }, [inputValue])
-
-  // textarea에서 Tab은 기본적으로 포커스 이동 → 가로채서 실제 탭 문자 삽입(열 구분자로 사용 가능하게)
-  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Tab" || e.shiftKey) return
-    e.preventDefault()
-    const ta = e.currentTarget
-    const { selectionStart: s, selectionEnd: en } = ta
-    setInputValue((v) => v.slice(0, s) + "\t" + v.slice(en))
-    requestAnimationFrame(() => {
-      ta.selectionStart = ta.selectionEnd = s + 1
-    })
-  }
+  useEffect(() => {
+    if (skipFirstStyleSaveRef.current) {
+      skipFirstStyleSaveRef.current = false
+      return
+    }
+    saveStyles(styles)
+  }, [styles])
 
   // 분류별 집계 (필터 칩)
   const categoryCounts = useMemo(() => {
@@ -133,15 +108,10 @@ export default function FacilityDashboard() {
   )
   const mapFacilities = useMemo(() => visibleFacilities, [mapSig])
 
-  const handleAdd = async () => {
-    if (parsedRows.length === 0 || isAdding) return
-    if (parsedRows.length > 300) {
-      toast.error(`한 번에 최대 300건까지 추가할 수 있습니다 (현재 ${parsedRows.length}건)`)
-      return
-    }
-    setIsAdding(true)
+  // 입력(직접/엑셀/붙여넣기) → 변환 → 병합 저장. 결과 카운트를 FacilityAdd에 반환.
+  const addFacilities = async (rows: ParsedRow[]): Promise<{ added: number; skipped: number; failed: number }> => {
     try {
-      const results = await resolveRows(parsedRows)
+      const results = await resolveRows(rows)
       const newInputs: NewFacilityInput[] = []
       let failed = 0
       results.forEach((r, i) => {
@@ -151,10 +121,10 @@ export default function FacilityDashboard() {
         }
         const m = r.meta
         newInputs.push({
-          // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로 — 라벨·목록 가독성/중복 방지
-          name: parsedRows[i].name || m.placeName || parsedRows[i].address,
-          category: parsedRows[i].category || undefined,
-          originalInput: parsedRows[i].address,
+          // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
+          name: rows[i].name || m.placeName || rows[i].address,
+          category: rows[i].category || undefined,
+          originalInput: rows[i].address,
           address: r.display,
           road: m.roadName ? `${m.gu} ${m.roadName} ${m.buildingNo ?? ""}`.trim() : undefined,
           jibun: m.legalDong ? `${m.legalDong} ${m.jibunNo ?? ""}`.trim() : undefined,
@@ -166,8 +136,7 @@ export default function FacilityDashboard() {
       })
 
       const { merged, added, skipped } = mergeFacilities(facilities, newInputs)
-      setFacilities(merged)
-      setInputValue("")
+      if (added) setFacilities(merged)
 
       const parts: string[] = []
       if (added) parts.push(`${added}개 추가`)
@@ -176,11 +145,15 @@ export default function FacilityDashboard() {
       if (added) toast.success(parts.join(" · "))
       else if (parts.length) toast.warning(parts.join(" · "))
       else toast.info("추가된 시설이 없습니다")
+      return { added, skipped, failed }
     } catch {
       toast.error("시설 변환 중 오류가 발생했습니다. 다시 시도해 주세요.")
-    } finally {
-      setIsAdding(false)
+      return { added: 0, skipped: 0, failed: rows.length }
     }
+  }
+
+  const setCategoryStyle = (category: string, style: CategoryStyle) => {
+    setStyles((prev) => ({ ...prev, [category]: style }))
   }
 
   const handleRemove = (id: string) => {
@@ -264,86 +237,52 @@ export default function FacilityDashboard() {
     toast.success("엑셀 파일이 저장되었습니다")
   }
 
+  // 시설현황 보고서: 지도 캡처 + 집계/표를 독립 HTML로 새 탭 출력 → 인쇄/PDF 저장
+  const handleReport = async () => {
+    if (facilities.length === 0) {
+      toast.info("보고서로 만들 시설이 없습니다")
+      return
+    }
+    let mapImage: string | null = null
+    try {
+      if (mapWrapRef.current) {
+        const { toPng } = await import("html-to-image")
+        await new Promise((r) => setTimeout(r, 350))
+        mapImage = await toPng(mapWrapRef.current, {
+          pixelRatio: 2,
+          filter: (node) => !(node instanceof HTMLElement && node.classList?.contains("leaflet-control-zoom")),
+        })
+      }
+    } catch {
+      /* 지도 캡처 실패해도 표는 출력 */
+    }
+    const html = buildReportHtml({
+      facilities,
+      styles,
+      mapImage,
+      generatedAt: new Date().toLocaleString("ko-KR"),
+    })
+    const w = window.open("", "_blank")
+    if (!w) {
+      toast.error("팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요")
+      return
+    }
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+    toast.success("보고서를 새 탭에서 열었습니다")
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr] lg:items-start">
       {/* === 시설 추가 (모바일 1번째 / 데스크탑 좌상) === */}
       <div className="lg:col-start-1 lg:row-start-1">
-        {/* 시설 추가 */}
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="border-b px-4 py-2.5">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-              <Plus className="h-4 w-4" /> 시설 추가
-            </h2>
-          </div>
-          <div className="space-y-2.5 p-4">
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleTextareaKeyDown}
-              placeholder={"주소 [Tab 또는 띄어쓰기 2칸] 시설명 [Tab] 분류\n\n예) 광진구 아차산로 400  자양보건지소  보건소\n예) 능동로 209  세종대학교  교육시설"}
-              rows={4}
-              className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Tab으로 칸 구분(붙여넣기도 가능) · 칸에서 빠져나가려면 Shift+Tab · 또는 띄어쓰기 2칸
-            </p>
-            {parsedRows.length > 0 && (
-              <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-gray-50 text-gray-500">
-                    <tr>
-                      <th className="px-2 py-1 text-left font-semibold">주소</th>
-                      <th className="w-20 px-2 py-1 text-left font-semibold">시설명</th>
-                      <th className="w-16 px-2 py-1 text-left font-semibold">분류</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedRows.map((r, i) => (
-                      <tr key={i} className={`border-t border-gray-100 ${r.name ? "" : "bg-amber-50"}`}>
-                        <td className="px-2 py-1 text-gray-700">{r.address}</td>
-                        <td className="px-2 py-1 text-gray-700">
-                          {r.name || <span className="text-amber-600">미지정</span>}
-                        </td>
-                        <td className="px-2 py-1">
-                          {r.category ? (
-                            <span
-                              className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-white"
-                              style={{ backgroundColor: getCategoryColor(r.category) }}
-                            >
-                              {r.category}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {parsedRows.some((r) => !r.name) && (
-              <p className="text-[11px] text-amber-600">
-                시설명 미지정 행은 입력 주소가 라벨로 쓰여요. 주소 뒤에 <b>Tab</b>(또는 띄어쓰기 2칸)으로 시설명을 붙이세요.
-              </p>
-            )}
-            <button
-              onClick={handleAdd}
-              disabled={isAdding || parsedRows.length === 0}
-              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              {isAdding ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> 변환 중...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" /> {parsedRows.length > 0 ? `${parsedRows.length}개 ` : ""}시설 추가
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <FacilityAdd
+          existingCategories={categoryCounts.entries.map(([c]) => c)}
+          styles={styles}
+          onSetCategoryStyle={setCategoryStyle}
+          onAdd={addFacilities}
+        />
       </div>
 
       {/* === 지도 + 툴바 (모바일 2번째 / 데스크탑 우측 전체높이) === */}
@@ -356,6 +295,9 @@ export default function FacilityDashboard() {
             <Maximize className="h-4 w-4" /> 전체보기
           </ToolbarButton>
           <div className="flex-1" />
+          <ToolbarButton onClick={handleReport}>
+            <FileText className="h-4 w-4" /> 보고서
+          </ToolbarButton>
           <ToolbarButton onClick={handleScreenshot}>
             <Camera className="h-4 w-4" /> 스크린샷
           </ToolbarButton>
@@ -368,6 +310,7 @@ export default function FacilityDashboard() {
           <FacilityMap
             ref={mapWrapRef}
             facilities={mapFacilities}
+            styles={styles}
             showLabels={showLabels}
             focus={focus}
             fitSignal={fitSignal}
@@ -401,7 +344,7 @@ export default function FacilityDashboard() {
                   active={activeCategory === cat}
                   onClick={() => setActiveCategory(cat)}
                   label={`${cat} ${count}`}
-                  color={getCategoryColor(cat)}
+                  color={resolveStyle(cat, styles).color}
                 />
               ))}
               {categoryCounts.uncategorized > 0 && (
@@ -409,7 +352,7 @@ export default function FacilityDashboard() {
                   active={activeCategory === "__none__"}
                   onClick={() => setActiveCategory("__none__")}
                   label={`미분류 ${categoryCounts.uncategorized}`}
-                  color={UNCATEGORIZED_COLOR}
+                  color={resolveStyle(undefined, styles).color}
                 />
               )}
             </div>
@@ -424,10 +367,9 @@ export default function FacilityDashboard() {
               visibleFacilities.map((f) => (
                 <div key={f.id} className="group px-4 py-2.5 hover:bg-gray-50">
                   <div className="flex items-start gap-2">
-                    <span
-                      className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: getCategoryColor(f.category) }}
-                    />
+                    <span className="mt-0.5 shrink-0">
+                      <ShapeIcon {...resolveStyle(f.category, styles)} size={16} />
+                    </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate text-sm font-semibold text-gray-900">{f.name}</span>
