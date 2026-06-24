@@ -1,11 +1,15 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { FileDown, FileUp, Loader2, MapPin, Plus, Sparkles, X } from "lucide-react"
+import { FileDown, FileUp, Loader2, MapPin, Plus, Sparkles, Tag, X } from "lucide-react"
 import { toast } from "sonner"
 import MarkerStylePicker, { ShapeIcon } from "@/components/facility/marker-style-picker"
 import { resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 import type { ParsedRow } from "@/lib/facility-storage"
+
+// 자주 쓰는 시설 종류 — 분류 입력 추천(기존 입력 분류와 함께 칩으로 노출).
+// 분류로 시설 종류를 구분해 한 지도에서 어린이집·무더위쉼터 등을 분류 필터로 전환해 본다.
+const CATEGORY_PRESETS = ["어린이집", "무더위쉼터", "한파쉼터", "경로당", "공원", "주차장", "CCTV", "대피소"]
 
 type Tab = "form" | "excel" | "paste"
 // failedRows: 변환 실패한 입력 행 — 호출부가 입력칸에 남겨 사용자가 수정·재시도할 수 있게 한다.
@@ -59,6 +63,27 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
   const [excelRows, setExcelRows] = useState<ParsedRow[]>([])
   const [excelName, setExcelName] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // 전체 분류 일괄 적용 — 분류 미입력 항목에 이 값을 채운다(주소만 대량 입력 시 분류 한 번에 지정)
+  const [bulkCategory, setBulkCategory] = useState("")
+  // 추천 분류 칩 = 기존 입력 분류 우선 + 프리셋(중복 제거)
+  const categoryChips = useMemo(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const c of [...existingCategories, ...CATEGORY_PRESETS]) {
+      const t = c.trim()
+      if (t && !seen.has(t)) {
+        seen.add(t)
+        out.push(t)
+      }
+    }
+    return out
+  }, [existingCategories])
+  // 행별 분류가 비어 있으면 전체 분류로 채워 넣는다
+  const applyBulk = (rs: ParsedRow[]): ParsedRow[] => {
+    const bc = bulkCategory.trim()
+    return bc ? rs.map((r) => ({ ...r, category: r.category.trim() || bc })) : rs
+  }
 
   // onDone은 실패행 목록을 받아 입력칸을 정리한다 — 성공분은 비우고 실패행은 남겨 재시도 가능하게.
   const run = async (rows: ParsedRow[], onDone: (failedRows: ParsedRow[]) => void) => {
@@ -214,14 +239,48 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
       </div>
 
       <div className="p-4">
+        {/* 분류 자동완성 목록 (추천 프리셋 + 기존 분류) — 모든 탭 공용 */}
+        <datalist id="facility-cat-list">
+          {categoryChips.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+
+        {/* 전체 분류 일괄 적용 — 분류 미입력 항목에 채움. 주소만 대량 입력 후 분류 한 번에 지정 */}
+        <div className="mb-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/60 p-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <Tag className="h-3 w-3 text-gray-400" />
+            <span className="text-[11px] font-semibold text-gray-500">시설 종류(분류)</span>
+            <span className="text-[10px] text-gray-400">— 분류 미입력 항목에 일괄 적용</span>
+          </div>
+          <input
+            value={bulkCategory}
+            onChange={(e) => setBulkCategory(e.target.value)}
+            list="facility-cat-list"
+            placeholder="예: 어린이집 (선택)"
+            className="h-8 w-full rounded-md border border-gray-200 bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {categoryChips.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setBulkCategory((v) => (v.trim() === c ? "" : c))}
+                className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  bulkCategory.trim() === c
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* === 직접 입력 (다중 행) === */}
         {tab === "form" && (
           <div className="space-y-2">
-            <datalist id="facility-cat-list">
-              {existingCategories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
             <p className="px-0.5 text-[10px] font-semibold text-gray-400">행마다 주소·시설명·분류 입력 (주소 필수)</p>
             {/* 입력 행들 — 주소는 한 줄, 시설명·분류는 아랫줄(좁은 패널·모바일 대응) */}
             <div className="space-y-2">
@@ -309,7 +368,9 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             <button
               onClick={() =>
                 run(
-                  filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })),
+                  applyBulk(
+                    filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })),
+                  ),
                   (failed) => setRows(failed.length ? failed : [emptyRow(), emptyRow(), emptyRow()]),
                 )
               }
@@ -347,11 +408,12 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             {excelRows.length > 0 && (
               <>
                 <div className="rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600">
-                  <b>{excelName}</b> — {excelRows.length}건 인식 (분류 지정 {excelRows.filter((r) => r.category).length}건)
+                  <b>{excelName}</b> — {excelRows.length}건 인식 (분류 지정 {excelRows.filter((r) => r.category).length}건
+                  {bulkCategory.trim() ? `, 나머지 '${bulkCategory.trim()}' 일괄` : ""})
                 </div>
                 <button
                   onClick={() =>
-                    run(excelRows, (failed) => {
+                    run(applyBulk(excelRows), (failed) => {
                       if (failed.length) setExcelRows(failed)
                       else {
                         setExcelRows([])
@@ -389,7 +451,9 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                       <tr key={i} className={`border-b border-gray-100 last:border-0 ${r.name ? "" : "bg-amber-50"}`}>
                         <td className="px-2 py-1 text-gray-700">{r.address}</td>
                         <td className="w-20 px-2 py-1 text-gray-700">{r.name || <span className="text-amber-600">미지정</span>}</td>
-                        <td className="w-16 px-2 py-1 text-gray-500">{r.category || "-"}</td>
+                        <td className="w-16 px-2 py-1 text-gray-500">
+                          {r.category || (bulkCategory.trim() ? <span className="text-gray-400">{bulkCategory.trim()}</span> : "-")}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -401,7 +465,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             )}
             <button
               onClick={() =>
-                run(parsed, (failed) =>
+                run(applyBulk(parsed), (failed) =>
                   setPaste(failed.map((r) => [r.address, r.name, r.category].join("\t").replace(/\t+$/, "")).join("\n")),
                 )
               }
