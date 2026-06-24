@@ -86,6 +86,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     }
   }, [])
 
+  // 1-b) 컨테이너 크기 변화(패널 접기·창 리사이즈) 감지 → 타일 회색 방지
+  useEffect(() => {
+    if (!mapReady || !mapElRef.current) return
+    const ro = new ResizeObserver(() => mapRef.current?.invalidateSize())
+    ro.observe(mapElRef.current)
+    return () => ro.disconnect()
+  }, [mapReady])
+
   // 2) 시설/라벨 변경 시 마커 다시 그리기 + 전체 맞춤
   const renderMarkers = () => {
     const L = leafletRef.current
