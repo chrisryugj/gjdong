@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
-import type { LayerGroup, Map as LeafletMap } from "leaflet"
+import type { LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { FALLBACK_COORDS } from "@/lib/constants"
 import type { Facility } from "@/lib/facility-storage"
 import { markerIcon, markerSvg, resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
@@ -29,6 +29,11 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   const mapRef = useRef<LeafletMap | null>(null)
   const layerRef = useRef<LayerGroup | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
+  // 생성된 마커 + 색을 보관 — 라벨 토글 시 마커를 재생성하지 않고 tooltip만 open/close
+  const markersRef = useRef<{ marker: LeafletMarker; color: string }[]>([])
+  // showLabels를 ref로도 들고 있어 renderMarkers가 의존성에서 빠져도 최신값을 읽게 한다
+  const showLabelsRef = useRef(showLabels)
+  showLabelsRef.current = showLabels
   // ref가 아닌 state: 지도 준비 완료 시 마커 effect가 "신선한" facilities 클로저로 재실행되도록
   const [mapReady, setMapReady] = useState(false)
 
@@ -89,6 +94,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     if (!L || !map || !layer) return
 
     layer.clearLayers()
+    markersRef.current = []
 
     facilities.forEach((f) => {
       const st = resolveStyle(f.category, styles)
@@ -107,29 +113,43 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
           <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(f.name)}</div>
           ${f.category ? `<div style="color:#6b7280;margin-bottom:3px">분류: ${escapeHtml(f.category)}</div>` : ""}
           <div>${escapeHtml(f.address || f.originalInput)}</div>
-          ${f.memo ? `<div style="margin-top:3px;color:#6b7280">📝 ${escapeHtml(f.memo)}</div>` : ""}
         </div>`,
       )
 
-      if (showLabels) {
-        marker.bindTooltip(escapeHtml(f.name), {
-          permanent: true,
-          direction: "top",
-          className: "facility-label",
-          offset: st.shape === "pin" ? [0, -38] : [0, -16],
-        })
-        marker.openTooltip()
-        const el = marker.getTooltip()?.getElement()
-        if (el) el.style.setProperty("--facility-color", st.color)
-      }
+      // 라벨은 항상 bind하고 표시 여부는 toggleLabels가 open/close로 제어(토글 시 재생성 방지)
+      marker.bindTooltip(escapeHtml(f.name), {
+        permanent: true,
+        direction: "top",
+        className: "facility-label",
+        offset: st.shape === "pin" ? [0, -38] : [0, -16],
+      })
+      markersRef.current.push({ marker, color: st.color })
+      applyLabel(marker, st.color, showLabelsRef.current)
     })
   }
 
-  // 마커 재그리기 (라벨 토글·스타일 변경 포함)
+  // 마커 한 개의 라벨(tooltip) 표시/숨김 + 라벨 색 적용
+  const applyLabel = (marker: LeafletMarker, color: string, show: boolean) => {
+    if (show) {
+      marker.openTooltip()
+      const el = marker.getTooltip()?.getElement()
+      if (el) el.style.setProperty("--facility-color", color)
+    } else {
+      marker.closeTooltip()
+    }
+  }
+
+  // 마커 재그리기 (시설/스타일 변경 시에만 — 라벨 토글은 아래 별도 effect로 분리)
   useEffect(() => {
     if (!mapReady) return
     renderMarkers()
-  }, [facilities, styles, showLabels, mapReady])
+  }, [facilities, styles, mapReady])
+
+  // 라벨 토글: 마커를 재생성하지 않고 기존 tooltip만 open/close (300개 재생성 비용 회피)
+  useEffect(() => {
+    if (!mapReady) return
+    for (const { marker, color } of markersRef.current) applyLabel(marker, color, showLabels)
+  }, [showLabels, mapReady])
 
   // 전체 맞춤은 시설 집합이 바뀔 때만 (라벨 토글로는 뷰가 점프하지 않게 분리)
   useEffect(() => {
@@ -141,11 +161,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     const L = leafletRef.current
     const map = mapRef.current
     if (!L || !map || facilities.length === 0) return
-    if (facilities.length === 1) {
-      map.setView([facilities[0].lat, facilities[0].lon], 16)
+    // 변환 실패 폴백 좌표(광진구청)에 겹쳐 찍힌 마커는 뷰 계산에서 제외 — 한 점 수렴/엉뚱한 줌 방지
+    const real = facilities.filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
+    const pts = real.length > 0 ? real : facilities
+    if (pts.length === 1) {
+      map.setView([pts[0].lat, pts[0].lon], 16)
       return
     }
-    const bounds = L.latLngBounds(facilities.map((f) => [f.lat, f.lon] as [number, number]))
+    const bounds = L.latLngBounds(pts.map((f) => [f.lat, f.lon] as [number, number]))
     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
   }
 

@@ -17,7 +17,7 @@ export type Facility = {
   createdAt: number
 }
 
-const STORAGE_KEY = "gjdong_facilities_v1"
+export const STORAGE_KEY = "gjdong_facilities_v1"
 
 // 분류별로 자동 배정되는 마커 색상 (분류 문자열 해시 → 팔레트 인덱스)
 export const CATEGORY_PALETTE = [
@@ -46,6 +46,14 @@ export function getCategoryColor(category?: string): string {
   return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length]
 }
 
+// 행정동명에서 숫자 분동 접미(제N동·N동)를 떼어 상위 동으로 묶는다.
+// 예) "자양1동"·"자양제2동" → "자양동", "화양동"·"능동" → 그대로. 빈값은 "".
+export function baseAdminDong(dong?: string): string {
+  const d = dong?.trim()
+  if (!d) return ""
+  return d.replace(/제?\s?\d+\s?동$/, "동")
+}
+
 function generateId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID()
@@ -66,20 +74,25 @@ export function loadFacilities(): Facility[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
+      // Number.isFinite: typeof NaN/Infinity === "number"가 true라 좌표가 깨진 레코드를
+      // 통과시켜 지도 fitBounds에서 예외가 나는 것을 로드 단계에서 차단
       (f): f is Facility =>
-        f && typeof f.id === "string" && typeof f.name === "string" && typeof f.lat === "number" && typeof f.lon === "number",
+        f && typeof f.id === "string" && typeof f.name === "string" && Number.isFinite(f.lat) && Number.isFinite(f.lon),
     )
   } catch {
     return []
   }
 }
 
-export function saveFacilities(facilities: Facility[]): void {
-  if (typeof window === "undefined") return
+// 저장 성공 여부를 반환 — 호출부가 quota 초과 등 실패를 사용자에게 알릴 수 있게 한다.
+export function saveFacilities(facilities: Facility[]): boolean {
+  if (typeof window === "undefined") return false
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(facilities))
+    return true
   } catch {
-    /* 용량 초과 등은 무시 */
+    // QuotaExceededError 등 — 조용히 삼키지 말고 실패를 알린다
+    return false
   }
 }
 

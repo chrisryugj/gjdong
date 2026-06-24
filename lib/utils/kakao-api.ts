@@ -251,8 +251,8 @@ async function finalizeResolved(
   searchMethod: "ADDRESS" | "KEYWORD",
   placeName?: string,
 ): Promise<ResolvedDisplay> {
-  const addrDoc = await kakaoCoord2Address(lon, lat)
-  const regions = await kakaoCoord2Region(lon, lat)
+  // 두 역지오코딩은 서로 독립적이라 병렬 호출 — 시설당 왕복 지연을 줄여 대량 변환 총 소요시간 단축
+  const [addrDoc, regions] = await Promise.all([kakaoCoord2Address(lon, lat), kakaoCoord2Region(lon, lat)])
 
   const adminRegion = regions.find((r) => r.region_type === "H")
   const legalRegion = regions.find((r) => r.region_type === "B")
@@ -299,6 +299,7 @@ async function finalizeResolved(
     },
     ...(isPartial && {
       fallback: true,
+      partial: true, // 좌표는 유효 — 소비자가 fallback과 구분해 살릴 수 있도록 표시
       message: "좌표는 확인되었으나 상세 주소를 가져올 수 없습니다.",
     }),
     originalInput: address,
@@ -319,15 +320,20 @@ export async function resolveAddressStrict(address: string): Promise<ResolvedDis
     const tokens = base.split(" ").filter(Boolean)
     if (tokens.length === 0) return fallbackResult(address, "주소가 비어 있습니다.")
 
+    // 동/구 등 지명 단위(REGION) 매칭은 시설 좌표로 부적합 — 토큰을 떼다 '서울 광진구'까지
+    // 줄어들면 구 대표좌표가 잡혀 오위치로 '성공' 처리되는 것을 막는다(지번/도로명 매칭만 채택).
+    const acceptDoc = (d: KakaoAddressDocument | null): KakaoAddressDocument | null =>
+      d && d.address_type !== "REGION" ? d : null
+
     const tried = new Set<string>()
     let doc: KakaoAddressDocument | null = null
     for (let end = tokens.length; end >= 2 && !doc; end--) {
       const cand = tokens.slice(0, end).join(" ")
       if (tried.has(cand)) continue
       tried.add(cand)
-      doc = await kakaoSearchAddress(cand)
+      doc = acceptDoc(await kakaoSearchAddress(cand))
     }
-    if (!doc && tokens.length === 1) doc = await kakaoSearchAddress(tokens[0])
+    if (!doc && tokens.length === 1) doc = acceptDoc(await kakaoSearchAddress(tokens[0]))
     if (!doc) return fallbackResult(address, "주소를 찾을 수 없습니다. 도로명/지번 주소를 확인하세요.")
 
     const lon = Number.parseFloat(doc.x)

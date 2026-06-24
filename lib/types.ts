@@ -22,6 +22,9 @@ export type ResolvedDisplay = {
   display: string
   meta: ResolvedAddressMeta
   fallback?: boolean
+  // 좌표는 실제로 확보됐으나(KAKAO 검색 성공) 역지오코딩으로 상세 주소만 못 얻은 부분성공.
+  // fallback(=좌표 자체가 대체값)과 구분 — 소비자는 좌표를 신뢰하고 사용 가능.
+  partial?: boolean
   message?: string
   originalInput?: string
 }
