@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Three main surfaces:
+Korean address converter tool using Kakao Local API. Converts addresses to standardized formats (road name, jibun, administrative dong) with map visualization. Four main surfaces:
 1. **Main Converter** (`/`) - Single/batch address conversion with Excel export
-2. **Tableau Geocoder** (`/tableau-geocoder`) - CSV/Excel file upload for bulk geocoding (adds lat/lon columns)
-3. **Chrome Extension** (`extension/`) - Browser extension for instant address conversion (popup, right-click, shortcut, auto-detect)
+2. **Facility Dashboard** (`/facility`) - Map-based facility manager: paste/upload any facility table (column order auto-detected), filter by admin-dong/category, search, colored markers, Excel/screenshot/report export. Data persists in `localStorage` only.
+3. **Tableau Geocoder** (`/tableau-geocoder`) - CSV/Excel file upload for bulk geocoding (adds lat/lon columns)
+4. **Chrome Extension** (`extension/`) - Browser extension for instant address conversion (popup, right-click, shortcut, auto-detect)
 
 ## Development Commands
 
@@ -124,3 +125,4 @@ npm run package   # Package as .zip for distribution
 - **Map**: Leaflet loaded dynamically via CDN, supports batch markers with numbered pins
 - **Excel Input**: Supports 2-column paste (address + facility name) detected via tab or 3+ spaces
 - **Encoding Support**: Tableau Geocoder supports UTF-8, EUC-KR, CP949 for Korean CSV files
+- **Facility Column Inference** ([lib/facility-column-inference.ts](lib/facility-column-inference.ts)): `parseFacilityTable()`/`parseFacilityText()` auto-detect address/name/serial/category columns from pasted or uploaded tables regardless of column order or header presence (header keyword matching first, then per-column data scoring for headerless tables). Detected category/admin-dong columns become dynamic filters in the dashboard. Covered by `tests/facility-column-inference.test.ts`.
