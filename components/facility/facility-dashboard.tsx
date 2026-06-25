@@ -37,6 +37,7 @@ import type { ResolvedDisplay } from "@/lib/types"
 type BatchItem = ResolvedDisplay & { facilityName?: string }
 
 const RESOLVE_CHUNK = 10
+const FILTER_LABEL_PRIORITY = ["시설구분", "분류", "구분", "유형", "종류", "행정동"]
 
 async function resolveRows(
   rows: ParsedRow[],
@@ -81,6 +82,27 @@ function csvSafe(v: string): string {
   return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
 }
 
+function getFacilityFilterMap(facility: Facility): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [label, value] of Object.entries(facility.filters ?? {})) {
+    const cleanLabel = label.trim()
+    const cleanValue = String(value ?? "").trim()
+    if (cleanLabel && cleanValue) out[cleanLabel] = cleanValue
+  }
+  if (Object.keys(out).length === 0 && facility.category?.trim()) {
+    out["분류"] = facility.category.trim()
+  }
+  if (facility.adminDong?.trim() && !out["행정동"]) {
+    out["행정동"] = facility.adminDong.trim()
+  }
+  return out
+}
+
+function filterLabelRank(label: string): number {
+  const idx = FILTER_LABEL_PRIORITY.findIndex((item) => label.includes(item))
+  return idx >= 0 ? idx : FILTER_LABEL_PRIORITY.length
+}
+
 export default function FacilityDashboard() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [styles, setStyles] = useState<Record<string, CategoryStyle>>({})
@@ -88,6 +110,7 @@ export default function FacilityDashboard() {
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
   const [fitSignal, setFitSignal] = useState(0)
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({})
   // 좌측 사이드패널 — [시설추가 | 목록] 탭 전환 + 접기(지도 풀폭)
   const [panelTab, setPanelTab] = useState<"add" | "list">("add")
   const [panelCollapsed, setPanelCollapsed] = useState(false)
@@ -179,9 +202,40 @@ export default function FacilityDashboard() {
 
   // 분류 다중선택 필터 (빈 Set = 전체 표시). 키: 분류명 또는 "__none__"(미분류)
   const visibleFacilities = useMemo(() => {
-    if (selectedCats.size === 0) return facilities
-    return facilities.filter((f) => selectedCats.has(f.category?.trim() || "__none__"))
-  }, [facilities, selectedCats])
+    const activeFilters = Object.entries(selectedFilters).filter(([, value]) => value)
+    return facilities.filter((f) => {
+      if (selectedCats.size > 0 && !selectedCats.has(f.category?.trim() || "__none__")) return false
+      if (activeFilters.length === 0) return true
+
+      const filters = getFacilityFilterMap(f)
+      return activeFilters.every(([label, value]) => filters[label] === value)
+    })
+  }, [facilities, selectedCats, selectedFilters])
+
+  const dynamicFilterOptions = useMemo(() => {
+    const byLabel = new Map<string, Map<string, number>>()
+    for (const facility of facilities) {
+      const filters = getFacilityFilterMap(facility)
+      for (const [label, value] of Object.entries(filters)) {
+        const values = byLabel.get(label) ?? new Map<string, number>()
+        values.set(value, (values.get(value) ?? 0) + 1)
+        byLabel.set(label, values)
+      }
+    }
+
+    return Array.from(byLabel.entries())
+      .map(([label, values]) => ({
+        label,
+        values: Array.from(values.entries()).sort(([a], [b]) => a.localeCompare(b, "ko")),
+      }))
+      .filter((option) => option.values.length >= 2 || selectedFilters[option.label])
+      .sort((a, b) => filterLabelRank(a.label) - filterLabelRank(b.label) || a.label.localeCompare(b.label, "ko"))
+  }, [facilities, selectedFilters])
+
+  const activeFilterCount = useMemo(
+    () => selectedCats.size + Object.values(selectedFilters).filter(Boolean).length,
+    [selectedCats, selectedFilters],
+  )
 
   const toggleCat = (key: string) =>
     setSelectedCats((prev) => {
@@ -219,6 +273,19 @@ export default function FacilityDashboard() {
       }
       return next
     })
+
+  const setDynamicFilter = (label: string, value: string) =>
+    setSelectedFilters((prev) => {
+      const next = { ...prev }
+      if (value) next[label] = value
+      else delete next[label]
+      return next
+    })
+
+  const clearAllFilters = () => {
+    setSelectedCats(new Set())
+    setSelectedFilters({})
+  }
 
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
   // 지도 관련 필드 시그니처가 바뀔 때만 새 배열 참조를 넘긴다.
@@ -275,10 +342,17 @@ export default function FacilityDashboard() {
           return
         }
         const m = r.meta
+        const rowFilters =
+          fresh[i].filters && Object.keys(fresh[i].filters).length > 0
+            ? fresh[i].filters
+            : fresh[i].category
+              ? { 분류: fresh[i].category }
+              : undefined
         newInputs.push({
           // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
           name: fresh[i].name || m.placeName || fresh[i].address,
           category: fresh[i].category || undefined,
+          filters: rowFilters,
           originalInput: fresh[i].address,
           address: r.display,
           road: m.roadName ? `${m.gu} ${m.roadName} ${m.buildingNo ?? ""}`.trim() : undefined,
@@ -332,6 +406,7 @@ export default function FacilityDashboard() {
     if (!window.confirm(`저장된 시설 ${facilities.length}개를 모두 삭제할까요? 되돌릴 수 없습니다.`)) return
     setFacilities([])
     setSelectedCats(new Set())
+    setSelectedFilters({})
     toast.success("모든 시설을 삭제했습니다")
   }
 
@@ -372,10 +447,14 @@ export default function FacilityDashboard() {
     setExporting(true)
     try {
       const XLSX = await import("xlsx")
+      const filterLabels = dynamicFilterOptions
+        .map((option) => option.label)
+        .filter((label) => label !== "분류" && label !== "행정동")
       const rows = facilities.map((f, i) => ({
         번호: i + 1,
         시설명: csvSafe(f.name),
         분류: csvSafe(f.category ?? ""),
+        ...Object.fromEntries(filterLabels.map((label) => [label, csvSafe(getFacilityFilterMap(f)[label] ?? "")])),
         입력주소: csvSafe(f.originalInput),
         표준주소: csvSafe(f.address),
         도로명주소: csvSafe(f.road ?? ""),
@@ -391,6 +470,7 @@ export default function FacilityDashboard() {
         { wch: 6 },
         { wch: 22 },
         { wch: 12 },
+        ...filterLabels.map(() => ({ wch: 14 })),
         { wch: 30 },
         { wch: 42 },
         { wch: 32 },
@@ -504,19 +584,40 @@ export default function FacilityDashboard() {
               </div>
 
               {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
-              {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
+              {(dynamicFilterOptions.length > 0 || categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
                 <div className="border-b px-4 py-2">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
-                      <Filter className="h-3 w-3" /> 분류 필터
-                      {selectedCats.size > 0 && <span className="text-gray-500">· {selectedCats.size}개 선택</span>}
+                      <Filter className="h-3 w-3" /> 자동 필터
+                      {activeFilterCount > 0 && <span className="text-gray-500">· {activeFilterCount}개 선택</span>}
                     </span>
-                    {selectedCats.size > 0 && (
-                      <button onClick={() => setSelectedCats(new Set())} className="text-[10px] text-gray-400 hover:text-gray-700">
+                    {activeFilterCount > 0 && (
+                      <button onClick={clearAllFilters} className="text-[10px] text-gray-400 hover:text-gray-700">
                         초기화
                       </button>
                     )}
                   </div>
+                  {dynamicFilterOptions.length > 0 && (
+                    <div className="mb-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      {dynamicFilterOptions.map((option) => (
+                        <label key={option.label} className="space-y-0.5">
+                          <span className="text-[10px] font-medium text-gray-400">{option.label}</span>
+                          <select
+                            value={selectedFilters[option.label] ?? ""}
+                            onChange={(e) => setDynamicFilter(option.label, e.target.value)}
+                            className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <option value="">전체</option>
+                            {option.values.map(([value, count]) => (
+                              <option key={value} value={value}>
+                                {value} ({count})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
                   {dongGroups.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
@@ -532,7 +633,7 @@ export default function FacilityDashboard() {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
-                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
+                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 ${facilities.length}`} />
                     {categoryCounts.entries.map(([cat, count]) => (
                       <FilterChip
                         key={cat}

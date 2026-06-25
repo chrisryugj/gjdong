@@ -5,6 +5,7 @@ export type Facility = {
   id: string
   name: string // 시설명 (지도 라벨)
   category?: string // 분류 (마커 색상 기준)
+  filters?: Record<string, string> // 가져온 표의 분류/행정동 등 동적 필터 값
   originalInput: string // 입력한 주소 원문
   address: string // 변환된 표준주소 (display)
   road?: string // 도로명주소
@@ -99,7 +100,7 @@ export function saveFacilities(facilities: Facility[]): boolean {
 export type NewFacilityInput = Omit<Facility, "id" | "createdAt">
 
 // 입력 한 줄 파싱 결과 (직접입력/엑셀/붙여넣기 공용)
-export type ParsedRow = { address: string; name: string; category: string }
+export type ParsedRow = { address: string; name: string; category: string; filters?: Record<string, string> }
 
 // 기존 목록에 새 시설들을 병합. 중복(시설명+좌표)은 건너뜀.
 // added: 실제 추가된 수, skipped: 중복으로 제외된 수
