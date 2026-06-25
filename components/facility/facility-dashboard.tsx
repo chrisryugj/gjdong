@@ -26,6 +26,7 @@ import {
   mergeFacilities,
   saveFacilities,
   STORAGE_KEY,
+  facilityDisplayName,
   type Facility,
   type NewFacilityInput,
   type ParsedRow,
@@ -290,7 +291,7 @@ export default function FacilityDashboard() {
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
   // 지도 관련 필드 시그니처가 바뀔 때만 새 배열 참조를 넘긴다.
   const mapSig = useMemo(
-    () => visibleFacilities.map((f) => `${f.id}:${f.lat}:${f.lon}:${f.name}:${f.category ?? ""}`).join("|"),
+    () => visibleFacilities.map((f) => `${f.id}:${f.serialNo ?? ""}:${f.lat}:${f.lon}:${f.name}:${f.category ?? ""}`).join("|"),
     [visibleFacilities],
   )
   const mapFacilities = useMemo(() => visibleFacilities, [mapSig])
@@ -350,6 +351,7 @@ export default function FacilityDashboard() {
               : undefined
         newInputs.push({
           // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
+          serialNo: fresh[i].serialNo?.trim() || String(facilities.length + newInputs.length + 1),
           name: fresh[i].name || m.placeName || fresh[i].address,
           category: fresh[i].category || undefined,
           filters: rowFilters,
@@ -451,7 +453,7 @@ export default function FacilityDashboard() {
         .map((option) => option.label)
         .filter((label) => label !== "분류" && label !== "행정동")
       const rows = facilities.map((f, i) => ({
-        번호: i + 1,
+        연번: csvSafe(f.serialNo ?? String(i + 1)),
         시설명: csvSafe(f.name),
         분류: csvSafe(f.category ?? ""),
         ...Object.fromEntries(filterLabels.map((label) => [label, csvSafe(getFacilityFilterMap(f)[label] ?? "")])),
@@ -669,7 +671,7 @@ export default function FacilityDashboard() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="truncate text-sm font-semibold text-gray-900">{f.name}</span>
+                            <span className="truncate text-sm font-semibold text-gray-900">{facilityDisplayName(f)}</span>
                             {f.category && (
                               <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{f.category}</span>
                             )}

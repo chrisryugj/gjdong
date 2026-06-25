@@ -26,9 +26,10 @@ interface Props {
 function formatMappingSummary(mapping?: FacilityColumnMapping): string {
   if (!mapping) return ""
   const col = (index: number) => (index >= 0 ? mapping.headers[index] || `${index + 1}열` : "미인식")
+  const serial = mapping.serialIndex >= 0 ? col(mapping.serialIndex) : "자동생성"
   const filters = mapping.filterColumns.map((column) => column.label).join(", ") || "없음"
   const headerStatus = mapping.hasHeader ? "헤더 포함" : "헤더 없음"
-  return `${headerStatus} · 주소: ${col(mapping.addressIndex)} · 시설명: ${col(mapping.nameIndex)} · 분류: ${col(mapping.categoryIndex)} · 필터: ${filters}`
+  return `${headerStatus} · 연번: ${serial} · 주소: ${col(mapping.addressIndex)} · 시설명: ${col(mapping.nameIndex)} · 분류: ${col(mapping.categoryIndex)} · 필터: ${filters}`
 }
 
 export default function FacilityAdd({ existingCategories, styles, onSetCategoryStyle, onAdd }: Props) {
@@ -408,6 +409,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                   <tbody>
                     {parsed.map((r, i) => (
                       <tr key={i} className={`border-b border-gray-100 last:border-0 ${r.name ? "" : "bg-amber-50"}`}>
+                        <td className="w-10 px-2 py-1 text-center text-gray-400">{r.serialNo || i + 1}</td>
                         <td className="px-2 py-1 text-gray-700">{r.address}</td>
                         <td className="w-20 px-2 py-1 text-gray-700">{r.name || <span className="text-amber-600">미지정</span>}</td>
                         <td className="w-16 px-2 py-1 text-gray-500">
@@ -425,7 +427,15 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             <button
               onClick={() =>
                 run(applyBulk(parsed), (failed) =>
-                  setPaste(failed.map((r) => [r.address, r.name, r.category].join("\t").replace(/\t+$/, "")).join("\n")),
+                  setPaste(
+                    failed
+                      .map((r) =>
+                        (r.serialNo ? [r.serialNo, r.address, r.name, r.category] : [r.address, r.name, r.category])
+                          .join("\t")
+                          .replace(/\t+$/, ""),
+                      )
+                      .join("\n"),
+                  ),
                 )
               }
               disabled={busy || parsed.length === 0}

@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { FALLBACK_COORDS } from "@/lib/constants"
-import type { Facility } from "@/lib/facility-storage"
+import { facilityDisplayName, type Facility } from "@/lib/facility-storage"
 import { markerIcon, markerSvg, resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 
 interface FacilityMapProps {
@@ -106,6 +106,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
 
     facilities.forEach((f) => {
       const st = resolveStyle(f.category, styles)
+      const label = facilityDisplayName(f)
       const ic = markerIcon(st.shape, st.color)
       const icon = L.divIcon({
         className: "facility-marker",
@@ -118,14 +119,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
       // 클릭 시 상세 팝업
       marker.bindPopup(
         `<div style="font-size:12px;line-height:1.5;min-width:140px">
-          <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(f.name)}</div>
+          <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(label)}</div>
           ${f.category ? `<div style="color:#6b7280;margin-bottom:3px">분류: ${escapeHtml(f.category)}</div>` : ""}
           <div>${escapeHtml(f.address || f.originalInput)}</div>
         </div>`,
       )
 
       // 라벨은 항상 bind하고 표시 여부는 toggleLabels가 open/close로 제어(토글 시 재생성 방지)
-      marker.bindTooltip(escapeHtml(f.name), {
+      marker.bindTooltip(escapeHtml(label), {
         permanent: true,
         direction: "top",
         className: "facility-label",

@@ -8,6 +8,7 @@ type FilterColumn = {
 export type FacilityColumnMapping = {
   hasHeader: boolean
   headers: string[]
+  serialIndex: number
   addressIndex: number
   nameIndex: number
   categoryIndex: number
@@ -199,6 +200,7 @@ export function parseFacilityTable(inputRows: unknown[][]): ParsedFacilityTable 
   const emptyMapping: FacilityColumnMapping = {
     hasHeader: false,
     headers: [],
+    serialIndex: -1,
     addressIndex: 0,
     nameIndex: -1,
     categoryIndex: -1,
@@ -212,10 +214,13 @@ export function parseFacilityTable(inputRows: unknown[][]): ParsedFacilityTable 
   const dataRows = hasHeader ? normalizedRows.slice(1) : normalizedRows
 
   const addressIndex = findBestAddressIndex(headers, dataRows)
+  const explicitSerialIndex = firstIndex(headers, isSerialHeader)
+  let serialIndex = explicitSerialIndex
   const serialIndexes = new Set<number>()
   headers.forEach((header, index) => {
     if (isSerialHeader(header) || (!hasHeader && scoreSerialColumn(dataRows, index) >= 0.9)) {
       serialIndexes.add(index)
+      if (serialIndex === -1) serialIndex = index
     }
   })
 
@@ -282,6 +287,7 @@ export function parseFacilityTable(inputRows: unknown[][]): ParsedFacilityTable 
         address: row[addressIndex]?.trim() ?? "",
         name: nameIndex >= 0 ? (row[nameIndex]?.trim() ?? "") : "",
         category: categoryIndex >= 0 ? (row[categoryIndex]?.trim() ?? "") : "",
+        serialNo: serialIndex >= 0 ? (row[serialIndex]?.trim() || undefined) : undefined,
         filters: Object.keys(filters).length > 0 ? filters : undefined,
       }
     })
@@ -292,6 +298,7 @@ export function parseFacilityTable(inputRows: unknown[][]): ParsedFacilityTable 
     mapping: {
       hasHeader,
       headers,
+      serialIndex,
       addressIndex,
       nameIndex,
       categoryIndex,

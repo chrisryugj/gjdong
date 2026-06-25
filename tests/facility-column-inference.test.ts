@@ -13,6 +13,7 @@ test("parses serial, name, address, admin-dong columns in any order", () => {
     address: "광진구 아차산로 400",
     name: "자양보건지소",
     category: "자양2동",
+    serialNo: "1",
     filters: { 행정동: "자양2동" },
   })
 })
@@ -39,6 +40,7 @@ test("ignores serial columns when address appears before name and category", () 
     address: "광진구 능동로 209",
     name: "세종대학교",
     category: "교육시설",
+    serialNo: "1",
     filters: { 시설구분: "교육시설" },
   })
 })
@@ -58,7 +60,19 @@ test("parses pasted tabular text with headers", () => {
   assert.equal(parsed.rows[0].address, "광진구 광나루로 350")
   assert.equal(parsed.rows[0].name, "광나루안전체험관")
   assert.equal(parsed.rows[0].category, "공공시설")
+  assert.equal(parsed.rows[0].serialNo, "1")
   assert.equal(parsed.rows[1].address, "광진구 아차산로 400")
   assert.equal(parsed.rows[1].name, "자양보건지소")
   assert.equal(parsed.rows[1].category, "보건소")
+  assert.equal(parsed.rows[1].serialNo, "2")
+})
+
+test("leaves serial empty when no serial column exists", () => {
+  const parsed = parseFacilityTable([
+    ["시설명", "시설구분", "주소"],
+    ["자양보건지소", "보건소", "광진구 아차산로 400"],
+  ])
+
+  assert.equal(parsed.mapping.serialIndex, -1)
+  assert.equal(parsed.rows[0].serialNo, undefined)
 })
