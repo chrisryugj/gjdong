@@ -30,6 +30,9 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   const layerRef = useRef<LayerGroup | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
   const fitFrameRef = useRef<number | null>(null)
+  const fitTimeoutRef = useRef<number | null>(null)
+  const facilitiesRef = useRef(facilities)
+  facilitiesRef.current = facilities
   // 생성된 마커 + 색을 보관 — 라벨 토글 시 마커를 재생성하지 않고 tooltip만 open/close
   const markersRef = useRef<{ marker: LeafletMarker; color: string }[]>([])
   // showLabels를 ref로도 들고 있어 renderMarkers가 의존성에서 빠져도 최신값을 읽게 한다
@@ -84,6 +87,10 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
       if (fitFrameRef.current != null) {
         cancelAnimationFrame(fitFrameRef.current)
         fitFrameRef.current = null
+      }
+      if (fitTimeoutRef.current != null) {
+        window.clearTimeout(fitTimeoutRef.current)
+        fitTimeoutRef.current = null
       }
       mapRef.current?.remove()
       mapRef.current = null
@@ -174,25 +181,49 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   const fitToAll = () => {
     const L = leafletRef.current
     const map = mapRef.current
-    if (!L || !map || facilities.length === 0) return
+    const currentFacilities = facilitiesRef.current
+    if (!L || !map || currentFacilities.length === 0) return
+
+    map.stop()
+    map.invalidateSize({ pan: false })
+
+    const validFacilities = currentFacilities.filter((f) => Number.isFinite(f.lat) && Number.isFinite(f.lon))
+    if (validFacilities.length === 0) return
+
     // 변환 실패 폴백 좌표(광진구청)에 겹쳐 찍힌 마커는 뷰 계산에서 제외 — 한 점 수렴/엉뚱한 줌 방지
-    const real = facilities.filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
-    const pts = real.length > 0 ? real : facilities
+    const real = validFacilities.filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
+    const pts = real.length > 0 ? real : validFacilities
     if (pts.length === 1) {
-      map.setView([pts[0].lat, pts[0].lon], 16)
+      map.setView([pts[0].lat, pts[0].lon], 16, { animate: false })
       return
     }
     const bounds = L.latLngBounds(pts.map((f) => [f.lat, f.lon] as [number, number]))
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
+    if (!bounds.isValid()) return
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17, animate: false })
+  }
+
+  const clearScheduledFit = () => {
+    if (fitFrameRef.current != null) {
+      cancelAnimationFrame(fitFrameRef.current)
+      fitFrameRef.current = null
+    }
+    if (fitTimeoutRef.current != null) {
+      window.clearTimeout(fitTimeoutRef.current)
+      fitTimeoutRef.current = null
+    }
   }
 
   const scheduleFitToAll = () => {
-    if (fitFrameRef.current != null) cancelAnimationFrame(fitFrameRef.current)
+    clearScheduledFit()
     fitFrameRef.current = requestAnimationFrame(() => {
       mapRef.current?.invalidateSize({ pan: false })
       fitFrameRef.current = requestAnimationFrame(() => {
         fitFrameRef.current = null
         fitToAll()
+        fitTimeoutRef.current = window.setTimeout(() => {
+          fitTimeoutRef.current = null
+          fitToAll()
+        }, 120)
       })
     })
   }
@@ -206,7 +237,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   // 4) 특정 시설로 이동
   useEffect(() => {
     if (!mapReady || !focus) return
-    const f = facilities.find((x) => x.id === focus.id)
+    const f = facilitiesRef.current.find((x) => x.id === focus.id)
     if (f) mapRef.current?.setView([f.lat, f.lon], 17, { animate: true })
   }, [focus, mapReady])
 

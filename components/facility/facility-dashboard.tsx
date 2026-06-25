@@ -271,6 +271,7 @@ export default function FacilityDashboard() {
     () => selectedCats.size + Object.values(selectedFilters).filter(Boolean).length + (searchQuery.trim() ? 1 : 0),
     [searchQuery, selectedCats, selectedFilters],
   )
+  const hasSearchQuery = searchQuery.trim().length > 0
 
   const toggleCat = (key: string) =>
     setSelectedCats((prev) => {
@@ -640,6 +641,15 @@ export default function FacilityDashboard() {
                       </button>
                     )}
                   </label>
+                  {activeFilterCount > 0 && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+                      <span>
+                        {hasSearchQuery ? "검색 결과" : "표시"}{" "}
+                        <strong className="font-semibold text-gray-600">{visibleFacilities.length}</strong>건 / 전체{" "}
+                        {facilities.length}건
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
