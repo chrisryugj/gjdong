@@ -29,6 +29,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   const mapRef = useRef<LeafletMap | null>(null)
   const layerRef = useRef<LayerGroup | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
+  const fitFrameRef = useRef<number | null>(null)
   // 생성된 마커 + 색을 보관 — 라벨 토글 시 마커를 재생성하지 않고 tooltip만 open/close
   const markersRef = useRef<{ marker: LeafletMarker; color: string }[]>([])
   // showLabels를 ref로도 들고 있어 renderMarkers가 의존성에서 빠져도 최신값을 읽게 한다
@@ -80,6 +81,10 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     void init()
     return () => {
       cancelled = true
+      if (fitFrameRef.current != null) {
+        cancelAnimationFrame(fitFrameRef.current)
+        fitFrameRef.current = null
+      }
       mapRef.current?.remove()
       mapRef.current = null
       layerRef.current = null
@@ -163,7 +168,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   // 전체 맞춤은 시설 집합이 바뀔 때만 (라벨 토글로는 뷰가 점프하지 않게 분리)
   useEffect(() => {
     if (!mapReady) return
-    fitToAll()
+    scheduleFitToAll()
   }, [facilities, mapReady])
 
   const fitToAll = () => {
@@ -181,10 +186,21 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
   }
 
+  const scheduleFitToAll = () => {
+    if (fitFrameRef.current != null) cancelAnimationFrame(fitFrameRef.current)
+    fitFrameRef.current = requestAnimationFrame(() => {
+      mapRef.current?.invalidateSize({ pan: false })
+      fitFrameRef.current = requestAnimationFrame(() => {
+        fitFrameRef.current = null
+        fitToAll()
+      })
+    })
+  }
+
   // 3) "전체보기" 신호
   useEffect(() => {
     if (!mapReady || fitSignal === 0) return
-    fitToAll()
+    scheduleFitToAll()
   }, [fitSignal, mapReady])
 
   // 4) 특정 시설로 이동
