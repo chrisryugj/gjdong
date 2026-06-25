@@ -45,11 +45,20 @@ test("ignores serial columns when address appears before name and category", () 
 
 test("parses pasted tabular text with headers", () => {
   const parsed = parseFacilityText(
-    ["연번\t주소\t시설명\t시설구분", "1\t광진구 광나루로 350\t광나루안전체험관\t공공시설"].join("\n"),
+    [
+      "연번\t주소\t시설명\t시설구분",
+      "1\t광진구 광나루로 350\t광나루안전체험관\t공공시설",
+      "2\t광진구 아차산로 400\t자양보건지소\t보건소",
+    ].join("\n"),
   )
 
   assert.equal(parsed.mapping.hasHeader, true)
+  assert.equal(parsed.rows.length, 2)
+  assert.equal(parsed.rows.some((row) => row.address === "주소" || row.name === "시설명"), false)
   assert.equal(parsed.rows[0].address, "광진구 광나루로 350")
   assert.equal(parsed.rows[0].name, "광나루안전체험관")
   assert.equal(parsed.rows[0].category, "공공시설")
+  assert.equal(parsed.rows[1].address, "광진구 아차산로 400")
+  assert.equal(parsed.rows[1].name, "자양보건지소")
+  assert.equal(parsed.rows[1].category, "보건소")
 })

@@ -27,7 +27,8 @@ function formatMappingSummary(mapping?: FacilityColumnMapping): string {
   if (!mapping) return ""
   const col = (index: number) => (index >= 0 ? mapping.headers[index] || `${index + 1}열` : "미인식")
   const filters = mapping.filterColumns.map((column) => column.label).join(", ") || "없음"
-  return `주소: ${col(mapping.addressIndex)} · 시설명: ${col(mapping.nameIndex)} · 분류: ${col(mapping.categoryIndex)} · 필터: ${filters}`
+  const headerStatus = mapping.hasHeader ? "헤더 포함" : "헤더 없음"
+  return `${headerStatus} · 주소: ${col(mapping.addressIndex)} · 시설명: ${col(mapping.nameIndex)} · 분류: ${col(mapping.categoryIndex)} · 필터: ${filters}`
 }
 
 export default function FacilityAdd({ existingCategories, styles, onSetCategoryStyle, onAdd }: Props) {
@@ -393,7 +394,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
               onKeyDown={handleTextareaKeyDown}
-              placeholder={"엑셀에서 복사한 표를 그대로 붙여넣으세요. 컬럼 순서는 자동 인식됩니다.\n연번 [Tab] 시설명 [Tab] 주소 [Tab] 행정동\n\n1\t자양보건지소\t광진구 아차산로 400\t자양2동\n2\t세종대학교\t능동로 209\t군자동"}
+              placeholder={"엑셀에서 헤더까지 포함해 그대로 붙여넣으세요. 컬럼 순서는 자동 인식됩니다.\n연번 [Tab] 시설명 [Tab] 주소 [Tab] 행정동\n\n1\t자양보건지소\t광진구 아차산로 400\t자양2동\n2\t세종대학교\t능동로 209\t군자동"}
               rows={5}
               className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
