@@ -13,6 +13,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   Plus,
+  Search,
   Tag,
   Trash2,
 } from "lucide-react"
@@ -104,6 +105,37 @@ function filterLabelRank(label: string): number {
   return idx >= 0 ? idx : FILTER_LABEL_PRIORITY.length
 }
 
+function normalizeSearchText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function facilityMatchesSearch(facility: Facility, query: string): boolean {
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean)
+  if (terms.length === 0) return true
+
+  const filters = getFacilityFilterMap(facility)
+  const haystack = normalizeSearchText(
+    [
+      facility.serialNo,
+      facility.name,
+      facilityDisplayName(facility),
+      facility.category,
+      facility.originalInput,
+      facility.address,
+      facility.road,
+      facility.jibun,
+      facility.adminDong,
+      facility.postalCode,
+      facility.memo,
+      ...Object.entries(filters).flat(),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  )
+
+  return terms.every((term) => haystack.includes(term))
+}
+
 export default function FacilityDashboard() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [styles, setStyles] = useState<Record<string, CategoryStyle>>({})
@@ -112,6 +144,7 @@ export default function FacilityDashboard() {
   const [fitSignal, setFitSignal] = useState(0)
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({})
+  const [searchQuery, setSearchQuery] = useState("")
   // 좌측 사이드패널 — [시설추가 | 목록] 탭 전환 + 접기(지도 풀폭)
   const [panelTab, setPanelTab] = useState<"add" | "list">("add")
   const [panelCollapsed, setPanelCollapsed] = useState(false)
@@ -205,13 +238,14 @@ export default function FacilityDashboard() {
   const visibleFacilities = useMemo(() => {
     const activeFilters = Object.entries(selectedFilters).filter(([, value]) => value)
     return facilities.filter((f) => {
+      if (!facilityMatchesSearch(f, searchQuery)) return false
       if (selectedCats.size > 0 && !selectedCats.has(f.category?.trim() || "__none__")) return false
       if (activeFilters.length === 0) return true
 
       const filters = getFacilityFilterMap(f)
       return activeFilters.every(([label, value]) => filters[label] === value)
     })
-  }, [facilities, selectedCats, selectedFilters])
+  }, [facilities, searchQuery, selectedCats, selectedFilters])
 
   const dynamicFilterOptions = useMemo(() => {
     const byLabel = new Map<string, Map<string, number>>()
@@ -234,8 +268,8 @@ export default function FacilityDashboard() {
   }, [facilities, selectedFilters])
 
   const activeFilterCount = useMemo(
-    () => selectedCats.size + Object.values(selectedFilters).filter(Boolean).length,
-    [selectedCats, selectedFilters],
+    () => selectedCats.size + Object.values(selectedFilters).filter(Boolean).length + (searchQuery.trim() ? 1 : 0),
+    [searchQuery, selectedCats, selectedFilters],
   )
 
   const toggleCat = (key: string) =>
@@ -286,6 +320,7 @@ export default function FacilityDashboard() {
   const clearAllFilters = () => {
     setSelectedCats(new Set())
     setSelectedFilters({})
+    setSearchQuery("")
   }
 
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
@@ -585,13 +620,36 @@ export default function FacilityDashboard() {
                 )}
               </div>
 
+              {facilities.length > 0 && (
+                <div className="border-b px-4 py-2">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="시설명, 연번, 주소, 행정동, 분류 검색"
+                      className="h-8 w-full rounded-md border border-gray-200 bg-white pl-8 pr-14 text-xs text-gray-700 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-ring"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 hover:text-gray-700"
+                      >
+                        지우기
+                      </button>
+                    )}
+                  </label>
+                </div>
+              )}
+
               {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
               {(dynamicFilterOptions.length > 0 || categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
                 <div className="border-b px-4 py-2">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
                       <Filter className="h-3 w-3" /> 자동 필터
-                      {activeFilterCount > 0 && <span className="text-gray-500">· {activeFilterCount}개 선택</span>}
+                      {activeFilterCount > 0 && <span className="text-gray-500">· {activeFilterCount}개 적용</span>}
                     </span>
                     {activeFilterCount > 0 && (
                       <button onClick={clearAllFilters} className="text-[10px] text-gray-400 hover:text-gray-700">
@@ -660,7 +718,7 @@ export default function FacilityDashboard() {
               <div className="max-h-[420px] divide-y divide-gray-100 overflow-y-auto lg:max-h-[calc(100vh-340px)]">
                 {visibleFacilities.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "해당 분류의 시설이 없습니다."}
+                    {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "검색/필터 조건에 맞는 시설이 없습니다."}
                   </div>
                 ) : (
                   visibleFacilities.map((f) => (
