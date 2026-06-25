@@ -10,6 +10,7 @@ import {
   Filter,
   MapPin,
   Maximize,
+  Minimize,
   PanelLeft,
   PanelLeftClose,
   Plus,
@@ -141,7 +142,7 @@ export default function FacilityDashboard() {
   const [styles, setStyles] = useState<Record<string, CategoryStyle>>({})
   const [showLabels, setShowLabels] = useState(true)
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
-  const [fitSignal, setFitSignal] = useState(0)
+  const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({})
   const [searchQuery, setSearchQuery] = useState("")
@@ -151,18 +152,30 @@ export default function FacilityDashboard() {
   const skipFirstSaveRef = useRef(true)
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
+  const mapSectionRef = useRef<HTMLDivElement>(null)
   // 최신 facilities를 ref로도 보관 — 언마운트 시 보류 중이던 저장을 flush하기 위함
   const facilitiesRef = useRef(facilities)
   facilitiesRef.current = facilities
   const restoredRef = useRef(false)
   const saveFailedRef = useRef(false)
   const [exporting, setExporting] = useState(false)
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
 
   // 마운트 시 localStorage 복원
   useEffect(() => {
     setFacilities(loadFacilities())
     setStyles(loadStyles())
     restoredRef.current = true
+  }, [])
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsMapFullscreen(document.fullscreenElement === mapSectionRef.current)
+      setMapResizeSignal((n) => n + 1)
+      window.setTimeout(() => setMapResizeSignal((n) => n + 1), 120)
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange)
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange)
   }, [])
 
   // 변경 시 자동 저장 — 마운트 직후의 빈 값 1회 저장은 건너뛰고(복원값 덮어쓰기 방지),
@@ -322,6 +335,21 @@ export default function FacilityDashboard() {
     setSelectedCats(new Set())
     setSelectedFilters({})
     setSearchQuery("")
+  }
+
+  const toggleMapFullscreen = async () => {
+    const target = mapSectionRef.current
+    if (!target) return
+
+    try {
+      if (document.fullscreenElement === target) {
+        await document.exitFullscreen()
+      } else {
+        await target.requestFullscreen()
+      }
+    } catch {
+      toast.error("전체화면 전환을 사용할 수 없습니다")
+    }
   }
 
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
@@ -779,7 +807,7 @@ export default function FacilityDashboard() {
       )}
 
       {/* === 우측 지도 + 툴바 (가로 풀폭·크게) === */}
-      <div className="space-y-3 lg:min-w-0 lg:flex-1">
+      <div ref={mapSectionRef} className={`space-y-3 lg:min-w-0 lg:flex-1 ${isMapFullscreen ? "bg-background p-4" : ""}`}>
         <div className="flex flex-wrap items-center gap-2">
           <ToolbarButton onClick={() => setPanelCollapsed((v) => !v)}>
             {panelCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -788,8 +816,9 @@ export default function FacilityDashboard() {
           <ToolbarButton onClick={() => setShowLabels((v) => !v)} active={showLabels}>
             {showLabels ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />} 라벨
           </ToolbarButton>
-          <ToolbarButton onClick={() => setFitSignal((n) => n + 1)}>
-            <Maximize className="h-4 w-4" /> 전체보기
+          <ToolbarButton onClick={toggleMapFullscreen} active={isMapFullscreen}>
+            {isMapFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            {isMapFullscreen ? "전체화면 종료" : "전체화면보기"}
           </ToolbarButton>
           <div className="hidden flex-1 sm:block" />
           <ToolbarButton onClick={handleReport} disabled={exporting}>
@@ -803,14 +832,18 @@ export default function FacilityDashboard() {
           </ToolbarButton>
         </div>
 
-        <div className="h-[55vh] overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[calc(100vh-150px)]">
+        <div
+          className={`overflow-hidden rounded-xl border bg-card shadow-sm ${
+            isMapFullscreen ? "h-[calc(100vh-72px)]" : "h-[55vh] lg:h-[calc(100vh-150px)]"
+          }`}
+        >
           <FacilityMap
             ref={mapWrapRef}
             facilities={mapFacilities}
             styles={styles}
             showLabels={showLabels}
             focus={focus}
-            fitSignal={fitSignal}
+            resizeSignal={mapResizeSignal}
           />
         </div>
       </div>
@@ -855,6 +888,7 @@ function ToolbarButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${

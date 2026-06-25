@@ -11,7 +11,7 @@ interface FacilityMapProps {
   styles: Record<string, CategoryStyle>
   showLabels: boolean
   focus: { id: string; tick: number } | null
-  fitSignal: number
+  resizeSignal: number
 }
 
 function escapeHtml(text: string): string {
@@ -22,7 +22,7 @@ function escapeHtml(text: string): string {
 
 /** 시설관리 전용 지도 — 분류별 모양·색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
 const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function FacilityMap(
-  { facilities, styles, showLabels, focus, fitSignal },
+  { facilities, styles, showLabels, focus, resizeSignal },
   ref,
 ) {
   const mapElRef = useRef<HTMLDivElement>(null)
@@ -228,11 +228,13 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     })
   }
 
-  // 3) "전체보기" 신호
+  // 3) 레이아웃 변경 신호(전체화면 전환 등) — 현재 중심/줌은 유지하고 타일 크기만 재계산
   useEffect(() => {
-    if (!mapReady || fitSignal === 0) return
-    scheduleFitToAll()
-  }, [fitSignal, mapReady])
+    if (!mapReady || resizeSignal === 0) return
+    mapRef.current?.invalidateSize({ pan: false })
+    const t = window.setTimeout(() => mapRef.current?.invalidateSize({ pan: false }), 120)
+    return () => window.clearTimeout(t)
+  }, [resizeSignal, mapReady])
 
   // 4) 특정 시설로 이동
   useEffect(() => {
