@@ -38,7 +38,7 @@ export function buildReportHtml(opts: {
     .map((f, i) => {
       const color = resolveStyle(f.category, styles).color
       return `<tr>
-        <td class="num">${i + 1}</td>
+        <td class="num">${esc(f.serialNo || i + 1)}</td>
         <td><span class="dot" style="background:${color}"></span>${esc(f.name)}</td>
         <td>${esc(f.category || "-")}</td>
         <td>${esc(f.address || f.originalInput)}</td>
@@ -99,7 +99,7 @@ export function buildReportHtml(opts: {
 
     <h2>시설 목록 (${facilities.length})</h2>
     <table>
-      <thead><tr><th class="num">#</th><th>시설명</th><th>분류</th><th>표준주소</th><th>행정동</th><th>메모</th></tr></thead>
+      <thead><tr><th class="num">연번</th><th>시설명</th><th>분류</th><th>표준주소</th><th>행정동</th><th>메모</th></tr></thead>
       <tbody>${listRows || '<tr><td colspan="6">등록된 시설이 없습니다</td></tr>'}</tbody>
     </table>
 

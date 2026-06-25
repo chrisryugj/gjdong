@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react"
 import { FileDown, FileUp, Loader2, MapPin, Plus, Sparkles, Tag, X } from "lucide-react"
 import { toast } from "sonner"
 import MarkerStylePicker, { ShapeIcon } from "@/components/facility/marker-style-picker"
+import { parseFacilityTable, parseFacilityText, type FacilityColumnMapping } from "@/lib/facility-column-inference"
 import { resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 import type { ParsedRow } from "@/lib/facility-storage"
 
@@ -22,17 +23,13 @@ interface Props {
   onAdd: (rows: ParsedRow[]) => Promise<AddResult>
 }
 
-// 한 줄 → 주소/시설명/분류 (Tab 우선, 없으면 공백 2칸+)
-function parseLines(text: string): ParsedRow[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const parts = (line.includes("\t") ? line.split("\t") : line.split(/\s{2,}/)).map((p) => p.trim())
-      return { address: parts[0] || "", name: parts[1] || "", category: parts[2] || "" }
-    })
-    .filter((r) => r.address)
+function formatMappingSummary(mapping?: FacilityColumnMapping): string {
+  if (!mapping) return ""
+  const col = (index: number) => (index >= 0 ? mapping.headers[index] || `${index + 1}열` : "미인식")
+  const serial = mapping.serialIndex >= 0 ? col(mapping.serialIndex) : "자동생성"
+  const filters = mapping.filterColumns.map((column) => column.label).join(", ") || "없음"
+  const headerStatus = mapping.hasHeader ? "헤더 포함" : "헤더 없음"
+  return `${headerStatus} · 연번: ${serial} · 주소: ${col(mapping.addressIndex)} · 시설명: ${col(mapping.nameIndex)} · 분류: ${col(mapping.categoryIndex)} · 필터: ${filters}`
 }
 
 export default function FacilityAdd({ existingCategories, styles, onSetCategoryStyle, onAdd }: Props) {
@@ -57,11 +54,13 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
 
   // 붙여넣기
   const [paste, setPaste] = useState("")
-  const parsed = useMemo(() => parseLines(paste), [paste])
+  const parsedPaste = useMemo(() => parseFacilityText(paste), [paste])
+  const parsed = parsedPaste.rows
 
   // 엑셀
   const [excelRows, setExcelRows] = useState<ParsedRow[]>([])
   const [excelName, setExcelName] = useState("")
+  const [excelMapping, setExcelMapping] = useState<FacilityColumnMapping | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // 전체 분류 일괄 적용 — 분류 미입력 항목에 이 값을 채운다(주소만 대량 입력 시 분류 한 번에 지정)
@@ -82,7 +81,12 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
   // 행별 분류가 비어 있으면 전체 분류로 채워 넣는다
   const applyBulk = (rs: ParsedRow[]): ParsedRow[] => {
     const bc = bulkCategory.trim()
-    return bc ? rs.map((r) => ({ ...r, category: r.category.trim() || bc })) : rs
+    return bc
+      ? rs.map((r) => {
+          if (r.category.trim()) return r
+          return { ...r, category: bc, filters: { ...(r.filters ?? {}), 분류: bc } }
+        })
+      : rs
   }
 
   // onDone은 실패행 목록을 받아 입력칸을 정리한다 — 성공분은 비우고 실패행은 남겨 재시도 가능하게.
@@ -147,69 +151,15 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
         toast.error("빈 파일입니다")
         return
       }
-      const headers = (aoa[0] as unknown[]).map((h) => String(h ?? "").trim())
-      const findCol = (...keys: string[]) => headers.findIndex((h) => keys.some((k) => h.includes(k)))
-      let ai = findCol("주소", "소재지", "address")
-      let ni = findCol("시설명", "기관명", "명칭", "상호", "업체", "name")
-      let ci = findCol("분류", "유형", "구분", "category", "type")
-
-      // 주소 열을 못 찾으면 무헤더 표로 보고 1·2·3열을 주소/시설명/분류로 가정한다.
-      // 단 시설명·분류가 헤더로 이미 인식됐다면 그 인덱스를 보존하고(덮어쓰지 않음),
-      // 헤더가 하나라도 인식됐다면 첫 줄은 헤더이므로 데이터에 섞지 않는다.
-      let dataRows = aoa.slice(1)
-      if (ai === -1) {
-        ai = 0
-        const hasRecognizedHeader = ni !== -1 || ci !== -1
-        if (ni === -1) ni = 1
-        if (ci === -1) ci = 2
-        if (!hasRecognizedHeader) dataRows = aoa
-      }
-
-      // 시설명 열을 명시 키워드로 못 찾았을 때의 폴백: '어린이집명·학교명'처럼 시설 계열
-      // 접미가 붙은 '명' 열을 우선 채택하고, '대표자명·담당자명·도로명' 같은 사람/주소 열은 제외.
-      // (ai/ci 확정 후 실행하므로 음수 인덱스 가드 불필요, 이미 1열 가정으로 채워진 ni는 건드리지 않음)
-      if (ni === -1) {
-        const usable = (idx: number) => idx !== ai && idx !== ci
-        const isNameCol = (h: string) =>
-          h.endsWith("명") &&
-          !/대표자|시설장|담당자|관리자|작성자|보호자|성명|이름|도로|증명|설명|품명|과목/.test(h) &&
-          !h.includes("동") &&
-          !h.includes("주소")
-        // 1순위: 시설 계열 접미(어린이집/학교/병원/기관/시설/업소/업체/점/원/관/소)명
-        ni = headers.findIndex(
-          (h, idx) => usable(idx) && isNameCol(h) && /(어린이집|학교|병원|기관|시설|업소|업체|점|원|관|소)명$/.test(h),
-        )
-        // 2순위: 그 외 '~명' 열
-        if (ni === -1) ni = headers.findIndex((h, idx) => usable(idx) && isNameCol(h))
-      }
-
-      // 분류 열을 명시 키워드로 못 찾으면, 주소·시설명·연번이 아닌 나머지 열을 분류로 인식한다.
-      // 예) 어린이집 현황표의 '행정동' 열 → 분류 → 동별 마커 색상 + 분류 필터(세부동·상위동 그룹) 활용.
-      // 단 마커 색상 분류로 부적합한 식별자 열(연번·대표자명·연락처·도로명 등)은 제외.
-      if (ci === -1) {
-        ci = headers.findIndex(
-          (h, idx) =>
-            idx !== ai &&
-            idx !== ni &&
-            h !== "" &&
-            !/연번|순번|번호|순서|index|^no\.?$|^#$/i.test(h) &&
-            !/대표자|시설장|담당자|관리자|작성자|보호자|성명|이름|전화|연락처|도로명/.test(h),
-        )
-      }
-      const rows = (dataRows as unknown[][])
-        .map((r) => ({
-          address: String(r[ai] ?? "").trim(),
-          name: ni >= 0 ? String(r[ni] ?? "").trim() : "",
-          category: ci >= 0 ? String(r[ci] ?? "").trim() : "",
-        }))
-        .filter((r) => r.address)
-      if (rows.length === 0) {
+      const parsedTable = parseFacilityTable(aoa as unknown[][])
+      if (parsedTable.rows.length === 0) {
         toast.error("주소 열을 찾지 못했습니다. 양식의 '주소' 열을 확인하세요")
         return
       }
-      setExcelRows(rows)
+      setExcelRows(parsedTable.rows)
+      setExcelMapping(parsedTable.mapping)
       setExcelName(file.name)
-      toast.success(`${file.name} — ${rows.length}건 인식됨. '가져오기'를 누르세요`)
+      toast.success(`${file.name} — ${parsedTable.rows.length}건 인식됨. '가져오기'를 누르세요`)
     } catch {
       toast.error("파일을 읽지 못했습니다 (xlsx/csv만 지원)")
     }
@@ -369,7 +319,12 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
               onClick={() =>
                 run(
                   applyBulk(
-                    filledRows.map((r) => ({ address: r.address.trim(), name: r.name.trim(), category: r.category.trim() })),
+                    filledRows.map((r) => ({
+                      address: r.address.trim(),
+                      name: r.name.trim(),
+                      category: r.category.trim(),
+                      filters: r.category.trim() ? { 분류: r.category.trim() } : undefined,
+                    })),
                   ),
                   (failed) => setRows(failed.length ? failed : [emptyRow(), emptyRow(), emptyRow()]),
                 )
@@ -387,7 +342,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
         {tab === "excel" && (
           <div className="space-y-3">
             <p className="text-xs leading-relaxed text-gray-500">
-              ① 양식을 내려받아 <b>주소·시설명·분류</b>를 채우고 ② 파일을 업로드하면 일괄 등록됩니다.
+              ① 양식을 내려받거나 ② 갖고 있는 표를 그대로 업로드하세요. 주소·시설명·시설구분·행정동 컬럼을 자동 인식합니다.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -410,6 +365,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                 <div className="rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600">
                   <b>{excelName}</b> — {excelRows.length}건 인식 (분류 지정 {excelRows.filter((r) => r.category).length}건
                   {bulkCategory.trim() ? `, 나머지 '${bulkCategory.trim()}' 일괄` : ""})
+                  <div className="mt-1 text-[11px] text-gray-400">{formatMappingSummary(excelMapping ?? undefined)}</div>
                 </div>
                 <button
                   onClick={() =>
@@ -418,6 +374,7 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
                       else {
                         setExcelRows([])
                         setExcelName("")
+                        setExcelMapping(null)
                       }
                     })
                   }
@@ -438,17 +395,21 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
               onKeyDown={handleTextareaKeyDown}
-              placeholder={"엑셀에서 복사한 표를 그대로 붙여넣거나 직접 입력\n주소 [Tab] 시설명 [Tab] 분류\n\n광진구 아차산로 400\t자양보건지소\t보건소\n능동로 209\t세종대학교\t교육시설"}
+              placeholder={"엑셀에서 헤더까지 포함해 그대로 붙여넣으세요. 컬럼 순서는 자동 인식됩니다.\n연번 [Tab] 시설명 [Tab] 주소 [Tab] 행정동\n\n1\t자양보건지소\t광진구 아차산로 400\t자양2동\n2\t세종대학교\t능동로 209\t군자동"}
               rows={5}
               className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <p className="text-[11px] text-muted-foreground">Tab으로 칸 구분 · 칸 탈출은 Shift+Tab · 또는 띄어쓰기 2칸</p>
+            {parsed.length > 0 && (
+              <p className="text-[11px] text-gray-400">{formatMappingSummary(parsedPaste.mapping)}</p>
+            )}
             {parsed.length > 0 && (
               <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-200">
                 <table className="w-full text-xs">
                   <tbody>
                     {parsed.map((r, i) => (
                       <tr key={i} className={`border-b border-gray-100 last:border-0 ${r.name ? "" : "bg-amber-50"}`}>
+                        <td className="w-10 px-2 py-1 text-center text-gray-400">{r.serialNo || i + 1}</td>
                         <td className="px-2 py-1 text-gray-700">{r.address}</td>
                         <td className="w-20 px-2 py-1 text-gray-700">{r.name || <span className="text-amber-600">미지정</span>}</td>
                         <td className="w-16 px-2 py-1 text-gray-500">
@@ -466,7 +427,15 @@ export default function FacilityAdd({ existingCategories, styles, onSetCategoryS
             <button
               onClick={() =>
                 run(applyBulk(parsed), (failed) =>
-                  setPaste(failed.map((r) => [r.address, r.name, r.category].join("\t").replace(/\t+$/, "")).join("\n")),
+                  setPaste(
+                    failed
+                      .map((r) =>
+                        (r.serialNo ? [r.serialNo, r.address, r.name, r.category] : [r.address, r.name, r.category])
+                          .join("\t")
+                          .replace(/\t+$/, ""),
+                      )
+                      .join("\n"),
+                  ),
                 )
               }
               disabled={busy || parsed.length === 0}
