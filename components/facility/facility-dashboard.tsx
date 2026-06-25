@@ -10,9 +10,11 @@ import {
   Filter,
   MapPin,
   Maximize,
+  Minimize,
   PanelLeft,
   PanelLeftClose,
   Plus,
+  Search,
   Tag,
   Trash2,
 } from "lucide-react"
@@ -26,6 +28,7 @@ import {
   mergeFacilities,
   saveFacilities,
   STORAGE_KEY,
+  facilityDisplayName,
   type Facility,
   type NewFacilityInput,
   type ParsedRow,
@@ -37,6 +40,7 @@ import type { ResolvedDisplay } from "@/lib/types"
 type BatchItem = ResolvedDisplay & { facilityName?: string }
 
 const RESOLVE_CHUNK = 10
+const FILTER_LABEL_PRIORITY = ["시설구분", "분류", "구분", "유형", "종류", "행정동"]
 
 async function resolveRows(
   rows: ParsedRow[],
@@ -81,31 +85,97 @@ function csvSafe(v: string): string {
   return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
 }
 
+function getFacilityFilterMap(facility: Facility): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [label, value] of Object.entries(facility.filters ?? {})) {
+    const cleanLabel = label.trim()
+    const cleanValue = String(value ?? "").trim()
+    if (cleanLabel && cleanValue) out[cleanLabel] = cleanValue
+  }
+  if (Object.keys(out).length === 0 && facility.category?.trim()) {
+    out["분류"] = facility.category.trim()
+  }
+  if (facility.adminDong?.trim() && !out["행정동"]) {
+    out["행정동"] = facility.adminDong.trim()
+  }
+  return out
+}
+
+function filterLabelRank(label: string): number {
+  const idx = FILTER_LABEL_PRIORITY.findIndex((item) => label.includes(item))
+  return idx >= 0 ? idx : FILTER_LABEL_PRIORITY.length
+}
+
+function normalizeSearchText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function facilityMatchesSearch(facility: Facility, query: string): boolean {
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean)
+  if (terms.length === 0) return true
+
+  const filters = getFacilityFilterMap(facility)
+  const haystack = normalizeSearchText(
+    [
+      facility.serialNo,
+      facility.name,
+      facilityDisplayName(facility),
+      facility.category,
+      facility.originalInput,
+      facility.address,
+      facility.road,
+      facility.jibun,
+      facility.adminDong,
+      facility.postalCode,
+      facility.memo,
+      ...Object.entries(filters).flat(),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  )
+
+  return terms.every((term) => haystack.includes(term))
+}
+
 export default function FacilityDashboard() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [styles, setStyles] = useState<Record<string, CategoryStyle>>({})
   const [showLabels, setShowLabels] = useState(true)
   const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
-  const [fitSignal, setFitSignal] = useState(0)
+  const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({})
+  const [searchQuery, setSearchQuery] = useState("")
   // 좌측 사이드패널 — [시설추가 | 목록] 탭 전환 + 접기(지도 풀폭)
   const [panelTab, setPanelTab] = useState<"add" | "list">("add")
   const [panelCollapsed, setPanelCollapsed] = useState(false)
   const skipFirstSaveRef = useRef(true)
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
+  const mapSectionRef = useRef<HTMLDivElement>(null)
   // 최신 facilities를 ref로도 보관 — 언마운트 시 보류 중이던 저장을 flush하기 위함
   const facilitiesRef = useRef(facilities)
   facilitiesRef.current = facilities
   const restoredRef = useRef(false)
   const saveFailedRef = useRef(false)
   const [exporting, setExporting] = useState(false)
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
 
   // 마운트 시 localStorage 복원
   useEffect(() => {
     setFacilities(loadFacilities())
     setStyles(loadStyles())
     restoredRef.current = true
+  }, [])
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsMapFullscreen(document.fullscreenElement === mapSectionRef.current)
+      setMapResizeSignal((n) => n + 1)
+      window.setTimeout(() => setMapResizeSignal((n) => n + 1), 120)
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange)
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange)
   }, [])
 
   // 변경 시 자동 저장 — 마운트 직후의 빈 값 1회 저장은 건너뛰고(복원값 덮어쓰기 방지),
@@ -179,9 +249,42 @@ export default function FacilityDashboard() {
 
   // 분류 다중선택 필터 (빈 Set = 전체 표시). 키: 분류명 또는 "__none__"(미분류)
   const visibleFacilities = useMemo(() => {
-    if (selectedCats.size === 0) return facilities
-    return facilities.filter((f) => selectedCats.has(f.category?.trim() || "__none__"))
-  }, [facilities, selectedCats])
+    const activeFilters = Object.entries(selectedFilters).filter(([, value]) => value)
+    return facilities.filter((f) => {
+      if (!facilityMatchesSearch(f, searchQuery)) return false
+      if (selectedCats.size > 0 && !selectedCats.has(f.category?.trim() || "__none__")) return false
+      if (activeFilters.length === 0) return true
+
+      const filters = getFacilityFilterMap(f)
+      return activeFilters.every(([label, value]) => filters[label] === value)
+    })
+  }, [facilities, searchQuery, selectedCats, selectedFilters])
+
+  const dynamicFilterOptions = useMemo(() => {
+    const byLabel = new Map<string, Map<string, number>>()
+    for (const facility of facilities) {
+      const filters = getFacilityFilterMap(facility)
+      for (const [label, value] of Object.entries(filters)) {
+        const values = byLabel.get(label) ?? new Map<string, number>()
+        values.set(value, (values.get(value) ?? 0) + 1)
+        byLabel.set(label, values)
+      }
+    }
+
+    return Array.from(byLabel.entries())
+      .map(([label, values]) => ({
+        label,
+        values: Array.from(values.entries()).sort(([a], [b]) => a.localeCompare(b, "ko")),
+      }))
+      .filter((option) => option.values.length >= 2 || selectedFilters[option.label])
+      .sort((a, b) => filterLabelRank(a.label) - filterLabelRank(b.label) || a.label.localeCompare(b.label, "ko"))
+  }, [facilities, selectedFilters])
+
+  const activeFilterCount = useMemo(
+    () => selectedCats.size + Object.values(selectedFilters).filter(Boolean).length + (searchQuery.trim() ? 1 : 0),
+    [searchQuery, selectedCats, selectedFilters],
+  )
+  const hasSearchQuery = searchQuery.trim().length > 0
 
   const toggleCat = (key: string) =>
     setSelectedCats((prev) => {
@@ -220,10 +323,39 @@ export default function FacilityDashboard() {
       return next
     })
 
+  const setDynamicFilter = (label: string, value: string) =>
+    setSelectedFilters((prev) => {
+      const next = { ...prev }
+      if (value) next[label] = value
+      else delete next[label]
+      return next
+    })
+
+  const clearAllFilters = () => {
+    setSelectedCats(new Set())
+    setSelectedFilters({})
+    setSearchQuery("")
+  }
+
+  const toggleMapFullscreen = async () => {
+    const target = mapSectionRef.current
+    if (!target) return
+
+    try {
+      if (document.fullscreenElement === target) {
+        await document.exitFullscreen()
+      } else {
+        await target.requestFullscreen()
+      }
+    } catch {
+      toast.error("전체화면 전환을 사용할 수 없습니다")
+    }
+  }
+
   // 지도는 위치/이름/분류만 사용 — 메모 편집 등 지도와 무관한 변경 시 마커 재그리기/뷰 리셋을 막기 위해
   // 지도 관련 필드 시그니처가 바뀔 때만 새 배열 참조를 넘긴다.
   const mapSig = useMemo(
-    () => visibleFacilities.map((f) => `${f.id}:${f.lat}:${f.lon}:${f.name}:${f.category ?? ""}`).join("|"),
+    () => visibleFacilities.map((f) => `${f.id}:${f.serialNo ?? ""}:${f.lat}:${f.lon}:${f.name}:${f.category ?? ""}`).join("|"),
     [visibleFacilities],
   )
   const mapFacilities = useMemo(() => visibleFacilities, [mapSig])
@@ -268,6 +400,18 @@ export default function FacilityDashboard() {
 
       const newInputs: NewFacilityInput[] = []
       const failedRows: ParsedRow[] = []
+      // 연번은 기존 시설·새 항목 통틀어 중복되지 않게 부여한다 — 가져온 표의 연번은
+      // 충돌하지 않을 때만 보존하고, 비었거나 겹치면 다음 빈 번호로 자동 채운다.
+      const usedSerials = new Set(
+        facilities.map((f) => f.serialNo?.trim()).filter((s): s is string => Boolean(s)),
+      )
+      let serialSeed = facilities.length
+      const nextSerial = () => {
+        let n = serialSeed + 1
+        while (usedSerials.has(String(n))) n += 1
+        serialSeed = n
+        return String(n)
+      }
       results.forEach((r, i) => {
         // fallback이라도 partial(좌표 유효)이면 살린다. 좌표가 깨졌거나 진짜 실패면 입력을 보존해 재시도 가능하게.
         if (!r || (r.fallback && !r.partial) || !Number.isFinite(r.meta.lat) || !Number.isFinite(r.meta.lon)) {
@@ -275,10 +419,21 @@ export default function FacilityDashboard() {
           return
         }
         const m = r.meta
+        const rowFilters =
+          fresh[i].filters && Object.keys(fresh[i].filters).length > 0
+            ? fresh[i].filters
+            : fresh[i].category
+              ? { 분류: fresh[i].category }
+              : undefined
+        const importedSerial = fresh[i].serialNo?.trim()
+        const serialNo = importedSerial && !usedSerials.has(importedSerial) ? importedSerial : nextSerial()
+        usedSerials.add(serialNo)
         newInputs.push({
           // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
+          serialNo,
           name: fresh[i].name || m.placeName || fresh[i].address,
           category: fresh[i].category || undefined,
+          filters: rowFilters,
           originalInput: fresh[i].address,
           address: r.display,
           road: m.roadName ? `${m.gu} ${m.roadName} ${m.buildingNo ?? ""}`.trim() : undefined,
@@ -332,6 +487,7 @@ export default function FacilityDashboard() {
     if (!window.confirm(`저장된 시설 ${facilities.length}개를 모두 삭제할까요? 되돌릴 수 없습니다.`)) return
     setFacilities([])
     setSelectedCats(new Set())
+    setSelectedFilters({})
     toast.success("모든 시설을 삭제했습니다")
   }
 
@@ -372,10 +528,14 @@ export default function FacilityDashboard() {
     setExporting(true)
     try {
       const XLSX = await import("xlsx")
+      const filterLabels = dynamicFilterOptions
+        .map((option) => option.label)
+        .filter((label) => label !== "분류" && label !== "행정동")
       const rows = facilities.map((f, i) => ({
-        번호: i + 1,
+        연번: csvSafe(f.serialNo ?? String(i + 1)),
         시설명: csvSafe(f.name),
         분류: csvSafe(f.category ?? ""),
+        ...Object.fromEntries(filterLabels.map((label) => [label, csvSafe(getFacilityFilterMap(f)[label] ?? "")])),
         입력주소: csvSafe(f.originalInput),
         표준주소: csvSafe(f.address),
         도로명주소: csvSafe(f.road ?? ""),
@@ -391,6 +551,7 @@ export default function FacilityDashboard() {
         { wch: 6 },
         { wch: 22 },
         { wch: 12 },
+        ...filterLabels.map(() => ({ wch: 14 })),
         { wch: 30 },
         { wch: 42 },
         { wch: 32 },
@@ -503,20 +664,73 @@ export default function FacilityDashboard() {
                 )}
               </div>
 
+              {facilities.length > 0 && (
+                <div className="border-b px-4 py-2">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="시설명, 연번, 주소, 행정동, 분류 검색"
+                      className="h-8 w-full rounded-md border border-gray-200 bg-white pl-8 pr-14 text-xs text-gray-700 outline-none transition focus:border-gray-300 focus:ring-2 focus:ring-ring"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 hover:text-gray-700"
+                      >
+                        지우기
+                      </button>
+                    )}
+                  </label>
+                  {activeFilterCount > 0 && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+                      <span>
+                        {hasSearchQuery ? "검색 결과" : "표시"}{" "}
+                        <strong className="font-semibold text-gray-600">{visibleFacilities.length}</strong>건 / 전체{" "}
+                        {facilities.length}건
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
-              {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
+              {(dynamicFilterOptions.length > 0 || categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
                 <div className="border-b px-4 py-2">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
-                      <Filter className="h-3 w-3" /> 분류 필터
-                      {selectedCats.size > 0 && <span className="text-gray-500">· {selectedCats.size}개 선택</span>}
+                      <Filter className="h-3 w-3" /> 자동 필터
+                      {activeFilterCount > 0 && <span className="text-gray-500">· {activeFilterCount}개 적용</span>}
                     </span>
-                    {selectedCats.size > 0 && (
-                      <button onClick={() => setSelectedCats(new Set())} className="text-[10px] text-gray-400 hover:text-gray-700">
+                    {activeFilterCount > 0 && (
+                      <button onClick={clearAllFilters} className="text-[10px] text-gray-400 hover:text-gray-700">
                         초기화
                       </button>
                     )}
                   </div>
+                  {dynamicFilterOptions.length > 0 && (
+                    <div className="mb-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      {dynamicFilterOptions.map((option) => (
+                        <label key={option.label} className="space-y-0.5">
+                          <span className="text-[10px] font-medium text-gray-400">{option.label}</span>
+                          <select
+                            value={selectedFilters[option.label] ?? ""}
+                            onChange={(e) => setDynamicFilter(option.label, e.target.value)}
+                            className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <option value="">전체</option>
+                            {option.values.map(([value, count]) => (
+                              <option key={value} value={value}>
+                                {value} ({count})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
                   {dongGroups.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
@@ -526,19 +740,19 @@ export default function FacilityDashboard() {
                           key={g.base}
                           active={g.cats.every((c) => selectedCats.has(c))}
                           onClick={() => toggleDongGroup(g.cats)}
-                          label={`${g.base} ${g.count}`}
+                          label={`${g.base} (${g.count})`}
                         />
                       ))}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
-                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`전체 ${facilities.length}`} />
+                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 (${facilities.length})`} />
                     {categoryCounts.entries.map(([cat, count]) => (
                       <FilterChip
                         key={cat}
                         active={selectedCats.has(cat)}
                         onClick={() => toggleCat(cat)}
-                        label={`${cat} ${count}`}
+                        label={`${cat} (${count})`}
                         color={resolveStyle(cat, styles).color}
                       />
                     ))}
@@ -546,7 +760,7 @@ export default function FacilityDashboard() {
                       <FilterChip
                         active={selectedCats.has("__none__")}
                         onClick={() => toggleCat("__none__")}
-                        label={`미분류 ${categoryCounts.uncategorized}`}
+                        label={`미분류 (${categoryCounts.uncategorized})`}
                         color={resolveStyle(undefined, styles).color}
                       />
                     )}
@@ -557,7 +771,7 @@ export default function FacilityDashboard() {
               <div className="max-h-[420px] divide-y divide-gray-100 overflow-y-auto lg:max-h-[calc(100vh-340px)]">
                 {visibleFacilities.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "해당 분류의 시설이 없습니다."}
+                    {facilities.length === 0 ? "아직 등록된 시설이 없습니다." : "검색/필터 조건에 맞는 시설이 없습니다."}
                   </div>
                 ) : (
                   visibleFacilities.map((f) => (
@@ -568,7 +782,7 @@ export default function FacilityDashboard() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="truncate text-sm font-semibold text-gray-900">{f.name}</span>
+                            <span className="truncate text-sm font-semibold text-gray-900">{facilityDisplayName(f)}</span>
                             {f.category && (
                               <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{f.category}</span>
                             )}
@@ -608,7 +822,7 @@ export default function FacilityDashboard() {
       )}
 
       {/* === 우측 지도 + 툴바 (가로 풀폭·크게) === */}
-      <div className="space-y-3 lg:min-w-0 lg:flex-1">
+      <div ref={mapSectionRef} className={`space-y-3 lg:min-w-0 lg:flex-1 ${isMapFullscreen ? "bg-background p-4" : ""}`}>
         <div className="flex flex-wrap items-center gap-2">
           <ToolbarButton onClick={() => setPanelCollapsed((v) => !v)}>
             {panelCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -617,8 +831,9 @@ export default function FacilityDashboard() {
           <ToolbarButton onClick={() => setShowLabels((v) => !v)} active={showLabels}>
             {showLabels ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />} 라벨
           </ToolbarButton>
-          <ToolbarButton onClick={() => setFitSignal((n) => n + 1)}>
-            <Maximize className="h-4 w-4" /> 전체보기
+          <ToolbarButton onClick={toggleMapFullscreen} active={isMapFullscreen}>
+            {isMapFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            {isMapFullscreen ? "전체화면 종료" : "전체화면보기"}
           </ToolbarButton>
           <div className="hidden flex-1 sm:block" />
           <ToolbarButton onClick={handleReport} disabled={exporting}>
@@ -632,14 +847,18 @@ export default function FacilityDashboard() {
           </ToolbarButton>
         </div>
 
-        <div className="h-[55vh] overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[calc(100vh-150px)]">
+        <div
+          className={`overflow-hidden rounded-xl border bg-card shadow-sm ${
+            isMapFullscreen ? "h-[calc(100vh-72px)]" : "h-[55vh] lg:h-[calc(100vh-150px)]"
+          }`}
+        >
           <FacilityMap
             ref={mapWrapRef}
             facilities={mapFacilities}
             styles={styles}
             showLabels={showLabels}
             focus={focus}
-            fitSignal={fitSignal}
+            resizeSignal={mapResizeSignal}
           />
         </div>
       </div>
@@ -684,6 +903,7 @@ function ToolbarButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${

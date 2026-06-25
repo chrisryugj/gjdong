@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { FALLBACK_COORDS } from "@/lib/constants"
-import type { Facility } from "@/lib/facility-storage"
+import { facilityDisplayName, type Facility } from "@/lib/facility-storage"
 import { markerIcon, markerSvg, resolveStyle, type CategoryStyle } from "@/lib/facility-markers"
 
 interface FacilityMapProps {
@@ -11,7 +11,7 @@ interface FacilityMapProps {
   styles: Record<string, CategoryStyle>
   showLabels: boolean
   focus: { id: string; tick: number } | null
-  fitSignal: number
+  resizeSignal: number
 }
 
 function escapeHtml(text: string): string {
@@ -22,13 +22,17 @@ function escapeHtml(text: string): string {
 
 /** 시설관리 전용 지도 — 분류별 모양·색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
 const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function FacilityMap(
-  { facilities, styles, showLabels, focus, fitSignal },
+  { facilities, styles, showLabels, focus, resizeSignal },
   ref,
 ) {
   const mapElRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const layerRef = useRef<LayerGroup | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
+  const fitFrameRef = useRef<number | null>(null)
+  const fitTimeoutRef = useRef<number | null>(null)
+  const facilitiesRef = useRef(facilities)
+  facilitiesRef.current = facilities
   // 생성된 마커 + 색을 보관 — 라벨 토글 시 마커를 재생성하지 않고 tooltip만 open/close
   const markersRef = useRef<{ marker: LeafletMarker; color: string }[]>([])
   // showLabels를 ref로도 들고 있어 renderMarkers가 의존성에서 빠져도 최신값을 읽게 한다
@@ -80,6 +84,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
     void init()
     return () => {
       cancelled = true
+      if (fitFrameRef.current != null) {
+        cancelAnimationFrame(fitFrameRef.current)
+        fitFrameRef.current = null
+      }
+      if (fitTimeoutRef.current != null) {
+        window.clearTimeout(fitTimeoutRef.current)
+        fitTimeoutRef.current = null
+      }
       mapRef.current?.remove()
       mapRef.current = null
       layerRef.current = null
@@ -106,6 +118,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
 
     facilities.forEach((f) => {
       const st = resolveStyle(f.category, styles)
+      const label = facilityDisplayName(f)
       const ic = markerIcon(st.shape, st.color)
       const icon = L.divIcon({
         className: "facility-marker",
@@ -118,14 +131,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
       // 클릭 시 상세 팝업
       marker.bindPopup(
         `<div style="font-size:12px;line-height:1.5;min-width:140px">
-          <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(f.name)}</div>
+          <div style="font-weight:700;font-size:13px;color:${st.color};margin-bottom:3px">${escapeHtml(label)}</div>
           ${f.category ? `<div style="color:#6b7280;margin-bottom:3px">분류: ${escapeHtml(f.category)}</div>` : ""}
           <div>${escapeHtml(f.address || f.originalInput)}</div>
         </div>`,
       )
 
       // 라벨은 항상 bind하고 표시 여부는 toggleLabels가 open/close로 제어(토글 시 재생성 방지)
-      marker.bindTooltip(escapeHtml(f.name), {
+      marker.bindTooltip(escapeHtml(label), {
         permanent: true,
         direction: "top",
         className: "facility-label",
@@ -162,34 +175,71 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   // 전체 맞춤은 시설 집합이 바뀔 때만 (라벨 토글로는 뷰가 점프하지 않게 분리)
   useEffect(() => {
     if (!mapReady) return
-    fitToAll()
+    scheduleFitToAll()
   }, [facilities, mapReady])
 
   const fitToAll = () => {
     const L = leafletRef.current
     const map = mapRef.current
-    if (!L || !map || facilities.length === 0) return
+    const currentFacilities = facilitiesRef.current
+    if (!L || !map || currentFacilities.length === 0) return
+
+    map.stop()
+    map.invalidateSize({ pan: false })
+
+    const validFacilities = currentFacilities.filter((f) => Number.isFinite(f.lat) && Number.isFinite(f.lon))
+    if (validFacilities.length === 0) return
+
     // 변환 실패 폴백 좌표(광진구청)에 겹쳐 찍힌 마커는 뷰 계산에서 제외 — 한 점 수렴/엉뚱한 줌 방지
-    const real = facilities.filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
-    const pts = real.length > 0 ? real : facilities
+    const real = validFacilities.filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
+    const pts = real.length > 0 ? real : validFacilities
     if (pts.length === 1) {
-      map.setView([pts[0].lat, pts[0].lon], 16)
+      map.setView([pts[0].lat, pts[0].lon], 16, { animate: false })
       return
     }
     const bounds = L.latLngBounds(pts.map((f) => [f.lat, f.lon] as [number, number]))
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 })
+    if (!bounds.isValid()) return
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17, animate: false })
   }
 
-  // 3) "전체보기" 신호
+  const clearScheduledFit = () => {
+    if (fitFrameRef.current != null) {
+      cancelAnimationFrame(fitFrameRef.current)
+      fitFrameRef.current = null
+    }
+    if (fitTimeoutRef.current != null) {
+      window.clearTimeout(fitTimeoutRef.current)
+      fitTimeoutRef.current = null
+    }
+  }
+
+  const scheduleFitToAll = () => {
+    clearScheduledFit()
+    fitFrameRef.current = requestAnimationFrame(() => {
+      mapRef.current?.invalidateSize({ pan: false })
+      fitFrameRef.current = requestAnimationFrame(() => {
+        fitFrameRef.current = null
+        fitToAll()
+        fitTimeoutRef.current = window.setTimeout(() => {
+          fitTimeoutRef.current = null
+          fitToAll()
+        }, 120)
+      })
+    })
+  }
+
+  // 3) 레이아웃 변경 신호(전체화면 전환 등) — 현재 중심/줌은 유지하고 타일 크기만 재계산
   useEffect(() => {
-    if (!mapReady || fitSignal === 0) return
-    fitToAll()
-  }, [fitSignal, mapReady])
+    if (!mapReady || resizeSignal === 0) return
+    mapRef.current?.invalidateSize({ pan: false })
+    const t = window.setTimeout(() => mapRef.current?.invalidateSize({ pan: false }), 120)
+    return () => window.clearTimeout(t)
+  }, [resizeSignal, mapReady])
 
   // 4) 특정 시설로 이동
   useEffect(() => {
     if (!mapReady || !focus) return
-    const f = facilities.find((x) => x.id === focus.id)
+    const f = facilitiesRef.current.find((x) => x.id === focus.id)
     if (f) mapRef.current?.setView([f.lat, f.lon], 17, { animate: true })
   }, [focus, mapReady])
 
