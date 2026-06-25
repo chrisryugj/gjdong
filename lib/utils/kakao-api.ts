@@ -1,4 +1,5 @@
 import { FALLBACK_COORDS } from "@/lib/constants"
+import { normalizeAddressInput } from "@/lib/utils/address-normalizer"
 import type {
   KakaoAddressDocument,
   KakaoKeywordDocument,
@@ -118,7 +119,8 @@ export async function kakaoSearchAddress(q: string): Promise<KakaoAddressDocumen
       return null
     }
 
-    const { cleaned: cleanedQuery } = removeApartmentUnit(q)
+    const { cleaned: cleanedQuery } = removeApartmentUnit(normalizeAddressInput(q))
+    if (!cleanedQuery) return null
 
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(cleanedQuery)}`,
@@ -147,7 +149,8 @@ export async function kakaoKeywordSearch(q: string): Promise<KakaoKeywordDocumen
       return null
     }
 
-    const { cleaned: cleanedQuery } = removeApartmentUnit(q)
+    const { cleaned: cleanedQuery } = removeApartmentUnit(normalizeAddressInput(q))
+    if (!cleanedQuery) return null
 
     const response = await fetchWithRetry(
       `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(cleanedQuery)}&size=5`,
@@ -312,7 +315,10 @@ async function finalizeResolved(
  */
 export async function resolveAddressStrict(address: string): Promise<ResolvedDisplay> {
   try {
-    const { cleaned, unit } = removeApartmentUnit(address)
+    const normalizedAddress = normalizeAddressInput(address)
+    if (!normalizedAddress) return fallbackResult(address, "주소가 비어 있습니다.")
+
+    const { cleaned, unit } = removeApartmentUnit(normalizedAddress)
     const base = cleaned
       .replace(/\([^)]*\)/g, " ") // "(화양동)" 같은 보조표기 제거
       .replace(/\s+/g, " ")
@@ -348,7 +354,10 @@ export async function resolveAddressStrict(address: string): Promise<ResolvedDis
 
 export async function resolveAddress(address: string): Promise<ResolvedDisplay> {
   try {
-    const { cleaned: cleanedAddress, unit: apartmentUnit } = removeApartmentUnit(address)
+    const normalizedAddress = normalizeAddressInput(address)
+    if (!normalizedAddress) return fallbackResult(address, "주소가 비어 있습니다.")
+
+    const { cleaned: cleanedAddress, unit: apartmentUnit } = removeApartmentUnit(normalizedAddress)
 
     let result: (KakaoAddressDocument & KakaoKeywordDocument) | null = null
     let searchMethod: "ADDRESS" | "KEYWORD" = "ADDRESS"

@@ -1,4 +1,5 @@
 import { FALLBACK_COORDS } from "@/lib/constants"
+import { normalizeAddressInput } from "@/lib/utils/address-normalizer"
 
 // Re-export from canonical location
 export type { ResolvedDisplay } from "@/lib/types"
@@ -8,7 +9,8 @@ const addressCache = new Map<string, ResolvedDisplay>()
 const CACHE_MAX_SIZE = 100
 
 export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedDisplay> {
-  const cacheKey = inputRaw.trim().toLowerCase()
+  const normalizedInput = normalizeAddressInput(inputRaw)
+  const cacheKey = normalizedInput.toLowerCase()
   if (addressCache.has(cacheKey)) {
     return addressCache.get(cacheKey)!
   }
@@ -17,7 +19,7 @@ export async function resolveAddressDisplay(inputRaw: string): Promise<ResolvedD
     const response = await fetch("/api/resolve-address", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: inputRaw }),
+      body: JSON.stringify({ address: normalizedInput }),
     })
 
     if (!response.ok) {

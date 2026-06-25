@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeAddressInput } from "@/lib/utils/address-normalizer"
 import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
 
 export async function POST(req: NextRequest) {
@@ -19,7 +20,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Address is required" }, { status: 400 })
     }
 
-    if (address.length > 500) {
+    const normalizedAddress = normalizeAddressInput(address)
+
+    if (!normalizedAddress) {
+      return NextResponse.json({ error: "Address is required" }, { status: 400 })
+    }
+
+    if (normalizedAddress.length > 500) {
       return NextResponse.json({ error: "Address too long" }, { status: 400 })
     }
 
@@ -30,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await fetch(
-      `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(address)}`,
+      `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(normalizedAddress)}`,
       {
         headers: {
           Authorization: `KakaoAK ${apiKey}`,

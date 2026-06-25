@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react"
 import MapView from "@/components/map/map-view"
 import { resolveAddressDisplay } from "@/lib/utils/address-resolver"
+import { isLikelyCopiedMapSnippet, normalizeAddressInput } from "@/lib/utils/address-normalizer"
 import { loadFacilities, mergeFacilities, saveFacilities, type NewFacilityInput } from "@/lib/facility-storage"
 import type { ResolvedDisplay } from "@/lib/types"
 import type { OutputField } from "@/lib/constants"
@@ -148,15 +149,23 @@ export default function AddressGenerator() {
   const batchAbortRef = useRef<AbortController | null>(null)
 
   const { lines, parsedInputData } = useMemo(() => {
-    const ls = inputValue.split("\n").filter((line) => line.trim().length > 0)
-    const parsed = ls.map((line) => {
-      const parts = line.split(/\t|\s{3,}/)
-      if (parts.length >= 2) {
-        return { address: parts[0].trim(), facilityName: parts[1].trim() }
-      }
-      return { address: line.trim(), facilityName: undefined }
-    })
-    return { lines: ls, parsedInputData: parsed }
+    const rawLines = inputValue.split("\n").filter((line) => line.trim().length > 0)
+    const copiedSnippet = !/\t|\s{3,}/.test(inputValue) && isLikelyCopiedMapSnippet(inputValue)
+    const sourceLines = copiedSnippet ? [normalizeAddressInput(inputValue)] : rawLines
+    const parsed = sourceLines
+      .map((line) => {
+        const parts = line.split(/\t|\s{3,}/)
+        const address = normalizeAddressInput(parts[0] ?? "")
+        if (parts.length >= 2) {
+          return { address, facilityName: parts[1].trim() }
+        }
+        return { address, facilityName: undefined }
+      })
+      .filter((line) => line.address.length > 0)
+    const normalizedLines = parsed.map((line) =>
+      line.facilityName ? `${line.address}\t${line.facilityName}` : line.address,
+    )
+    return { lines: normalizedLines, parsedInputData: parsed }
   }, [inputValue])
 
   const isMultiLine = lines.length > 1

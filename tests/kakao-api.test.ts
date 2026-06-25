@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { resolveAddress } from "../lib/utils/kakao-api"
+import { kakaoSearchAddress, resolveAddress } from "../lib/utils/kakao-api"
 
 const originalFetch = globalThis.fetch
 const originalApiKey = process.env.KAKAO_REST_API_KEY
@@ -50,4 +50,30 @@ test("falls back to the original input when reverse geocoding is unavailable", a
   assert.equal(result.meta.lon, 127.0845)
   assert.match(result.message ?? "", /상세 주소/)
   assert.equal(callCount, 3)
+})
+
+test("normalizes copied map labels before Kakao address search", async () => {
+  process.env.KAKAO_REST_API_KEY = "test-key"
+
+  let requestedUrl = ""
+  globalThis.fetch = (async (url) => {
+    requestedUrl = String(url)
+    return jsonResponse({
+      documents: [
+        {
+          address_name: "서울특별시 광진구 아차산로 400",
+          address_type: "ROAD_ADDR",
+          x: "127.0845",
+          y: "37.5384",
+        },
+      ],
+    })
+  }) as typeof fetch
+
+  const result = await kakaoSearchAddress(
+    ["도로명 서울특별시 광진구 아차산로 400", "지번 서울특별시 광진구 자양동 870", "복사"].join("\n"),
+  )
+
+  assert.equal(new URL(requestedUrl).searchParams.get("query"), "서울특별시 광진구 아차산로 400")
+  assert.equal(result?.x, "127.0845")
 })
