@@ -76,3 +76,25 @@ test("leaves serial empty when no serial column exists", () => {
   assert.equal(parsed.mapping.serialIndex, -1)
   assert.equal(parsed.rows[0].serialNo, undefined)
 })
+
+test("does not treat admin-dong as facility name when name column is missing", () => {
+  const parsed = parseFacilityTable([
+    ["주소", "행정동"],
+    ["광진구 아차산로 400", "자양2동"],
+  ])
+
+  assert.equal(parsed.rows[0].address, "광진구 아차산로 400")
+  assert.equal(parsed.rows[0].name, "")
+  assert.deepEqual(parsed.rows[0].filters, { 행정동: "자양2동" })
+})
+
+test("does not treat free-text memo column as a filter category", () => {
+  const parsed = parseFacilityTable([
+    ["광진구 아차산로 400", "자양보건지소", "주차 가능하고 엘리베이터 있음"],
+    ["광진구 능동로 209", "세종대학교", "정문 옆 별도 주차장 이용 바람"],
+  ])
+
+  assert.equal(parsed.rows[0].name, "자양보건지소")
+  assert.equal(parsed.rows[0].category, "")
+  assert.equal(parsed.rows[0].filters, undefined)
+})

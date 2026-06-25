@@ -130,11 +130,13 @@ function isLikelyCategorical(rows: string[][], index: number): boolean {
   if (values.length === 0) return false
   if (values.some((value) => isAddressLike(value) || isPhoneLike(value))) return false
 
-  const shortValues = values.filter((value) => value.length <= 24 && !isMostlyNumber(value))
-  if (shortValues.length === 0) return false
+  // 분류 값은 짧고 반복적이다 — 긴 자유 텍스트(메모·비고)나 거의 고유한 값(이름 등)은 분류로 보지 않는다.
+  const shortValues = values.filter((value) => value.length <= 10 && !isMostlyNumber(value))
+  if (shortValues.length === 0 || shortValues.length < values.length * 0.8) return false
 
   const distinct = new Set(shortValues).size
-  return distinct <= Math.max(8, Math.ceil(shortValues.length * 0.8))
+  if (shortValues.length <= 3) return true // 표본이 작으면 짧은 값들을 분류 후보로 허용
+  return distinct <= Math.ceil(shortValues.length * 0.7) // 충분한 표본은 반복(낮은 cardinality)을 요구
 }
 
 function hasHeaderKeywords(row: string[]): boolean {
@@ -224,14 +226,22 @@ export function parseFacilityTable(inputRows: unknown[][]): ParsedFacilityTable 
     }
   })
 
+  const explicitCategoryIndex = firstIndex(headers, isCategoryHeader)
+  const adminDongIndex = firstIndex(headers, isAdminDongHeader)
+
   let nameIndex = firstIndex(headers, isNameHeader)
   if (nameIndex === addressIndex) nameIndex = -1
   if (nameIndex === -1) {
-    nameIndex = headers.findIndex((_, index) => index !== addressIndex && !serialIndexes.has(index))
+    // 시설명 키워드를 못 찾으면 남은 열에서 채우되, 이미 분류·행정동으로 식별된 열은
+    // 시설명으로 오인하지 않는다(시설명 열이 아예 없는 표에서 행정동이 라벨로 새는 것 방지).
+    nameIndex = headers.findIndex(
+      (_, index) =>
+        index !== addressIndex &&
+        index !== explicitCategoryIndex &&
+        index !== adminDongIndex &&
+        !serialIndexes.has(index),
+    )
   }
-
-  const explicitCategoryIndex = firstIndex(headers, isCategoryHeader)
-  const adminDongIndex = firstIndex(headers, isAdminDongHeader)
 
   let categoryIndex = explicitCategoryIndex
   if (categoryIndex === -1 && adminDongIndex >= 0) categoryIndex = adminDongIndex

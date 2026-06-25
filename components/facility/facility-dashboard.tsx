@@ -400,6 +400,18 @@ export default function FacilityDashboard() {
 
       const newInputs: NewFacilityInput[] = []
       const failedRows: ParsedRow[] = []
+      // 연번은 기존 시설·새 항목 통틀어 중복되지 않게 부여한다 — 가져온 표의 연번은
+      // 충돌하지 않을 때만 보존하고, 비었거나 겹치면 다음 빈 번호로 자동 채운다.
+      const usedSerials = new Set(
+        facilities.map((f) => f.serialNo?.trim()).filter((s): s is string => Boolean(s)),
+      )
+      let serialSeed = facilities.length
+      const nextSerial = () => {
+        let n = serialSeed + 1
+        while (usedSerials.has(String(n))) n += 1
+        serialSeed = n
+        return String(n)
+      }
       results.forEach((r, i) => {
         // fallback이라도 partial(좌표 유효)이면 살린다. 좌표가 깨졌거나 진짜 실패면 입력을 보존해 재시도 가능하게.
         if (!r || (r.fallback && !r.partial) || !Number.isFinite(r.meta.lat) || !Number.isFinite(r.meta.lon)) {
@@ -413,9 +425,12 @@ export default function FacilityDashboard() {
             : fresh[i].category
               ? { 분류: fresh[i].category }
               : undefined
+        const importedSerial = fresh[i].serialNo?.trim()
+        const serialNo = importedSerial && !usedSerials.has(importedSerial) ? importedSerial : nextSerial()
+        usedSerials.add(serialNo)
         newInputs.push({
           // 시설명 미입력 시 긴 표준주소(r.display) 대신 짧은 원입력을 라벨로
-          serialNo: fresh[i].serialNo?.trim() || String(facilities.length + newInputs.length + 1),
+          serialNo,
           name: fresh[i].name || m.placeName || fresh[i].address,
           category: fresh[i].category || undefined,
           filters: rowFilters,
