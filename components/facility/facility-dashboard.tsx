@@ -629,19 +629,19 @@ export default function FacilityDashboard() {
                           key={g.base}
                           active={g.cats.every((c) => selectedCats.has(c))}
                           onClick={() => toggleDongGroup(g.cats)}
-                          label={`${g.base} ${g.count}`}
+                          label={`${g.base} (${g.count})`}
                         />
                       ))}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
-                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 ${facilities.length}`} />
+                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 (${facilities.length})`} />
                     {categoryCounts.entries.map(([cat, count]) => (
                       <FilterChip
                         key={cat}
                         active={selectedCats.has(cat)}
                         onClick={() => toggleCat(cat)}
-                        label={`${cat} ${count}`}
+                        label={`${cat} (${count})`}
                         color={resolveStyle(cat, styles).color}
                       />
                     ))}
@@ -649,7 +649,7 @@ export default function FacilityDashboard() {
                       <FilterChip
                         active={selectedCats.has("__none__")}
                         onClick={() => toggleCat("__none__")}
-                        label={`미분류 ${categoryCounts.uncategorized}`}
+                        label={`미분류 (${categoryCounts.uncategorized})`}
                         color={resolveStyle(undefined, styles).color}
                       />
                     )}
