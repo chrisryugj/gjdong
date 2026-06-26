@@ -231,23 +231,13 @@ export default function FacilityDashboard() {
     }
   }, [])
 
-  // 다른 탭이 시설 목록을 갱신하면 감지해 병합 — stale 배열 blind overwrite로 추가분이 유실되는 것 방지.
-  // 양쪽 추가분을 모두 보존(union by id)하고, 변화가 없으면 기존 참조를 유지해 저장 핑퐁을 막는다.
+  // 다른 탭이 시설 목록을 바꾸면 그 최신 상태를 그대로 반영한다(localStorage = 단일 진실 원천).
+  // 이전엔 union 병합이라 한 탭에서 삭제한 시설을 다른 탭이 "내 추가분"으로 오인해 되살리고,
+  // 그 부활본을 다시 저장해 localStorage까지 되돌리는(=새로고침해도 삭제가 풀리는) 버그가 있었다.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY) return
-      const incoming = loadFacilities()
-      setFacilities((cur) => {
-        const byId = new Map(incoming.map((f) => [f.id, f]))
-        let changed = incoming.length !== cur.length
-        for (const f of cur) {
-          if (!byId.has(f.id)) {
-            byId.set(f.id, f)
-            changed = true
-          }
-        }
-        return changed ? Array.from(byId.values()) : cur
-      })
+      setFacilities(loadFacilities())
     }
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
@@ -521,7 +511,9 @@ export default function FacilityDashboard() {
   }
 
   const handleRemove = (id: string) => {
-    setFacilities((prev) => prev.filter((f) => f.id !== id))
+    const next = facilitiesRef.current.filter((f) => f.id !== id)
+    setFacilities(next)
+    saveFacilities(next) // 디바운스(400ms)를 기다리지 않고 즉시 영속화 — 삭제 직후 새로고침해도 유지
   }
 
   const handleMemoChange = (id: string, memo: string) => {
@@ -532,6 +524,7 @@ export default function FacilityDashboard() {
     if (facilities.length === 0) return
     if (!window.confirm(`저장된 시설 ${facilities.length}개를 모두 삭제할까요? 되돌릴 수 없습니다.`)) return
     setFacilities([])
+    saveFacilities([]) // 즉시 영속화 — 새로고침해도 부활하지 않게
     setSelectedCats(new Set())
     setSelectedFilters({})
     toast.success("모든 시설을 삭제했습니다")
