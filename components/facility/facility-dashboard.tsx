@@ -10,6 +10,7 @@ import {
   FileText,
   Filter,
   GripVertical,
+  Layers,
   MapPin,
   Maximize,
   Minimize,
@@ -23,6 +24,8 @@ import {
 import { toast } from "sonner"
 import FacilityMap from "@/components/facility/facility-map"
 import FacilityAdd from "@/components/facility/facility-add"
+import FacilitySetsModal from "@/components/facility/facility-sets-modal"
+import type { FacilitySet } from "@/lib/facility-sets"
 import { ShapeIcon } from "@/components/facility/marker-style-picker"
 import {
   loadFacilities,
@@ -175,6 +178,7 @@ export default function FacilityDashboard() {
   const saveFailedRef = useRef(false)
   const [exporting, setExporting] = useState(false)
   const [isMapFullscreen, setIsMapFullscreen] = useState(false)
+  const [setsModalOpen, setSetsModalOpen] = useState(false)
 
   // 마운트 시 localStorage 복원
   useEffect(() => {
@@ -354,6 +358,23 @@ export default function FacilityDashboard() {
     setSelectedCats(new Set())
     setSelectedFilters({})
     setSearchQuery("")
+  }
+
+  // 세트 불러오기 — 교체(현재 통째 대체) 또는 병합(중복 시설명+좌표 제외하고 추가)
+  const handleLoadSet = (set: FacilitySet, mode: "merge" | "replace") => {
+    if (mode === "replace") {
+      setFacilities(set.facilities)
+      setStyles(set.styles)
+      setCategoryOrder(set.categoryOrder)
+      setSelectedCats(new Set())
+      toast.success(`'${set.name}' 세트를 불러왔습니다 (${set.facilities.length}개)`)
+      return
+    }
+    const { merged, added, skipped } = mergeFacilities(facilities, set.facilities)
+    setFacilities(merged)
+    setStyles((prev) => ({ ...set.styles, ...prev })) // 기존 사용자 지정 스타일 우선
+    setCategoryOrder((prev) => [...prev, ...set.categoryOrder.filter((c) => !prev.includes(c))])
+    toast.success(`'${set.name}' 병합: ${added}개 추가${skipped ? `, ${skipped}개 중복 제외` : ""}`)
   }
 
   const toggleMapFullscreen = async () => {
@@ -891,6 +912,9 @@ export default function FacilityDashboard() {
             {isMapFullscreen ? "전체화면 종료" : "전체화면보기"}
           </ToolbarButton>
           <div className="hidden flex-1 sm:block" />
+          <ToolbarButton onClick={() => setSetsModalOpen(true)}>
+            <Layers className="h-4 w-4" /> 세트
+          </ToolbarButton>
           <ToolbarButton onClick={handleReport} disabled={exporting}>
             <FileText className="h-4 w-4" /> 보고서
           </ToolbarButton>
@@ -918,6 +942,13 @@ export default function FacilityDashboard() {
           />
         </div>
       </div>
+
+      <FacilitySetsModal
+        open={setsModalOpen}
+        onOpenChange={setSetsModalOpen}
+        current={{ facilities, styles, categoryOrder }}
+        onLoad={handleLoadSet}
+      />
     </div>
   )
 }
