@@ -13,6 +13,7 @@ interface FacilityMapProps {
   showLabels: boolean
   focus: { id: string; tick: number } | null
   resizeSignal: number
+  onReady?: (map: LeafletMap) => void // 보고서 캡처 시 부모가 지도 뷰를 직접 조정하기 위함
 }
 
 function escapeHtml(text: string): string {
@@ -23,7 +24,7 @@ function escapeHtml(text: string): string {
 
 /** 시설관리 전용 지도 — 분류별 모양·색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
 const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function FacilityMap(
-  { facilities, styles, categoryOrder, showLabels, focus, resizeSignal },
+  { facilities, styles, categoryOrder, showLabels, focus, resizeSignal, onReady },
   ref,
 ) {
   const mapElRef = useRef<HTMLDivElement>(null)
@@ -78,6 +79,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
       }).addTo(map)
       layerRef.current = L.layerGroup().addTo(map)
       mapRef.current = map
+      onReady?.(map) // 부모에 지도 인스턴스 전달 (보고서 캡처용 임시 줌 조정)
       setMapReady(true) // 준비 완료 → 아래 마커 effect가 현재 facilities로 재실행
     }
     void init()
