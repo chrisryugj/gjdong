@@ -243,7 +243,9 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   }, [focus, mapReady])
 
   return (
-    <div ref={ref} className="relative h-full w-full">
+    // isolate: leaflet 내부 z-index(200~1000)를 이 래퍼 안 stacking context에 가둬,
+    // 모달(Dialog, z-50)이 지도 요소 뒤로 숨지 않게 한다.
+    <div ref={ref} className="relative h-full w-full isolate">
       <div ref={mapElRef} className="h-full w-full" />
 
       {/* 시설 수 (좌상단) */}
