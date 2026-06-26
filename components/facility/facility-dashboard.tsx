@@ -23,7 +23,6 @@ import FacilityMap from "@/components/facility/facility-map"
 import FacilityAdd from "@/components/facility/facility-add"
 import { ShapeIcon } from "@/components/facility/marker-style-picker"
 import {
-  baseAdminDong,
   loadFacilities,
   mergeFacilities,
   saveFacilities,
@@ -291,35 +290,6 @@ export default function FacilityDashboard() {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
-      return next
-    })
-
-  // 분류값 중 행정동 패턴('~동')을 상위 동으로 묶은 그룹 — "해당 동 전체" 필터용.
-  // 예) 자양제1동·자양제2동·자양제3동 → '자양동' 그룹(세부 분류가 2개 이상일 때만 노출).
-  const dongGroups = useMemo(() => {
-    const groups = new Map<string, { cats: string[]; count: number }>()
-    for (const [cat, count] of categoryCounts.entries) {
-      if (!/동$/.test(cat)) continue
-      const base = baseAdminDong(cat)
-      const g = groups.get(base) ?? { cats: [], count: 0 }
-      g.cats.push(cat)
-      g.count += count
-      groups.set(base, g)
-    }
-    return Array.from(groups.entries())
-      .filter(([, g]) => g.cats.length >= 2)
-      .map(([base, g]) => ({ base, cats: g.cats, count: g.count }))
-  }, [categoryCounts])
-
-  // 상위 동 그룹 클릭 → 그 동에 속한 세부 분류를 한꺼번에 선택/해제
-  const toggleDongGroup = (cats: string[]) =>
-    setSelectedCats((prev) => {
-      const next = new Set(prev)
-      const allOn = cats.every((c) => next.has(c))
-      for (const c of cats) {
-        if (allOn) next.delete(c)
-        else next.add(c)
-      }
       return next
     })
 
@@ -731,21 +701,7 @@ export default function FacilityDashboard() {
                       ))}
                     </div>
                   )}
-                  {/* 상위 동 그룹 — '해당 동 전체'(자양1~4동 묶음) 한 번에 필터 */}
-                  {dongGroups.length > 0 && (
-                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5 border-b border-dashed border-gray-100 pb-1.5">
-                      <span className="mr-0.5 text-[10px] text-gray-400">동 전체</span>
-                      {dongGroups.map((g) => (
-                        <FilterChip
-                          key={g.base}
-                          active={g.cats.every((c) => selectedCats.has(c))}
-                          onClick={() => toggleDongGroup(g.cats)}
-                          label={`${g.base} (${g.count})`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 (${facilities.length})`} />
                     {categoryCounts.entries.map(([cat, count]) => (
                       <FilterChip
@@ -880,11 +836,13 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-        active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "border-gray-900 bg-gray-900 text-white"
+          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
       }`}
     >
-      {color && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
+      {color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />}
       {label}
     </button>
   )
