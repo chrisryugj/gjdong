@@ -47,7 +47,9 @@ import {
   type CategoryStyle,
 } from "@/lib/facility-markers"
 import { buildReportHtml } from "@/lib/facility-report"
+import { FALLBACK_COORDS } from "@/lib/constants"
 import type { ResolvedDisplay } from "@/lib/types"
+import type { Map as LeafletMap } from "leaflet"
 
 type BatchItem = ResolvedDisplay & { facilityName?: string }
 
@@ -171,6 +173,7 @@ export default function FacilityDashboard() {
   const skipFirstStyleSaveRef = useRef(true)
   const mapWrapRef = useRef<HTMLDivElement>(null)
   const mapSectionRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<LeafletMap | null>(null) // 보고서 캡처 시 뷰 조정용
   // 최신 facilities를 ref로도 보관 — 언마운트 시 보류 중이던 저장을 flush하기 위함
   const facilitiesRef = useRef(facilities)
   facilitiesRef.current = facilities
@@ -612,6 +615,50 @@ export default function FacilityDashboard() {
     }
   }
 
+  // 보고서용 지도 캡처 — 전체가 다 보이되 여백을 줄여 더 확대된 상태로 찍고, 끝나면 원래 뷰로 복원.
+  // 대시보드에서 보던 줌은 그대로 두고 보고서 이미지만 타이트하게 만든다.
+  const captureReportMap = async (): Promise<string | null> => {
+    const wrap = mapWrapRef.current
+    if (!wrap) return null
+    const { toPng } = await import("html-to-image")
+    const map = mapInstanceRef.current
+
+    let restoreView: (() => void) | null = null
+    if (map) {
+      const L = await import("leaflet")
+      // 폴백(광진구청) 좌표에 겹친 변환 실패 마커는 범위 계산에서 제외 — 엉뚱한 줌 방지
+      const pts = mapFacilities
+        .filter((f) => Number.isFinite(f.lat) && Number.isFinite(f.lon))
+        .filter((f) => !(f.lat === FALLBACK_COORDS.lat && f.lon === FALLBACK_COORDS.lon))
+      const center = map.getCenter()
+      const zoom = map.getZoom()
+      restoreView = () => map.setView(center, zoom, { animate: false })
+      if (pts.length === 1) {
+        map.setView([pts[0].lat, pts[0].lon], 17, { animate: false })
+      } else if (pts.length >= 2) {
+        const bounds = L.latLngBounds(pts.map((f) => [f.lat, f.lon] as [number, number]))
+        if (bounds.isValid()) {
+          map.invalidateSize({ pan: false }) // 캡처 컨테이너 실제 크기로 핏 계산 (마커 잘림 방지)
+          const prevSnap = map.options.zoomSnap
+          map.options.zoomSnap = 0 // 정수 줌 스냅 해제 → padding 차이가 실제 확대로 반영
+          // 핀(높이 ~38px)+라벨이 마커 위로 떠서 상단이 잘리므로 위쪽 여백을 넉넉히 준다
+          map.fitBounds(bounds, { paddingTopLeft: [32, 78], paddingBottomRight: [32, 32], maxZoom: 18, animate: false })
+          map.options.zoomSnap = prevSnap
+        }
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, 400)) // 이동 후 타일 로딩 대기
+    try {
+      return await toPng(wrap, {
+        pixelRatio: 2,
+        filter: (node) => !(node instanceof HTMLElement && node.classList?.contains("leaflet-control-zoom")),
+      })
+    } finally {
+      restoreView?.()
+    }
+  }
+
   // 시설현황 보고서: 지도 캡처 + 집계/표를 독립 HTML로 새 탭 출력 → 인쇄/PDF 저장
   const handleReport = async () => {
     if (exporting) return
@@ -623,14 +670,7 @@ export default function FacilityDashboard() {
     try {
       let mapImage: string | null = null
       try {
-        if (mapWrapRef.current) {
-          const { toPng } = await import("html-to-image")
-          await new Promise((r) => setTimeout(r, 350))
-          mapImage = await toPng(mapWrapRef.current, {
-            pixelRatio: 2,
-            filter: (node) => !(node instanceof HTMLElement && node.classList?.contains("leaflet-control-zoom")),
-          })
-        }
+        mapImage = await captureReportMap()
       } catch {
         /* 지도 캡처 실패해도 표는 출력 */
       }
@@ -932,6 +972,7 @@ export default function FacilityDashboard() {
         >
           <FacilityMap
             ref={mapWrapRef}
+            onReady={(m) => (mapInstanceRef.current = m)}
             facilities={mapFacilities}
             styles={styles}
             categoryOrder={orderedCategories.map(([c]) => c)}
