@@ -9,6 +9,7 @@ import { markerIcon, markerSvg, resolveStyle, type CategoryStyle } from "@/lib/f
 interface FacilityMapProps {
   facilities: Facility[]
   styles: Record<string, CategoryStyle>
+  categoryOrder?: string[]
   showLabels: boolean
   focus: { id: string; tick: number } | null
   resizeSignal: number
@@ -22,7 +23,7 @@ function escapeHtml(text: string): string {
 
 /** 시설관리 전용 지도 — 분류별 모양·색상 마커 + 항상 보이는 시설명 라벨. ref는 스크린샷 캡처용 래퍼 */
 const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function FacilityMap(
-  { facilities, styles, showLabels, focus, resizeSignal },
+  { facilities, styles, categoryOrder, showLabels, focus, resizeSignal },
   ref,
 ) {
   const mapElRef = useRef<HTMLDivElement>(null)
@@ -41,7 +42,7 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
   // ref가 아닌 state: 지도 준비 완료 시 마커 effect가 "신선한" facilities 클로저로 재실행되도록
   const [mapReady, setMapReady] = useState(false)
 
-  // 범례: 등장하는 분류 → 스타일(모양+색, 미분류 포함)
+  // 범례: 등장하는 분류 → 스타일(모양+색, 미분류 포함). 좌측 칩과 동일 순서(categoryOrder) 적용.
   const legend = useMemo(() => {
     const cats = new Set<string>()
     let hasUncategorized = false
@@ -50,16 +51,14 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
       if (c) cats.add(c)
       else hasUncategorized = true
     }
-    const entries = Array.from(cats).map((label) => {
-      const st = resolveStyle(label, styles)
-      return { label, ...st }
-    })
+    const rank = new Map((categoryOrder ?? []).map((c, i) => [c, i] as const))
+    const sorted = Array.from(cats).sort((a, b) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity))
+    const entries = sorted.map((label) => ({ label, ...resolveStyle(label, styles) }))
     if (hasUncategorized) {
-      const st = resolveStyle(undefined, styles)
-      entries.push({ label: "미분류", ...st })
+      entries.push({ label: "미분류", ...resolveStyle(undefined, styles) })
     }
     return entries
-  }, [facilities, styles])
+  }, [facilities, styles, categoryOrder])
 
   // 1) 지도 1회 초기화
   useEffect(() => {
@@ -252,19 +251,19 @@ const FacilityMap = forwardRef<HTMLDivElement, FacilityMapProps>(function Facili
         총 {facilities.length}개 시설
       </div>
 
-      {/* 범례 (좌하단) */}
+      {/* 범례 (좌하단) — 좌측 칩과 같은 순서, 2열 정렬 + 많을 때 스크롤 */}
       {legend.length > 0 && (
-        <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] max-w-[60%] rounded-md border border-border bg-background/95 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
-          <div className="mb-1 text-[10px] font-semibold text-gray-400">분류</div>
-          <div className="flex flex-wrap gap-x-2.5 gap-y-1">
+        <div className="absolute bottom-2 left-2 z-[1000] max-w-[280px] rounded-lg border border-border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">분류</div>
+          <div className="grid max-h-[34vh] grid-cols-2 gap-x-3 gap-y-1 overflow-y-auto">
             {legend.map((l) => (
-              <span key={l.label} className="inline-flex items-center gap-1 text-[11px] text-gray-600">
+              <span key={l.label} className="inline-flex min-w-0 items-center gap-1.5 text-[11px] text-gray-600">
                 <span
-                  className="inline-flex"
+                  className="inline-flex shrink-0"
                   style={{ width: 13, height: 13, lineHeight: 0 }}
                   dangerouslySetInnerHTML={{ __html: markerSvg(l.shape, l.color, 13) }}
                 />
-                {l.label}
+                <span className="truncate">{l.label}</span>
               </span>
             ))}
           </div>
