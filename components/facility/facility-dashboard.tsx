@@ -218,10 +218,16 @@ export default function FacilityDashboard() {
     return () => clearTimeout(t)
   }, [facilities])
 
-  // 언마운트 시 보류 중이던 마지막 변경을 즉시 저장 (디바운스 trailing edge 유실 방지)
+  // 디바운스(400ms) 발화 전 새로고침/탭 닫기 시 마지막 변경(삭제 등) 유실 방지.
+  // 브라우저 새로고침은 React 언마운트 cleanup을 보장하지 않으므로 beforeunload로도 flush한다.
   useEffect(() => {
-    return () => {
+    const flush = () => {
       if (restoredRef.current) saveFacilities(facilitiesRef.current)
+    }
+    window.addEventListener("beforeunload", flush)
+    return () => {
+      window.removeEventListener("beforeunload", flush)
+      flush()
     }
   }, [])
 
