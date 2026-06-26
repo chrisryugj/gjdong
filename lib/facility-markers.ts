@@ -57,6 +57,43 @@ export function saveStyles(styles: Record<string, CategoryStyle>): void {
   }
 }
 
+const ORDER_KEY = "gjdong_facility_cat_order_v1"
+
+// 사용자가 드래그로 정한 분류 표시 순서(localStorage). 색상과 별개로 관리한다.
+export function loadCategoryOrder(): string[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(ORDER_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((x): x is string => typeof x === "string")
+  } catch {
+    return []
+  }
+}
+
+export function saveCategoryOrder(order: string[]): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(order))
+  } catch {
+    /* 무시 */
+  }
+}
+
+// 저장된 순서를 우선 적용하고, 순서에 없는(새로 등장한) 분류는 원래 등장 순서대로 뒤에 붙인다.
+export function orderCategories(cats: string[], order: string[]): string[] {
+  const rank = new Map(order.map((c, i) => [c, i] as const))
+  const original = new Map(cats.map((c, i) => [c, i] as const))
+  return [...cats].sort((a, b) => {
+    const ra = rank.get(a) ?? Infinity
+    const rb = rank.get(b) ?? Infinity
+    if (ra !== rb) return ra - rb
+    return (original.get(a) ?? 0) - (original.get(b) ?? 0)
+  })
+}
+
 // 분류 → 스타일. 사용자가 지정한 게 있으면 우선, 없으면 색상 해시 + 기본 핀, 미분류는 중립 핀.
 export function resolveStyle(category: string | undefined, styles: Record<string, CategoryStyle>): CategoryStyle {
   const c = category?.trim()

@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  ArrowDownAZ,
   Camera,
   Download,
   Eye,
   EyeOff,
   FileText,
   Filter,
+  GripVertical,
   MapPin,
   Maximize,
   Minimize,
@@ -32,7 +34,15 @@ import {
   type NewFacilityInput,
   type ParsedRow,
 } from "@/lib/facility-storage"
-import { loadStyles, resolveStyle, saveStyles, type CategoryStyle } from "@/lib/facility-markers"
+import {
+  loadCategoryOrder,
+  loadStyles,
+  orderCategories,
+  resolveStyle,
+  saveCategoryOrder,
+  saveStyles,
+  type CategoryStyle,
+} from "@/lib/facility-markers"
 import { buildReportHtml } from "@/lib/facility-report"
 import type { ResolvedDisplay } from "@/lib/types"
 
@@ -145,6 +155,12 @@ export default function FacilityDashboard() {
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({})
   const [searchQuery, setSearchQuery] = useState("")
+  // 분류 칩 표시 순서(드래그/가나다순) + 드래그 상태
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([])
+  const [dragCat, setDragCat] = useState<string | null>(null)
+  const [dragOverCat, setDragOverCat] = useState<string | null>(null)
+  const skipFirstOrderSaveRef = useRef(true)
+  const didDragRef = useRef(false)
   // 좌측 사이드패널 — [시설추가 | 목록] 탭 전환 + 접기(지도 풀폭)
   const [panelTab, setPanelTab] = useState<"add" | "list">("add")
   const [panelCollapsed, setPanelCollapsed] = useState(false)
@@ -164,6 +180,7 @@ export default function FacilityDashboard() {
   useEffect(() => {
     setFacilities(loadFacilities())
     setStyles(loadStyles())
+    setCategoryOrder(loadCategoryOrder())
     restoredRef.current = true
   }, [])
 
@@ -234,6 +251,14 @@ export default function FacilityDashboard() {
     saveStyles(styles)
   }, [styles])
 
+  useEffect(() => {
+    if (skipFirstOrderSaveRef.current) {
+      skipFirstOrderSaveRef.current = false
+      return
+    }
+    saveCategoryOrder(categoryOrder)
+  }, [categoryOrder])
+
   // 분류별 집계 (필터 칩)
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -245,6 +270,13 @@ export default function FacilityDashboard() {
     }
     return { entries: Array.from(counts.entries()), uncategorized }
   }, [facilities])
+
+  // 사용자가 정한 순서(드래그/가나다순)를 적용한 분류 목록 — 칩·지도 범례 공용
+  const orderedCategories = useMemo(() => {
+    const countByCat = new Map(categoryCounts.entries)
+    const cats = orderCategories(Array.from(countByCat.keys()), categoryOrder)
+    return cats.map((cat) => [cat, countByCat.get(cat) ?? 0] as [string, number])
+  }, [categoryCounts, categoryOrder])
 
   // 분류 다중선택 필터 (빈 Set = 전체 표시). 키: 분류명 또는 "__none__"(미분류)
   const visibleFacilities = useMemo(() => {
@@ -292,6 +324,23 @@ export default function FacilityDashboard() {
       else next.add(key)
       return next
     })
+
+  // 드래그로 분류 칩 순서 변경 — 현재 표시 순서를 기준으로 from→to 위치 이동 후 전체 순서를 영속화
+  const reorderCategory = (from: string, to: string) => {
+    if (from === to) return
+    const cats = orderedCategories.map(([c]) => c)
+    const fromIdx = cats.indexOf(from)
+    const toIdx = cats.indexOf(to)
+    if (fromIdx < 0 || toIdx < 0) return
+    const next = [...cats]
+    next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, from)
+    setCategoryOrder(next)
+  }
+
+  // 가나다순 정렬
+  const sortCategoriesAlpha = () =>
+    setCategoryOrder(orderedCategories.map(([c]) => c).sort((a, b) => a.localeCompare(b, "ko")))
 
   const setDynamicFilter = (label: string, value: string) =>
     setSelectedFilters((prev) => {
@@ -668,11 +717,11 @@ export default function FacilityDashboard() {
 
               {/* 분류 필터 (다중선택 — 지도·목록 동시 적용) */}
               {(dynamicFilterOptions.length > 0 || categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
-                <div className="border-b px-4 py-2">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-400">
+                <div className="space-y-3 border-b px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                       <Filter className="h-3 w-3" /> 자동 필터
-                      {activeFilterCount > 0 && <span className="text-gray-500">· {activeFilterCount}개 적용</span>}
+                      {activeFilterCount > 0 && <span className="normal-case text-gray-500">· {activeFilterCount}개 적용</span>}
                     </span>
                     {activeFilterCount > 0 && (
                       <button onClick={clearAllFilters} className="text-[10px] text-gray-400 hover:text-gray-700">
@@ -681,7 +730,7 @@ export default function FacilityDashboard() {
                     )}
                   </div>
                   {dynamicFilterOptions.length > 0 && (
-                    <div className="mb-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                       {dynamicFilterOptions.map((option) => (
                         <label key={option.label} className="space-y-0.5">
                           <span className="text-[10px] font-medium text-gray-400">{option.label}</span>
@@ -701,26 +750,76 @@ export default function FacilityDashboard() {
                       ))}
                     </div>
                   )}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <FilterChip active={selectedCats.size === 0} onClick={() => setSelectedCats(new Set())} label={`분류 전체 (${facilities.length})`} />
-                    {categoryCounts.entries.map(([cat, count]) => (
-                      <FilterChip
-                        key={cat}
-                        active={selectedCats.has(cat)}
-                        onClick={() => toggleCat(cat)}
-                        label={`${cat} (${count})`}
-                        color={resolveStyle(cat, styles).color}
-                      />
-                    ))}
-                    {categoryCounts.uncategorized > 0 && (
-                      <FilterChip
-                        active={selectedCats.has("__none__")}
-                        onClick={() => toggleCat("__none__")}
-                        label={`미분류 (${categoryCounts.uncategorized})`}
-                        color={resolveStyle(undefined, styles).color}
-                      />
-                    )}
-                  </div>
+                  {(categoryCounts.entries.length > 0 || categoryCounts.uncategorized > 0) && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-gray-400">
+                          <Tag className="h-3 w-3" /> 분류
+                        </span>
+                        {orderedCategories.length > 1 && (
+                          <button
+                            onClick={sortCategoriesAlpha}
+                            title="가나다순 정렬 (드래그로 직접 순서 변경 가능)"
+                            className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          >
+                            <ArrowDownAZ className="h-3 w-3" /> 가나다순
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSelectedCats(new Set())}
+                        className={`flex w-full items-center justify-between rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                          selectedCats.size === 0
+                            ? "border-gray-900 bg-gray-900 text-white"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span>분류 전체</span>
+                        <span className={selectedCats.size === 0 ? "text-gray-300" : "text-gray-400"}>{facilities.length}</span>
+                      </button>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {orderedCategories.map(([cat, count]) => (
+                          <CategoryChip
+                            key={cat}
+                            label={cat}
+                            count={count}
+                            color={resolveStyle(cat, styles).color}
+                            active={selectedCats.has(cat)}
+                            draggable
+                            dragging={dragCat === cat}
+                            dragOver={dragOverCat === cat && dragCat !== cat}
+                            onToggle={() => {
+                              if (!didDragRef.current) toggleCat(cat)
+                            }}
+                            onDragStart={() => {
+                              setDragCat(cat)
+                              didDragRef.current = true
+                            }}
+                            onDragEnter={() => setDragOverCat(cat)}
+                            onDragEnd={() => {
+                              setDragCat(null)
+                              setDragOverCat(null)
+                              setTimeout(() => {
+                                didDragRef.current = false
+                              }, 0)
+                            }}
+                            onDrop={() => {
+                              if (dragCat) reorderCategory(dragCat, cat)
+                            }}
+                          />
+                        ))}
+                        {categoryCounts.uncategorized > 0 && (
+                          <CategoryChip
+                            label="미분류"
+                            count={categoryCounts.uncategorized}
+                            color={resolveStyle(undefined, styles).color}
+                            active={selectedCats.has("__none__")}
+                            onToggle={() => toggleCat("__none__")}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -812,6 +911,7 @@ export default function FacilityDashboard() {
             ref={mapWrapRef}
             facilities={mapFacilities}
             styles={styles}
+            categoryOrder={orderedCategories.map(([c]) => c)}
             showLabels={showLabels}
             focus={focus}
             resizeSignal={mapResizeSignal}
@@ -822,29 +922,63 @@ export default function FacilityDashboard() {
   )
 }
 
-function FilterChip({
-  active,
-  onClick,
+// 분류 필터 칩 — 색점 + 이름 + 개수(우측 정렬). draggable이면 그립 핸들 노출, 드래그로 순서 변경.
+function CategoryChip({
   label,
+  count,
   color,
+  active,
+  draggable,
+  dragging,
+  dragOver,
+  onToggle,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
+  onDrop,
 }: {
-  active: boolean
-  onClick: () => void
   label: string
-  color?: string
+  count: number
+  color: string
+  active: boolean
+  draggable?: boolean
+  dragging?: boolean
+  dragOver?: boolean
+  onToggle: () => void
+  onDragStart?: () => void
+  onDragEnter?: () => void
+  onDragEnd?: () => void
+  onDrop?: () => void
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+    <div
+      draggable={draggable}
+      onClick={onToggle}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragOver={(e) => {
+        if (draggable) e.preventDefault()
+      }}
+      onDragEnd={onDragEnd}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop?.()
+      }}
+      className={`group flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-colors ${
         active
           ? "border-gray-900 bg-gray-900 text-white"
           : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-      }`}
+      } ${dragging ? "opacity-40" : ""} ${dragOver ? "ring-2 ring-gray-400" : ""}`}
     >
-      {color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />}
-      {label}
-    </button>
+      {draggable && (
+        <GripVertical
+          className={`h-3 w-3 shrink-0 cursor-grab ${active ? "text-gray-500" : "text-gray-300"} group-hover:text-gray-400`}
+        />
+      )}
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span className="flex-1 truncate font-medium">{label}</span>
+      <span className={`shrink-0 text-[10px] tabular-nums ${active ? "text-gray-300" : "text-gray-400"}`}>{count}</span>
+    </div>
   )
 }
 
