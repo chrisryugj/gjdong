@@ -547,7 +547,7 @@ export default function AddressGenerator() {
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="flex items-baseline gap-2">
             <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>표준주소실록</h1>
-            <span className="text-xs text-muted-foreground/50 font-medium">v3.0</span>
+            <span className="text-xs text-muted-foreground/50 font-medium">v3.1</span>
           </div>
           <div className="flex items-center gap-1.5">
             <a
