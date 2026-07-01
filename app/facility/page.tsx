@@ -12,13 +12,15 @@ export default function FacilityPage() {
     <main className="min-h-screen bg-slate-50">
       <div className="container mx-auto px-4 py-4 md:py-6">
         <div className="mx-auto max-w-6xl">
-          {/* 헤더 */}
+          {/* 헤더 — 표준주소실록(상위 브랜드) > 시설관리 대시보드(하위 탭) 위계 */}
           <div className="mb-4 flex items-end justify-between">
             <div>
-              <div className="flex items-baseline gap-2">
-                <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>
-                  시설관리 대시보드
-                </h1>
+              <a href="/" className="inline-block transition-opacity hover:opacity-70">
+                <h1 className="text-2xl font-black text-gray-900 md:text-3xl" style={{ fontFamily: "Shilla, sans-serif" }}>표준주소실록</h1>
+              </a>
+              <div className="mt-0.5 flex items-baseline gap-1.5">
+                <span className="text-gray-300">└</span>
+                <span className="text-sm font-semibold text-gray-500 md:text-base">시설관리 대시보드</span>
                 <span className="text-xs font-medium text-muted-foreground/50">beta</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground md:text-sm">
