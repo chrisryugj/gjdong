@@ -181,6 +181,27 @@ html, body { margin: 0; padding: 0; background: #0d141c; }
   .edu-stage [data-anim], .edu-stage[data-deck-active] [data-anim] { opacity: 1 !important; transform: none !important; animation: none !important; }
 }
 
+/* ── 번호 핀 오버레이 (요소 짚기) ──────────────── */
+.edu-tour { flex: 1; display: grid; grid-template-columns: 1.5fr 1fr; gap: 44px; align-items: center; margin-top: 24px; min-height: 0; }
+.edu-shotpin { position: relative; width: 100%; aspect-ratio: 288 / 188; border: 1px solid var(--edu-line); border-radius: 10px; overflow: hidden; background: var(--edu-paper-2); }
+.is-dark .edu-shotpin { border-color: var(--edu-on-ink-line); }
+.edu-shotpin img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; cursor: zoom-in; }
+.edu-pinmark { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%;
+  background: var(--edu-accent); color: var(--edu-paper); font-family: var(--edu-mono); font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--edu-paper); box-shadow: 0 2px 7px rgba(22,32,43,.4); z-index: 2; }
+
+.edu-legend { display: flex; flex-direction: column; gap: 15px; }
+.edu-leg { display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: start; }
+.edu-leg__n { width: 30px; height: 30px; border-radius: 50%; background: var(--edu-accent); color: var(--edu-paper);
+  font-family: var(--edu-mono); font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; flex: none; }
+.edu-leg__t { font-size: 18px; font-weight: 700; line-height: 1.32; padding-top: 3px; }
+.edu-leg__t .sm { display: block; font-size: 15px; font-weight: 400; color: var(--edu-muted); margin-top: 3px; }
+.is-dark .edu-leg__t .sm { color: var(--edu-on-ink-muted); }
+
+/* ── 크롭 스샷 (요소 확대 — 자유 비율) ──────────── */
+.edu-crop { border: 1px solid var(--edu-line); border-radius: 10px; overflow: hidden; background: #fff; }
+.edu-crop img { width: 100%; height: auto; display: block; cursor: zoom-in; }
+
 /* ── 하이퍼프레임 iframe ───────────────────────── */
 .hf-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--edu-ink); }
 section.edu-stage.hf-host { padding: 0 !important; overflow: hidden; }
@@ -192,3 +213,17 @@ section.edu-stage.hf-host { padding: 0 !important; overflow: hidden; }
 #lb.open img { transform: scale(1); }
 #lb .lb-x { position: fixed; top: 26px; right: 32px; width: 50px; height: 50px; border-radius: 50%; background: rgba(247,244,236,.1); color: var(--edu-paper); border: 1px solid rgba(247,244,236,.24); font-size: 26px; line-height: 1; cursor: pointer; z-index: 2; }
 #lb .lb-x:hover { background: rgba(247,244,236,.2); }
+
+/* ── 홈으로 돌아가기 (deck-stage 밖, 좌상단 고정) ───── */
+.guide-home {
+  position: fixed; top: 14px; left: 20px; z-index: 2147483000;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--edu-font); font-size: 13px; font-weight: 600; letter-spacing: -.01em;
+  padding: 6px 13px; border-radius: 999px; text-decoration: none;
+  background: rgba(22,32,43,.68); color: var(--edu-paper);
+  border: 1px solid rgba(247,244,236,.20);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  transition: background .2s, transform .2s;
+}
+.guide-home:hover { background: rgba(22,32,43,.9); transform: translateX(-2px); }
+@media print { .guide-home { display: none !important; } }
