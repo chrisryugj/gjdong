@@ -562,6 +562,16 @@ export default function AddressGenerator() {
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
               </span>
             </a>
+            <a
+              href="/guide"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+              title="사용설명서 (전체 안내 · 새 창)"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+              <span className="hidden text-[11px] font-bold sm:inline">사용설명서</span>
+            </a>
             <a href="/tableau-geocoder" className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Tableau Geocoder">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
             </a>
