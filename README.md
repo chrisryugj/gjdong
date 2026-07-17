@@ -258,7 +258,7 @@
 
 | | |
 |---|---|
-| Framework | Next.js 15 (App Router), React 19 |
+| Framework | Next.js 16 (App Router), React 19 |
 | UI | Tailwind CSS 4, shadcn/ui |
 | 지도 | Leaflet.js (OpenStreetMap) |
 | API | Kakao Local API |
