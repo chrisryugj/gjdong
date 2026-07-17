@@ -9,11 +9,11 @@
 
 도로명, 지번, 행정동 — 어떤 형태로 들어와도 **표준 형식으로 통일**하고, 지도에 찍고, 엑셀로 뽑습니다.
 
+[![표준주소실록 활용하기 — 영상 보기](./public/video-demo.jpg)](https://youtu.be/9QdNrbprA0o)
+
+<sub>▶ 클릭하면 유튜브에서 재생됩니다.</sub>
+
 **[지금 바로 사용하기 (gjdong.vercel.app)](https://gjdong.vercel.app)**
-
-### 🎬 영상으로 보기
-
-[<img src="https://img.youtube.com/vi/9QdNrbprA0o/mqdefault.jpg" width="320" alt="표준주소실록 시연 영상" />](https://youtu.be/9QdNrbprA0o)
 
 ---
 
