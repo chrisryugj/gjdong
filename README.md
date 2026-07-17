@@ -11,6 +11,10 @@
 
 **[지금 바로 사용하기 (gjdong.vercel.app)](https://gjdong.vercel.app)**
 
+### 🎬 영상으로 보기
+
+[<img src="https://img.youtube.com/vi/9QdNrbprA0o/mqdefault.jpg" width="320" alt="표준주소실록 시연 영상" />](https://youtu.be/9QdNrbprA0o)
+
 ---
 
 ## 💡 표준주소실록으로 무엇을 할 수 있나요?
