@@ -43,6 +43,10 @@ export default function Home() {
                   문의
                 </a>
                 <span className="text-slate-300">·</span>
+                <a href="/privacy" className="hover:text-slate-600">
+                  개인정보 처리방침
+                </a>
+                <span className="text-slate-300">·</span>
                 <a
                   href="https://hitscounter.dev/history?url=https://gjdong.vercel.app/"
                   target="_blank"
@@ -64,7 +68,7 @@ export default function Home() {
                 본 서비스는 <a href="https://developers.kakao.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">Kakao Local API</a>를 기반으로 주소를 조회·변환합니다. 주소·좌표 데이터의 정확성은 원 제공처의 최신 갱신 상태에 따릅니다.
               </p>
               <p>
-                입력한 주소는 변환 목적으로만 처리되며 별도로 저장·수집하지 않습니다. 다만 브라우저 로컬스토리지에 최근 변환 이력이 일시적으로 보관될 수 있습니다.
+                입력한 주소는 변환 목적으로만 처리되며 서버에 저장하지 않습니다. 다만 최근 변환 이력과 시설관리 대시보드에 등록한 시설 정보(시설명·주소·좌표)는 이용자 브라우저의 로컬스토리지에 보관됩니다. 자세한 내용은 <a href="/privacy" className="underline hover:text-slate-600">개인정보 처리방침</a>을 참고하세요.
               </p>
               <p>
                 본 사이트는 개인이 공익 목적으로 제작한 비영리 도구이며, 광진구청의 공식 서비스가 아닙니다. 업무 활용에 따른 결과의 최종 책임은 이용자에게 있습니다.

@@ -192,6 +192,21 @@ function IndexOptions() {
             />
           </label>
 
+          <p className="text-[11px] leading-relaxed text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            켜면 <b>모든 웹사이트</b>에서 복사(Ctrl/⌘+C)한 텍스트가 주소 형태인지 검사하고,
+            주소로 판정되면 그 문자열이 변환 서버로 전송됩니다. 페이지의 다른 내용이나 열람
+            기록은 전송하지 않습니다. 자세한 내용은{" "}
+            <a
+              href="https://gjdong.vercel.app/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              개인정보 처리방침
+            </a>
+            을 참고하세요.
+          </p>
+
           {local.enableClipboardDetect && (
             <div className="ml-1 pl-3 border-l-2 border-blue-200 space-y-1.5">
               <span className="text-xs text-gray-500 block">감지 후 동작</span>

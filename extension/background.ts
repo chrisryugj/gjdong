@@ -184,8 +184,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleClipboardDetect(address: string, tabId?: number) {
   const settings = await storage.get<ExtensionSettings>("settings")
 
-  // 클립보드 감지 비활성화 시 무시
-  if (settings && settings.enableClipboardDetect === false) return
+  // 명시적으로 켠 경우에만 동작한다 (opt-in).
+  // 설정 화면도 미설정 상태를 "꺼짐"으로 표시하므로 기본값이 일치해야 하고,
+  // 복사한 주소가 외부 서버로 나가는 동작이라 동의 없이 켜두지 않는다.
+  if (!settings?.enableClipboardDetect) return
 
   const action = settings?.clipboardAction || "notification"
 
