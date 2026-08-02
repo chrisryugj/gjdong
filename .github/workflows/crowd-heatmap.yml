@@ -1,10 +1,11 @@
 name: Crowd Heatmap
 
-# 서울시 실시간 혼잡도를 매시 수집해 data 브랜치 heatmap.json에 누적
+# 서울시 실시간 혼잡도(직전 12시간 실측)를 3시간마다 수집해 data 브랜치 heatmap.json에 누적
+# 12시간 룩백 + lastSlot 중복방지라 cron이 몇 번 빠져도 갭 없이 자가치유됨
 # (Vercel Hobby cron은 일 1회 제한이라 GitHub Actions 사용)
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "7 */3 * * *"
   workflow_dispatch:
 
 permissions:
