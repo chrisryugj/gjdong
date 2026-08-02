@@ -22,6 +22,18 @@ export const LEVEL_COLORS: Record<string, string> = {
   붐빔: "#ff3939",
 }
 
+// 라이트 테마에서 소형 텍스트 대비(WCAG 4.5:1) 확보용 진한 변형 — 배경 틴트·다크 테마는 원색 유지
+const LEVEL_TEXT_COLORS_LIGHT: Record<string, string> = {
+  "#00d369": "#15803d",
+  "#ffb100": "#b45309",
+  "#ff8040": "#c2410c",
+  "#ff3939": "#b91c1c",
+}
+
+export function textColor(color: string, light: boolean): string {
+  return light ? (LEVEL_TEXT_COLORS_LIGHT[color] ?? color) : color
+}
+
 export function levelNum(level: string): number {
   const idx = CONGEST_LEVELS.indexOf(level as CongestLevel)
   return idx === -1 ? 0 : idx + 1
