@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
-import type { CrowdCctv, CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { cctvPlayerUrl, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -135,12 +135,20 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     })
 
     for (const c of cctvItems) {
-      L.marker([c.lat, c.lng], { icon: cctvIcon, zIndexOffset: 500 })
-        .bindTooltip(`<div class="crowd-tip"><b>CCTV · ${escapeHtml(c.name)}</b></div>`, {
+      const marker = L.marker([c.lat, c.lng], { icon: cctvIcon, zIndexOffset: 500 })
+      if (c.src) {
+        // 팝업 DOM은 열 때 삽입되므로 iframe도 그때 로드됨 (lazy)
+        marker.bindPopup(
+          `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><iframe src="${cctvPlayerUrl(c)}" title="CCTV ${escapeHtml(c.name)}" allow="autoplay"></iframe></div>`,
+          { maxWidth: 320, minWidth: 280, closeButton: true },
+        )
+      } else {
+        marker.bindTooltip(`<div class="crowd-tip"><b>CCTV · ${escapeHtml(c.name)}</b><span>영상 없음</span></div>`, {
           direction: "top",
           offset: [0, -12],
         })
-        .addTo(layer)
+      }
+      marker.addTo(layer)
     }
   }, [ready, cctvItems])
 

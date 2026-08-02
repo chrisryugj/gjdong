@@ -268,53 +268,7 @@ export default function SpotDetail({
         )}
       </div>
 
-      {/* 연령대 */}
-      <div>
-        <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">연령대 구성</h3>
-        <div className="space-y-1.5">
-          {detail.ages.map((age) => (
-            <div key={age.label} className="flex items-center gap-2">
-              <span className="w-14 shrink-0 text-[11px] text-[var(--cp-text-muted)]">{age.label}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--cp-track)]">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${(age.value / Math.max(maxAge, 1)) * 100}%`,
-                    background: age.value === maxAge ? C.ageMax : C.ageBase,
-                  }}
-                />
-              </div>
-              <span
-                className={`w-10 shrink-0 text-right font-mono text-[11px] tabular-nums ${
-                  age.value === maxAge ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-dim)]"
-                }`}
-              >
-                {age.value}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 성비 / 상주비 */}
-      <div className="grid grid-cols-1 gap-3">
-        <RatioBar
-          left={detail.gender.male}
-          right={detail.gender.female}
-          leftLabel="남성"
-          rightLabel="여성"
-        />
-        <RatioBar
-          left={detail.resident.resident}
-          right={detail.resident.nonResident}
-          leftLabel="상주 인구"
-          rightLabel="방문 인구"
-          leftColor={C.residentL}
-          rightColor={C.residentR}
-        />
-      </div>
-
-      {/* CCTV */}
+      {/* CCTV — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름이라 상단 배치 */}
       {cctvList.length > 0 && (
         <div>
           <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
@@ -360,9 +314,55 @@ export default function SpotDetail({
               )
             })}
           </ul>
-          <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">탭하면 실시간 영상 (서울시 교통 CCTV)</p>
+          <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">탭하면 실시간 영상 (서울시 교통 CCTV) · 명소에 따라 없을 수 있어요</p>
         </div>
       )}
+
+      {/* 연령대 */}
+      <div>
+        <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">연령대 구성</h3>
+        <div className="space-y-1.5">
+          {detail.ages.map((age) => (
+            <div key={age.label} className="flex items-center gap-2">
+              <span className="w-14 shrink-0 text-[11px] text-[var(--cp-text-muted)]">{age.label}</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--cp-track)]">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(age.value / Math.max(maxAge, 1)) * 100}%`,
+                    background: age.value === maxAge ? C.ageMax : C.ageBase,
+                  }}
+                />
+              </div>
+              <span
+                className={`w-10 shrink-0 text-right font-mono text-[11px] tabular-nums ${
+                  age.value === maxAge ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-dim)]"
+                }`}
+              >
+                {age.value}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 성비 / 상주비 */}
+      <div className="grid grid-cols-1 gap-3">
+        <RatioBar
+          left={detail.gender.male}
+          right={detail.gender.female}
+          leftLabel="남성"
+          rightLabel="여성"
+        />
+        <RatioBar
+          left={detail.resident.resident}
+          right={detail.resident.nonResident}
+          leftLabel="상주 인구"
+          rightLabel="방문 인구"
+          leftColor={C.residentL}
+          rightColor={C.residentR}
+        />
+      </div>
 
       {/* 날씨 */}
       {detail.weather.length > 0 && (

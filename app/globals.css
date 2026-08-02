@@ -163,7 +163,7 @@
   display: none;
 }
 
-/* ── 서울 인파실록 (/crowd) 관제판 — 다크 기본 + .crowd-light 테마 */
+/* ── 서울 인파레이더 (/crowd) 관제판 — 다크 기본 + .crowd-light 테마 */
 .crowd-page {
   /* 한글 단어 단위 줄바꿈 */
   word-break: keep-all;
@@ -220,6 +220,35 @@
 }
 .crowd-page.crowd-light .leaflet-tooltip {
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+}
+/* 지도 CCTV 팝업 플레이어 */
+.crowd-page .leaflet-popup-content-wrapper {
+  background: var(--cp-tip-bg);
+  color: var(--cp-text);
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 8px;
+}
+.crowd-page .leaflet-popup-tip {
+  background: var(--cp-tip-bg);
+}
+.crowd-page .leaflet-popup-content {
+  margin: 8px;
+}
+.crowd-page .leaflet-popup-close-button {
+  color: var(--cp-text-dim);
+}
+.crowd-page .crowd-cctv-pop p {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.crowd-page .crowd-cctv-pop iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  background: #000;
+  border-radius: 4px;
+  display: block;
 }
 .crowd-page .leaflet-tooltip::before {
   display: none;

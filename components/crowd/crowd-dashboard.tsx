@@ -61,12 +61,12 @@ export default function CrowdDashboard() {
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<string | null>(null)
 
-  const [light, setLight] = useState(false)
+  const [light, setLight] = useState(true)
 
   const detailAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (localStorage.getItem("crowdTheme") === "light") setLight(true)
+    if (localStorage.getItem("crowdTheme") === "dark") setLight(false)
   }, [])
 
   const toggleTheme = useCallback(() => {
@@ -195,7 +195,7 @@ export default function CrowdDashboard() {
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 md:px-5">
         <div className="flex min-w-0 items-baseline gap-3">
           <h1 className="shrink-0 text-xl text-[var(--cp-text-strong)] [font-family:Joseon100Years,serif] md:text-2xl">
-            서울 인파실록
+            서울 인파레이더
           </h1>
           <p className="hidden truncate text-[11px] text-[var(--cp-text-dim)] sm:block">
             실시간 인구밀집 상황판 · 서울 주요 명소 {spots.length > 0 ? spots.length : 121}곳
@@ -299,8 +299,8 @@ export default function CrowdDashboard() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && noSpotMatch) void searchAddress()
                 }}
-                placeholder="명소 이름 또는 주소 (예: 성수, 광진구 아차산로 400)"
-                className="h-10 w-full bg-transparent text-[16px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:outline-none md:h-9 md:text-[13px]"
+                placeholder="명소·주소 검색 (예: 성수, 세종대로 110)"
+                className="h-10 w-full bg-transparent text-[16px] text-[var(--cp-text)] placeholder:text-[12px] placeholder:text-[var(--cp-text-faint)] focus:outline-none md:h-9 md:text-[13px]"
               />
               {query && (
                 <button
@@ -415,8 +415,8 @@ export default function CrowdDashboard() {
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               {/* 혼잡도 필터 — 지금 가볼 만한 곳 고르기 (지도에도 반영) */}
-              <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[var(--cp-border-faint)] px-3 py-2">
-                <span className="mr-0.5 text-[10px] uppercase tracking-wider text-[var(--cp-text-faint)]">
+              <div className="scrollbar-thin flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-[var(--cp-border-faint)] px-3 py-2">
+                <span className="mr-0.5 shrink-0 text-[10px] uppercase tracking-wider text-[var(--cp-text-faint)]">
                   혼잡도
                 </span>
                 {LEVEL_ORDER.slice().reverse().map((level) => {
@@ -425,7 +425,7 @@ export default function CrowdDashboard() {
                     <button
                       key={level}
                       onClick={() => toggleLevel(level)}
-                      className="rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+                      className="shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors"
                       style={
                         active
                           ? { borderColor: LEVEL_COLORS[level], color: LEVEL_COLORS[level], background: `${LEVEL_COLORS[level]}1a` }
@@ -441,28 +441,30 @@ export default function CrowdDashboard() {
                 {levelFilter.size > 0 && (
                   <button
                     onClick={() => setLevelFilter(new Set())}
-                    className="px-1.5 py-1 text-[11px] text-[var(--cp-text-dim)] underline underline-offset-2 hover:text-[var(--cp-text-strong)]"
+                    className="shrink-0 px-1.5 py-1 text-[11px] text-[var(--cp-text-dim)] underline underline-offset-2 hover:text-[var(--cp-text-strong)]"
                   >
                     해제
                   </button>
                 )}
               </div>
-              {/* 필터 */}
-              <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[var(--cp-border)] px-3 py-2.5">
-                {categories.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCategory(c)}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                      category === c
-                        ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] text-[var(--cp-text-strong)]"
-                        : "border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-                <div className="ml-auto flex items-center gap-1">
+              {/* 카테고리 필터 (한 줄 가로 스크롤) + 정렬 고정 */}
+              <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--cp-border)] px-3 py-2.5">
+                <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
+                  {categories.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCategory(c)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                        category === c
+                          ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] text-[var(--cp-text-strong)]"
+                          : "border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex shrink-0 items-center gap-1 border-l border-[var(--cp-border-faint)] pl-1.5">
                   {(
                     [
                       ["busy", "붐빔순"],
@@ -473,7 +475,7 @@ export default function CrowdDashboard() {
                     <button
                       key={mode}
                       onClick={() => setSort(mode)}
-                      className={`px-1.5 py-1 text-[11px] transition-colors ${
+                      className={`whitespace-nowrap px-1 py-1 text-[11px] transition-colors ${
                         sort === mode ? "text-[var(--cp-text-strong)] underline underline-offset-4" : "text-[var(--cp-text-faint)] hover:text-[var(--cp-text-muted)]"
                       }`}
                     >
