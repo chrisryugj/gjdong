@@ -8,21 +8,13 @@ import type { ResolvedDisplay } from "@/lib/types"
 import type { OutputField } from "@/lib/constants"
 import { OUTPUT_FIELDS, OUTPUT_FIELD_LABELS } from "@/lib/constants"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import UsageGuideModal, { UsageGuideButton } from "@/components/usage-guide-modal"
+import UsageGuideModal from "@/components/usage-guide-modal"
 import {
   ResultFieldButton,
   CombinedBatchField,
   IndividualResultFields,
   getFieldDisplayValue,
 } from "@/components/batch-result-field"
-
-const SearchIcon = () => (
-  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="11" cy="11" r="8" strokeWidth="2" />
-    <path d="m21 21-4.35-4.35" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-)
 
 const MapPinIcon = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,14 +55,6 @@ const EditIcon = () => (
   </svg>
 )
 
-const InfoIcon = () => (
-  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" strokeWidth="2" />
-    <path d="M12 16v-4" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 8h.01" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-)
-
 type BatchResult = ResolvedDisplay & {
   originalInput: string
   facilityName?: string
@@ -102,30 +86,6 @@ const EXCEL_LABELS: Record<OutputField, string> = {
   adminDong: "행정동",
   postalCode: "우편번호",
   unit: "세부주소",
-}
-
-const INPUT_GUIDE_ITEMS = [
-  "도로명주소, 지번주소, 건물명 검색어 입력",
-  "여러 주소 검색은 줄바꿔서 입력 (대량 데이터 복사+붙여넣기 지원)",
-  "엑셀 n행×2열 데이터 복사+붙여넣기 입력지원 [주소+시설명(태그)]",
-  "타이핑 n행×2열 데이터 입력지원 (주소 뒤 빈칸 3칸 + 시설명 입력)",
-]
-
-function InputGuideContent({ dark = false }: { dark?: boolean }) {
-  const numColor = dark ? "text-blue-400" : "text-blue-600"
-  return (
-    <div className="space-y-2">
-      <p className="font-semibold text-sm mb-2">입력 방법 안내</p>
-      <div className="space-y-1.5 text-xs">
-        {INPUT_GUIDE_ITEMS.map((text, i) => (
-          <div key={i} className="flex gap-2">
-            <span className={`${numColor} font-bold`}>{i + 1}.</span>
-            <span>{text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export default function AddressGenerator() {
