@@ -47,6 +47,14 @@ export interface CrowdSeriesPoint {
   kind: "past" | "now" | "forecast"
 }
 
+export interface CrowdCctv {
+  name: string
+  lat: number
+  lng: number
+  streamId: string
+  src: string // http HLS 원본 — 재생은 서울시 https 플레이어 페이지 iframe으로
+}
+
 export interface CrowdWeatherHour {
   hour: string
   temp: number | null
@@ -75,7 +83,13 @@ export interface CrowdDetail {
   peakForecastHour: string
   peakForecastLevel: string
   weather: CrowdWeatherHour[]
+  cctv: CrowdCctv[]
   updatedAt: string
+}
+
+/** 서울시 실시간도시데이터의 CCTV 라이브 플레이어 페이지 (HLS 프록시 내장, iframe 허용) */
+export function cctvPlayerUrl(item: CrowdCctv): string {
+  return `https://data.seoul.go.kr/SeoulRtd/cctv?src=${encodeURIComponent(item.src)}&cctvname=${encodeURIComponent(item.streamId)}`
 }
 
 async function rtdFetch(path: string, params: Record<string, string>): Promise<unknown> {
@@ -147,10 +161,11 @@ function toNum(value: unknown): number {
 }
 
 export async function fetchSpotDetail(name: string): Promise<CrowdDetail> {
-  const [ppltnRaw, congestRaw, weatherRaw] = await Promise.all([
+  const [ppltnRaw, congestRaw, weatherRaw, cctvRaw] = await Promise.all([
     rtdFetch("ppltn", { hotspotNm: name }),
     rtdFetch("ppltn_congest", { hotspotNm: name }),
     rtdFetch("weather", { hotspotNm: name }).catch(() => null),
+    rtdFetch("cctv", { hotspotNm: name }).catch(() => null),
   ])
 
   const ppltn = (Array.isArray(ppltnRaw) ? ppltnRaw[0] : null) as Record<string, string> | null
@@ -199,6 +214,17 @@ export async function fetchSpotDetail(name: string): Promise<CrowdDetail> {
     icon: w.icon ?? "",
   }))
 
+  // CCTV: 좌표는 XCOORD=경도, YCOORD=위도 (hotspot-category와 반대 방향이니 주의)
+  const cctv: CrowdCctv[] = (Array.isArray(cctvRaw) ? cctvRaw : [])
+    .map((c: Record<string, string>) => ({
+      name: c.CCTVNAME ?? "",
+      lat: toNum(c.YCOORD),
+      lng: toNum(c.XCOORD),
+      streamId: c.STRMID ?? "",
+      src: c.src ?? "",
+    }))
+    .filter((c) => c.name && Number.isFinite(c.lat) && c.lat !== 0)
+
   const level = ppltn.congestion_text || series[nowIndex]?.level || ""
 
   return {
@@ -221,6 +247,7 @@ export async function fetchSpotDetail(name: string): Promise<CrowdDetail> {
     peakForecastHour: congest.predict_max_congestion_hour ?? "",
     peakForecastLevel: congest.predict_max_congestion_text ?? "",
     weather,
+    cctv,
     updatedAt: new Date().toISOString(),
   }
 }
