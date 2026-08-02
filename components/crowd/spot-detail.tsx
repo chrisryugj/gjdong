@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { cctvPlayerUrl, type CrowdDetail } from "@/lib/crowd/seoul-rtd"
+import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdDetail } from "@/lib/crowd/seoul-rtd"
 
 function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
@@ -149,6 +149,7 @@ export default function SpotDetail({
   const now = detail.series[detail.nowIndex]
   const maxAge = useMemo(() => Math.max(...detail.ages.map((a) => a.value)), [detail.ages])
   const [openCctv, setOpenCctv] = useState<string | null>(null)
+  const nativeHls = useMemo(() => supportsNativeHls(), [])
 
   const cctvList = useMemo(() => {
     const list = detail.cctv.map((c) => ({
@@ -302,12 +303,22 @@ export default function SpotDetail({
                   </button>
                   {isOpen && (
                     <div className="aspect-video w-full bg-black">
-                      <iframe
-                        src={cctvPlayerUrl(c)}
-                        title={`CCTV ${c.name}`}
-                        className="h-full w-full border-0"
-                        allow="autoplay"
-                      />
+                      {nativeHls ? (
+                        <video
+                          src={cctvStreamUrl(c)}
+                          className="h-full w-full object-contain"
+                          autoPlay
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <iframe
+                          src={cctvPlayerUrl(c)}
+                          title={`CCTV ${c.name}`}
+                          className="h-full w-full border-0"
+                          allow="autoplay"
+                        />
+                      )}
                     </div>
                   )}
                 </li>

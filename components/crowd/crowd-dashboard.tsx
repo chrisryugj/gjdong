@@ -282,7 +282,8 @@ export default function CrowdDashboard() {
           )}
         </div>
 
-        <aside className="flex min-h-0 flex-1 flex-col border-t border-[var(--cp-border)] md:w-[420px] md:flex-none md:border-l md:border-t-0">
+        {/* PC는 패널을 좌측에 (모바일은 지도 위, 패널 아래 유지) */}
+        <aside className="flex min-h-0 flex-1 flex-col border-t border-[var(--cp-border)] md:order-first md:w-[420px] md:flex-none md:border-r md:border-t-0">
           {/* 검색 */}
           <div className="shrink-0 border-b border-[var(--cp-border)] p-3">
             <div className="flex items-center gap-2 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-3 focus-within:border-[var(--cp-border-active)]">

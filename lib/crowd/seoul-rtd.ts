@@ -92,6 +92,19 @@ export function cctvPlayerUrl(item: CrowdCctv): string {
   return `https://data.seoul.go.kr/SeoulRtd/cctv?src=${encodeURIComponent(item.src)}&cctvname=${encodeURIComponent(item.streamId)}`
 }
 
+/** 서울시 https HLS 프록시 스트림 — Safari 계열은 이걸 <video>에 직접 물려 네이티브 재생
+ * (서울시 iframe 플레이어가 WebKit에서 "원본 시스템 점검중" 오류를 내는 문제 우회) */
+export function cctvStreamUrl(item: CrowdCctv): string {
+  return `https://data.seoul.go.kr/SeoulRtd/cctv/proxy?src=${encodeURIComponent(item.src)}`
+}
+
+/** 네이티브 HLS 재생 지원 여부 (Safari/iOS). 클라이언트 전용 */
+export function supportsNativeHls(): boolean {
+  if (typeof document === "undefined") return false
+  const video = document.createElement("video")
+  return video.canPlayType("application/vnd.apple.mpegurl") !== ""
+}
+
 async function rtdFetch(path: string, params: Record<string, string>): Promise<unknown> {
   const qs = new URLSearchParams(params).toString()
   const res = await fetch(`${RTD_BASE}/${path}?${qs}`, {
