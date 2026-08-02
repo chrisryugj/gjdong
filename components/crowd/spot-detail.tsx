@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Cctv, ChevronDown, MoveDown, MoveUp } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Cctv, Check, ChevronDown, MoveDown, MoveUp, Navigation, Share2, Star } from "lucide-react"
 import {
   Bar,
   Cell,
@@ -13,7 +13,34 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdDetail } from "@/lib/crowd/seoul-rtd"
+import {
+  cctvPlayerUrl,
+  cctvStreamUrl,
+  CONGEST_LEVELS,
+  LEVEL_COLORS,
+  levelNum,
+  supportsNativeHls,
+  type CrowdDetail,
+} from "@/lib/crowd/seoul-rtd"
+
+// ── 요일×시간 히트맵 (GitHub Actions가 매시 수집해 data 브랜치에 누적)
+const HEATMAP_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json"
+const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
+const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"]
+
+interface HeatEntry {
+  sum: number[][]
+  cnt: number[][]
+}
+
+let heatmapCache: Promise<Record<string, HeatEntry> | null> | null = null
+function loadHeatmap(): Promise<Record<string, HeatEntry> | null> {
+  heatmapCache ??= fetch(HEATMAP_URL)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d: { spots?: Record<string, HeatEntry> } | null) => d?.spots ?? null)
+    .catch(() => null)
+  return heatmapCache
+}
 
 function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
@@ -140,16 +167,66 @@ export default function SpotDetail({
   detail,
   origin,
   light = false,
+  isFav = false,
+  onToggleFav,
 }: {
   detail: CrowdDetail
   origin?: { lat: number; lng: number }
   light?: boolean
+  isFav?: boolean
+  onToggleFav?: () => void
 }) {
   const C = light ? CHART_COLORS.light : CHART_COLORS.dark
   const now = detail.series[detail.nowIndex]
   const maxAge = useMemo(() => Math.max(...detail.ages.map((a) => a.value)), [detail.ages])
   const [openCctv, setOpenCctv] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const nativeHls = useMemo(() => supportsNativeHls(), [])
+
+  const [heat, setHeat] = useState<HeatEntry | null>(null)
+  useEffect(() => {
+    let alive = true
+    void loadHeatmap().then((spots) => {
+      if (alive) setHeat(spots?.[detail.name] ?? null)
+    })
+    return () => {
+      alive = false
+    }
+  }, [detail.name])
+
+  const heatTotal = useMemo(() => {
+    if (!heat?.cnt) return 0
+    let total = 0
+    for (const row of heat.cnt) for (const c of row ?? []) total += c
+    return total
+  }, [heat])
+
+  // 남은 예측 중 가장 한산한 시간대 — "언제 가면 좋을까"에 대한 답
+  const calmest = useMemo(() => {
+    const fc = detail.series.filter((p) => p.kind === "forecast")
+    if (fc.length === 0) return null
+    return fc.reduce((best, p) => {
+      const a = levelNum(p.level)
+      const b = levelNum(best.level)
+      return a < b || (a === b && p.people < best.people) ? p : best
+    })
+  }, [detail.series])
+
+  const share = async () => {
+    const url = window.location.href
+    const data = { title: `서울 인파레이더 — ${detail.name}`, text: `${detail.name} 지금 ${detail.level}`, url }
+    if (navigator.share) {
+      try {
+        await navigator.share(data)
+      } catch {
+        // 사용자가 공유 시트를 닫은 경우
+      }
+      return
+    }
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   const cctvList = useMemo(() => {
     const list = detail.cctv.map((c) => ({
@@ -173,8 +250,28 @@ export default function SpotDetail({
     <div className="space-y-5 p-4">
       {/* 헤드라인 */}
       <div>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold leading-tight text-[var(--cp-text-strong)]">{detail.name}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight text-[var(--cp-text-strong)]">
+            {detail.name}
+          </h2>
+          {onToggleFav && (
+            <button
+              onClick={onToggleFav}
+              className="shrink-0 rounded p-1.5 transition-colors hover:bg-[var(--cp-hover)]"
+              aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기"}
+              title="즐겨찾기"
+            >
+              <Star className={`h-4 w-4 ${isFav ? "fill-amber-400 text-amber-400" : "text-[var(--cp-text-dim)]"}`} />
+            </button>
+          )}
+          <button
+            onClick={() => void share()}
+            className="shrink-0 rounded p-1.5 text-[var(--cp-text-dim)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+            aria-label="공유"
+            title="링크 공유"
+          >
+            {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+          </button>
           <span
             className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold"
             style={{ color: detail.color, background: `${detail.color}1f`, border: `1px solid ${detail.color}55` }}
@@ -195,6 +292,26 @@ export default function SpotDetail({
               </li>
             ))}
           </ul>
+        )}
+        {origin && (
+          <div className="mt-2.5 flex gap-1.5">
+            <a
+              href={`https://map.kakao.com/link/to/${encodeURIComponent(detail.name)},${origin.lat},${origin.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 py-1.5 text-[12px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
+            >
+              <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> 카카오맵 길찾기
+            </a>
+            <a
+              href={`https://map.naver.com/p/directions/-/${origin.lng},${origin.lat},${encodeURIComponent(detail.name)}/-/transit`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 py-1.5 text-[12px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
+            >
+              <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> 네이버 길찾기
+            </a>
+          </div>
         )}
       </div>
 
@@ -267,7 +384,71 @@ export default function SpotDetail({
             전망 ({detail.peakForecastLevel})
           </p>
         )}
+        {calmest &&
+          (levelNum(calmest.level) <= 2 ? (
+            <p className="mt-0.5 text-[11px] text-[var(--cp-text-dim)]">
+              한산하게 가려면 <span className="font-mono font-semibold tabular-nums" style={{ color: calmest.color }}>{calmest.time}</span>가 좋아요 ({calmest.level} 예상)
+            </p>
+          ) : (
+            <p className="mt-0.5 text-[11px] text-[var(--cp-text-dim)]">오늘은 남은 시간 내내 붐빌 전망이에요</p>
+          ))}
       </div>
+
+      {/* 요일×시간 패턴 — "주말 오후엔 원래 붐비나?" (매시 수집 누적) */}
+      {heat && heatTotal > 0 && (
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+              요일·시간대 패턴
+            </h3>
+            <span className="font-mono text-[10px] tabular-nums text-[var(--cp-text-faint)]">
+              표본 {heatTotal.toLocaleString()}시간
+            </span>
+          </div>
+          <div className="space-y-[2px]">
+            {DOW_ORDER.map((d, ri) => (
+              <div key={d} className="flex items-center gap-[2px]">
+                <span className="w-4 shrink-0 text-[9px] text-[var(--cp-text-dim)]">{DOW_LABELS[ri]}</span>
+                {Array.from({ length: 24 }, (_, h) => {
+                  const cnt = heat.cnt[d]?.[h] ?? 0
+                  const avg = cnt > 0 ? (heat.sum[d]?.[h] ?? 0) / cnt : 0
+                  const lv = cnt > 0 ? Math.min(Math.max(Math.round(avg), 1), 4) : 0
+                  const kstNow = new Date(Date.now() + 9 * 3600 * 1000)
+                  const isNow = d === kstNow.getUTCDay() && h === kstNow.getUTCHours()
+                  const label = lv > 0 ? CONGEST_LEVELS[lv - 1] : "데이터 없음"
+                  return (
+                    <span
+                      key={h}
+                      title={`${DOW_LABELS[ri]} ${h}시 · 평균 ${label}${cnt > 0 ? ` (${cnt}회)` : ""}`}
+                      className="h-3 min-w-0 flex-1 rounded-[2px]"
+                      style={{
+                        background: lv > 0 ? LEVEL_COLORS[CONGEST_LEVELS[lv - 1]] : "var(--cp-track)",
+                        boxShadow: isNow ? "0 0 0 1.5px var(--cp-text-strong)" : undefined,
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+            <div className="flex gap-[2px] pl-[18px] pt-0.5">
+              {[0, 6, 12, 18].map((h) => (
+                <span key={h} className="flex-1 text-[9px] text-[var(--cp-text-faint)]">
+                  {h}시
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {CONGEST_LEVELS.map((lv) => (
+              <span key={lv} className="flex items-center gap-1 text-[10px] text-[var(--cp-text-faint)]">
+                <span className="h-2 w-2 rounded-[2px]" style={{ background: LEVEL_COLORS[lv] }} />
+                {lv}
+              </span>
+            ))}
+            <span className="text-[10px] text-[var(--cp-text-faint)]">· 테두리 = 지금 시간대</span>
+          </div>
+        </div>
+      )}
 
       {/* CCTV — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름이라 상단 배치 */}
       {cctvList.length > 0 && (
