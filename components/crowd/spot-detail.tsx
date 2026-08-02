@@ -1,12 +1,40 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, MoveDown, MoveUp, Navigation, Share2, Star, TriangleAlert } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, MoveDown, MoveUp, Navigation, Share2, SquareParking, Star, TriangleAlert } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
 import SpotCctv from "@/components/crowd/spot-cctv"
 import SpotExtras from "@/components/crowd/spot-extras"
+
+/** 요약 스트립 칩 — 핵심 수치 한 줄 + 탭하면 해당 섹션으로 점프 */
+function JumpChip({
+  icon,
+  label,
+  value,
+  color,
+  target,
+}: {
+  icon: React.ReactNode
+  label?: string
+  value: string
+  color?: string
+  target: string
+}) {
+  return (
+    <button
+      onClick={() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      className="flex items-center gap-1 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] px-2.5 py-1 text-[12px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover2)] hover:text-[var(--cp-text)]"
+    >
+      {icon}
+      {label && <span>{label}</span>}
+      <span className="font-mono font-semibold tabular-nums" style={color ? { color } : undefined}>
+        {value}
+      </span>
+    </button>
+  )
+}
 
 function TrendBadge({ label, rate, dir, light }: { label: string; rate: string; dir: string; light: boolean }) {
   const up = dir === "up"
@@ -152,6 +180,55 @@ export default function SpotDetail({
             지금 약 <span className="text-[19px] font-bold text-[var(--cp-text-strong)]">{now.range || `${now.people.toLocaleString()}명`}</span>
           </p>
         )}
+        {/* 요약 스트립 — 아래 섹션들의 답을 한 줄로, 칩 탭 = 해당 섹션 점프 */}
+        {(extra || detail.cctv.length > 0) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {extra?.parking && (
+              <JumpChip
+                icon={<SquareParking className="h-3 w-3" />}
+                label="주차"
+                value={`${extra.parking.percent}%`}
+                color={textColor(
+                  extra.parking.percent >= 40 ? "#00d369" : extra.parking.percent >= 15 ? "#ffb100" : "#ff3939",
+                  light,
+                )}
+                target="crowd-sec-parking"
+              />
+            )}
+            {extra?.road && (
+              <JumpChip
+                icon={<CarFront className="h-3 w-3" />}
+                value={extra.road.idx}
+                color={textColor(extra.road.color, light)}
+                target="crowd-sec-road"
+              />
+            )}
+            {extra && extra.events.length > 0 && (
+              <JumpChip
+                icon={<CalendarDays className="h-3 w-3" />}
+                label="행사"
+                value={String(extra.events.length)}
+                target="crowd-sec-events"
+              />
+            )}
+            {extra?.bike && (
+              <JumpChip
+                icon={<Bike className="h-3 w-3" />}
+                label="따릉이"
+                value={`${extra.bike.bikes}대`}
+                target="crowd-sec-bike"
+              />
+            )}
+            {detail.cctv.length > 0 && (
+              <JumpChip
+                icon={<Cctv className="h-3 w-3" />}
+                label="CCTV"
+                value={String(detail.cctv.length)}
+                target="crowd-sec-cctv"
+              />
+            )}
+          </div>
+        )}
         {detail.message.length > 0 && (
           <ul className="mt-2 space-y-0.5">
             {detail.message.map((m, i) => (
@@ -227,10 +304,13 @@ export default function SpotDetail({
       {/* 부가정보: 주차·행사·도로·따릉이 */}
       {extra && <SpotExtras extra={extra} origin={origin} light={light} />}
 
-      {/* 연령대 */}
-      <div>
-        <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">연령대 구성</h3>
-        <div className="space-y-1.5">
+      {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘 */}
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text)] [&::-webkit-details-marker]:hidden">
+          방문자 구성 <span className="font-normal normal-case text-[var(--cp-text-faint)]">연령 · 성비 · 상주비</span>
+          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-3 space-y-1.5">
           {detail.ages.map((age) => (
             <div key={age.label} className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-[12px] text-[var(--cp-text-muted)]">{age.label}</span>
@@ -252,26 +332,24 @@ export default function SpotDetail({
               </span>
             </div>
           ))}
+          <div className="grid grid-cols-1 gap-3 pt-2">
+            <RatioBar
+              left={detail.gender.male}
+              right={detail.gender.female}
+              leftLabel="남성"
+              rightLabel="여성"
+            />
+            <RatioBar
+              left={detail.resident.resident}
+              right={detail.resident.nonResident}
+              leftLabel="상주 인구"
+              rightLabel="방문 인구"
+              leftColor={C.residentL}
+              rightColor={C.residentR}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* 성비 / 상주비 */}
-      <div className="grid grid-cols-1 gap-3">
-        <RatioBar
-          left={detail.gender.male}
-          right={detail.gender.female}
-          leftLabel="남성"
-          rightLabel="여성"
-        />
-        <RatioBar
-          left={detail.resident.resident}
-          right={detail.resident.nonResident}
-          leftLabel="상주 인구"
-          rightLabel="방문 인구"
-          leftColor={C.residentL}
-          rightColor={C.residentR}
-        />
-      </div>
+      </details>
 
       {/* 날씨 */}
       {detail.weather.length > 0 && (
