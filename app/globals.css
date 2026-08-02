@@ -163,18 +163,63 @@
   display: none;
 }
 
-/* ── 서울 인파실록 (/crowd) 다크 관제판 */
+/* ── 서울 인파실록 (/crowd) 관제판 — 다크 기본 + .crowd-light 테마 */
+.crowd-page {
+  /* 한글 단어 단위 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+
+  --cp-bg: #0b0f14;
+  --cp-overlay: rgba(11, 15, 20, 0.85);
+  --cp-tip-bg: #101720;
+  --cp-panel: rgba(255, 255, 255, 0.03);
+  --cp-panel2: rgba(255, 255, 255, 0.07);
+  --cp-hover: rgba(255, 255, 255, 0.05);
+  --cp-hover2: rgba(255, 255, 255, 0.1);
+  --cp-track: rgba(255, 255, 255, 0.06);
+  --cp-border: rgba(255, 255, 255, 0.1);
+  --cp-border-faint: rgba(255, 255, 255, 0.06);
+  --cp-border-strong: rgba(255, 255, 255, 0.18);
+  --cp-border-active: rgba(255, 255, 255, 0.4);
+  --cp-text-strong: #ffffff;
+  --cp-text: #d6dee8;
+  --cp-text-muted: #94a3b8;
+  --cp-text-dim: #64748b;
+  --cp-text-faint: #475569;
+}
+.crowd-page.crowd-light {
+  --cp-bg: #f7f6f3;
+  --cp-overlay: rgba(247, 246, 243, 0.88);
+  --cp-tip-bg: #ffffff;
+  --cp-panel: rgba(15, 23, 42, 0.03);
+  --cp-panel2: rgba(15, 23, 42, 0.06);
+  --cp-hover: rgba(15, 23, 42, 0.04);
+  --cp-hover2: rgba(15, 23, 42, 0.08);
+  --cp-track: rgba(15, 23, 42, 0.08);
+  --cp-border: rgba(15, 23, 42, 0.12);
+  --cp-border-faint: rgba(15, 23, 42, 0.07);
+  --cp-border-strong: rgba(15, 23, 42, 0.22);
+  --cp-border-active: rgba(15, 23, 42, 0.45);
+  --cp-text-strong: #0f172a;
+  --cp-text: #1e293b;
+  --cp-text-muted: #475569;
+  --cp-text-dim: #64748b;
+  --cp-text-faint: #94a3b8;
+}
 .crowd-page .leaflet-container {
-  background: #0b0f14;
+  background: #d4dadc;
   font-family: inherit;
 }
 .crowd-page .leaflet-tooltip {
-  background: #101720;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--cp-tip-bg);
+  border: 1px solid var(--cp-border-strong);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--cp-text);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   padding: 4px 8px;
+}
+.crowd-page.crowd-light .leaflet-tooltip {
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
 }
 .crowd-page .leaflet-tooltip::before {
   display: none;
@@ -190,24 +235,24 @@
   font-weight: 600;
 }
 .crowd-page .leaflet-bar a {
-  background: #101720;
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
+  background: var(--cp-tip-bg);
+  border-color: var(--cp-border-strong);
+  color: var(--cp-text-muted);
 }
 .crowd-page .leaflet-bar a:hover {
-  background: #1a2330;
+  background: var(--cp-hover2);
 }
 .crowd-page .leaflet-control-attribution {
-  background: rgba(11, 15, 20, 0.75);
-  color: #475569;
+  background: rgba(255, 255, 255, 0.7);
+  color: #64748b;
 }
 .crowd-page .leaflet-control-attribution a {
-  color: #64748b;
+  color: #475569;
 }
 .crowd-page .scrollbar-thin::-webkit-scrollbar {
   height: 5px;
 }
 .crowd-page .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--cp-border-strong);
   border-radius: 4px;
 }

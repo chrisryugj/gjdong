@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
-import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { CrowdCctv, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
   selectedName: string | null
   addressPin: { label: string; lat: number; lng: number } | null
   nearestNames: string[]
+  cctvItems: CrowdCctv[]
   onSelect: (name: string) => void
 }
 
@@ -18,12 +19,13 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, selectedName, addressPin, nearestNames, onSelect }: CrowdMapProps) {
+export default function CrowdMap({ spots, selectedName, addressPin, nearestNames, cctvItems, onSelect }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
   const spotLayerRef = useRef<LayerGroup | null>(null)
   const pinLayerRef = useRef<LayerGroup | null>(null)
+  const cctvLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, CircleMarker>>(new Map())
   const [ready, setReady] = useState(false)
   const onSelectRef = useRef(onSelect)
@@ -46,8 +48,8 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       })
       L.control.zoom({ position: "bottomright" }).addTo(map)
 
-      // 다크 타일 (CARTO dark_matter)
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      // 밝은 타일 (CARTO voyager — OSM 한글 라벨)
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 19,
@@ -55,6 +57,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
 
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
+      cctvLayerRef.current = L.layerGroup().addTo(map)
       mapInstanceRef.current = map
       setReady(true)
     }
@@ -72,6 +75,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       mapInstanceRef.current = null
       spotLayerRef.current = null
       pinLayerRef.current = null
+      cctvLayerRef.current = null
       markersRef.current.clear()
     }
   }, [])
@@ -88,10 +92,10 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       const isSelected = spot.name === selectedName
       const marker = L.circleMarker([spot.lat, spot.lng], {
         radius: isSelected ? 11 : 5 + spot.levelNum * 1.5,
-        color: isSelected ? "#ffffff" : spot.color,
-        weight: isSelected ? 2.5 : 1.5,
+        color: isSelected ? "#1e293b" : "#ffffff",
+        weight: isSelected ? 2.5 : 1.2,
         fillColor: spot.color,
-        fillOpacity: isSelected ? 0.95 : 0.75,
+        fillOpacity: isSelected ? 0.95 : 0.85,
       })
 
       marker.bindTooltip(
@@ -112,6 +116,34 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     if (spot) map.flyTo([spot.lat, spot.lng], Math.max(map.getZoom(), 14), { duration: 0.6 })
   }, [ready, selectedName, spots])
 
+  // 선택 명소의 주변 CCTV 마커
+  useEffect(() => {
+    const L = leafletRef.current
+    const layer = cctvLayerRef.current
+    if (!ready || !L || !layer) return
+    layer.clearLayers()
+
+    const cctvIcon = L.divIcon({
+      className: "crowd-cctv-marker",
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="background:#1e293b;border-radius:50%;padding:3px;box-shadow:0 1px 3px rgba(0,0,0,.4)">
+        <path d="M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97"/>
+        <path d="M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z"/>
+        <path d="M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15"/>
+      </svg>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    })
+
+    for (const c of cctvItems) {
+      L.marker([c.lat, c.lng], { icon: cctvIcon, zIndexOffset: 500 })
+        .bindTooltip(`<div class="crowd-tip"><b>CCTV · ${escapeHtml(c.name)}</b></div>`, {
+          direction: "top",
+          offset: [0, -12],
+        })
+        .addTo(layer)
+    }
+  }, [ready, cctvItems])
+
   // 주소 핀 + 근처 명소 연결선
   useEffect(() => {
     const L = leafletRef.current
@@ -124,8 +156,8 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     const pinIcon = L.divIcon({
       className: "crowd-address-pin",
       html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="42" viewBox="0 0 25 41">
-        <path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="#ffffff"/>
-        <circle cx="12.5" cy="12.5" r="5.5" fill="#0b0f14"/>
+        <path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="#1e293b"/>
+        <circle cx="12.5" cy="12.5" r="5.5" fill="#ffffff"/>
       </svg>`,
       iconSize: [28, 42],
       iconAnchor: [14, 42],
@@ -147,7 +179,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
           [addressPin.lat, addressPin.lng],
           [spot.lat, spot.lng],
         ],
-        { color: "#ffffff", weight: 1, opacity: 0.35, dashArray: "4 6" },
+        { color: "#1e293b", weight: 1, opacity: 0.4, dashArray: "4 6" },
       ).addTo(layer)
       bounds.extend([spot.lat, spot.lng])
     }
