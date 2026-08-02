@@ -1,6 +1,6 @@
 import { ArrowRight, Radar } from "lucide-react"
 
-/** 메인 카드 위 — '서울 인파실록' 진입 배너 (다크 관제판 티저) */
+/** 메인 카드 위 — '서울 인파레이더' 진입 배너 (다크 관제판 티저) */
 export default function CrowdPromoBanner() {
   return (
     <a
@@ -13,7 +13,7 @@ export default function CrowdPromoBanner() {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-black">LIVE</span>
-          <span className="text-sm font-bold text-white">서울 인파실록</span>
+          <span className="text-sm font-bold text-white">서울 인파레이더</span>
         </div>
         <p className="mt-0.5 truncate text-xs text-slate-400">
           서울 명소 121곳 실시간 혼잡도 — 주소만 치면 근처 인파 상황과 12시간 예측까지
