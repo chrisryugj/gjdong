@@ -18,9 +18,16 @@
 - CI(ci.yml)는 `npm run lint`에서 **이 세션 이전부터 계속 실패** — 잔여 부채 72건(deck-stage.js 58, address-generator 7, crowd-sw 5, use-toast 2). crowd 신규 코드는 0건
 - 로컬 검증 시 :3000에 옛 next 서버 떠있을 수 있음 → 3100 등 다른 포트 사용
 
-## 잔여 (우선순위순)
+## 잔여 (우선순위순) — 2026-08-03 갱신
 
-1. **히트맵 표본 누적 관찰**: 3시간 cron이 12h씩 채우니 1주면 7×24 풀커버. 21:07 KST 첫 새 수집 성공 여부 확인(`gh run list --workflow "Crowd Heatmap"`)
-2. crowd-dashboard.tsx(866줄)·spot-detail.tsx(823줄) 컴포넌트 분리
+1. **히트맵 표본 누적 관찰**: 3시간 cron이 12h씩 채우니 1주면 7×24 풀커버 (`gh run list --workflow "Crowd Heatmap"`)
+2. ~~컴포넌트 분리~~ → **완료(b1316ff)**: dashboard 629줄 + crowd-header/nearest-panel/spot-list-panel/shared, spot-detail 307줄 + spot-chart/spot-heatmap/spot-cctv/spot-extras
 3. 미도입 엔드포인트: `/roadGraph`(24h 차트에 도로속도 겹치기), `/charger`, `/consumption` 5종 — 가치 낮아 보류
-4. 기존 린트 부채 72건 → CI 그린 만들려면 별도 세션에서 정리 (crowd 외 파일)
+4. ~~린트 부채 72건~~ → **완료(c31a6ea, 72→0)**
+
+## 3차 UX 개편 (2026-08-03, b1316ff 배포완료)
+
+- PC 패널 440px(xl 500px) + 전반 타이포 +1px, PC 필터 칩 줄바꿈(스크롤에 숨던 혼잡도 칩 해소)
+- 라이트테마 소형 텍스트 대비: `textColor()` (seoul-rtd.ts, 라이트에서만 진한 변형색)
+- 모바일 뒤로가기=상세 닫기 (pushState/popstate, 상세→상세 replace, 딥링크 pushed:false)
+- 히트맵 셀 탭 상세 표시(터치 title 툴팁 보완), 상세 실패 재시도 버튼, aria-pressed/expanded
