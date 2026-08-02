@@ -3,10 +3,16 @@ name: Crowd Heatmap
 # 서울시 실시간 혼잡도(직전 12시간 실측)를 3시간마다 수집해 data 브랜치 heatmap.json에 누적
 # 12시간 룩백 + lastSlot 중복방지라 cron이 몇 번 빠져도 갭 없이 자가치유됨
 # (Vercel Hobby cron은 일 1회 제한이라 GitHub Actions 사용)
+# cron 분은 정시 근처(:00~:15)를 피한다 — GH Actions 스케줄이 그 구간에 몰려 지연·누락이 잦다
 on:
   schedule:
-    - cron: "7 */3 * * *"
+    - cron: "37 */3 * * *"
   workflow_dispatch:
+    inputs:
+      fresh:
+        description: "누적을 버리고 처음부터 다시 쌓기 (data 브랜치 복구용)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -20,6 +26,8 @@ jobs:
         with:
           node-version: 20
       - run: node scripts/collect-crowd-heatmap.mjs
+        env:
+          FRESH: ${{ inputs.fresh && '1' || '' }}
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
