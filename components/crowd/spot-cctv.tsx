@@ -21,7 +21,7 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
   if (cctvList.length === 0) return null
 
   return (
-    <div>
+    <div id="crowd-sec-cctv" className="scroll-mt-2">
       <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
         주변 CCTV <span className="font-mono tabular-nums">({cctvList.length})</span>
       </h3>

@@ -40,7 +40,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
     <>
       {/* 주차 여유 — 실시간 잔여를 주는 주차장만 (자차 방문 판단용) */}
       {extra.parking && (
-        <div>
+        <div id="crowd-sec-parking" className="scroll-mt-2">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
               <SquareParking className="h-3.5 w-3.5" /> 주차 여유
@@ -91,7 +91,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
 
       {/* 진행 중 문화행사 — 붐빔의 원인이자 갈 이유 */}
       {extra.events.length > 0 && (
-        <div>
+        <div id="crowd-sec-events" className="scroll-mt-2">
           <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
             <CalendarDays className="h-3.5 w-3.5" /> 진행 중 문화행사{" "}
             <span className="font-mono tabular-nums">({extra.events.length})</span>
@@ -131,7 +131,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
 
       {/* 도로 소통 — "차로 가도 되나" 한 줄 답 */}
       {extra.road && (
-        <div>
+        <div id="crowd-sec-road" className="scroll-mt-2">
           <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
             <CarFront className="h-3.5 w-3.5" /> 도로 소통
           </h3>
@@ -159,7 +159,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
 
       {/* 따릉이 — 대여 가능 대수 (한강공원·데이트 코스) */}
       {extra.bike && (
-        <div>
+        <div id="crowd-sec-bike" className="scroll-mt-2">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
               <Bike className="h-3.5 w-3.5" /> 따릉이
