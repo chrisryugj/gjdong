@@ -15,6 +15,23 @@ export const metadata: Metadata = {
   openGraph: {
     title: "서울 인파레이더 — 실시간 인구밀집 상황판",
     description: "서울 121곳 실시간 혼잡도 + 12시간 예측 + 주소 기반 근처 명소 인파 확인",
+    type: "website",
+    locale: "ko_KR",
+    url: "https://gjdong.vercel.app/crowd",
+    images: [
+      {
+        url: "/og-crowd.jpg?v=1",
+        width: 1200,
+        height: 630,
+        alt: "서울 인파레이더 — 서울 명소 121곳 실시간 혼잡도",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "서울 인파레이더 — 실시간 인구밀집 상황판",
+    description: "서울 121곳 실시간 혼잡도 + 12시간 예측 + CCTV 라이브",
+    images: ["/og-crowd.jpg?v=1"],
   },
 }
 
