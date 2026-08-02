@@ -28,6 +28,9 @@ jobs:
       - run: node scripts/collect-crowd-heatmap.mjs
         env:
           FRESH: ${{ inputs.fresh && '1' || '' }}
+      # data는 heatmap.json만 든 orphan 브랜치라 Vercel이 빌드하면 반드시 실패한다.
+      # 발행물에도 같은 설정을 넣어 브랜치 자체가 배포 대상에서 빠지게 한다.
+      - run: echo '{"git":{"deploymentEnabled":{"data":false}}}' > out-data/vercel.json
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
