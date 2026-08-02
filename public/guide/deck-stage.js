@@ -505,12 +505,12 @@
             this._index = n;
           }
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
     }
 
     _persistIndex() {
       try { localStorage.setItem(this._storageKey, String(this._index)); }
-      catch (e) { /* ignore */ }
+      catch { /* ignore */ }
     }
 
     _applyIndex({ showOverlay = true, broadcast = true, reason = 'init' } = {}) {
@@ -526,7 +526,7 @@
       // mp4 onended pauses on last frame; without this, replay/R/revisit stalls.
       if (prev >= 0 && prev !== curr && this._slides[prev]) {
         this._slides[prev].querySelectorAll('video').forEach((v) => {
-          try { v.pause(); } catch (e) {}
+          try { v.pause(); } catch { /* ignore */ }
         });
       }
       if (this._slides[curr]) {
@@ -535,15 +535,15 @@
             v.currentTime = 0;
             const p = v.play();
             if (p && typeof p.catch === 'function') p.catch(() => {});
-          } catch (e) {}
+          } catch { /* ignore */ }
         });
         // Restart any registered hyperframes timelines on this slide.
         this._slides[curr].querySelectorAll('iframe[data-hf-frame]').forEach((f) => {
           try {
             const w = f.contentWindow;
             const tls = w && w.__timelines;
-            if (tls) Object.values(tls).forEach((tl) => { try { tl.restart(); } catch (e) {} });
-          } catch (e) {}
+            if (tls) Object.values(tls).forEach((tl) => { try { tl.restart(); } catch { /* ignore */ } });
+          } catch { /* ignore */ }
         });
       }
 
@@ -552,7 +552,7 @@
 
       if (broadcast) {
         // (1) Legacy: host-window postMessage for speaker-notes renderers.
-        try { window.postMessage({ slideIndexChanged: curr }, '*'); } catch (e) {}
+        try { window.postMessage({ slideIndexChanged: curr }, '*'); } catch { /* ignore */ }
 
         // (2) In-page CustomEvent on the <deck-stage> element itself.
         //     Bubbles and composes out of shadow DOM so slide code can listen:

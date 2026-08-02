@@ -11,6 +11,16 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    // public/ 정적 스크립트는 브라우저에서 직접 로드 — document·window 같은 브라우저 전역 허용
+    files: ["public/**/*.js"],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    // 서비스워커는 self·clients 스코프
+    files: ["public/crowd-sw.js"],
+    languageOptions: { globals: globals.serviceworker },
+  },
+  {
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
