@@ -47,6 +47,7 @@ export default function CrowdDashboard() {
   const [sort, setSort] = useState<SortMode>("busy")
   const [preset, setPreset] = useState<PresetKey | null>(null)
   const [favs, setFavs] = useState<Set<string>>(new Set())
+  const [favOnly, setFavOnly] = useState(false)
 
   const [addressPin, setAddressPin] = useState<AddressPin | null>(null)
   const [addressLoading, setAddressLoading] = useState(false)
@@ -286,6 +287,7 @@ export default function CrowdDashboard() {
     setPreset(null)
     setLevelFilter(new Set())
     setCategoryFilter(new Set())
+    setFavOnly(false)
   }, [])
 
   const applyPreset = useCallback(
@@ -303,13 +305,14 @@ export default function CrowdDashboard() {
     [preset, clearFilters],
   )
 
-  // 필터는 지도에도 반영 — "지금 여유로운 공원만" 탐색용
+  // 필터는 지도에도 반영 — "지금 여유로운 공원만"·"내 단골만" 탐색용
   const mapSpots = useMemo(() => {
     let list = spots
+    if (favOnly) list = list.filter((s) => favs.has(s.name))
     if (levelFilter.size > 0) list = list.filter((s) => levelFilter.has(s.level))
     if (categoryFilter.size > 0) list = list.filter((s) => categoryFilter.has(s.category))
     return list
-  }, [spots, levelFilter, categoryFilter])
+  }, [spots, levelFilter, categoryFilter, favOnly, favs])
 
   const filtered = useMemo(() => {
     const q = query.trim()
@@ -577,11 +580,13 @@ export default function CrowdDashboard() {
               sort={sort}
               preset={preset}
               favs={favs}
+              favOnly={favOnly}
               light={light}
               loading={loading}
               error={error}
               noSpotMatch={noSpotMatch}
               onApplyPreset={applyPreset}
+              onToggleFavOnly={() => setFavOnly((v) => !v)}
               onToggleLevel={toggleLevel}
               onToggleCategory={toggleCategory}
               onClearFilters={clearFilters}

@@ -13,11 +13,13 @@ interface SpotListPanelProps {
   sort: SortMode
   preset: PresetKey | null
   favs: Set<string>
+  favOnly: boolean
   light: boolean
   loading: boolean
   error: string | null
   noSpotMatch: boolean
   onApplyPreset: (key: PresetKey) => void
+  onToggleFavOnly: () => void
   onToggleLevel: (level: string) => void
   onToggleCategory: (c: string) => void
   onClearFilters: () => void
@@ -37,11 +39,13 @@ export default function SpotListPanel({
   sort,
   preset,
   favs,
+  favOnly,
   light,
   loading,
   error,
   noSpotMatch,
   onApplyPreset,
+  onToggleFavOnly,
   onToggleLevel,
   onToggleCategory,
   onClearFilters,
@@ -54,6 +58,22 @@ export default function SpotListPanel({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 프리셋 + 혼잡도 필터 한 줄 — 지금 가볼 만한 곳 고르기 (지도에도 반영) */}
       <div className="scrollbar-thin flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-[var(--cp-border-faint)] px-3 py-1.5 md:flex-wrap md:overflow-visible md:py-2">
+        {/* 즐겨찾기 모아보기 — 별을 하나라도 찍었을 때만 노출 */}
+        {(favs.size > 0 || favOnly) && (
+          <button
+            onClick={onToggleFavOnly}
+            aria-pressed={favOnly}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] transition-colors ${
+              favOnly
+                ? `border-amber-400/60 bg-amber-400/10 font-medium ${light ? "text-amber-700" : "text-amber-400"}`
+                : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
+            }`}
+          >
+            <Star className={`h-3 w-3 ${favOnly ? "fill-amber-400 text-amber-400" : ""}`} />
+            즐겨찾기
+            <span className="font-mono tabular-nums opacity-70">{favs.size}</span>
+          </button>
+        )}
         {PRESETS.map((p) => (
           <button
             key={p.key}
@@ -89,7 +109,7 @@ export default function SpotListPanel({
             </button>
           )
         })}
-        {(levelFilter.size > 0 || categoryFilter.size > 0) && (
+        {(levelFilter.size > 0 || categoryFilter.size > 0 || favOnly) && (
           <button
             onClick={onClearFilters}
             className="shrink-0 px-1.5 py-1 text-[12px] text-[var(--cp-text-dim)] underline underline-offset-2 hover:text-[var(--cp-text-strong)]"
