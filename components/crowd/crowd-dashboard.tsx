@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Moon, RefreshCw, Search, Star, Sun, X } from "lucide-react"
-import type { CrowdDetail, CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Moon, RefreshCw, Search, Star, Sun, TriangleAlert, X } from "lucide-react"
+import type { CrowdDetail, CrowdDisaster, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import CrowdMap from "@/components/crowd/crowd-map"
 
 // recharts가 무거워서 상세 패널은 선택 시점에 로드
@@ -65,6 +65,8 @@ export default function CrowdDashboard() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [disaster, setDisaster] = useState<CrowdDisaster[]>([])
+  const [disasterOpen, setDisasterOpen] = useState(false)
 
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [detail, setDetail] = useState<CrowdDetail | null>(null)
@@ -143,8 +145,9 @@ export default function CrowdDashboard() {
       setError(null)
       const res = await fetch("/api/crowd")
       if (!res.ok) throw new Error("bad status")
-      const data = (await res.json()) as { spots: CrowdSpot[]; updatedAt: string }
+      const data = (await res.json()) as { spots: CrowdSpot[]; disaster?: CrowdDisaster[]; updatedAt: string }
       setSpots(data.spots)
+      setDisaster(data.disaster ?? [])
       setUpdatedAt(data.updatedAt)
     } catch {
       setError("서울시 실시간 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.")
@@ -408,6 +411,36 @@ export default function CrowdDashboard() {
           </Link>
         </div>
       </header>
+
+      {/* ── 재난문자 배너 (오늘 발송분 있을 때만, 탭하면 전체 펼침) */}
+      {disaster.length > 0 && (
+        <button
+          onClick={() => setDisasterOpen((v) => !v)}
+          className="flex shrink-0 items-start gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-left md:px-5"
+        >
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          {disasterOpen ? (
+            <span className="min-w-0 flex-1 space-y-1">
+              {disaster.map((d, i) => (
+                <span key={i} className="block text-[11px] leading-relaxed text-[var(--cp-text)]">
+                  <b className="text-amber-500">
+                    {d.type} {d.step}
+                  </b>{" "}
+                  {d.content}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-[11px] leading-5 text-[var(--cp-text)]">
+              <b className="text-amber-500">
+                {disaster[0].type} {disaster[0].step}
+              </b>{" "}
+              {disaster[0].content}
+              {disaster.length > 1 && <span className="text-[var(--cp-text-dim)]"> 외 {disaster.length - 1}건</span>}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* ── 본문: 지도 + 패널 */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { fetchAllSpots, fetchSpotDetail } from "@/lib/crowd/seoul-rtd"
+import { fetchAllSpots, fetchDisasterToday, fetchSpotDetail } from "@/lib/crowd/seoul-rtd"
 
 export const dynamic = "force-dynamic"
 
@@ -20,9 +20,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(detail, { headers: CACHE_HEADERS })
     }
 
-    const spots = await fetchAllSpots()
+    // 재난문자는 전 명소 공통이라 목록 응답에 실어 대시보드 배너로 노출
+    const [spots, disaster] = await Promise.all([
+      fetchAllSpots(),
+      fetchDisasterToday().catch(() => []),
+    ])
     return NextResponse.json(
-      { spots, updatedAt: new Date().toISOString() },
+      { spots, disaster, updatedAt: new Date().toISOString() },
       { headers: CACHE_HEADERS },
     )
   } catch (error) {

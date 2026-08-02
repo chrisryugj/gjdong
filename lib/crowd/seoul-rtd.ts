@@ -87,6 +87,178 @@ export interface CrowdDetail {
   updatedAt: string
 }
 
+// ── 상세 부가정보 (사고통제·주차·문화행사·도로소통·따릉이) — 지연 로드용 별도 응답
+// 신규 엔드포인트 좌표축 실측: acc X=lng/Y=lat, bike sbike_x=lng/sbike_y=lat,
+// parking lat/lng 명시, event x=lng/y=lat (hotspot-category의 x=lat와 반대이니 주의)
+
+export interface CrowdAlert {
+  type: string // 교통사고·공사·집회 등
+  detail: string
+  info: string
+  occurredAt: string
+  expectedClearAt: string
+}
+
+export interface CrowdParkingLot {
+  name: string
+  capacity: number
+  available: number
+  lat: number
+  lng: number
+}
+
+export interface CrowdEvent {
+  title: string
+  place: string
+  period: string
+  free: boolean
+  category: string
+  url: string
+}
+
+export interface CrowdRoadInfo {
+  idx: string // 원활·서행·정체
+  speed: number
+  msg: string
+  color: string
+}
+
+export interface CrowdBikeStation {
+  name: string
+  bikes: number
+  racks: number
+  lat: number
+  lng: number
+}
+
+export interface CrowdExtra {
+  alerts: CrowdAlert[]
+  parking: { available: number; percent: number; lots: CrowdParkingLot[] } | null
+  events: CrowdEvent[]
+  road: CrowdRoadInfo | null
+  bike: { bikes: number; stations: CrowdBikeStation[] } | null
+  updatedAt: string
+}
+
+export interface CrowdDisaster {
+  type: string // 폭염·호우 등
+  step: string // 안전안내·긴급재난 등
+  content: string
+  at: string
+}
+
+/** 오늘 발송된 재난문자 — 전 명소 공통이라 대시보드 배너용 (기준 명소는 아무 곳이나 무방) */
+export async function fetchDisasterToday(name = "광화문·덕수궁"): Promise<CrowdDisaster[]> {
+  const raw = await rtdFetch(`disaster-message/today/${encodeURIComponent(name)}`, {})
+  return (Array.isArray(raw) ? raw : [])
+    .map((m: Record<string, string>) => ({
+      type: m.DST_SE_NM ?? "",
+      step: m.EMRG_STEP_NM ?? "",
+      content: (m.MSG_CN ?? "").trim(),
+      at: m.CRT_DT ?? "",
+    }))
+    .filter((m) => m.content)
+}
+
+export async function fetchSpotExtra(name: string): Promise<CrowdExtra> {
+  const [accRaw, parkingRaw, eventRaw, roadRaw, bikeRaw] = await Promise.all([
+    rtdFetch("acc", { hotspotNm: name }).catch(() => null),
+    rtdFetch("parking", { hotspotNm: name }).catch(() => null),
+    rtdFetch("event", { hotspotNm: name }).catch(() => null),
+    rtdFetch("road", { hotspotNm: name }).catch(() => null),
+    rtdFetch("bike", { hotspotNm: name }).catch(() => null),
+  ])
+
+  const alerts: CrowdAlert[] = (Array.isArray(accRaw) ? accRaw : [])
+    .map((a: Record<string, string>) => ({
+      type: a.ACDNT_TYPE ?? "",
+      detail: a.ACDNT_DTYPE ?? "",
+      info: (a.ACDNT_INFO ?? "").trim(),
+      occurredAt: a.ACDNT_OCCR_DT ?? "",
+      expectedClearAt: a.EXP_CLR_DT ?? "",
+    }))
+    .filter((a) => a.info || a.type)
+
+  // 실시간 잔여를 주는 주차장만 — 정적 목록은 "여유"라는 질문에 답이 안 됨
+  const pk = parkingRaw as { publicParkingList?: unknown[]; privateParkingList?: unknown[] } | null
+  const lots: CrowdParkingLot[] = [...(pk?.publicParkingList ?? []), ...(pk?.privateParkingList ?? [])]
+    .map((p) => p as Record<string, unknown>)
+    .filter((p) => p.realtime === true)
+    .map((p) => {
+      const capacity = toNum(p.cpcty)
+      return {
+        name: String(p.prk_nm ?? ""),
+        capacity,
+        available: Math.max(capacity - toNum(p.cur_prk_cnt), 0),
+        lat: toNum(p.lat),
+        lng: toNum(p.lng),
+      }
+    })
+    .filter((p) => p.name && p.capacity > 0)
+  const parkingCapacity = lots.reduce((s, p) => s + p.capacity, 0)
+  const parkingAvailable = lots.reduce((s, p) => s + p.available, 0)
+  const parking =
+    lots.length > 0
+      ? {
+          available: parkingAvailable,
+          percent: Math.round((parkingAvailable / parkingCapacity) * 100),
+          lots,
+        }
+      : null
+
+  // 문화행사: row가 주최기관별 그룹 — 오늘 진행 중인 것만, 무료 우선
+  const kstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+  const groups = (eventRaw as { row?: Record<string, unknown[]> } | null)?.row ?? {}
+  const events: CrowdEvent[] = Object.values(groups)
+    .flat()
+    .map((e) => e as Record<string, string>)
+    .filter((e) => {
+      const start = (e.strtDate ?? "").slice(0, 10)
+      const end = (e.endDate ?? "").slice(0, 10)
+      return start && end && start <= kstToday && kstToday <= end
+    })
+    .map((e) => ({
+      title: (e.TITLE ?? "").trim(),
+      place: (e.PLACE ?? "").trim(),
+      period: e.DATE ?? "",
+      free: e.isFree === "무료",
+      category: e.CODENAME ?? "",
+      url: e.HMPG_ADDR || e.orgLink || "",
+    }))
+    .filter((e) => e.title)
+    .sort((a, b) => Number(b.free) - Number(a.free))
+    .slice(0, 12)
+
+  // row[0]가 핫스팟 전체 요약(지수·평균속도·안내문)을 담고 있음
+  const roadRows = (roadRaw as { row?: unknown[] } | null)?.row
+  const r0 = Array.isArray(roadRows) && roadRows.length > 0 ? (roadRows[0] as Record<string, string>) : null
+  const road: CrowdRoadInfo | null =
+    r0 && (r0.ROAD_TRAFFIC_IDX || r0.ROAD_MSG)
+      ? {
+          idx: r0.ROAD_TRAFFIC_IDX ?? "",
+          speed: toNum(r0.ROAD_TRAFFIC_SPD),
+          msg: (r0.ROAD_MSG ?? "").trim(),
+          color: r0.COLOR ?? "#999",
+        }
+      : null
+
+  const bk = bikeRaw as { parkingBikeTotCnt?: unknown; row?: unknown[] } | null
+  const stations: CrowdBikeStation[] = (bk?.row ?? [])
+    .map((s) => s as Record<string, unknown>)
+    .map((s) => ({
+      name: String(s.sbike_spot_nm ?? "").replace(/^\d+\.\s*/, ""),
+      bikes: toNum(s.sbike_parking_cnt),
+      racks: toNum(s.sbike_rack_cnt),
+      lat: toNum(s.sbike_y),
+      lng: toNum(s.sbike_x),
+    }))
+    .filter((s) => s.name)
+    .slice(0, 24)
+  const bike = stations.length > 0 ? { bikes: toNum(bk?.parkingBikeTotCnt), stations } : null
+
+  return { alerts, parking, events, road, bike, updatedAt: new Date().toISOString() }
+}
+
 /** 서울시 실시간도시데이터의 CCTV 라이브 플레이어 페이지 (HLS 프록시 내장, iframe 허용) */
 export function cctvPlayerUrl(item: CrowdCctv): string {
   return `https://data.seoul.go.kr/SeoulRtd/cctv?src=${encodeURIComponent(item.src)}&cctvname=${encodeURIComponent(item.streamId)}`
