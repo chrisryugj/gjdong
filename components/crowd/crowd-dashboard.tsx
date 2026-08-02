@@ -845,8 +845,8 @@ export default function CrowdDashboard() {
               </button>
             </div>
           )}
-          <footer className="shrink-0 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            <p className="truncate text-[10px] leading-relaxed text-[var(--cp-text-faint)]">
+          <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <p className="min-w-0 flex-1 truncate text-[10px] leading-relaxed text-[var(--cp-text-faint)]">
               서울시 실시간 도시데이터(5분 주기, KT 통신 기반 추정) · 표준주소실록 ×{" "}
               <a
                 href="https://data.seoul.go.kr/SeoulRtd/"
@@ -857,6 +857,20 @@ export default function CrowdDashboard() {
                 서울 열린데이터광장
               </a>
             </p>
+            {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}
+            <a
+              href="https://hitscounter.dev/history?url=https://gjdong.vercel.app/crowd"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="인파레이더 방문 통계 보기"
+              className="inline-flex shrink-0 items-center hover:opacity-80"
+            >
+              <img
+                src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgjdong.vercel.app%2Fcrowd&label=visits&icon=people-fill&color=%23adb5bd&message=&style=flat&tz=Asia%2FSeoul"
+                alt="visits"
+                className="h-4"
+              />
+            </a>
           </footer>
         </aside>
       </div>
