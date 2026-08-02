@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, MoveDown, MoveUp, Navigation, Share2, SquareParking, Star, TriangleAlert } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
@@ -261,26 +261,6 @@ export default function SpotDetail({
                 )}
               </div>
             ))}
-          </div>
-        )}
-        {origin && (
-          <div className="mt-2.5 flex gap-1.5">
-            <a
-              href={`https://map.kakao.com/link/to/${encodeURIComponent(detail.name)},${origin.lat},${origin.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 py-1.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
-            >
-              <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> 카카오맵 길찾기
-            </a>
-            <a
-              href={`https://map.naver.com/p/directions/-/${origin.lng},${origin.lat},${encodeURIComponent(detail.name)}/-/transit`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 py-1.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
-            >
-              <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> 네이버 길찾기
-            </a>
           </div>
         )}
       </div>
