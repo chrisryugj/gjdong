@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, X } from "lucide-react"
+import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Navigation, Search, X } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDetail, type CrowdDisaster, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
@@ -351,6 +351,11 @@ export default function CrowdDashboard() {
 
   const noSpotMatch = query.trim().length > 1 && filtered.length === 0
 
+  const selectedSpot = useMemo(
+    () => (selectedName ? (spots.find((s) => s.name === selectedName) ?? null) : null),
+    [spots, selectedName],
+  )
+
   return (
     <div className={`crowd-page ${light ? "crowd-light" : ""} flex h-dvh flex-col bg-[var(--cp-bg)] text-[var(--cp-text)]`}>
       <CrowdHeader
@@ -487,10 +492,7 @@ export default function CrowdDashboard() {
                     <SpotDetail
                       detail={detail}
                       light={light}
-                      origin={(() => {
-                        const s = spots.find((sp) => sp.name === selectedName)
-                        return s ? { lat: s.lat, lng: s.lng } : undefined
-                      })()}
+                      origin={selectedSpot ? { lat: selectedSpot.lat, lng: selectedSpot.lng } : undefined}
                       isFav={favs.has(detail.name)}
                       onToggleFav={() => toggleFav(detail.name)}
                     />
@@ -534,6 +536,27 @@ export default function CrowdDashboard() {
                   </div>
                 )}
               </div>
+              {/* 길찾기 고정 액션바 — "가기로 결정"은 어느 스크롤 위치에서든 나오므로 항상 손에 */}
+              {selectedSpot && (
+                <div className="flex shrink-0 gap-1.5 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2">
+                  <a
+                    href={`https://map.kakao.com/link/to/${encodeURIComponent(selectedSpot.name)},${selectedSpot.lat},${selectedSpot.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
+                  >
+                    <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> 카카오맵 길찾기
+                  </a>
+                  <a
+                    href={`https://map.naver.com/p/directions/-/${selectedSpot.lng},${selectedSpot.lat},${encodeURIComponent(selectedSpot.name)}/-/transit`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
+                  >
+                    <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> 네이버 길찾기
+                  </a>
+                </div>
+              )}
             </div>
           ) : addressPin ? (
             <NearestPanel
