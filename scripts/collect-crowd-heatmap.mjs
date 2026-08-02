@@ -3,6 +3,8 @@
 // data 브랜치 heatmap.json의 (요일, 시각)별 합계·표본수에 누적한다.
 // 전역 lastSlot(YYYYMMDDHH) 마커로 이미 센 시간대는 건너뛰므로 실행 주기가
 // 겹치거나 GH cron이 몇 번 빠져도(12시간 이내) 갭 없이 자가치유된다.
+// 이전 누적을 읽지 못하면 발행하지 않고 실패한다 — force_orphan 발행이라 빈 결과를
+// 쓰면 그동안 쌓은 데이터가 히스토리째 사라져 복구할 수 없다.
 // FRESH=1 환경변수로 기존 누적을 버리고 처음부터 다시 쌓는다.
 // 출력: out-data/heatmap.json — 클라이언트는 raw.githubusercontent.com로 읽는다.
 
@@ -102,12 +104,26 @@ async function mapPool(items, size, fn) {
   return results
 }
 
+// 404(= data 브랜치·파일 없음)만 "최초 수집"으로 보고 빈 상태에서 시작한다.
+// 네트워크·5xx·파싱 실패는 기존 누적이 살아있는데 못 읽은 것이므로 중단한다.
+async function loadPrev(tries = 3) {
+  for (let i = 1; ; i++) {
+    try {
+      const res = await fetch(PREV_URL, { cache: "no-store" })
+      if (res.status === 404) return null
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err) {
+      if (i >= tries) {
+        throw new Error(`이전 누적 로드 실패 — 덮어쓰기 방지로 중단: ${err.message}`)
+      }
+      await new Promise((r) => setTimeout(r, 1000 * i))
+    }
+  }
+}
+
 const fresh = process.env.FRESH === "1"
-const prev = fresh
-  ? null
-  : await fetch(PREV_URL)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
+const prev = fresh ? null : await loadPrev()
 const spots = prev?.spots && typeof prev.spots === "object" ? prev.spots : {}
 const lastSlot = Number.isFinite(prev?.lastSlot) ? prev.lastSlot : 0
 
