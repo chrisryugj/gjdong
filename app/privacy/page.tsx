@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "표준주소실록 웹서비스와 크롬 확장 프로그램의 데이터 처리 방침",
 }
 
-const UPDATED = "2026-07-31"
+const UPDATED = "2026-08-02"
 
 export default function PrivacyPage() {
   return (
@@ -103,6 +103,13 @@ export default function PrivacyPage() {
             <p className="mt-2 text-slate-600">
               방문자 수 표시를 위해 외부 카운터(hitscounter.dev) 이미지를 불러온다. 이 요청에는
               브라우저가 통상 보내는 정보(IP·User-Agent)가 포함될 수 있다.
+            </p>
+            <p className="mt-2 text-slate-600">
+              페이지별 이용 통계는{" "}
+              <a className="underline" href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel Web Analytics</a>로
+              집계한다. 쿠키를 사용하지 않으며 방문자를 지속적으로 식별하는 값을 저장하지 않는다.
+              요청 정보(IP·User-Agent 등)는 해시로 변환해 하루 단위로만 순방문자를 구분하고,
+              수집 항목은 방문 경로·유입 경로(referrer)·국가·기기 및 브라우저 종류 수준이다.
             </p>
           </section>
 
