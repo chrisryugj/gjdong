@@ -1,16 +1,15 @@
 import AddressGenerator from "@/components/address-generator"
 import HomeInfoTabs from "@/components/home-info-tabs"
-import FacilityPromoBanner from "@/components/facility-promo-banner"
-import CrowdPromoBanner from "@/components/crowd-promo-banner"
+import ToolLinks from "@/components/tool-links"
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="container mx-auto px-4 py-4 md:py-6">
         <div className="mx-auto max-w-2xl">
-          <CrowdPromoBanner />
-          <FacilityPromoBanner />
           <AddressGenerator />
+
+          <ToolLinks />
 
           <div className="mt-8 md:mt-10">
             <HomeInfoTabs />
