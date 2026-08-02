@@ -242,13 +242,15 @@
   font-weight: 600;
   margin: 0 0 6px;
 }
-.crowd-page .crowd-cctv-pop iframe {
+.crowd-page .crowd-cctv-pop iframe,
+.crowd-page .crowd-cctv-pop video {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 0;
   background: #000;
   border-radius: 4px;
   display: block;
+  object-fit: contain;
 }
 .crowd-page .leaflet-tooltip::before {
   display: none;

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
-import { cctvPlayerUrl, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -137,9 +137,13 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     for (const c of cctvItems) {
       const marker = L.marker([c.lat, c.lng], { icon: cctvIcon, zIndexOffset: 500 })
       if (c.src) {
-        // 팝업 DOM은 열 때 삽입되므로 iframe도 그때 로드됨 (lazy)
+        // 팝업 DOM은 열 때 삽입되므로 플레이어도 그때 로드됨 (lazy)
+        // Safari 계열은 서울시 iframe 플레이어가 깨져서 네이티브 <video>로 직접 재생
+        const player = supportsNativeHls()
+          ? `<video src="${cctvStreamUrl(c)}" autoplay muted playsinline></video>`
+          : `<iframe src="${cctvPlayerUrl(c)}" title="CCTV ${escapeHtml(c.name)}" allow="autoplay"></iframe>`
         marker.bindPopup(
-          `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><iframe src="${cctvPlayerUrl(c)}" title="CCTV ${escapeHtml(c.name)}" allow="autoplay"></iframe></div>`,
+          `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p>${player}</div>`,
           { maxWidth: 320, minWidth: 280, closeButton: true },
         )
       } else {
