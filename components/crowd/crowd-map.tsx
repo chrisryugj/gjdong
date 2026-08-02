@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 
@@ -26,10 +26,24 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
   const spotLayerRef = useRef<LayerGroup | null>(null)
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
-  const markersRef = useRef<Map<string, CircleMarker>>(new Map())
+  const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
   const [ready, setReady] = useState(false)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const selectedNameRef = useRef(selectedName)
+
+  // 선택 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
+  const applySelection = useCallback((sel: string | null) => {
+    for (const { marker, spot } of markersRef.current.values()) {
+      const isSelected = spot.name === sel
+      marker.setStyle({
+        color: isSelected ? "#1e293b" : "#ffffff",
+        weight: isSelected ? 2.5 : 1.2,
+        fillOpacity: isSelected ? 0.95 : 0.85,
+      })
+      marker.setRadius(isSelected ? 11 : 5 + spot.levelNum * 1.5)
+    }
+  }, [])
 
   // 지도 초기화 (1회)
   useEffect(() => {
@@ -80,7 +94,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     }
   }, [])
 
-  // 명소 마커 갱신
+  // 명소 마커 갱신 (데이터가 바뀔 때만 재생성 — 선택 변경은 아래 setStyle 이펙트가 처리)
   useEffect(() => {
     const L = leafletRef.current
     const layer = spotLayerRef.current
@@ -89,13 +103,12 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
     markersRef.current.clear()
 
     for (const spot of spots) {
-      const isSelected = spot.name === selectedName
       const marker = L.circleMarker([spot.lat, spot.lng], {
-        radius: isSelected ? 11 : 5 + spot.levelNum * 1.5,
-        color: isSelected ? "#1e293b" : "#ffffff",
-        weight: isSelected ? 2.5 : 1.2,
+        radius: 5 + spot.levelNum * 1.5,
+        color: "#ffffff",
+        weight: 1.2,
         fillColor: spot.color,
-        fillOpacity: isSelected ? 0.95 : 0.85,
+        fillOpacity: 0.85,
       })
 
       marker.bindTooltip(
@@ -104,9 +117,17 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       )
       marker.on("click", () => onSelectRef.current(spot.name))
       marker.addTo(layer)
-      markersRef.current.set(spot.name, marker)
+      markersRef.current.set(spot.name, { marker, spot })
     }
-  }, [ready, spots, selectedName])
+    applySelection(selectedNameRef.current)
+  }, [ready, spots, applySelection])
+
+  // 선택 변경 반영
+  useEffect(() => {
+    selectedNameRef.current = selectedName
+    if (!ready) return
+    applySelection(selectedName)
+  }, [ready, selectedName, applySelection])
 
   // 선택 시 지도 이동
   useEffect(() => {

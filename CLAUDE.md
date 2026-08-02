@@ -9,6 +9,7 @@ Korean address converter tool using Kakao Local API. Converts addresses to stand
 2. **Facility Dashboard** (`/facility`) - Map-based facility manager: paste/upload any facility table (column order auto-detected), filter by admin-dong/category, search, colored markers, Excel/screenshot/report export. Data persists in `localStorage` only.
 3. **Tableau Geocoder** (`/tableau-geocoder`) - CSV/Excel file upload for bulk geocoding (adds lat/lon columns)
 4. **Chrome Extension** (`extension/`) - Browser extension for instant address conversion (popup, right-click, shortcut, auto-detect)
+5. **Seoul Crowd Radar** (`/crowd`) - Real-time congestion dashboard for 121 Seoul hotspots via the Seoul RTD open API proxy ([lib/crowd/seoul-rtd.ts](lib/crowd/seoul-rtd.ts), Referer header required). GPS nearby recommendations, purpose presets, favorites (localStorage), `?spot=` deep links, Kakao/Naver directions, PWA install (`public/crowd-manifest.webmanifest` + `crowd-sw.js`), and a day×hour heatmap: `.github/workflows/crowd-heatmap.yml` collects hourly via `scripts/collect-crowd-heatmap.mjs` into the orphan `data` branch (`heatmap.json`), which the client reads from raw.githubusercontent.com.
 
 ## Development Commands
 
