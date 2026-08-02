@@ -1,7 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Cctv, Check, ChevronDown, MoveDown, MoveUp, Navigation, Share2, Star } from "lucide-react"
+import {
+  Bike,
+  CalendarDays,
+  CarFront,
+  Cctv,
+  Check,
+  ChevronDown,
+  MoveDown,
+  MoveUp,
+  Navigation,
+  Share2,
+  SquareParking,
+  Star,
+  TriangleAlert,
+} from "lucide-react"
 import {
   Bar,
   Cell,
@@ -21,6 +35,7 @@ import {
   levelNum,
   supportsNativeHls,
   type CrowdDetail,
+  type CrowdExtra,
 } from "@/lib/crowd/seoul-rtd"
 
 // ── 요일×시간 히트맵 (GitHub Actions가 매시 수집해 data 브랜치에 누적)
@@ -194,6 +209,45 @@ export default function SpotDetail({
     }
   }, [detail.name])
 
+  // 부가정보(사고·주차·행사·도로·따릉이)는 첫 페인트를 막지 않게 지연 로드
+  const [extra, setExtra] = useState<CrowdExtra | null>(null)
+  useEffect(() => {
+    setExtra(null)
+    const controller = new AbortController()
+    fetch(`/api/crowd/extra?spot=${encodeURIComponent(detail.name)}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<CrowdExtra>) : null))
+      .then((d) => {
+        if (d) setExtra(d)
+      })
+      .catch(() => {
+        // 부가정보 실패는 조용히 무시 — 핵심 상세는 이미 떠 있음
+      })
+    return () => controller.abort()
+  }, [detail.name])
+
+  // 주차장·따릉이 대여소는 명소 중심에서 가까운 순으로
+  const parkingLots = useMemo(() => {
+    const lots = extra?.parking?.lots ?? []
+    if (!origin) return lots.slice(0, 3)
+    return [...lots]
+      .sort(
+        (a, b) =>
+          distanceM(origin.lat, origin.lng, a.lat, a.lng) - distanceM(origin.lat, origin.lng, b.lat, b.lng),
+      )
+      .slice(0, 3)
+  }, [extra, origin])
+
+  const bikeStations = useMemo(() => {
+    const stations = extra?.bike?.stations ?? []
+    if (!origin) return stations.slice(0, 4)
+    return [...stations]
+      .sort(
+        (a, b) =>
+          distanceM(origin.lat, origin.lng, a.lat, a.lng) - distanceM(origin.lat, origin.lng, b.lat, b.lng),
+      )
+      .slice(0, 4)
+  }, [extra, origin])
+
   const heatTotal = useMemo(() => {
     if (!heat?.cnt) return 0
     let total = 0
@@ -292,6 +346,31 @@ export default function SpotDetail({
               </li>
             ))}
           </ul>
+        )}
+        {/* 사고·공사·집회 통제 — 있을 때만 경고 (평시엔 빈 배열) */}
+        {extra && extra.alerts.length > 0 && (
+          <div className="mt-2.5 space-y-1.5">
+            {extra.alerts.map((a, i) => (
+              <div key={i} className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2">
+                <p className="flex items-center gap-1.5 text-[12px] font-semibold text-red-500">
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                  {a.type}
+                  {a.detail && a.detail !== a.type && <span className="font-normal">· {a.detail}</span>}
+                </p>
+                {a.info && <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--cp-text)]">{a.info}</p>}
+                {a.expectedClearAt && (
+                  <p className="mt-0.5 font-mono text-[10px] tabular-nums text-[var(--cp-text-dim)]">
+                    {/* 자정 넘겨 해소되는 공사는 시각만 보여주면 오해 — 오늘이 아니면 날짜까지 */}
+                    해소 예상{" "}
+                    {a.expectedClearAt.slice(0, 10) ===
+                    new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+                      ? a.expectedClearAt.slice(11, 16)
+                      : a.expectedClearAt.slice(5, 16)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
         {origin && (
           <div className="mt-2.5 flex gap-1.5">
@@ -507,6 +586,159 @@ export default function SpotDetail({
             })}
           </ul>
           <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">탭하면 실시간 영상 (서울시 교통 CCTV) · 명소에 따라 없을 수 있어요</p>
+        </div>
+      )}
+
+      {/* 주차 여유 — 실시간 잔여를 주는 주차장만 (자차 방문 판단용) */}
+      {extra?.parking && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h3 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+              <SquareParking className="h-3.5 w-3.5" /> 주차 여유
+            </h3>
+            <span
+              className="font-mono text-[12px] font-semibold tabular-nums"
+              style={{
+                color:
+                  extra.parking.percent >= 40 ? "#00d369" : extra.parking.percent >= 15 ? "#ffb100" : "#ff3939",
+              }}
+            >
+              {extra.parking.available.toLocaleString()}면 ({extra.parking.percent}%)
+            </span>
+          </div>
+          <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
+            {parkingLots.map((lot) => {
+              const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, lot.lat, lot.lng)) : null
+              const pct = Math.round((lot.available / lot.capacity) * 100)
+              return (
+                <li
+                  key={lot.name}
+                  className="flex items-center gap-2.5 border-b border-[var(--cp-border-faint)] px-3 py-2 last:border-b-0"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--cp-text)]">{lot.name}</span>
+                  {meters != null && (
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-dim)]">
+                      {meters >= 1000 ? `${(meters / 1000).toFixed(1)}km` : `${meters}m`}
+                    </span>
+                  )}
+                  <span
+                    className="shrink-0 font-mono text-[12px] font-semibold tabular-nums"
+                    style={{ color: pct >= 40 ? "#00d369" : pct >= 15 ? "#ffb100" : "#ff3939" }}
+                  >
+                    {lot.available}
+                  </span>
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-faint)]">
+                    /{lot.capacity}면
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">실시간 잔여를 제공하는 주차장 기준</p>
+        </div>
+      )}
+
+      {/* 진행 중 문화행사 — 붐빔의 원인이자 갈 이유 */}
+      {extra && extra.events.length > 0 && (
+        <div>
+          <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <CalendarDays className="h-3.5 w-3.5" /> 진행 중 문화행사{" "}
+            <span className="font-mono tabular-nums">({extra.events.length})</span>
+          </h3>
+          <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
+            {extra.events.slice(0, 6).map((ev, i) => (
+              <li key={i} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
+                <a
+                  href={ev.url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-[var(--cp-hover)]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] text-[var(--cp-text)]">{ev.title}</p>
+                    <p className="truncate text-[11px] text-[var(--cp-text-dim)]">
+                      {ev.place && `${ev.place} · `}
+                      <span className="font-mono tabular-nums">{ev.period}</span>
+                    </p>
+                  </div>
+                  {ev.free && (
+                    <span className="shrink-0 rounded-full border border-emerald-500/40 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+                      무료
+                    </span>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+          {extra.events.length > 6 && (
+            <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">외 {extra.events.length - 6}건 진행 중</p>
+          )}
+        </div>
+      )}
+
+      {/* 도로 소통 — "차로 가도 되나" 한 줄 답 */}
+      {extra?.road && (
+        <div>
+          <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <CarFront className="h-3.5 w-3.5" /> 도로 소통
+          </h3>
+          <div className="flex items-center gap-2.5 rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2.5">
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold"
+              style={{
+                color: extra.road.color,
+                background: `${extra.road.color}1f`,
+                border: `1px solid ${extra.road.color}55`,
+              }}
+            >
+              {extra.road.idx}
+            </span>
+            <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-[var(--cp-text-muted)]">{extra.road.msg}</p>
+            {extra.road.speed > 0 && (
+              <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text)]">
+                {extra.road.speed}
+                <span className="text-[10px] text-[var(--cp-text-dim)]">km/h</span>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 따릉이 — 대여 가능 대수 (한강공원·데이트 코스) */}
+      {extra?.bike && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h3 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+              <Bike className="h-3.5 w-3.5" /> 따릉이
+            </h3>
+            <span className="font-mono text-[12px] tabular-nums text-[var(--cp-text)]">
+              지금 <span className="font-semibold text-[var(--cp-text-strong)]">{extra.bike.bikes}</span>대
+            </span>
+          </div>
+          <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
+            {bikeStations.map((st) => {
+              const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, st.lat, st.lng)) : null
+              return (
+                <li
+                  key={st.name}
+                  className="flex items-center gap-2.5 border-b border-[var(--cp-border-faint)] px-3 py-2 last:border-b-0"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--cp-text)]">{st.name}</span>
+                  {meters != null && (
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-dim)]">
+                      {meters >= 1000 ? `${(meters / 1000).toFixed(1)}km` : `${meters}m`}
+                    </span>
+                  )}
+                  <span
+                    className="shrink-0 font-mono text-[12px] font-semibold tabular-nums"
+                    style={{ color: st.bikes === 0 ? "#ff3939" : st.bikes < 3 ? "#ffb100" : "#00d369" }}
+                  >
+                    {st.bikes}대
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
 
