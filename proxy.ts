@@ -9,7 +9,9 @@ export function proxy(request: NextRequest) {
 
   const origin = request.headers.get("origin") || ""
   const isExtension = origin.startsWith("chrome-extension://") || origin.startsWith("moz-extension://")
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtension
+  // 브라우저는 same-origin GET에 Origin 헤더를 싣지 않는다 — GET/HEAD는 Origin 부재 시 통과
+  const isSameOriginGet = origin === "" && (request.method === "GET" || request.method === "HEAD")
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || isExtension || isSameOriginGet
 
   if (!isAllowed) {
     return new NextResponse(JSON.stringify({ error: "Forbidden" }), {

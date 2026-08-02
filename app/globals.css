@@ -162,3 +162,52 @@
 .leaflet-tooltip.facility-label::before {
   display: none;
 }
+
+/* ── 서울 인파실록 (/crowd) 다크 관제판 */
+.crowd-page .leaflet-container {
+  background: #0b0f14;
+  font-family: inherit;
+}
+.crowd-page .leaflet-tooltip {
+  background: #101720;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #e2e8f0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  padding: 4px 8px;
+}
+.crowd-page .leaflet-tooltip::before {
+  display: none;
+}
+.crowd-page .crowd-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.crowd-page .crowd-tip b {
+  font-weight: 600;
+}
+.crowd-page .leaflet-bar a {
+  background: #101720;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+}
+.crowd-page .leaflet-bar a:hover {
+  background: #1a2330;
+}
+.crowd-page .leaflet-control-attribution {
+  background: rgba(11, 15, 20, 0.75);
+  color: #475569;
+}
+.crowd-page .leaflet-control-attribution a {
+  color: #64748b;
+}
+.crowd-page .scrollbar-thin::-webkit-scrollbar {
+  height: 5px;
+}
+.crowd-page .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
