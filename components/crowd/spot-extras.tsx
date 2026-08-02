@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Bike, CalendarDays, CarFront, SquareParking } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Navigation, SquareParking } from "lucide-react"
 import { textColor, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 
@@ -61,31 +61,38 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
             {parkingLots.map((lot) => {
               const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, lot.lat, lot.lng)) : null
               const pct = Math.round((lot.available / lot.capacity) * 100)
+              const linked = lot.lat !== 0 && lot.lng !== 0
               return (
-                <li
-                  key={lot.name}
-                  className="flex items-center gap-2.5 border-b border-[var(--cp-border-faint)] px-3 py-2 last:border-b-0"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{lot.name}</span>
-                  {meters != null && (
-                    <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
-                      {formatMeters(meters)}
-                    </span>
-                  )}
-                  <span
-                    className="shrink-0 font-mono text-[13px] font-semibold tabular-nums"
-                    style={{ color: textColor(pct >= 40 ? "#00d369" : pct >= 15 ? "#ffb100" : "#ff3939", light) }}
+                <li key={lot.name} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
+                  <a
+                    href={linked ? `https://map.kakao.com/link/to/${encodeURIComponent(lot.name)},${lot.lat},${lot.lng}` : undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={linked ? "카카오맵 길안내" : undefined}
+                    className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
-                    {lot.available}
-                  </span>
-                  <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">
-                    /{lot.capacity}면
-                  </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{lot.name}</span>
+                    {meters != null && (
+                      <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
+                        {formatMeters(meters)}
+                      </span>
+                    )}
+                    <span
+                      className="shrink-0 font-mono text-[13px] font-semibold tabular-nums"
+                      style={{ color: textColor(pct >= 40 ? "#00d369" : pct >= 15 ? "#ffb100" : "#ff3939", light) }}
+                    >
+                      {lot.available}
+                    </span>
+                    <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">
+                      /{lot.capacity}면
+                    </span>
+                    {linked && <Navigation className="h-3 w-3 shrink-0 text-[var(--cp-text-faint)]" />}
+                  </a>
                 </li>
               )
             })}
           </ul>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">실시간 잔여를 제공하는 주차장 기준</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">실시간 잔여를 제공하는 주차장 기준 · 탭하면 카카오맵 길안내</p>
         </div>
       )}
 
@@ -171,27 +178,35 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
             {bikeStations.map((st) => {
               const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, st.lat, st.lng)) : null
+              const linked = st.lat !== 0 && st.lng !== 0
               return (
-                <li
-                  key={st.name}
-                  className="flex items-center gap-2.5 border-b border-[var(--cp-border-faint)] px-3 py-2 last:border-b-0"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{st.name}</span>
-                  {meters != null && (
-                    <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
-                      {formatMeters(meters)}
-                    </span>
-                  )}
-                  <span
-                    className="shrink-0 font-mono text-[13px] font-semibold tabular-nums"
-                    style={{ color: textColor(st.bikes === 0 ? "#ff3939" : st.bikes < 3 ? "#ffb100" : "#00d369", light) }}
+                <li key={st.name} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
+                  <a
+                    href={linked ? `https://map.kakao.com/link/to/${encodeURIComponent(st.name)},${st.lat},${st.lng}` : undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={linked ? "카카오맵 길안내" : undefined}
+                    className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
-                    {st.bikes}대
-                  </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{st.name}</span>
+                    {meters != null && (
+                      <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
+                        {formatMeters(meters)}
+                      </span>
+                    )}
+                    <span
+                      className="shrink-0 font-mono text-[13px] font-semibold tabular-nums"
+                      style={{ color: textColor(st.bikes === 0 ? "#ff3939" : st.bikes < 3 ? "#ffb100" : "#00d369", light) }}
+                    >
+                      {st.bikes}대
+                    </span>
+                    {linked && <Navigation className="h-3 w-3 shrink-0 text-[var(--cp-text-faint)]" />}
+                  </a>
                 </li>
               )
             })}
           </ul>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">탭하면 카카오맵 길안내</p>
         </div>
       )}
     </>
