@@ -210,6 +210,22 @@
   background: #d4dadc;
   font-family: inherit;
 }
+/* 명소 마커 호버 — SVG transform이라 리렌더 없이 커짐 (radius/색은 JS가 관리하므로 안 겹침) */
+.crowd-page .leaflet-overlay-pane path.leaflet-interactive {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.15s ease-out;
+}
+@media (hover: hover) {
+  .crowd-page .leaflet-overlay-pane path.leaflet-interactive:hover {
+    transform: scale(1.35);
+  }
+}
+/* 혼잡도 글로우 pane — canvas 원들을 블러로 뭉개서 히트맵 느낌 */
+.crowd-page .leaflet-crowdGlow-pane {
+  filter: blur(9px);
+  pointer-events: none;
+}
 .crowd-page .leaflet-tooltip {
   background: var(--cp-tip-bg);
   border: 1px solid var(--cp-border-strong);

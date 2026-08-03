@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker } from "leaflet"
+import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker, Renderer } from "leaflet"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 
 interface CrowdMapProps {
@@ -24,6 +24,8 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
   const spotLayerRef = useRef<LayerGroup | null>(null)
+  const glowLayerRef = useRef<LayerGroup | null>(null)
+  const glowRendererRef = useRef<Renderer | null>(null)
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
@@ -69,6 +71,13 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
         maxZoom: 19,
       }).addTo(map)
 
+      // 혼잡도 글로우 전용 pane — 마커(overlayPane, z=400) 아래, CSS blur는 globals.css에서
+      const glowPane = map.createPane("crowdGlow")
+      glowPane.style.zIndex = "350"
+      glowPane.style.pointerEvents = "none"
+      glowRendererRef.current = L.canvas({ pane: "crowdGlow" })
+      glowLayerRef.current = L.layerGroup().addTo(map)
+
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
       cctvLayerRef.current = L.layerGroup().addTo(map)
@@ -88,6 +97,8 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       mapInstanceRef.current?.remove()
       mapInstanceRef.current = null
       spotLayerRef.current = null
+      glowLayerRef.current = null
+      glowRendererRef.current = null
       pinLayerRef.current = null
       cctvLayerRef.current = null
       markersRef.current.clear()
@@ -98,11 +109,25 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
   useEffect(() => {
     const L = leafletRef.current
     const layer = spotLayerRef.current
+    const glowLayer = glowLayerRef.current
+    const glowRenderer = glowRendererRef.current
     if (!ready || !L || !layer) return
     layer.clearLayers()
+    glowLayer?.clearLayers()
     markersRef.current.clear()
 
     for (const spot of spots) {
+      // 혼잡도 글로우 — 보간 아님, 스팟 주변 분위기 표시 (혼잡할수록 넓고 진하게)
+      if (glowLayer && glowRenderer) {
+        L.circle([spot.lat, spot.lng], {
+          radius: 200 + spot.levelNum * 80, // m
+          stroke: false,
+          fillColor: spot.color,
+          fillOpacity: 0.13 + spot.levelNum * 0.05,
+          interactive: false,
+          renderer: glowRenderer,
+        }).addTo(glowLayer)
+      }
       const marker = L.circleMarker([spot.lat, spot.lng], {
         radius: 5 + spot.levelNum * 1.5,
         color: "#ffffff",
