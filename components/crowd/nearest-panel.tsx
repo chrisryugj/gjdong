@@ -4,6 +4,7 @@ import { X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { formatKm, LevelBadge, type AddressPin } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
+import { romanizeAddress } from "@/lib/crowd/romanize"
 
 interface NearestPanelProps {
   addressPin: AddressPin
@@ -16,13 +17,15 @@ interface NearestPanelProps {
 
 /** 주소·내 위치 기준 근처 명소 목록 */
 export default function NearestPanel({ addressPin, nearest, recommendedName, light, onClear, onSelect }: NearestPanelProps) {
-  const { t, spot: trSpotName, cat } = useLang()
+  const { lang, t, spot: trSpotName, cat } = useLang()
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 border-b border-[var(--cp-border)] px-4 py-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-wider text-[var(--cp-text-dim)]">{t.refPoint}</p>
-          <p className="mt-0.5 truncate text-[14px] font-medium text-[var(--cp-text-strong)]">{addressPin.label}</p>
+          <p className="mt-0.5 truncate text-[14px] font-medium text-[var(--cp-text-strong)]">
+            {lang === "ko" ? addressPin.label : romanizeAddress(addressPin.label)}
+          </p>
         </div>
         <button
           onClick={onClear}

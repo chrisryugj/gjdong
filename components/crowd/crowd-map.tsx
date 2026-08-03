@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker, Renderer } from "leaflet"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
+import { romanizeAddress } from "@/lib/crowd/romanize"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -224,7 +225,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     })
 
     const pin: LeafletMarker = L.marker([addressPin.lat, addressPin.lng], { icon: pinIcon, zIndexOffset: 1000 })
-    pin.bindTooltip(`<div class="crowd-tip"><b>${escapeHtml(addressPin.label)}</b></div>`, {
+    pin.bindTooltip(`<div class="crowd-tip"><b>${escapeHtml(lang === "ko" ? addressPin.label : romanizeAddress(addressPin.label))}</b></div>`, {
       direction: "top",
       offset: [0, -40],
     })
@@ -244,7 +245,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       bounds.extend([spot.lat, spot.lng])
     }
     map.flyToBounds(bounds, { padding: [60, 60], duration: 0.8, maxZoom: 15 })
-  }, [ready, addressPin, nearestNames, spots])
+  }, [ready, addressPin, nearestNames, spots, lang])
 
   return <div ref={mapRef} className="crowd-map h-full w-full" />
 }

@@ -35,10 +35,13 @@ export default function CrowdHeader({
     <>
       {/* ── 헤더 */}
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 md:px-5">
+        {/* 제목은 min-w-0+truncate — 긴 외국어 제목이 우측 컨트롤과 겹치지 않게 말줄임 */}
         <div className="flex min-w-0 items-baseline gap-3">
           <h1
-            className={`shrink-0 text-xl text-[var(--cp-text-strong)] md:text-2xl ${
-              lang === "ko" ? "[font-family:Joseon100Years,serif]" : "font-semibold tracking-tight"
+            className={`min-w-0 truncate text-[var(--cp-text-strong)] ${
+              lang === "ko"
+                ? "text-xl md:text-2xl [font-family:Joseon100Years,serif]"
+                : "text-lg font-semibold tracking-tight sm:text-xl md:text-2xl"
             }`}
           >
             {t.title}
