@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
+import { useLang } from "@/components/crowd/lang-context"
+import { trAge, trAlert, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
 import SpotCctv from "@/components/crowd/spot-cctv"
@@ -105,6 +107,8 @@ export default function SpotDetail({
   isFav?: boolean
   onToggleFav?: () => void
 }) {
+  const { lang, t, spot: trSpotName, level: trLv } = useLang()
+  const trAgeLabel = (label: string) => trAge(label, lang)
   const C = light ? BAR_COLORS.light : BAR_COLORS.dark
   const now = detail.series[detail.nowIndex]
   const maxAge = useMemo(() => Math.max(...detail.ages.map((a) => a.value)), [detail.ages])
@@ -128,7 +132,11 @@ export default function SpotDetail({
 
   const share = async () => {
     const url = window.location.href
-    const data = { title: `서울 인파레이더 — ${detail.name}`, text: `${detail.name} 지금 ${detail.level}`, url }
+    const data = {
+      title: `${t.title} — ${trSpotName(detail.name)}`,
+      text: t.shareText(trSpotName(detail.name), trLv(detail.level)),
+      url,
+    }
     if (navigator.share) {
       try {
         await navigator.share(data)
@@ -148,14 +156,14 @@ export default function SpotDetail({
       <div>
         <div className="flex items-start justify-between gap-2">
           <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight text-[var(--cp-text-strong)] md:text-xl">
-            {detail.name}
+            {trSpotName(detail.name)}
           </h2>
           {onToggleFav && (
             <button
               onClick={onToggleFav}
               className="shrink-0 rounded p-1.5 transition-colors hover:bg-[var(--cp-hover)]"
-              aria-label={isFav ? "즐겨찾기 해제" : "즐겨찾기"}
-              title="즐겨찾기"
+              aria-label={isFav ? t.unfavorite : t.favorite}
+              title={t.favorite}
             >
               <Star className={`h-4 w-4 ${isFav ? "fill-amber-400 text-amber-400" : "text-[var(--cp-text-dim)]"}`} />
             </button>
@@ -163,8 +171,8 @@ export default function SpotDetail({
           <button
             onClick={() => void share()}
             className="shrink-0 rounded p-1.5 text-[var(--cp-text-dim)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
-            aria-label="공유"
-            title="링크 공유"
+            aria-label={t.share}
+            title={t.share}
           >
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
           </button>
@@ -172,12 +180,15 @@ export default function SpotDetail({
             className="shrink-0 rounded-full px-2.5 py-1 text-[13px] font-bold"
             style={{ color: textColor(detail.color, light), background: `${detail.color}1f`, border: `1px solid ${detail.color}55` }}
           >
-            {detail.level}
+            {trLv(detail.level)}
           </span>
         </div>
         {now && (
           <p className="mt-1.5 font-mono text-[14px] tabular-nums text-[var(--cp-text)]">
-            지금 약 <span className="text-[19px] font-bold text-[var(--cp-text-strong)]">{now.range || `${now.people.toLocaleString()}명`}</span>
+            {t.nowAbout}{" "}
+            <span className="text-[19px] font-bold text-[var(--cp-text-strong)]">
+              {now.range ? trRange(now.range, lang) : t.people(now.people)}
+            </span>
           </p>
         )}
         {/* 요약 스트립 — 아래 섹션들의 답을 한 줄로, 칩 탭 = 해당 섹션 점프 */}
@@ -186,7 +197,7 @@ export default function SpotDetail({
             {extra?.parking && (
               <JumpChip
                 icon={<SquareParking className="h-3 w-3" />}
-                label="주차"
+                label={t.chipParking}
                 value={`${extra.parking.percent}%`}
                 color={textColor(
                   extra.parking.percent >= 40 ? "#00d369" : extra.parking.percent >= 15 ? "#ffb100" : "#ff3939",
@@ -206,7 +217,7 @@ export default function SpotDetail({
             {extra && extra.events.length > 0 && (
               <JumpChip
                 icon={<CalendarDays className="h-3 w-3" />}
-                label="행사"
+                label={t.chipEvents}
                 value={String(extra.events.length)}
                 target="crowd-sec-events"
               />
@@ -214,8 +225,8 @@ export default function SpotDetail({
             {extra?.bike && (
               <JumpChip
                 icon={<Bike className="h-3 w-3" />}
-                label="따릉이"
-                value={`${extra.bike.bikes}대`}
+                label={t.chipBike}
+                value={t.bikeCount(extra.bike.bikes)}
                 target="crowd-sec-bike"
               />
             )}
@@ -229,9 +240,9 @@ export default function SpotDetail({
             )}
           </div>
         )}
-        {detail.message.length > 0 && (
+        {trLevelMessages(detail.message, detail.levelNum, lang).length > 0 && (
           <ul className="mt-2 space-y-0.5">
-            {detail.message.map((m, i) => (
+            {trLevelMessages(detail.message, detail.levelNum, lang).map((m, i) => (
               <li key={i} className="text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
                 {m}
               </li>
@@ -245,14 +256,14 @@ export default function SpotDetail({
               <div key={i} className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2">
                 <p className={`flex items-center gap-1.5 text-[13px] font-semibold ${light ? "text-red-700" : "text-red-500"}`}>
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
-                  {a.type}
-                  {a.detail && a.detail !== a.type && <span className="font-normal">· {a.detail}</span>}
+                  {trAlert(a.type, lang)}
+                  {a.detail && a.detail !== a.type && <span className="font-normal">· {trAlert(a.detail, lang)}</span>}
                 </p>
                 {a.info && <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cp-text)]">{a.info}</p>}
                 {a.expectedClearAt && (
                   <p className="mt-0.5 font-mono text-[11px] tabular-nums text-[var(--cp-text-dim)]">
                     {/* 자정 넘겨 해소되는 공사는 시각만 보여주면 오해 — 오늘이 아니면 날짜까지 */}
-                    해소 예상{" "}
+                    {t.expectedClear}{" "}
                     {a.expectedClearAt.slice(0, 10) ===
                     new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
                       ? a.expectedClearAt.slice(11, 16)
@@ -267,9 +278,9 @@ export default function SpotDetail({
 
       {/* 추세 */}
       <div className="grid grid-cols-3 gap-2">
-        <TrendBadge label="1시간 전 대비" rate={detail.trend.hour1.rate} dir={detail.trend.hour1.dir} light={light} />
-        <TrendBadge label="3시간 전 대비" rate={detail.trend.hour3.rate} dir={detail.trend.hour3.dir} light={light} />
-        <TrendBadge label="한 달 전 대비" rate={detail.trend.month1.rate} dir={detail.trend.month1.dir} light={light} />
+        <TrendBadge label={t.trendH1} rate={detail.trend.hour1.rate} dir={detail.trend.hour1.dir} light={light} />
+        <TrendBadge label={t.trendH3} rate={detail.trend.hour3.rate} dir={detail.trend.hour3.dir} light={light} />
+        <TrendBadge label={t.trendM1} rate={detail.trend.month1.rate} dir={detail.trend.month1.dir} light={light} />
       </div>
 
       {/* 24시간 타임라인 */}
@@ -287,13 +298,13 @@ export default function SpotDetail({
       {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘 */}
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text)] [&::-webkit-details-marker]:hidden">
-          방문자 구성 <span className="font-normal normal-case text-[var(--cp-text-faint)]">연령 · 성비 · 상주비</span>
+          {t.visitorTitle} <span className="font-normal normal-case text-[var(--cp-text-faint)]">{t.visitorSub}</span>
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         </summary>
         <div className="mt-3 space-y-1.5">
           {detail.ages.map((age) => (
             <div key={age.label} className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-[12px] text-[var(--cp-text-muted)]">{age.label}</span>
+              <span className="w-16 shrink-0 text-[12px] text-[var(--cp-text-muted)]">{trAgeLabel(age.label)}</span>
               <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--cp-track)]">
                 <div
                   className="h-full rounded-full"
@@ -316,14 +327,14 @@ export default function SpotDetail({
             <RatioBar
               left={detail.gender.male}
               right={detail.gender.female}
-              leftLabel="남성"
-              rightLabel="여성"
+              leftLabel={t.male}
+              rightLabel={t.female}
             />
             <RatioBar
               left={detail.resident.resident}
               right={detail.resident.nonResident}
-              leftLabel="상주 인구"
-              rightLabel="방문 인구"
+              leftLabel={t.residents}
+              rightLabel={t.visitors}
               leftColor={C.residentL}
               rightColor={C.residentR}
             />
@@ -335,7 +346,7 @@ export default function SpotDetail({
       {detail.weather.length > 0 && (
         <div>
           <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-            시간대별 날씨
+            {t.weatherTitle}
           </h3>
           <div className="scrollbar-thin flex gap-1 overflow-x-auto pb-1">
             {detail.weather.map((w) => (
@@ -343,7 +354,7 @@ export default function SpotDetail({
                 key={w.hour}
                 className="flex min-w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-md border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] px-1.5 py-2"
               >
-                <span className="text-[11px] text-[var(--cp-text-dim)]">{w.hour}</span>
+                <span className="text-[11px] text-[var(--cp-text-dim)]">{trHour(w.hour, lang)}</span>
                 <span className="font-mono text-[14px] font-semibold tabular-nums text-[var(--cp-text-strong)]">
                   {w.temp != null ? `${w.temp}°` : "-"}
                 </span>
@@ -357,7 +368,7 @@ export default function SpotDetail({
               </div>
             ))}
           </div>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">기온 · 강수확률 (기상청 단기예보)</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.weatherNote}</p>
         </div>
       )}
     </div>

@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker, Renderer } from "leaflet"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
+  lang: Lang
   selectedName: string | null
   addressPin: { label: string; lat: number; lng: number } | null
   nearestNames: string[]
@@ -19,7 +21,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, selectedName, addressPin, nearestNames, cctvItems, onSelect }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -137,7 +139,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       })
 
       marker.bindTooltip(
-        `<div class="crowd-tip"><b>${escapeHtml(spot.name)}</b><span style="color:${spot.color}">● ${escapeHtml(spot.level)}</span></div>`,
+        `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span></div>`,
         { direction: "top", offset: [0, -8], opacity: 1 },
       )
       marker.on("click", () => onSelectRef.current(spot.name))
@@ -145,7 +147,7 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
       markersRef.current.set(spot.name, { marker, spot })
     }
     applySelection(selectedNameRef.current)
-  }, [ready, spots, applySelection])
+  }, [ready, spots, lang, applySelection])
 
   // 선택 변경 반영
   useEffect(() => {
@@ -193,14 +195,14 @@ export default function CrowdMap({ spots, selectedName, addressPin, nearestNames
           { maxWidth: 320, minWidth: 280, closeButton: true },
         )
       } else {
-        marker.bindTooltip(`<div class="crowd-tip"><b>CCTV · ${escapeHtml(c.name)}</b><span>영상 없음</span></div>`, {
-          direction: "top",
-          offset: [0, -12],
-        })
+        marker.bindTooltip(
+          `<div class="crowd-tip"><b>CCTV · ${escapeHtml(c.name)}</b><span>${escapeHtml(UI[lang].noVideo)}</span></div>`,
+          { direction: "top", offset: [0, -12] },
+        )
       }
       marker.addTo(layer)
     }
-  }, [ready, cctvItems])
+  }, [ready, cctvItems, lang])
 
   // 주소 핀 + 근처 명소 연결선
   useEffect(() => {
