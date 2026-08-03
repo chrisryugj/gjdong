@@ -4,9 +4,11 @@ import { useMemo, useState } from "react"
 import { Cctv, ChevronDown } from "lucide-react"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
+import { useLang } from "@/components/crowd/lang-context"
 
 /** 주변 CCTV 목록 + 인라인 플레이어 — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름 */
 export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?: { lat: number; lng: number } }) {
+  const { t } = useLang()
   const [openCctv, setOpenCctv] = useState<string | null>(null)
   const nativeHls = useMemo(() => supportsNativeHls(), [])
 
@@ -23,7 +25,7 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
   return (
     <div id="crowd-sec-cctv" className="scroll-mt-2">
       <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-        주변 CCTV <span className="font-mono tabular-nums">({cctvList.length})</span>
+        {t.cctvTitle} <span className="font-mono tabular-nums">({cctvList.length})</span>
       </h3>
       <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
         {cctvList.map((c) => {
@@ -48,7 +50,7 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
                     className={`h-3.5 w-3.5 shrink-0 text-[var(--cp-text-dim)] transition-transform ${isOpen ? "rotate-180" : ""}`}
                   />
                 ) : (
-                  <span className="shrink-0 text-[11px] text-[var(--cp-text-faint)]">영상 없음</span>
+                  <span className="shrink-0 text-[11px] text-[var(--cp-text-faint)]">{t.noVideo}</span>
                 )}
               </button>
               {isOpen && (
@@ -75,7 +77,7 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
           )
         })}
       </ul>
-      <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">탭하면 실시간 영상 (서울시 교통 CCTV) · 명소에 따라 없을 수 있어요</p>
+      <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.cctvNote}</p>
     </div>
   )
 }

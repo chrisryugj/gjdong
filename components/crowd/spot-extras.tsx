@@ -4,6 +4,8 @@ import { useMemo } from "react"
 import { Bike, CalendarDays, CarFront, Navigation, SquareParking } from "lucide-react"
 import { textColor, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
+import { useLang } from "@/components/crowd/lang-context"
+import { trRoad, trRoadMsg } from "@/lib/crowd/i18n"
 
 interface SpotExtrasProps {
   extra: CrowdExtra
@@ -13,6 +15,7 @@ interface SpotExtrasProps {
 
 /** 부가정보 섹션 묶음 — 주차 여유·문화행사·도로 소통·따릉이 (사고통제 경고는 헤드라인 아래라 spot-detail 소관) */
 export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
+  const { lang, t } = useLang()
   // 주차장·따릉이 대여소는 명소 중심에서 가까운 순으로
   const parkingLots = useMemo(() => {
     const lots = extra.parking?.lots ?? []
@@ -43,7 +46,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
         <div id="crowd-sec-parking" className="scroll-mt-2">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-              <SquareParking className="h-3.5 w-3.5" /> 주차 여유
+              <SquareParking className="h-3.5 w-3.5" /> {t.parkingTitle}
             </h3>
             <span
               className="font-mono text-[13px] font-semibold tabular-nums"
@@ -54,7 +57,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                 ),
               }}
             >
-              {extra.parking.available.toLocaleString()}면 ({extra.parking.percent}%)
+              {t.parkingSummary(extra.parking.available.toLocaleString(), extra.parking.percent)}
             </span>
           </div>
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
@@ -68,7 +71,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     href={linked ? `https://map.kakao.com/link/to/${encodeURIComponent(lot.name)},${lot.lat},${lot.lng}` : undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={linked ? "카카오맵 길안내" : undefined}
+                    title={linked ? t.kakaoNavTitle : undefined}
                     className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
                     <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{lot.name}</span>
@@ -84,7 +87,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                       {lot.available}
                     </span>
                     <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">
-                      /{lot.capacity}면
+                      {t.parkingCap(lot.capacity)}
                     </span>
                     {linked && <Navigation className="h-3 w-3 shrink-0 text-[var(--cp-text-faint)]" />}
                   </a>
@@ -92,7 +95,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
               )
             })}
           </ul>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">실시간 잔여를 제공하는 주차장 기준 · 탭하면 카카오맵 길안내</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.parkingNote}</p>
         </div>
       )}
 
@@ -100,7 +103,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
       {extra.events.length > 0 && (
         <div id="crowd-sec-events" className="scroll-mt-2">
           <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-            <CalendarDays className="h-3.5 w-3.5" /> 진행 중 문화행사{" "}
+            <CalendarDays className="h-3.5 w-3.5" /> {t.eventsTitle}{" "}
             <span className="font-mono tabular-nums">({extra.events.length})</span>
           </h3>
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
@@ -123,7 +126,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     <span
                       className={`shrink-0 rounded-full border border-emerald-500/40 px-1.5 py-0.5 text-[11px] font-medium ${light ? "text-emerald-700" : "text-emerald-500"}`}
                     >
-                      무료
+                      {t.free}
                     </span>
                   )}
                 </a>
@@ -131,7 +134,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
             ))}
           </ul>
           {extra.events.length > 6 && (
-            <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">외 {extra.events.length - 6}건 진행 중</p>
+            <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.moreEvents(extra.events.length - 6)}</p>
           )}
         </div>
       )}
@@ -140,7 +143,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
       {extra.road && (
         <div id="crowd-sec-road" className="scroll-mt-2">
           <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-            <CarFront className="h-3.5 w-3.5" /> 도로 소통
+            <CarFront className="h-3.5 w-3.5" /> {t.roadTitle}
           </h3>
           <div className="flex items-center gap-2.5 rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2.5">
             <span
@@ -151,9 +154,11 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                 border: `1px solid ${extra.road.color}55`,
               }}
             >
-              {extra.road.idx}
+              {trRoad(extra.road.idx, lang)}
             </span>
-            <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">{extra.road.msg}</p>
+            <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+              {trRoadMsg(extra.road.idx, extra.road.msg, lang)}
+            </p>
             {extra.road.speed > 0 && (
               <span className="shrink-0 font-mono text-[13px] tabular-nums text-[var(--cp-text)]">
                 {extra.road.speed}
@@ -169,10 +174,11 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
         <div id="crowd-sec-bike" className="scroll-mt-2">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-              <Bike className="h-3.5 w-3.5" /> 따릉이
+              <Bike className="h-3.5 w-3.5" /> {t.bikeTitle}
             </h3>
             <span className="font-mono text-[13px] tabular-nums text-[var(--cp-text)]">
-              지금 <span className="font-semibold text-[var(--cp-text-strong)]">{extra.bike.bikes}</span>대
+              {t.bikeNow} <span className="font-semibold text-[var(--cp-text-strong)]">{extra.bike.bikes}</span>
+              {t.bikeUnit}
             </span>
           </div>
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
@@ -185,7 +191,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     href={linked ? `https://map.kakao.com/link/to/${encodeURIComponent(st.name)},${st.lat},${st.lng}` : undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={linked ? "카카오맵 길안내" : undefined}
+                    title={linked ? t.kakaoNavTitle : undefined}
                     className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
                     <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{st.name}</span>
@@ -198,7 +204,8 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                       className="shrink-0 font-mono text-[13px] font-semibold tabular-nums"
                       style={{ color: textColor(st.bikes === 0 ? "#ff3939" : st.bikes < 3 ? "#ffb100" : "#00d369", light) }}
                     >
-                      {st.bikes}대
+                      {st.bikes}
+                      {t.bikeUnit}
                     </span>
                     {linked && <Navigation className="h-3 w-3 shrink-0 text-[var(--cp-text-faint)]" />}
                   </a>
@@ -206,7 +213,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
               )
             })}
           </ul>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">탭하면 카카오맵 길안내</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.tapForNav}</p>
         </div>
       )}
     </>

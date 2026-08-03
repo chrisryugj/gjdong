@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { CONGEST_LEVELS, LEVEL_COLORS, textColor } from "@/lib/crowd/seoul-rtd"
+import { useLang } from "@/components/crowd/lang-context"
 
 // ── 요일×시간 히트맵 (GitHub Actions가 매시 수집해 data 브랜치에 누적)
 const HEATMAP_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json"
 const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
-const DOW_LABELS = ["월", "화", "수", "목", "금", "토", "일"]
 
 interface HeatEntry {
   sum: number[][]
@@ -24,6 +24,8 @@ function loadHeatmap(): Promise<Record<string, HeatEntry> | null> {
 
 /** 요일×시간 혼잡 패턴 — 셀 탭(모바일)·호버(PC)로 개별 확인 */
 export default function SpotHeatmap({ name, light }: { name: string; light: boolean }) {
+  const { t, level: trLv } = useLang()
+  const DOW_LABELS = t.dowLabels
   const [heat, setHeat] = useState<HeatEntry | null>(null)
   const [picked, setPicked] = useState<{ dow: number; hour: number } | null>(null)
 
@@ -51,7 +53,7 @@ export default function SpotHeatmap({ name, light }: { name: string; light: bool
     const cnt = heat.cnt[d]?.[h] ?? 0
     const avg = cnt > 0 ? (heat.sum[d]?.[h] ?? 0) / cnt : 0
     const lv = cnt > 0 ? Math.min(Math.max(Math.round(avg), 1), 4) : 0
-    return { cnt, lv, label: lv > 0 ? CONGEST_LEVELS[lv - 1] : "데이터 없음" }
+    return { cnt, lv, label: lv > 0 ? trLv(CONGEST_LEVELS[lv - 1]) : t.noData }
   }
 
   const kstNow = new Date(Date.now() + 9 * 3600 * 1000)
@@ -61,10 +63,10 @@ export default function SpotHeatmap({ name, light }: { name: string; light: bool
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
         <h3 className="text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-          요일·시간대 패턴
+          {t.heatmapTitle}
         </h3>
         <span className="font-mono text-[11px] tabular-nums text-[var(--cp-text-faint)]">
-          표본 {heatTotal.toLocaleString()}시간
+          {t.heatmapSample(heatTotal.toLocaleString())}
         </span>
       </div>
       <div className="space-y-[2px]">
@@ -80,8 +82,8 @@ export default function SpotHeatmap({ name, light }: { name: string; light: bool
                   key={h}
                   type="button"
                   onClick={() => setPicked(isPicked ? null : { dow: d, hour: h })}
-                  title={`${DOW_LABELS[ri]} ${h}시 · 평균 ${label}${cnt > 0 ? ` (${cnt}회)` : ""}`}
-                  aria-label={`${DOW_LABELS[ri]} ${h}시 평균 ${label}`}
+                  title={t.cellTitle(DOW_LABELS[ri], h, label, cnt)}
+                  aria-label={t.cellTitle(DOW_LABELS[ri], h, label, cnt)}
                   className="h-3 min-w-0 flex-1 cursor-pointer rounded-[2px] p-0"
                   style={{
                     background: lv > 0 ? LEVEL_COLORS[CONGEST_LEVELS[lv - 1]] : "var(--cp-track)",
@@ -99,7 +101,7 @@ export default function SpotHeatmap({ name, light }: { name: string; light: bool
         <div className="flex gap-[2px] pl-[18px] pt-0.5">
           {[0, 6, 12, 18].map((h) => (
             <span key={h} className="flex-1 text-[10px] text-[var(--cp-text-faint)]">
-              {h}시
+              {t.hourShort(h)}
             </span>
           ))}
         </div>
@@ -108,26 +110,26 @@ export default function SpotHeatmap({ name, light }: { name: string; light: bool
       {picked && pickedInfo && (
         <p className="mt-1.5 text-[12px] text-[var(--cp-text)]">
           <span className="font-mono font-semibold tabular-nums">
-            {DOW_LABELS[DOW_ORDER.indexOf(picked.dow as (typeof DOW_ORDER)[number])]} {picked.hour}시
+            {DOW_LABELS[DOW_ORDER.indexOf(picked.dow as (typeof DOW_ORDER)[number])]} {t.hourShort(picked.hour)}
           </span>{" "}
-          · 평균{" "}
+          · {t.avg}{" "}
           <span
             className="font-semibold"
             style={pickedInfo.lv > 0 ? { color: textColor(LEVEL_COLORS[CONGEST_LEVELS[pickedInfo.lv - 1]], light) } : undefined}
           >
             {pickedInfo.label}
           </span>
-          {pickedInfo.cnt > 0 && <span className="text-[var(--cp-text-dim)]"> (표본 {pickedInfo.cnt}회)</span>}
+          {pickedInfo.cnt > 0 && <span className="text-[var(--cp-text-dim)]"> {t.sampleCount(pickedInfo.cnt)}</span>}
         </p>
       )}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
         {CONGEST_LEVELS.map((lv) => (
           <span key={lv} className="flex items-center gap-1 text-[11px] text-[var(--cp-text-faint)]">
             <span className="h-2 w-2 rounded-[2px]" style={{ background: LEVEL_COLORS[lv] }} />
-            {lv}
+            {trLv(lv)}
           </span>
         ))}
-        <span className="text-[11px] text-[var(--cp-text-faint)]">· 테두리 = 지금 시간대 · 칸을 누르면 상세</span>
+        <span className="text-[11px] text-[var(--cp-text-faint)]">{t.heatmapLegendNote}</span>
       </div>
     </div>
   )

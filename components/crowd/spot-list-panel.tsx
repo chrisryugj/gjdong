@@ -3,6 +3,7 @@
 import { Star } from "lucide-react"
 import { LEVEL_COLORS, textColor, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { LevelBadge, LEVEL_ORDER, PRESETS, type PresetKey, type SortMode } from "@/components/crowd/shared"
+import { useLang } from "@/components/crowd/lang-context"
 
 interface SpotListPanelProps {
   filtered: CrowdSpot[]
@@ -16,7 +17,7 @@ interface SpotListPanelProps {
   favOnly: boolean
   light: boolean
   loading: boolean
-  error: string | null
+  error: boolean
   noSpotMatch: boolean
   onApplyPreset: (key: PresetKey) => void
   onToggleFavOnly: () => void
@@ -54,6 +55,7 @@ export default function SpotListPanel({
   onToggleFav,
   onRetry,
 }: SpotListPanelProps) {
+  const { t, spot: trSpotName, level: trLv, cat } = useLang()
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 프리셋 + 혼잡도 필터 한 줄 — 지금 가볼 만한 곳 고르기 (지도에도 반영) */}
@@ -70,7 +72,7 @@ export default function SpotListPanel({
             }`}
           >
             <Star className={`h-3 w-3 ${favOnly ? "fill-amber-400 text-amber-400" : ""}`} />
-            즐겨찾기
+            {t.favorites}
             <span className="font-mono tabular-nums opacity-70">{favs.size}</span>
           </button>
         )}
@@ -85,7 +87,7 @@ export default function SpotListPanel({
                 : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
             }`}
           >
-            {p.label}
+            {t[p.tKey] as string}
           </button>
         ))}
         <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--cp-border)]" />
@@ -104,7 +106,7 @@ export default function SpotListPanel({
               }
             >
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: LEVEL_COLORS[level] }} />
-              {level}
+              {trLv(level)}
               <span className="ml-1 font-mono tabular-nums opacity-70">{levelCounts[level] ?? 0}</span>
             </button>
           )
@@ -114,7 +116,7 @@ export default function SpotListPanel({
             onClick={onClearFilters}
             className="shrink-0 px-1.5 py-1 text-[12px] text-[var(--cp-text-dim)] underline underline-offset-2 hover:text-[var(--cp-text-strong)]"
           >
-            해제
+            {t.clearFilters}
           </button>
         )}
       </div>
@@ -134,7 +136,7 @@ export default function SpotListPanel({
                     : "border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
                 }`}
               >
-                {c}
+                {cat(c)}
               </button>
             )
           })}
@@ -142,9 +144,9 @@ export default function SpotListPanel({
         <div className="flex shrink-0 items-center gap-1 border-l border-[var(--cp-border-faint)] pl-1.5">
           {(
             [
-              ["busy", "붐빔순"],
-              ["calm", "여유순"],
-              ["name", "가나다"],
+              ["busy", t.sortBusy],
+              ["calm", t.sortCalm],
+              ["name", t.sortName],
             ] as Array<[SortMode, string]>
           ).map(([mode, label]) => (
             <button
@@ -165,12 +167,12 @@ export default function SpotListPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {error && (
           <div className="p-6 text-center">
-            <p className={`text-[13px] ${light ? "text-red-600" : "text-red-400"}`}>{error}</p>
+            <p className={`text-[13px] ${light ? "text-red-600" : "text-red-400"}`}>{t.errLoad}</p>
             <button
               onClick={onRetry}
               className="mt-2 rounded-md border border-[var(--cp-border-strong)] px-3 py-1.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
             >
-              다시 시도
+              {t.retry}
             </button>
           </div>
         )}
@@ -186,17 +188,17 @@ export default function SpotListPanel({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] text-[var(--cp-text)] group-hover:text-[var(--cp-text-strong)]">
-                    {spot.name}
+                    {trSpotName(spot.name)}
                   </p>
-                  <p className="text-[12px] text-[var(--cp-text-dim)]">{spot.category}</p>
+                  <p className="text-[12px] text-[var(--cp-text-dim)]">{cat(spot.category)}</p>
                 </div>
                 <LevelBadge level={spot.level} color={spot.color} light={light} />
               </button>
               <button
                 onClick={() => onToggleFav(spot.name)}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1.5 transition-colors hover:bg-[var(--cp-hover)]"
-                aria-label={favs.has(spot.name) ? `${spot.name} 즐겨찾기 해제` : `${spot.name} 즐겨찾기`}
-                title="즐겨찾기 (목록 상단 고정)"
+                aria-label={favs.has(spot.name) ? t.favOff(trSpotName(spot.name)) : t.favOn(trSpotName(spot.name))}
+                title={t.favTitle}
               >
                 <Star
                   className={`h-3.5 w-3.5 ${
@@ -210,12 +212,10 @@ export default function SpotListPanel({
           ))}
         </ul>
         {!loading && !error && filtered.length === 0 && !noSpotMatch && (
-          <p className="p-6 text-center text-[13px] text-[var(--cp-text-dim)]">조건에 맞는 명소가 없습니다.</p>
+          <p className="p-6 text-center text-[13px] text-[var(--cp-text-dim)]">{t.emptyFiltered}</p>
         )}
         {noSpotMatch && (
-          <p className="p-6 text-center text-[13px] text-[var(--cp-text-dim)]">
-            명소 중에는 없습니다. 위 버튼으로 주소 검색을 해보세요.
-          </p>
+          <p className="p-6 text-center text-[13px] text-[var(--cp-text-dim)]">{t.noSpotMatch}</p>
         )}
       </div>
     </div>

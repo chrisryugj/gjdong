@@ -8,6 +8,7 @@ import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
 import NearestPanel from "@/components/crowd/nearest-panel"
 import SpotListPanel from "@/components/crowd/spot-list-panel"
+import { LangProvider, useLang } from "@/components/crowd/lang-context"
 import {
   formatKm,
   haversineKm,
@@ -30,10 +31,22 @@ const SpotDetail = dynamic(() => import("@/components/crowd/spot-detail"), {
 })
 
 export default function CrowdDashboard() {
+  return (
+    <LangProvider>
+      <CrowdDashboardInner />
+    </LangProvider>
+  )
+}
+
+// 주소 검색 오류는 사전 키로 저장 — 언어 전환 시에도 올바른 언어로 렌더
+type AddressErrorKey = "errAddress" | "errGeoUnsupported" | "errGeoDenied"
+
+function CrowdDashboardInner() {
+  const { lang, t, spot: trSpotName, cat } = useLang()
   const [spots, setSpots] = useState<CrowdSpot[]>([])
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<boolean>(false)
   const [disaster, setDisaster] = useState<CrowdDisaster[]>([])
   const [disasterOpen, setDisasterOpen] = useState(false)
 
@@ -51,7 +64,7 @@ export default function CrowdDashboard() {
 
   const [addressPin, setAddressPin] = useState<AddressPin | null>(null)
   const [addressLoading, setAddressLoading] = useState(false)
-  const [addressError, setAddressError] = useState<string | null>(null)
+  const [addressError, setAddressError] = useState<AddressErrorKey | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
 
   const [light, setLight] = useState(true)
@@ -112,7 +125,7 @@ export default function CrowdDashboard() {
 
   const loadSpots = useCallback(async () => {
     try {
-      setError(null)
+      setError(false)
       const res = await fetch("/api/crowd")
       if (!res.ok) throw new Error("bad status")
       const data = (await res.json()) as { spots: CrowdSpot[]; disaster?: CrowdDisaster[]; updatedAt: string }
@@ -120,7 +133,7 @@ export default function CrowdDashboard() {
       setDisaster(data.disaster ?? [])
       setUpdatedAt(data.updatedAt)
     } catch {
-      setError("서울시 실시간 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.")
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -168,7 +181,12 @@ export default function CrowdDashboard() {
 
   const selectSpot = useCallback(
     (name: string | null) => {
-      const url = name ? `${window.location.pathname}?spot=${encodeURIComponent(name)}` : window.location.pathname
+      // ?lang= 등 다른 파라미터는 보존하고 spot만 갱신
+      const params = new URLSearchParams(window.location.search)
+      if (name) params.set("spot", name)
+      else params.delete("spot")
+      const qs = params.toString()
+      const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
       const cur = window.history.state as { crowdSpot?: string; pushed?: boolean } | null
       if (name) {
         // 상세→상세 이동은 replace — 뒤로가기 한 번이면 항상 목록으로
@@ -219,7 +237,7 @@ export default function CrowdDashboard() {
       setDetail(null)
       setAddressPin({ label: data.display ?? address, lat: data.meta.lat, lng: data.meta.lon })
     } catch {
-      setAddressError("주소를 찾지 못했습니다. 도로명·지번·건물명으로 다시 시도해보세요.")
+      setAddressError("errAddress")
     } finally {
       setAddressLoading(false)
     }
@@ -228,7 +246,7 @@ export default function CrowdDashboard() {
   // 내 위치 기반 근처 명소 추천 — 주소 검색과 같은 nearest 흐름 재사용
   const locateMe = useCallback(() => {
     if (!navigator.geolocation) {
-      setAddressError("이 브라우저는 위치 정보를 지원하지 않습니다.")
+      setAddressError("errGeoUnsupported")
       return
     }
     setGeoLoading(true)
@@ -238,15 +256,15 @@ export default function CrowdDashboard() {
         setGeoLoading(false)
         setQuery("")
         selectSpot(null)
-        setAddressPin({ label: "내 위치", lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setAddressPin({ label: t.myLocation, lat: pos.coords.latitude, lng: pos.coords.longitude })
       },
       () => {
         setGeoLoading(false)
-        setAddressError("위치 권한을 허용하면 내 주변 명소를 추천해드려요.")
+        setAddressError("errGeoDenied")
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
-  }, [selectSpot])
+  }, [selectSpot, t])
 
   const categories = useMemo(() => {
     const set = new Set(spots.map((s) => s.category))
@@ -315,16 +333,17 @@ export default function CrowdDashboard() {
   }, [spots, levelFilter, categoryFilter, favOnly, favs])
 
   const filtered = useMemo(() => {
-    const q = query.trim()
+    const q = query.trim().toLowerCase()
     let list = mapSpots
-    if (q) list = list.filter((s) => s.name.includes(q))
-    const byName = (a: CrowdSpot, b: CrowdSpot) => a.name.localeCompare(b.name, "ko")
+    // 한국어 원문·현지어 표기 양쪽 매칭 (예: "hongdae" → 홍대)
+    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q) || trSpotName(s.name).toLowerCase().includes(q))
+    const byName = (a: CrowdSpot, b: CrowdSpot) => trSpotName(a.name).localeCompare(trSpotName(b.name), lang)
     const byFav = (a: CrowdSpot, b: CrowdSpot) => (favs.has(b.name) ? 1 : 0) - (favs.has(a.name) ? 1 : 0)
     if (sort === "busy") list = [...list].sort((a, b) => byFav(a, b) || b.levelNum - a.levelNum || byName(a, b))
     else if (sort === "calm") list = [...list].sort((a, b) => byFav(a, b) || a.levelNum - b.levelNum || byName(a, b))
     else list = [...list].sort((a, b) => byFav(a, b) || byName(a, b))
     return list
-  }, [mapSpots, query, sort, favs])
+  }, [mapSpots, query, sort, favs, trSpotName, lang])
 
   const nearest = useMemo(() => {
     if (!addressPin) return []
@@ -383,6 +402,7 @@ export default function CrowdDashboard() {
         >
           <CrowdMap
             spots={mapSpots}
+            lang={lang}
             selectedName={selectedName}
             addressPin={addressPin}
             nearestNames={nearest.map((n) => n.spot.name)}
@@ -426,7 +446,7 @@ export default function CrowdDashboard() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && noSpotMatch) void searchAddress()
                   }}
-                  placeholder="명소·주소 검색 (예: 성수, 세종대로 110)"
+                  placeholder={t.searchPlaceholder}
                   className="h-9 w-full bg-transparent text-[16px] text-[var(--cp-text)] placeholder:text-[13px] placeholder:text-[var(--cp-text-faint)] focus:outline-none md:text-[14px]"
                 />
                 {query && (
@@ -436,7 +456,7 @@ export default function CrowdDashboard() {
                       setAddressError(null)
                     }}
                     className="text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
-                    aria-label="지우기"
+                    aria-label={t.clearInput}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -446,14 +466,14 @@ export default function CrowdDashboard() {
                 onClick={locateMe}
                 disabled={geoLoading}
                 className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)] disabled:opacity-50"
-                title="내 위치 기준 근처 명소 추천"
+                title={t.myNearbyTitle}
               >
                 {geoLoading ? (
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <LocateFixed className="h-3.5 w-3.5" />
                 )}
-                내 주변
+                {t.myNearby}
               </button>
             </div>
 
@@ -468,11 +488,11 @@ export default function CrowdDashboard() {
                 ) : (
                   <MapPin className="h-3.5 w-3.5" />
                 )}
-                {noSpotMatch ? "주소로 검색해서 근처 명소 인파 보기" : `'${query.trim()}' 주소 기준 근처 명소 보기`}
+                {noSpotMatch ? t.searchAsAddress : t.searchNearQuery(query.trim())}
               </button>
             )}
             {addressError && (
-              <p className={`mt-2 text-[12px] ${light ? "text-red-600" : "text-red-400"}`}>{addressError}</p>
+              <p className={`mt-2 text-[12px] ${light ? "text-red-600" : "text-red-400"}`}>{t[addressError]}</p>
             )}
           </div>
 
@@ -483,7 +503,7 @@ export default function CrowdDashboard() {
                 onClick={() => selectSpot(null)}
                 className="flex shrink-0 items-center gap-1.5 border-b border-[var(--cp-border)] px-4 py-2.5 text-[13px] text-[var(--cp-text-muted)] transition-colors hover:text-[var(--cp-text-strong)]"
               >
-                <ArrowLeft className="h-3.5 w-3.5" /> 목록으로
+                <ArrowLeft className="h-3.5 w-3.5" /> {t.backToList}
               </button>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {detailLoading ? (
@@ -502,7 +522,7 @@ export default function CrowdDashboard() {
                     {nearbyOfSelected.length > 0 && (
                       <div className="border-t border-[var(--cp-border)] px-4 pb-4 pt-3">
                         <h3 className="mb-1 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-                          이 근처 다른 명소
+                          {t.nearbyOther}
                         </h3>
                         <ul>
                           {nearbyOfSelected.map(({ spot, km }) => (
@@ -513,10 +533,10 @@ export default function CrowdDashboard() {
                               >
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-[14px] text-[var(--cp-text)] group-hover:text-[var(--cp-text-strong)]">
-                                    {spot.name}
+                                    {trSpotName(spot.name)}
                                   </p>
                                   <p className="text-[12px] text-[var(--cp-text-dim)]">
-                                    {spot.category} · <span className="font-mono tabular-nums">{formatKm(km)}</span>
+                                    {cat(spot.category)} · <span className="font-mono tabular-nums">{formatKm(km)}</span>
                                   </p>
                                 </div>
                                 <LevelBadge level={spot.level} color={spot.color} light={light} />
@@ -529,12 +549,12 @@ export default function CrowdDashboard() {
                   </>
                 ) : (
                   <div className="p-6 text-center">
-                    <p className="text-[13px] text-[var(--cp-text-dim)]">상세 데이터를 불러오지 못했습니다.</p>
+                    <p className="text-[13px] text-[var(--cp-text-dim)]">{t.detailFail}</p>
                     <button
                       onClick={() => selectedName && fetchDetail(selectedName)}
                       className="mt-2 rounded-md border border-[var(--cp-border-strong)] px-3 py-1.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
                     >
-                      다시 시도
+                      {t.retry}
                     </button>
                   </div>
                 )}
@@ -548,7 +568,7 @@ export default function CrowdDashboard() {
                     rel="noopener noreferrer"
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
                   >
-                    <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> 카카오맵 길찾기
+                    <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> {t.kakaoDirections}
                   </a>
                   <a
                     href={`https://map.naver.com/p/directions/-/${selectedSpot.lng},${selectedSpot.lat},${encodeURIComponent(selectedSpot.name)}/-/transit`}
@@ -556,7 +576,7 @@ export default function CrowdDashboard() {
                     rel="noopener noreferrer"
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
                   >
-                    <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> 네이버 길찾기
+                    <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> {t.naverDirections}
                   </a>
                 </div>
               )}
@@ -603,9 +623,7 @@ export default function CrowdDashboard() {
           {showInstall && (
             <div className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 md:hidden">
               <p className="min-w-0 flex-1 text-[12px] leading-snug text-[var(--cp-text-muted)]">
-                {showInstall === "ios"
-                  ? "공유 버튼 → '홈 화면에 추가'로 앱처럼 쓸 수 있어요"
-                  : "홈 화면에 추가하면 앱처럼 바로 열려요"}
+                {showInstall === "ios" ? t.installIos : t.installAndroid}
               </p>
               {showInstall === "android" && (
                 <button
@@ -615,24 +633,24 @@ export default function CrowdDashboard() {
                   }}
                   className="shrink-0 rounded-md border border-[var(--cp-border-strong)] px-2.5 py-1 text-[12px] font-medium text-[var(--cp-text-strong)] transition-colors hover:bg-[var(--cp-hover2)]"
                 >
-                  설치
+                  {t.install}
                 </button>
               )}
-              <button onClick={dismissInstall} aria-label="설치 안내 닫기" className="shrink-0 p-1 text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]">
+              <button onClick={dismissInstall} aria-label={t.installDismiss} className="shrink-0 p-1 text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
           <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <p className="min-w-0 flex-1 truncate text-[11px] leading-relaxed text-[var(--cp-text-faint)]">
-              서울시 실시간 도시데이터(5분 주기, KT 통신 기반 추정) · 표준주소실록 ×{" "}
+              {t.footerData}
               <a
                 href="https://data.seoul.go.kr/SeoulRtd/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-[var(--cp-text-muted)]"
               >
-                서울 열린데이터광장
+                {t.footerSource}
               </a>
             </p>
             {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}
@@ -640,7 +658,7 @@ export default function CrowdDashboard() {
               href="https://hitscounter.dev/history?url=https://gjdong.vercel.app/crowd"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="인파레이더 방문 통계 보기"
+              aria-label={t.visitStats}
               className="inline-flex shrink-0 items-center hover:opacity-80"
             >
               <img

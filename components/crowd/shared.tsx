@@ -1,16 +1,17 @@
 "use client"
 
 import { textColor } from "@/lib/crowd/seoul-rtd"
+import { useLang } from "@/components/crowd/lang-context"
 
 export const LEVEL_ORDER = ["붐빔", "약간 붐빔", "보통", "여유"] as const
 
 export type SortMode = "busy" | "calm" | "name"
 
-// 목적 프리셋 — 혼잡도·카테고리 필터 조합 (부모/커플 대표 시나리오)
+// 목적 프리셋 — 혼잡도·카테고리 필터 조합 (부모/커플 대표 시나리오). 라벨은 i18n 사전 키
 export const PRESETS = [
-  { key: "kids", label: "🧒 아이와 나들이", categories: ["공원", "고궁·문화유산"], levels: ["여유", "보통"] },
-  { key: "date", label: "💐 데이트", categories: ["발달상권", "관광특구", "고궁·문화유산"], levels: ["여유", "보통"] },
-  { key: "hot", label: "🔥 지금 핫플", categories: [], levels: ["붐빔", "약간 붐빔"] },
+  { key: "kids", tKey: "presetKids", categories: ["공원", "고궁·문화유산"], levels: ["여유", "보통"] },
+  { key: "date", tKey: "presetDate", categories: ["발달상권", "관광특구", "고궁·문화유산"], levels: ["여유", "보통"] },
+  { key: "hot", tKey: "presetHot", categories: [], levels: ["붐빔", "약간 붐빔"] },
 ] as const
 export type PresetKey = (typeof PRESETS)[number]["key"]
 
@@ -47,14 +48,15 @@ export function formatClock(iso: string): string {
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
 }
 
-/** 혼잡도 알약 뱃지 — 목록·근처·상세 공용 */
+/** 혼잡도 알약 뱃지 — 목록·근처·상세 공용 (선택 언어로 표시) */
 export function LevelBadge({ level, color, light }: { level: string; color: string; light: boolean }) {
+  const { level: trLv } = useLang()
   return (
     <span
       className="shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold"
       style={{ color: textColor(color, light), background: `${color}1a` }}
     >
-      {level}
+      {trLv(level)}
     </span>
   )
 }
