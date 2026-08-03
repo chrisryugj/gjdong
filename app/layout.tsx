@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     url: "https://gjdong.vercel.app/",
     images: [
       {
-        url: "/og-image.jpg",
+        url: "/og-image.jpg?v=3.1",
         width: 1200,
         height: 630,
         alt: "표준주소실록 - 주소 변환 도구",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "표준주소실록",
     description: "주소를 표준 형식으로 변환하는 도구 - 도로명, 지번, 행정동 주소를 한번에 변환",
-    images: ["/og-image.jpg"],
+    images: ["/og-image.jpg?v=3.1"],
   },
 }
 
