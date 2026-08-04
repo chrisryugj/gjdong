@@ -36,6 +36,8 @@ export default function CrowdHeader({
   onToggleDisaster,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
+  // 도시 전환 시 제목도 동기화 — 4개 언어 제목 속 현지화된 "서울"만 해당 도시명으로 치환
+  const title = city === "seoul" ? t.title : t.title.replaceAll(t.cityNames.seoul, t.cityNames[city])
   const subtitle =
     city === "jeju"
       ? t.subtitleJeju(spotCount > 0 ? spotCount : 66)
@@ -55,7 +57,7 @@ export default function CrowdHeader({
                 : "text-lg font-semibold tracking-tight sm:text-xl md:text-2xl"
             }`}
           >
-            {t.title}
+            {title}
           </h1>
           {/* 도시 스위처 — 서울/제주/부산 세그먼트 (선택 도시는 URL ?city=로 공유 가능) */}
           <div

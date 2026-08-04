@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Navigation, Search, X } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDetail, type CrowdDisaster, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { META, UI } from "@/lib/crowd/i18n"
 import { CITIES, isCityId, type CityId } from "@/lib/crowd/cities"
 import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
@@ -169,6 +170,14 @@ function CrowdDashboardInner() {
     cityRef.current = resolved
     setCity(resolved)
   }, [])
+
+  // 도시·언어 전환 시 브라우저 탭 제목 동기화 (클라이언트 전환은 generateMetadata가 다시 안 돌므로)
+  useEffect(() => {
+    if (!city) return
+    const base = META[lang].title
+    document.title =
+      city === "seoul" ? base : base.replaceAll(UI[lang].cityNames.seoul, UI[lang].cityNames[city])
+  }, [city, lang])
 
   useEffect(() => {
     if (!city) return

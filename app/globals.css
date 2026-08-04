@@ -165,6 +165,9 @@
 
 /* ── 서울 인파레이더 (/crowd) 관제판 — 다크 기본 + .crowd-light 테마 */
 .crowd-page {
+  /* 인파레이더 본문 서체 = SUIT (layout.tsx next/font 셀프호스팅) — 숫자·타이틀 서체는 별도 유지 */
+  font-family: var(--font-suit), -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+
   /* 한글 단어 단위 줄바꿈 */
   word-break: keep-all;
   overflow-wrap: break-word;
