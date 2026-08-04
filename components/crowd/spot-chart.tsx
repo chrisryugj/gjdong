@@ -92,6 +92,35 @@ export default function SpotChart({ detail, light }: { detail: CrowdDetail; ligh
     })
   }, [detail.series])
 
+  // 예측 원천이 없는 도시(제주) — 앞 12시간을 지난 24시간의 같은 시각 값으로 근사한 리듬 추천
+  const rhythmTip = useMemo(() => {
+    if (calmest || detail.series.length < 20 || detail.nowIndex < 0) return null
+    const byHour = new Map<number, number>()
+    for (const p of detail.series) {
+      const m = p.time.match(/^(\d{1,2})시$/)
+      if (m) byHour.set(Number.parseInt(m[1], 10), p.people)
+    }
+    const nowPoint = detail.series[detail.nowIndex]
+    const prevPoint = detail.series[detail.nowIndex - 1]
+    const curHourMatch = prevPoint?.time.match(/^(\d{1,2})시$/) // 마지막 점은 "현재" 라벨이라 직전 시각 기준
+    if (!curHourMatch) return null
+    const curHour = Number.parseInt(curHourMatch[1], 10)
+    let minHour: number | null = null
+    let minVal = Number.POSITIVE_INFINITY
+    for (let off = 2; off <= 13; off++) {
+      const h = (curHour + off) % 24
+      const v = byHour.get(h)
+      if (v != null && v < minVal) {
+        minVal = v
+        minHour = h
+      }
+    }
+    const nowVal = nowPoint?.people ?? 0
+    // 극소 인원(<30명)이나 차이 미미(<7%)는 추천이 노이즈 — "지금이 여유" 배지로 흡수
+    if (minHour == null || nowVal < 30 || minVal >= nowVal * 0.93) return { kind: "now" as const }
+    return { kind: "hour" as const, hour: `${minHour}시`, drop: Math.round((1 - minVal / Math.max(nowVal, 1)) * 100) }
+  }, [calmest, detail.series, detail.nowIndex])
+
   const chartData: ChartDatum[] = detail.series.map((p) => ({
     time: trHour(p.time, lang),
     people: p.people,
@@ -169,6 +198,25 @@ export default function SpotChart({ detail, light }: { detail: CrowdDetail; ligh
             </p>
           )
         })()}
+      {rhythmTip && (
+        <>
+          {rhythmTip.kind === "now" ? (
+            <p className="mt-1.5 text-[12px] text-[var(--cp-text-dim)]">✨ {t.rhythmNowGood}</p>
+          ) : (
+            (() => {
+              const rb = t.rhythmBest(trHour(rhythmTip.hour, lang), rhythmTip.drop)
+              return (
+                <p className="mt-1.5 text-[12px] text-[var(--cp-text-dim)]">
+                  {rb.pre}
+                  <span className="font-mono font-semibold tabular-nums text-[var(--cp-text-strong)]">{rb.time}</span>
+                  {rb.post}
+                </p>
+              )
+            })()
+          )}
+          <p className="mt-0.5 text-[11px] text-[var(--cp-text-faint)]">{t.rhythmNote}</p>
+        </>
+      )}
       {calmest &&
         (levelNum(calmest.level) <= 2 ? (
           (() => {

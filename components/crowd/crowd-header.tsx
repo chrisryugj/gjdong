@@ -3,40 +3,51 @@
 import Link from "next/link"
 import { Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
+import { CITY_IDS, type CityId } from "@/lib/crowd/cities"
 import { formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
 import { LangSwitcher, useLang } from "@/components/crowd/lang-context"
 import { trDisaster } from "@/lib/crowd/i18n"
 
 interface CrowdHeaderProps {
+  city: CityId
   spotCount: number
   levelCounts: Record<string, number>
   updatedAt: string | null
   light: boolean
   disaster: CrowdDisaster[]
   disasterOpen: boolean
+  onCityChange: (city: CityId) => void
   onRefresh: () => void
   onToggleTheme: () => void
   onToggleDisaster: () => void
 }
 
 export default function CrowdHeader({
+  city,
   spotCount,
   levelCounts,
   updatedAt,
   light,
   disaster,
   disasterOpen,
+  onCityChange,
   onRefresh,
   onToggleTheme,
   onToggleDisaster,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
+  const subtitle =
+    city === "jeju"
+      ? t.subtitleJeju(spotCount > 0 ? spotCount : 66)
+      : city === "busan"
+        ? t.subtitleBusan(spotCount > 0 ? spotCount : 26)
+        : t.subtitle(spotCount > 0 ? spotCount : 121)
   return (
     <>
       {/* ── 헤더 */}
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 md:px-5">
         {/* 제목은 min-w-0+truncate — 긴 외국어 제목이 우측 컨트롤과 겹치지 않게 말줄임 */}
-        <div className="flex min-w-0 items-baseline gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <h1
             className={`min-w-0 truncate text-[var(--cp-text-strong)] ${
               lang === "ko"
@@ -46,9 +57,28 @@ export default function CrowdHeader({
           >
             {t.title}
           </h1>
-          <p className="hidden truncate text-[12px] text-[var(--cp-text-dim)] sm:block">
-            {t.subtitle(spotCount > 0 ? spotCount : 121)}
-          </p>
+          {/* 도시 스위처 — 서울/제주/부산 세그먼트 (선택 도시는 URL ?city=로 공유 가능) */}
+          <div
+            role="group"
+            aria-label={t.citySwitchLabel}
+            className="flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] p-0.5"
+          >
+            {CITY_IDS.map((id) => (
+              <button
+                key={id}
+                onClick={() => onCityChange(id)}
+                aria-pressed={city === id}
+                className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                  city === id
+                    ? "bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
+                    : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+                }`}
+              >
+                {t.cityNames[id]}
+              </button>
+            ))}
+          </div>
+          <p className="hidden truncate text-[12px] text-[var(--cp-text-dim)] lg:block">{subtitle}</p>
         </div>
 
         <div className="flex shrink-0 items-center gap-3 md:gap-4">

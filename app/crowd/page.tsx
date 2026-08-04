@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import CrowdDashboard from "@/components/crowd/crowd-dashboard"
-import { isLang, META, type Lang } from "@/lib/crowd/i18n"
+import { isLang, META, UI, type Lang } from "@/lib/crowd/i18n"
+import { isCityId } from "@/lib/crowd/cities"
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -15,12 +16,25 @@ const OG_LOCALE: Record<Lang, string> = { ko: "ko_KR", en: "en_US", ja: "ja_JP",
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ lang?: string }>
+  searchParams: Promise<{ lang?: string; city?: string }>
 }): Promise<Metadata> {
-  const { lang: raw } = await searchParams
+  const { lang: raw, city: cityRaw } = await searchParams
   const lang: Lang = isLang(raw) ? raw : "ko"
-  const m = META[lang]
-  const url = lang === "ko" ? "https://gjdong.vercel.app/crowd" : `https://gjdong.vercel.app/crowd?lang=${lang}`
+  const city = isCityId(cityRaw) ? cityRaw : "seoul"
+  // 제주/부산 딥링크는 제목·설명의 현지화된 "서울"만 해당 도시명으로 치환 (4개 언어 공통 처리)
+  const names = UI[lang].cityNames
+  const swap = (s: string) => (city === "seoul" ? s : s.replaceAll(names.seoul, names[city]))
+  const m = {
+    title: swap(META[lang].title),
+    description: swap(META[lang].description),
+    ogTitle: swap(META[lang].ogTitle),
+    ogDescription: swap(META[lang].ogDescription),
+  }
+  const params = new URLSearchParams()
+  if (lang !== "ko") params.set("lang", lang)
+  if (city !== "seoul") params.set("city", city)
+  const qs = params.toString()
+  const url = qs ? `https://gjdong.vercel.app/crowd?${qs}` : "https://gjdong.vercel.app/crowd"
 
   return {
     manifest: "/crowd-manifest.webmanifest",

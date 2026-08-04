@@ -14,6 +14,9 @@ interface CrowdMapProps {
   nearestNames: string[]
   cctvItems: CrowdCctv[]
   onSelect: (name: string) => void
+  /** 도시 전환 시 지도 초기 뷰 — 생략하면 서울 */
+  center?: [number, number]
+  zoom?: number
 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
@@ -22,7 +25,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -36,6 +39,18 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const selectedNameRef = useRef(selectedName)
+  const centerRef = useRef(center)
+  centerRef.current = center
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
+
+  // 도시 전환 → 해당 도시 초기 뷰로 즉시 이동 (마운트 시엔 map 옵션이 처리,
+  // center는 CITIES 모듈 상수 참조라 도시가 바뀔 때만 이펙트가 돈다)
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!ready || !map || !center) return
+    map.setView(center, zoom ?? map.getZoom())
+  }, [ready, center, zoom])
 
   // 선택 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
   const applySelection = useCallback((sel: string | null) => {
@@ -60,8 +75,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       leafletRef.current = L
 
       const map = L.map(mapRef.current, {
-        center: SEOUL_CENTER,
-        zoom: 12,
+        center: centerRef.current ?? SEOUL_CENTER,
+        zoom: zoomRef.current ?? 12,
         zoomControl: false,
         attributionControl: true,
       })
@@ -184,8 +199,34 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     })
 
     for (const c of cctvItems) {
+      if (c.lat === 0) continue // 좌표 미제공 카메라(부산 큐레이션)는 목록 패널에서만
       const marker = L.marker([c.lat, c.lng], { icon: cctvIcon, zIndexOffset: 500 })
-      if (c.src) {
+      if (c.src && c.kind === "hls") {
+        // https·CORS 개방 스트림(TOPIS) — 네이티브 HLS는 src 직결, 그 외는 popupopen 때 hls.js 부착
+        if (supportsNativeHls()) {
+          marker.bindPopup(
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><video src="${c.src}" autoplay muted playsinline></video></div>`,
+            { maxWidth: 320, minWidth: 280, closeButton: true },
+          )
+        } else {
+          marker.bindPopup(
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><video data-hls-src="${c.src}" autoplay muted playsinline></video></div>`,
+            { maxWidth: 320, minWidth: 280, closeButton: true },
+          )
+          marker.on("popupopen", (e) => {
+            const video = e.popup.getElement()?.querySelector<HTMLVideoElement>("video[data-hls-src]")
+            if (!video || video.dataset.hlsAttached) return
+            video.dataset.hlsAttached = "1"
+            void import("hls.js").then(({ default: Hls }) => {
+              if (!Hls.isSupported()) return
+              const hls = new Hls({ maxBufferLength: 15 })
+              hls.loadSource(video.dataset.hlsSrc ?? "")
+              hls.attachMedia(video)
+              marker.once("popupclose", () => hls.destroy())
+            })
+          })
+        }
+      } else if (c.src) {
         // 팝업 DOM은 열 때 삽입되므로 플레이어도 그때 로드됨 (lazy)
         // Safari 계열은 서울시 iframe 플레이어가 깨져서 네이티브 <video>로 직접 재생
         const player = supportsNativeHls()

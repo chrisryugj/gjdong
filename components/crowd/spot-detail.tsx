@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert, Waves } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 import { trAge, trAlert, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
@@ -114,12 +114,15 @@ export default function SpotDetail({
   const maxAge = useMemo(() => Math.max(...detail.ages.map((a) => a.value)), [detail.ages])
   const [copied, setCopied] = useState(false)
 
-  // 부가정보(사고·주차·행사·도로·따릉이)는 첫 페인트를 막지 않게 지연 로드
+  const city = detail.city ?? "seoul"
+
+  // 부가정보(사고·주차·행사·도로·따릉이)는 첫 페인트를 막지 않게 지연 로드 — 제주는 원천 없음
   const [extra, setExtra] = useState<CrowdExtra | null>(null)
   useEffect(() => {
     setExtra(null)
+    if (city === "jeju") return
     const controller = new AbortController()
-    fetch(`/api/crowd/extra?spot=${encodeURIComponent(detail.name)}`, { signal: controller.signal })
+    fetch(`/api/crowd/extra?spot=${encodeURIComponent(detail.name)}&city=${city}`, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<CrowdExtra>) : null))
       .then((d) => {
         if (d) setExtra(d)
@@ -128,7 +131,7 @@ export default function SpotDetail({
         // 부가정보 실패는 조용히 무시 — 핵심 상세는 이미 떠 있음
       })
     return () => controller.abort()
-  }, [detail.name])
+  }, [detail.name, city])
 
   const share = async () => {
     const url = window.location.href
@@ -168,6 +171,17 @@ export default function SpotDetail({
               <Star className={`h-4 w-4 ${isFav ? "fill-amber-400 text-amber-400" : "text-[var(--cp-text-dim)]"}`} />
             </button>
           )}
+          <a
+            // 병기 명칭(·)·괄호 부기는 해시태그 불가 — 첫 토큰만, 공백 제거 (예: '협재·금능해수욕장'→'협재')
+            href={`https://www.instagram.com/explore/tags/${encodeURIComponent(detail.name.split("·")[0].split("(")[0].replace(/\s+/g, ""))}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded p-1.5 text-[var(--cp-text-dim)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+            aria-label={t.instaSearch}
+            title={t.instaSearch}
+          >
+            <Instagram className="h-4 w-4" />
+          </a>
           <button
             onClick={() => void share()}
             className="shrink-0 rounded p-1.5 text-[var(--cp-text-dim)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
@@ -276,18 +290,52 @@ export default function SpotDetail({
         )}
       </div>
 
-      {/* 추세 */}
-      <div className="grid grid-cols-3 gap-2">
-        <TrendBadge label={t.trendH1} rate={detail.trend.hour1.rate} dir={detail.trend.hour1.dir} light={light} />
-        <TrendBadge label={t.trendH3} rate={detail.trend.hour3.rate} dir={detail.trend.hour3.dir} light={light} />
-        <TrendBadge label={t.trendM1} rate={detail.trend.month1.rate} dir={detail.trend.month1.dir} light={light} />
-      </div>
+      {/* 추세 — 원천이 증감률을 주는 항목만 (제주=1h·3h, 부산=없음) */}
+      {(() => {
+        const badges = (
+          [
+            [t.trendH1, detail.trend.hour1],
+            [t.trendH3, detail.trend.hour3],
+            [t.trendM1, detail.trend.month1],
+          ] as const
+        ).filter(([, v]) => v.rate)
+        if (badges.length === 0) return null
+        const cols = badges.length === 1 ? "grid-cols-1" : badges.length === 2 ? "grid-cols-2" : "grid-cols-3"
+        return (
+          <div className={`grid ${cols} gap-2`}>
+            {badges.map(([label, v]) => (
+              <TrendBadge key={label} label={label} rate={v.rate} dir={v.dir} light={light} />
+            ))}
+          </div>
+        )
+      })()}
 
-      {/* 24시간 타임라인 */}
-      <SpotChart detail={detail} light={light} />
+      {/* 24시간 타임라인 — 시계열 원천이 있는 도시만 (부산 제외) */}
+      {detail.series.length > 0 && <SpotChart detail={detail} light={light} />}
 
-      {/* 요일×시간 패턴 — "주말 오후엔 원래 붐비나?" (매시 수집 누적) */}
-      <SpotHeatmap name={detail.name} light={light} />
+      {/* 요일×시간 패턴 — 서울 전용 (매시 수집 누적) */}
+      {city === "seoul" && <SpotHeatmap name={detail.name} light={light} />}
+
+      {/* 해수욕장 컨디션 — 부산 해변 명소 전용 (KHOA 생활지수) */}
+      {detail.beach && detail.beach.length > 0 && (
+        <div>
+          <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <Waves className="h-3.5 w-3.5" /> {t.beachTitle}
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            {detail.beach.map((b) => (
+              <div key={b.gubun} className="rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
+                <p className="text-[11px] text-[var(--cp-text-dim)]">{b.gubun}</p>
+                <p className="mt-0.5 font-mono text-[14px] tabular-nums text-[var(--cp-text-strong)]">
+                  {b.waterTemp && `${t.beachWater} ${b.waterTemp}°`}
+                  {b.waveHeight && ` · ${t.beachWave} ${b.waveHeight}m`}
+                </p>
+                {b.index && <p className="text-[12px] text-[var(--cp-text-muted)]">{t.beachIdx} · {b.index}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* CCTV — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름이라 상단 배치 */}
       <SpotCctv cctv={detail.cctv} origin={origin} />
@@ -295,7 +343,8 @@ export default function SpotDetail({
       {/* 부가정보: 주차·행사·도로·따릉이 */}
       {extra && <SpotExtras extra={extra} origin={origin} light={light} />}
 
-      {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘 */}
+      {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘. 원천 없는 도시(부산)는 생략 */}
+      {detail.ages.length > 0 && (
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text)] [&::-webkit-details-marker]:hidden">
           {t.visitorTitle} <span className="font-normal normal-case text-[var(--cp-text-faint)]">{t.visitorSub}</span>
@@ -333,14 +382,15 @@ export default function SpotDetail({
             <RatioBar
               left={detail.resident.resident}
               right={detail.resident.nonResident}
-              leftLabel={t.residents}
-              rightLabel={t.visitors}
+              leftLabel={city === "jeju" ? t.jejuLocals : t.residents}
+              rightLabel={city === "jeju" ? t.jejuTourists : t.visitors}
               leftColor={C.residentL}
               rightColor={C.residentR}
             />
           </div>
         </div>
       </details>
+      )}
 
       {/* 날씨 */}
       {detail.weather.length > 0 && (
@@ -368,7 +418,9 @@ export default function SpotDetail({
               </div>
             ))}
           </div>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.weatherNote}</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">
+            {city === "seoul" ? t.weatherNote : "Open-Meteo"}
+          </p>
         </div>
       )}
     </div>
