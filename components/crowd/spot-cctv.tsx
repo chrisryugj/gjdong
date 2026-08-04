@@ -5,6 +5,7 @@ import { Cctv, ChevronDown } from "lucide-react"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
+import HlsVideo from "@/components/crowd/hls-video"
 
 /** 주변 CCTV 목록 + 인라인 플레이어 — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름 */
 export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?: { lat: number; lng: number } }) {
@@ -15,7 +16,8 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
   const cctvList = useMemo(() => {
     const list = cctv.map((c) => ({
       ...c,
-      meters: origin ? Math.round(distanceM(origin.lat, origin.lng, c.lat, c.lng)) : null,
+      // 좌표 미제공 카메라(부산 큐레이션 lat=0)는 거리 계산·표기 생략
+      meters: origin && c.lat !== 0 ? Math.round(distanceM(origin.lat, origin.lng, c.lat, c.lng)) : null,
     }))
     return list.sort((a, b) => (a.meters ?? 0) - (b.meters ?? 0))
   }, [cctv, origin])
@@ -55,7 +57,10 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
               </button>
               {isOpen && (
                 <div className="aspect-video w-full bg-black">
-                  {nativeHls ? (
+                  {c.kind === "hls" ? (
+                    // https·CORS 개방 스트림(TOPIS·부산) — 프록시 없이 직접 재생
+                    <HlsVideo src={c.src} />
+                  ) : nativeHls ? (
                     <video
                       src={cctvStreamUrl(c)}
                       className="h-full w-full object-contain"

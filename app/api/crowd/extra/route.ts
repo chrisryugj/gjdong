@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { fetchSpotExtra } from "@/lib/crowd/seoul-rtd"
+import { fetchBusanExtra } from "@/lib/crowd/busan"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +16,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const extra = await fetchSpotExtra(spot)
+    const city = request.nextUrl.searchParams.get("city")
+    const extra = city === "busan" ? await fetchBusanExtra(spot) : await fetchSpotExtra(spot)
     return NextResponse.json(extra, { headers: CACHE_HEADERS })
   } catch (error) {
     console.error("[crowd/extra] API error:", error instanceof Error ? error.message : "Unknown error")

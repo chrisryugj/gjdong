@@ -7,6 +7,8 @@ import { useLang } from "@/components/crowd/lang-context"
 
 interface SpotListPanelProps {
   filtered: CrowdSpot[]
+  /** 목적 프리셋은 서울 카테고리 조합이라 서울에서만 노출 */
+  showPresets: boolean
   categories: string[]
   categoryFilter: Set<string>
   levelFilter: Set<string>
@@ -33,6 +35,7 @@ interface SpotListPanelProps {
 /** 프리셋·혼잡도·카테고리 필터 + 명소 목록 */
 export default function SpotListPanel({
   filtered,
+  showPresets,
   categories,
   categoryFilter,
   levelFilter,
@@ -76,7 +79,7 @@ export default function SpotListPanel({
             <span className="font-mono tabular-nums opacity-70">{favs.size}</span>
           </button>
         )}
-        {PRESETS.map((p) => (
+        {showPresets && PRESETS.map((p) => (
           <button
             key={p.key}
             onClick={() => onApplyPreset(p.key)}

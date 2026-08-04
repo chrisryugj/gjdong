@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Navigation, Search, X } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDetail, type CrowdDisaster, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { CITIES, isCityId, type CityId } from "@/lib/crowd/cities"
 import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
 import NearestPanel from "@/components/crowd/nearest-panel"
@@ -43,6 +44,9 @@ type AddressErrorKey = "errAddress" | "errGeoUnsupported" | "errGeoDenied"
 
 function CrowdDashboardInner() {
   const { lang, t, spot: trSpotName, cat } = useLang()
+  // 도시는 URL(?city=)에서 복원 — SSR 표준 출력은 서울이라 마운트 후 확정 (null=미확정)
+  const [city, setCity] = useState<CityId | null>(null)
+  const cityRef = useRef<CityId>("seoul")
   const [spots, setSpots] = useState<CrowdSpot[]>([])
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,7 +130,7 @@ function CrowdDashboardInner() {
   const loadSpots = useCallback(async () => {
     try {
       setError(false)
-      const res = await fetch("/api/crowd")
+      const res = await fetch(`/api/crowd?city=${cityRef.current}`)
       if (!res.ok) throw new Error("bad status")
       const data = (await res.json()) as { spots: CrowdSpot[]; disaster?: CrowdDisaster[]; updatedAt: string }
       setSpots(data.spots)
@@ -144,7 +148,7 @@ function CrowdDashboardInner() {
     const controller = new AbortController()
     detailAbortRef.current = controller
     if (!silent) setDetailLoading(true)
-    fetch(`/api/crowd?spot=${encodeURIComponent(name)}`, { signal: controller.signal })
+    fetch(`/api/crowd?spot=${encodeURIComponent(name)}&city=${cityRef.current}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("bad status"))))
       .then((data: CrowdDetail) => setDetail(data))
       .catch((err: unknown) => {
@@ -157,7 +161,16 @@ function CrowdDashboardInner() {
       })
   }, [])
 
+  // URL에서 도시 확정 → 이후 목록 로드 시작 (?city 없으면 서울)
   useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("city")
+    const resolved: CityId = isCityId(raw) ? raw : "seoul"
+    cityRef.current = resolved
+    setCity(resolved)
+  }, [])
+
+  useEffect(() => {
+    if (!city) return
     void loadSpots()
     const timer = setInterval(() => {
       void loadSpots()
@@ -165,7 +178,38 @@ function CrowdDashboardInner() {
       if (selectedNameRef.current) fetchDetail(selectedNameRef.current, true)
     }, 5 * 60 * 1000)
     return () => clearInterval(timer)
-  }, [loadSpots, fetchDetail])
+  }, [city, loadSpots, fetchDetail])
+
+  // 도시 전환 — 목록·선택·검색·필터 전부 초기화 후 새 도시 로드 (URL은 ?city=로 공유 가능)
+  const changeCity = useCallback(
+    (next: CityId) => {
+      if (next === cityRef.current) return
+      cityRef.current = next
+      detailAbortRef.current?.abort()
+      setSpots([])
+      setLoading(true)
+      setSelectedName(null)
+      selectedNameRef.current = null
+      setDetail(null)
+      setAddressPin(null)
+      setQuery("")
+      setAddressError(null)
+      setDisaster([])
+      setDisasterOpen(false)
+      setPreset(null)
+      setLevelFilter(new Set())
+      setCategoryFilter(new Set())
+      setFavOnly(false)
+      const params = new URLSearchParams(window.location.search)
+      if (next === "seoul") params.delete("city")
+      else params.set("city", next)
+      params.delete("spot")
+      const qs = params.toString()
+      window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
+      setCity(next)
+    },
+    [],
+  )
 
   // 히스토리를 건드리지 않는 순수 선택 반영 (popstate·딥링크에서 재사용)
   const applySpot = useCallback(
@@ -381,12 +425,14 @@ function CrowdDashboardInner() {
   return (
     <div className={`crowd-page ${light ? "crowd-light" : ""} flex h-dvh flex-col bg-[var(--cp-bg)] text-[var(--cp-text)]`}>
       <CrowdHeader
+        city={city ?? "seoul"}
         spotCount={spots.length}
         levelCounts={levelCounts}
         updatedAt={updatedAt}
         light={light}
         disaster={disaster}
         disasterOpen={disasterOpen}
+        onCityChange={changeCity}
         onRefresh={() => void loadSpots()}
         onToggleTheme={toggleTheme}
         onToggleDisaster={() => setDisasterOpen((v) => !v)}
@@ -408,6 +454,8 @@ function CrowdDashboardInner() {
             nearestNames={nearest.map((n) => n.spot.name)}
             cctvItems={selectedName ? (detail?.cctv ?? []) : []}
             onSelect={selectSpot}
+            center={CITIES[city ?? "seoul"].center}
+            zoom={CITIES[city ?? "seoul"].zoom}
           />
           {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
           <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden">
@@ -593,6 +641,7 @@ function CrowdDashboardInner() {
           ) : (
             <SpotListPanel
               filtered={filtered}
+              showPresets={(city ?? "seoul") === "seoul"}
               categories={categories}
               categoryFilter={categoryFilter}
               levelFilter={levelFilter}
@@ -643,14 +692,14 @@ function CrowdDashboardInner() {
           )}
           <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <p className="min-w-0 flex-1 truncate text-[11px] leading-relaxed text-[var(--cp-text-faint)]">
-              {t.footerData}
+              {city === "jeju" ? t.footerDataJeju : city === "busan" ? t.footerDataBusan : t.footerData}
               <a
-                href="https://data.seoul.go.kr/SeoulRtd/"
+                href={CITIES[city ?? "seoul"].sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-[var(--cp-text-muted)]"
               >
-                {t.footerSource}
+                {city === "jeju" ? t.footerSourceJeju : city === "busan" ? t.footerSourceBusan : t.footerSource}
               </a>
             </p>
             {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}

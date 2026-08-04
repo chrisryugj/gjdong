@@ -61,10 +61,20 @@ export interface CrowdSeriesPoint {
 
 export interface CrowdCctv {
   name: string
-  lat: number
+  lat: number // 좌표 미제공 카메라(부산 큐레이션)는 0 — 지도 마커·거리 표기 생략
   lng: number
   streamId: string
   src: string // http HLS 원본 — 재생은 서울시 https 플레이어 페이지 iframe으로
+  /** hls = https+CORS 개방 스트림(TOPIS·부산) — hls.js/네이티브로 직접 재생. 생략 = 서울 RTD 프록시 */
+  kind?: "rtd" | "hls"
+}
+
+/** 해수욕장 생활지수(KHOA) — 부산 해변 명소 전용 */
+export interface CrowdBeachInfo {
+  gubun: string // 오전·오후
+  waterTemp: string
+  waveHeight: string
+  index: string // 매우좋음~나쁨
 }
 
 export interface CrowdWeatherHour {
@@ -77,6 +87,10 @@ export interface CrowdWeatherHour {
 
 export interface CrowdDetail {
   name: string
+  /** 데이터 도시 — 클라이언트가 도시별 렌더 분기(히트맵·도민/관광객 라벨 등)에 사용. 생략 = seoul */
+  city?: "seoul" | "jeju" | "busan"
+  /** 부산 해변 명소만 — 수온·파고·해수욕지수 */
+  beach?: CrowdBeachInfo[]
   level: string
   levelNum: number
   color: string
