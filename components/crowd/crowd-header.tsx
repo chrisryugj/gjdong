@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
 import { CITY_IDS, type CityId } from "@/lib/crowd/cities"
-import { formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
+import { AutoMarquee, formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
 import { LangSwitcher, useLang } from "@/components/crowd/lang-context"
 import { trDisaster } from "@/lib/crowd/i18n"
 
@@ -151,7 +151,8 @@ export default function CrowdHeader({
               ))}
             </span>
           ) : (
-            <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-[var(--cp-text)]">
+            /* 잘릴 만큼 길면 좌우 왕복 마퀴로 전문 노출 (푸터 출처와 동일 동작) */
+            <AutoMarquee className="flex-1 text-[12px] leading-5 text-[var(--cp-text)]">
               <b className="text-amber-500">
                 {trDisaster(disaster[0].type, lang)} {trDisaster(disaster[0].step, lang)}
               </b>{" "}
@@ -159,7 +160,7 @@ export default function CrowdHeader({
               {disaster.length > 1 && (
                 <span className="text-[var(--cp-text-dim)]">{t.moreCount(disaster.length - 1)}</span>
               )}
-            </span>
+            </AutoMarquee>
           )}
         </button>
       )}
