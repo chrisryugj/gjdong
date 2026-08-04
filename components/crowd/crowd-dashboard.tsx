@@ -75,6 +75,12 @@ function CrowdDashboardInner() {
 
   const [light, setLight] = useState(true)
 
+  // 모바일 지도/패널 분할 — 패널 상단 핸들 드래그로 지도 높이 조절 (null=자동 24/32dvh)
+  const [mapH, setMapH] = useState<number | null>(null)
+  const [splitDragging, setSplitDragging] = useState(false)
+  const mapBoxRef = useRef<HTMLDivElement>(null)
+  const splitDragRef = useRef<{ startY: number; startH: number } | null>(null)
+
   const [installPrompt, setInstallPrompt] = useState<(Event & { prompt: () => Promise<void> }) | null>(null)
   const [showInstall, setShowInstall] = useState<false | "android" | "ios">(false)
 
@@ -104,12 +110,46 @@ function CrowdDashboardInner() {
 
   useEffect(() => {
     if (localStorage.getItem("crowdTheme") === "dark") setLight(false)
+    const storedMapH = Number(localStorage.getItem("crowdMapH"))
+    if (storedMapH > 0) setMapH(Math.min(Math.max(storedMapH, 96), window.innerHeight * 0.7))
     try {
       const stored = JSON.parse(localStorage.getItem("crowdFavs") ?? "[]") as string[]
       if (Array.isArray(stored)) setFavs(new Set(stored))
     } catch {
       // 손상된 저장값은 무시
     }
+  }, [])
+
+  // 분할 핸들 드래그 — 포인터 캡처로 핸들 밖까지 추적, 더블탭이면 자동 높이로 복귀
+  const onSplitDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const h = mapBoxRef.current?.offsetHeight
+    if (h == null) return
+    splitDragRef.current = { startY: e.clientY, startH: h }
+    setSplitDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+
+  const onSplitMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = splitDragRef.current
+    if (!d) return
+    setMapH(Math.min(Math.max(d.startH + e.clientY - d.startY, 96), window.innerHeight * 0.7))
+  }, [])
+
+  const onSplitUp = useCallback(() => {
+    if (!splitDragRef.current) return
+    splitDragRef.current = null
+    setSplitDragging(false)
+    setMapH((h) => {
+      if (h != null) localStorage.setItem("crowdMapH", String(Math.round(h)))
+      return h
+    })
+  }, [])
+
+  const resetSplit = useCallback(() => {
+    splitDragRef.current = null
+    setSplitDragging(false)
+    setMapH(null)
+    localStorage.removeItem("crowdMapH")
   }, [])
 
   const toggleFav = useCallback((name: string) => {
@@ -450,10 +490,13 @@ function CrowdDashboardInner() {
 
       {/* ── 본문: 지도 + 패널 */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* 모바일: 지도는 컴팩트하게, 목록에 공간을 양보 (상세/근처 목록이 열리면 더 축소) */}
+        {/* 모바일: 지도는 컴팩트하게, 목록에 공간을 양보 (상세/근처 목록이 열리면 더 축소).
+            핸들로 조절했으면(--crowd-map-h) 그 높이가 자동 전환보다 우선 */}
         <div
-          className={`relative shrink-0 transition-[height] duration-300 md:h-auto md:flex-1 ${
-            selectedName || addressPin ? "h-[24dvh]" : "h-[32dvh]"
+          ref={mapBoxRef}
+          style={mapH != null ? ({ "--crowd-map-h": `${mapH}px` } as React.CSSProperties) : undefined}
+          className={`relative shrink-0 md:h-auto md:flex-1 ${splitDragging ? "" : "transition-[height] duration-300"} ${
+            selectedName || addressPin ? "h-[var(--crowd-map-h,24dvh)]" : "h-[var(--crowd-map-h,32dvh)]"
           }`}
         >
           <CrowdMap
@@ -487,6 +530,21 @@ function CrowdDashboardInner() {
 
         {/* PC는 패널을 좌측에 (모바일은 지도 위, 패널 아래 유지) */}
         <aside className="flex min-h-0 flex-1 flex-col border-t border-[var(--cp-border)] md:order-first md:w-[440px] md:flex-none md:border-r md:border-t-0 xl:w-[500px]">
+          {/* 모바일 분할 핸들 — 드래그로 지도/목록 비율 조절 */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t.resizePanel}
+            title={t.resizePanel}
+            onPointerDown={onSplitDown}
+            onPointerMove={onSplitMove}
+            onPointerUp={onSplitUp}
+            onPointerCancel={onSplitUp}
+            onDoubleClick={resetSplit}
+            className="flex h-5 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
+          >
+            <span className="h-1 w-9 rounded-full bg-[var(--cp-border-strong)]" />
+          </div>
           {/* 검색 + 내 위치 */}
           <div className="shrink-0 border-b border-[var(--cp-border)] p-2.5 md:p-3">
             <div className="flex items-center gap-2">
