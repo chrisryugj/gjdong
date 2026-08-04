@@ -303,3 +303,15 @@
   background: var(--cp-border-strong);
   border-radius: 4px;
 }
+
+/* 푸터 자동 마퀴 — 내용이 넘칠 때만 좌우 왕복(양 끝에서 잠시 멈춤), 이동량은 인라인 CSS 변수 */
+@keyframes crowd-marquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    transform: translateX(var(--crowd-marquee-shift, 0px));
+  }
+}
