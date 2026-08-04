@@ -626,6 +626,14 @@ function CrowdDashboardInner() {
                   >
                     <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> {t.naverDirections}
                   </a>
+                  {/* 티맵은 웹 라우팅이 없어 앱 스킴 — 미설치/데스크톱은 무동작이라 앱 필요 표기 */}
+                  <a
+                    href={`tmap://route?goalname=${encodeURIComponent(selectedSpot.name)}&goaly=${selectedSpot.lat}&goalx=${selectedSpot.lng}`}
+                    title={t.tmapNeedsApp}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
+                  >
+                    <Navigation className="h-3.5 w-3.5 text-[#4b2ea8]" /> {t.tmapDirections}
+                  </a>
                 </div>
               )}
             </div>
