@@ -47,10 +47,10 @@ export default function CrowdHeader({
   return (
     <>
       {/* ── 헤더 */}
-      <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 py-1.5 md:h-14 md:py-0 md:px-5">
+      <header className="flex min-h-0 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 py-1 md:min-h-14 md:py-0 md:px-5">
         {/* 제목은 min-w-0+truncate — 긴 외국어 제목이 우측 컨트롤과 겹치지 않게 말줄임.
             모바일은 wrap 허용 — 폭이 모자라면 도시 스위처가 둘째 줄로 내려가 제목이 살아남는다 */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 md:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 md:flex-nowrap">
           <h1
             className={`min-w-0 truncate text-[var(--cp-text-strong)] ${
               lang === "ko"
@@ -71,7 +71,7 @@ export default function CrowdHeader({
                 key={id}
                 onClick={() => onCityChange(id)}
                 aria-pressed={city === id}
-                className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors md:py-1 ${
                   city === id
                     ? "bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
                     : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
