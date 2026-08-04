@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { textColor } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 
@@ -46,6 +47,47 @@ export function formatMeters(meters: number): string {
 export function formatClock(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })
+}
+
+/** 넘칠 때만 좌우로 천천히 왕복하는 자동 마퀴 — 푸터 출처처럼 한 줄 고정 영역용.
+ * 폭이 충분하면 정적 표시 그대로, 도시·언어 전환에 따른 내용 변화는 ResizeObserver가 재측정 */
+export function AutoMarquee({ children, className }: { children: React.ReactNode; className?: string }) {
+  const outerRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLSpanElement>(null)
+  const [shift, setShift] = useState(0)
+
+  useEffect(() => {
+    const measure = () => {
+      const outer = outerRef.current
+      const inner = innerRef.current
+      if (!outer || !inner) return
+      setShift(Math.min(0, outer.clientWidth - inner.scrollWidth))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    if (outerRef.current) observer.observe(outerRef.current)
+    if (innerRef.current) observer.observe(innerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={outerRef} className={`min-w-0 overflow-hidden ${className ?? ""}`}>
+      <span
+        ref={innerRef}
+        className="inline-block whitespace-nowrap"
+        style={
+          shift < 0
+            ? ({
+                animation: `crowd-marquee ${Math.max(7, Math.round(-shift / 20))}s linear 2s infinite alternate`,
+                "--crowd-marquee-shift": `${shift}px`,
+              } as React.CSSProperties)
+            : undefined
+        }
+      >
+        {children}
+      </span>
+    </div>
+  )
 }
 
 /** 혼잡도 알약 뱃지 — 목록·근처·상세 공용 (선택 언어로 표시) */

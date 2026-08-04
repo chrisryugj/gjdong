@@ -11,6 +11,7 @@ import NearestPanel from "@/components/crowd/nearest-panel"
 import SpotListPanel from "@/components/crowd/spot-list-panel"
 import { LangProvider, useLang } from "@/components/crowd/lang-context"
 import {
+  AutoMarquee,
   formatKm,
   haversineKm,
   LevelBadge,
@@ -699,7 +700,8 @@ function CrowdDashboardInner() {
             </div>
           )}
           <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            <p className="min-w-0 flex-1 truncate text-[11px] leading-relaxed text-[var(--cp-text-faint)]">
+            {/* 출처가 길어 잘리면 자동으로 좌우 왕복 스크롤 (폭이 충분하면 정지) */}
+            <AutoMarquee className="flex-1 text-[11px] leading-relaxed text-[var(--cp-text-faint)]">
               {city === "jeju" ? t.footerDataJeju : city === "busan" ? t.footerDataBusan : t.footerData}
               <a
                 href={CITIES[city ?? "seoul"].sourceUrl}
@@ -709,7 +711,7 @@ function CrowdDashboardInner() {
               >
                 {city === "jeju" ? t.footerSourceJeju : city === "busan" ? t.footerSourceBusan : t.footerSource}
               </a>
-            </p>
+            </AutoMarquee>
             {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}
             <a
               href="https://hitscounter.dev/history?url=https://gjdong.vercel.app/crowd"
