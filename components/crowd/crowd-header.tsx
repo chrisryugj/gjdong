@@ -98,9 +98,18 @@ export default function CrowdHeader({
           </div>
 
           <div className="flex items-center gap-1.5 border-l border-[var(--cp-border)] pl-3 md:pl-4">
+            {/* 갱신 시각 — 라이브 점과 함께 모든 폭에서 노출 (좁으면 제목 줄이 wrap으로 양보) */}
             {updatedAt && (
-              <span className="hidden font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)] min-[400px]:inline">
+              <span
+                className="flex shrink-0 items-center gap-1.5 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]"
+                title={t.autoRefresh}
+              >
+                <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-50" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
+                </span>
                 {t.updatedAt(formatClock(updatedAt))}
+                <span className="hidden text-[var(--cp-text-faint)] xl:inline">· {t.autoRefresh}</span>
               </span>
             )}
             <button
