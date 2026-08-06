@@ -20,6 +20,8 @@ interface SpotListPanelProps {
   light: boolean
   loading: boolean
   error: boolean
+  /** 원천 자체가 응답하지 않는 실패 — 일반 재시도 안내 대신 원천 상태를 알린다 */
+  originDown: boolean
   noSpotMatch: boolean
   onApplyPreset: (key: PresetKey) => void
   onToggleFavOnly: () => void
@@ -47,6 +49,7 @@ export default function SpotListPanel({
   light,
   loading,
   error,
+  originDown,
   noSpotMatch,
   onApplyPreset,
   onToggleFavOnly,
@@ -170,7 +173,9 @@ export default function SpotListPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {error && (
           <div className="p-6 text-center">
-            <p className={`text-[13px] ${light ? "text-red-600" : "text-red-400"}`}>{t.errLoad}</p>
+            <p className={`text-[13px] ${light ? "text-red-600" : "text-red-400"}`}>
+              {originDown ? t.errOriginDown : t.errLoad}
+            </p>
             <button
               onClick={onRetry}
               className="mt-2 rounded-md border border-[var(--cp-border-strong)] px-3 py-1.5 text-[13px] text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"

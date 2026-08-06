@@ -5,7 +5,13 @@
 // - getTimePopByCircle: SELECT(성별×연령 20컬럼) 필수 — 26행 [{IN_POP,OUT_POP,TIME}]
 //   TIME='NOW'(현재)·'3AVG'(최근 3시간 평균)·이후 현재 시각부터 역순 24시간. IN=도민, OUT=관광객.
 // - getSexAgePopByCircle: [도민 성×연령 20키, 관광객 성×연령 20키] 2행(한글 키).
-// - 호스트가 TLS 중간 인증서 누락 체인이라 http 사용 (서버측 fetch 검증 실패 회피, 80포트 동일 응답 실측).
+// - 호스트가 TLS 중간 인증서 누락 체인이라 체인 검증을 끄고 통신한다(krgovFetch).
+//
+// ⚠️2026-08-07: 원천이 `Sec-Fetch-Site: same-origin` 이 없는 요청을 403으로 막기 시작했다.
+//   실측으로 좁힌 결과 이 헤더 하나가 전부다 — UA·Referer·Accept-*·TLS 버전은 전부 무관하고,
+//   cross-site·none 값은 403이다. 자기 페이지의 XHR만 받겠다는 뜻이라 호출을 아끼는 게 전제다:
+//   목록 캐시 15분 + 클라이언트 숨김 탭 정지로 낮춰 두었다(2026-08 차단 사고 대응).
+//   80포트는 이제 301로 https로 넘긴다 — http 직결은 더 이상 통하지 않는다.
 
 import {
   LEVEL_COLORS,
@@ -16,8 +22,11 @@ import {
   type CrowdSpot,
   type CrowdWeatherHour,
 } from "@/lib/crowd/seoul-rtd"
+import { krgovJson } from "@/lib/crowd/krgov-fetch"
 
-const GEONET = "http://jeju.mms.gislab.co.kr/mms_new/GEONET."
+const GEONET = "https://jeju.mms.gislab.co.kr/mms_new/GEONET."
+// 원천이 자기 페이지發 XHR만 받는다 — 이 헤더가 빠지면 전건 403
+const GEONET_HEADERS = { "Sec-Fetch-Site": "same-origin" }
 const GEONET_SEL =
   "M_POP_00,M_POP_10,M_POP_20,M_POP_30,M_POP_40,M_POP_50,M_POP_60,M_POP_70,M_POP_80,M_POP_90,W_POP_00,W_POP_10,W_POP_20,W_POP_30,W_POP_40,W_POP_50,W_POP_60,W_POP_70,W_POP_80,W_POP_90"
 const METEO = "https://api.open-meteo.com/v1/forecast"
@@ -113,13 +122,8 @@ interface GeonetRow {
   TIME: number | string
 }
 
-async function geonetFetch(path: string): Promise<unknown> {
-  const res = await fetch(`${GEONET}${path}`, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(12000),
-  })
-  if (!res.ok) throw new Error(`GEONET ${res.status}`)
-  return res.json()
+function geonetFetch(path: string): Promise<unknown> {
+  return krgovJson(`${GEONET}${path}`, { headers: GEONET_HEADERS, timeoutMs: 12000 })
 }
 
 function popUrl(s: JejuSpotDef): string {

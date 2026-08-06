@@ -38,12 +38,17 @@ export default function CrowdHeader({
   const { lang, t, level } = useLang()
   // 도시 전환 시 제목도 동기화 — 4개 언어 제목 속 현지화된 "서울"만 해당 도시명으로 치환
   const title = city === "seoul" ? t.title : t.title.replaceAll(t.cityNames.seoul, t.cityNames[city])
-  const subtitle =
-    city === "jeju"
-      ? t.subtitleJeju(spotCount > 0 ? spotCount : 66)
-      : city === "busan"
-        ? t.subtitleBusan(spotCount > 0 ? spotCount : 26)
-        : t.subtitle(spotCount > 0 ? spotCount : 121)
+  // 도시별 부제 — 원천이 달라 세는 대상도 다르다(인파/접근·주차/출국장 대기).
+  // 목록 도착 전에는 도시별 기대 개수를 보여준다.
+  const SUBTITLE: Record<string, [(n: number) => string, number]> = {
+    jeju: [t.subtitleJeju, 66],
+    busan: [t.subtitleBusan, 26],
+    gangwon: [t.subtitleGangwon, 18],
+    incheon: [t.subtitleIncheon, 8],
+    seoul: [t.subtitle, 121],
+  }
+  const [subtitleFn, fallbackCount] = SUBTITLE[city] ?? SUBTITLE.seoul
+  const subtitle = subtitleFn(spotCount > 0 ? spotCount : fallbackCount)
   return (
     <>
       {/* ── 헤더 */}
