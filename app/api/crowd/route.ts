@@ -94,8 +94,15 @@ export async function GET(request: NextRequest) {
       { headers: CACHE_HEADERS },
     )
   } catch (error) {
-    console.error("[crowd] API error:", error instanceof Error ? error.message : "Unknown error")
-    return NextResponse.json({ error: "실시간 데이터를 불러오지 못했습니다." }, { status: 502 })
+    const detail = error instanceof Error ? error.message : "Unknown error"
+    console.error("[crowd] API error:", detail)
+    // ?debug=1 일 때만 원인을 실어 보낸다 — 로그 스트림 없이 프로덕션 원천 계약을 진단하기 위함
+    return NextResponse.json(
+      request.nextUrl.searchParams.get("debug") === "1"
+        ? { error: "실시간 데이터를 불러오지 못했습니다.", detail }
+        : { error: "실시간 데이터를 불러오지 못했습니다." },
+      { status: 502 },
+    )
   }
 }
 
