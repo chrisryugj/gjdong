@@ -46,6 +46,14 @@ type AddressErrorKey = "errAddress" | "errGeoUnsupported" | "errGeoDenied"
 
 function CrowdDashboardInner() {
   const { lang, t, spot: trSpotName, cat } = useLang()
+  // 푸터 출처 — 도시마다 원천과 갱신 주기가 달라 문구를 통째로 갈아끼운다 [본문, 링크문구]
+  const FOOTER_T: Record<string, [string, string]> = {
+    seoul: [t.footerData, t.footerSource],
+    jeju: [t.footerDataJeju, t.footerSourceJeju],
+    busan: [t.footerDataBusan, t.footerSourceBusan],
+    gangwon: [t.footerDataGangwon, t.footerSourceGangwon],
+    incheon: [t.footerDataIncheon, t.footerSourceIncheon],
+  }
   // 도시는 URL(?city=)에서 복원 — SSR 표준 출력은 서울이라 마운트 후 확정 (null=미확정)
   const [city, setCity] = useState<CityId | null>(null)
   const cityRef = useRef<CityId>("seoul")
@@ -219,15 +227,31 @@ function CrowdDashboardInner() {
       city === "seoul" ? base : base.replaceAll(UI[lang].cityNames.seoul, UI[lang].cityNames[city])
   }, [city, lang])
 
+  // 갱신 주기 — 제주는 명소당 1콜(66콜/회) 구조라 원천 부담이 서울·부산의 수십 배라 길게 잡는다.
+  // 숨겨진 탭에서는 아예 멈춘다: 켜둔 채 방치된 탭이 쌓이면 아무도 보지 않는 데이터를 위해
+  // 상류 호출만 누적된다(2026-08 제주 원천 차단 사고의 교훈). 복귀 시 주기가 지났으면 즉시 1회.
   useEffect(() => {
     if (!city) return
+    const periodMs = (city === "jeju" ? 15 : 5) * 60 * 1000
     void loadSpots()
-    const timer = setInterval(() => {
+    let lastAt = Date.now()
+    const refresh = () => {
+      lastAt = Date.now()
       void loadSpots()
-      // 상세를 열어둔 채 방치해도 5분마다 조용히 최신화
+      // 상세를 열어둔 채 방치해도 조용히 최신화
       if (selectedNameRef.current) fetchDetail(selectedNameRef.current, true)
-    }, 5 * 60 * 1000)
-    return () => clearInterval(timer)
+    }
+    const timer = setInterval(() => {
+      if (!document.hidden) refresh()
+    }, periodMs)
+    const onVisibility = () => {
+      if (!document.hidden && Date.now() - lastAt >= periodMs) refresh()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [city, loadSpots, fetchDetail])
 
   // 도시 전환 — 목록·선택·검색·필터 전부 초기화 후 새 도시 로드 (URL은 ?city=로 공유 가능)
@@ -729,6 +753,7 @@ function CrowdDashboardInner() {
               light={light}
               loading={loading}
               error={error}
+              originDown={error && city === "jeju"}
               noSpotMatch={noSpotMatch}
               onApplyPreset={applyPreset}
               onToggleFavOnly={() => setFavOnly((v) => !v)}
@@ -769,14 +794,14 @@ function CrowdDashboardInner() {
           <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] px-4 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:py-2 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             {/* 출처가 길어 잘리면 자동으로 좌우 왕복 스크롤 (폭이 충분하면 정지) */}
             <AutoMarquee className="flex-1 text-[11px] leading-relaxed text-[var(--cp-text-faint)]">
-              {city === "jeju" ? t.footerDataJeju : city === "busan" ? t.footerDataBusan : t.footerData}
+              {FOOTER_T[city ?? "seoul"]?.[0] ?? t.footerData}
               <a
                 href={CITIES[city ?? "seoul"].sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-[var(--cp-text-muted)]"
               >
-                {city === "jeju" ? t.footerSourceJeju : city === "busan" ? t.footerSourceBusan : t.footerSource}
+                {FOOTER_T[city ?? "seoul"]?.[1] ?? t.footerSource}
               </a>
             </AutoMarquee>
             {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}

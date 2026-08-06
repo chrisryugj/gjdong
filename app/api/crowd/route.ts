@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { fetchAllSpots, fetchDisasterToday, fetchSpotDetail } from "@/lib/crowd/seoul-rtd"
 import { fetchJejuDetail, fetchJejuSpots } from "@/lib/crowd/jeju"
 import { fetchBusanDetail, fetchBusanSpots } from "@/lib/crowd/busan"
+import { fetchGangwonDetail, fetchGangwonSpots } from "@/lib/crowd/gangwon"
+import { fetchIncheonDetail, fetchIncheonSpots } from "@/lib/crowd/incheon"
 import { augmentWithTopis } from "@/lib/crowd/topis"
 import { isCityId, type CityId } from "@/lib/crowd/cities"
 
@@ -11,9 +13,14 @@ export const dynamic = "force-dynamic"
 const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=120, stale-while-revalidate=180",
 }
-// 제주는 명소당 1콜(66콜/회) 구조라 5분 캐시로 원천 예의
+// 제주는 명소당 1콜(66콜/회) 구조라 원천 부담이 서울·부산의 수십 배 — 15분 캐시로 낮춘다.
+// (2026-08 원천 차단 사고 이후 감축. 클라이언트 폴링도 제주만 15분으로 맞춰져 있다.)
 const JEJU_CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300",
+  "Cache-Control": "public, s-maxage=900, stale-while-revalidate=900",
+}
+// 인천공항 승객예고는 1분 주기 원천 — 대기줄은 빨리 변하므로 짧게 잡는다
+const ICN_CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60",
 }
 
 export async function GET(request: NextRequest) {
@@ -31,6 +38,12 @@ export async function GET(request: NextRequest) {
       }
       if (city === "busan") {
         return NextResponse.json(await fetchBusanDetail(spot), { headers: CACHE_HEADERS })
+      }
+      if (city === "gangwon") {
+        return NextResponse.json(await fetchGangwonDetail(spot), { headers: CACHE_HEADERS })
+      }
+      if (city === "incheon") {
+        return NextResponse.json(await fetchIncheonDetail(spot), { headers: ICN_CACHE_HEADERS })
       }
       const detail = await fetchSpotDetail(spot)
       // 서울 RTD 지점별 CCTV(0~8대)에 TOPIS 전역 510대 근접 카메라 병합
@@ -53,6 +66,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { spots, disaster: [], updatedAt: new Date().toISOString() },
         { headers: CACHE_HEADERS },
+      )
+    }
+    if (city === "gangwon") {
+      const spots = await fetchGangwonSpots()
+      return NextResponse.json(
+        { spots, disaster: [], updatedAt: new Date().toISOString() },
+        { headers: CACHE_HEADERS },
+      )
+    }
+    if (city === "incheon") {
+      const spots = await fetchIncheonSpots()
+      return NextResponse.json(
+        { spots, disaster: [], updatedAt: new Date().toISOString() },
+        { headers: ICN_CACHE_HEADERS },
       )
     }
 

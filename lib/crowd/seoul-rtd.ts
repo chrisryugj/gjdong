@@ -88,8 +88,8 @@ export interface CrowdWeatherHour {
 export interface CrowdDetail {
   name: string
   /** 데이터 도시 — 클라이언트가 도시별 렌더 분기(히트맵·도민/관광객 라벨 등)에 사용. 생략 = seoul */
-  city?: "seoul" | "jeju" | "busan"
-  /** 부산 해변 명소만 — 수온·파고·해수욕지수 */
+  city?: "seoul" | "jeju" | "busan" | "gangwon" | "incheon"
+  /** 해변 명소만 (부산·강원) — 수온·파고·해수욕지수 */
   beach?: CrowdBeachInfo[]
   level: string
   levelNum: number
