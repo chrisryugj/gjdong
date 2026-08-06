@@ -3,5 +3,6 @@
     "deploymentEnabled": {
       "data": false
     }
-  }
+  },
+  "regions": ["icn1"]
 }
