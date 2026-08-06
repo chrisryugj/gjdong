@@ -187,9 +187,15 @@ export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
       JEJU_SPOTS.slice(i, i + BATCH).map(async (s) => {
         try {
           const rows = (await geonetFetch(popUrl(s))) as GeonetRow[]
-          if (!Array.isArray(rows)) return
+          if (!Array.isArray(rows)) {
+            firstError ??= `not-array: ${JSON.stringify(rows).slice(0, 160)}`
+            return
+          }
           const pop = parsePop(rows)
-          if (!pop) return
+          if (!pop) {
+            firstError ??= `parse-null(len=${rows.length}): ${JSON.stringify(rows[0] ?? null).slice(0, 160)}`
+            return
+          }
           const rhythmMax = Math.max(...pop.series.map((x) => x.v), pop.total, 1)
           const level = deriveLevel(pop.total, rhythmMax, s.r / 1000)
           spots.push({
