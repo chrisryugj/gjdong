@@ -180,6 +180,7 @@ function deriveLevel(now: number, rhythmMax: number, rKm: number): string {
 
 export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
   const spots: CrowdSpot[] = []
+  let firstError: string | undefined
   const BATCH = 8
   for (let i = 0; i < JEJU_SPOTS.length; i += BATCH) {
     await Promise.all(
@@ -200,13 +201,15 @@ export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
             levelNum: levelNum(level),
             color: LEVEL_COLORS[level] ?? "#999",
           })
-        } catch {
+        } catch (err) {
           // 지점 단위 실패 = 이번 회차 스킵 (다음 갱신에 회복)
+          firstError ??= err instanceof Error ? err.message : String(err)
         }
       }),
     )
   }
-  if (spots.length === 0) throw new Error("GEONET empty")
+  // 전건 실패는 원천 계약이 바뀐 신호다 — 원인을 삼키면 502만 보이고 진단이 불가능해진다
+  if (spots.length === 0) throw new Error(`GEONET empty (${firstError ?? "no error captured"})`)
   // 배치 병렬로 순서가 섞이므로 정의 순서로 복원
   const order = new Map(JEJU_SPOTS.map((s, i) => [s.name, i]))
   return spots.sort((a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0))
