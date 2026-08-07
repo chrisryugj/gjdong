@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, Star } from "lucide-react"
+import { ArrowLeft, Map as MapIcon, Star } from "lucide-react"
 import type { CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
-import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import CrowdMap from "@/components/crowd/crowd-map"
 import { UI } from "@/lib/crowd/i18n"
 import { buildCsv, buildReport, buildSnapshotRows, csvFilename } from "@/lib/crowd/export"
 import { buildLogRows, logSpotNames, type OpsLogTick } from "@/lib/crowd/oplog"
@@ -53,8 +54,20 @@ export default function OpsBoard({
   onExportLog: () => void
   onClearLog: () => void
 }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const details = useOpsDetails(city, watch, updatedAt)
+
+  // 접이식 미니맵 — 평소엔 접혀 카드 중심 유지, 열림 상태는 기기별 기억
+  const [mapOpen, setMapOpen] = useState(false)
+  useEffect(() => {
+    setMapOpen(localStorage.getItem("crowdOpsMap") === "1")
+  }, [])
+  const toggleMap = useCallback(() => {
+    setMapOpen((v) => {
+      localStorage.setItem("crowdOpsMap", v ? "0" : "1")
+      return !v
+    })
+  }, [])
 
   // 감시 지점 중 현재 목록에 실존하는 것만 (원천 개편·오타 딥링크는 조용히 제외)
   const watchSpots = useMemo(() => {
@@ -150,12 +163,43 @@ export default function OpsBoard({
         <span className="h-4 w-px bg-[var(--cp-border)]" />
         <span className="text-[13px] font-medium text-[var(--cp-text-strong)]">{t.opsMode}</span>
         <span className="text-[12px] text-[var(--cp-text-faint)]">{t.opsPollNote(CITY_CAPS[city].pollMinutes)}</span>
-        {updatedAt && (
-          <span className="ml-auto font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
-            {t.updatedAt(new Date(updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }))}
-          </span>
-        )}
+        <span className="ml-auto flex items-center gap-1.5">
+          {updatedAt && (
+            <span className="font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
+              {t.updatedAt(new Date(updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }))}
+            </span>
+          )}
+          {/* 미니맵 토글 — 감시 지점의 공간 배치 파악용 */}
+          <button
+            onClick={toggleMap}
+            aria-pressed={mapOpen}
+            title={mapOpen ? t.opsMapHide : t.opsMapShow}
+            aria-label={mapOpen ? t.opsMapHide : t.opsMapShow}
+            className={`rounded p-1.5 transition-colors hover:bg-[var(--cp-hover)] ${
+              mapOpen ? "text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)] hover:text-[var(--cp-text-strong)]"
+            }`}
+          >
+            <MapIcon className="h-3.5 w-3.5" />
+          </button>
+        </span>
       </div>
+
+      {/* 접이식 미니맵 — 감시 지점만 마커로, 클릭 시 상세 (기존 CrowdMap 재사용, 신규 서버 0) */}
+      {mapOpen && (
+        <div className="relative h-[26dvh] min-h-[160px] shrink-0 border-b border-[var(--cp-border)]">
+          <CrowdMap
+            spots={watchSpots}
+            lang={lang}
+            selectedName={null}
+            addressPin={null}
+            nearestNames={[]}
+            cctvItems={[]}
+            onSelect={onOpenSpot}
+            center={CITIES[city].center}
+            zoom={CITIES[city].zoom}
+          />
+        </div>
+      )}
 
       <OpsToolbar
         city={city}
