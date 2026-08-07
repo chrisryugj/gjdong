@@ -63,7 +63,13 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
             {parkingLots.map((lot) => {
               const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, lot.lat, lot.lng)) : null
-              const pct = Math.round((lot.available / lot.capacity) * 100)
+              // 여유 비율 — 총면수를 주는 원천은 잔여÷총면, 점유율만 주는 원천(인천공항)은 그 보수
+              const pct =
+                lot.occupancyPct != null
+                  ? 100 - lot.occupancyPct
+                  : lot.capacity > 0
+                    ? Math.round((lot.available / lot.capacity) * 100)
+                    : 0
               const linked = lot.lat !== 0 && lot.lng !== 0
               return (
                 <li key={lot.name} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
@@ -86,9 +92,11 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     >
                       {lot.available}
                     </span>
-                    <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">
-                      {t.parkingCap(lot.capacity)}
-                    </span>
+                    {lot.capacity > 0 && (
+                      <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">
+                        {t.parkingCap(lot.capacity)}
+                      </span>
+                    )}
                     {linked && <Navigation className="h-3 w-3 shrink-0 text-[var(--cp-text-faint)]" />}
                   </a>
                 </li>

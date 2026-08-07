@@ -14,8 +14,9 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 node_modules/.bin/tsx scripts/collect-jeju.ts
 
-BLOB=$(git hash-object -w out-data-jeju/jeju.json)
-TREE=$(printf '100644 blob %s\tjeju.json\n' "$BLOB" | git mktree)
+SNAP=$(git hash-object -w out-data-jeju/jeju.json)
+HEAT=$(git hash-object -w out-data-jeju/jeju-heatmap.json)
+TREE=$(printf '100644 blob %s\tjeju.json\n100644 blob %s\tjeju-heatmap.json\n' "$SNAP" "$HEAT" | git mktree)
 COMMIT=$(git commit-tree "$TREE" -m "chore: jeju snapshot $(date '+%Y-%m-%d %H:%M')")
 git push -f origin "$COMMIT:refs/heads/data-jeju"
 

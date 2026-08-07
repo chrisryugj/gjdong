@@ -313,8 +313,10 @@ export default function SpotDetail({
       {/* 24시간 타임라인 — 시계열 원천이 있는 도시만 (부산 제외) */}
       {detail.series.length > 0 && <SpotChart detail={detail} light={light} />}
 
-      {/* 요일×시간 패턴 — 서울 전용 (매시 수집 누적) */}
-      {city === "seoul" && <SpotHeatmap name={detail.name} light={light} />}
+      {/* 요일×시간 패턴 — 누적 원천이 있는 도시만 (서울: GH Actions 3h · 제주: 맥미니 15분) */}
+      {(city === "seoul" || city === "jeju") && (
+        <SpotHeatmap name={detail.name} light={light} city={city} />
+      )}
 
       {/* 해수욕장 컨디션 — 부산 해변 명소 전용 (KHOA 생활지수) */}
       {detail.beach && detail.beach.length > 0 && (

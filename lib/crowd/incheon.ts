@@ -16,12 +16,30 @@ import {
   levelNum,
   type CrowdCctv,
   type CrowdDetail,
+  type CrowdExtra,
+  type CrowdParkingLot,
   type CrowdSpot,
   type CrowdWeatherHour,
 } from "@/lib/crowd/seoul-rtd"
 
 const WAIT = "https://www.airport.kr/pgn/ap_ko/passengerNoticeApiData.do?tmnlId="
 const METEO = "https://api.open-meteo.com/v1/forecast"
+
+// 주차 현황 — 공항 홈페이지 SSR HTML 4장(무키). 실측 16구역: T1 단기3·장기5, T2 단기5·장기3.
+// 각 <li>에 구역명·잔여("N대 가능"/"만차")·점유율(num-line 의 width%)이 함께 있다.
+// 총 주차면수는 어디에도 없다 — 잔여÷(1-점유율)로 역산하면 width가 정수 반올림이라
+// ±5% 오차가 확정 숫자처럼 보이므로 capacity 는 비우고 점유율을 그대로 싣는다.
+const PARK_PAGES: Array<{ id: string; terminal: "1" | "2"; kind: string }> = [
+  { id: "964", terminal: "1", kind: "단기" },
+  { id: "965", terminal: "1", kind: "장기" },
+  { id: "967", terminal: "2", kind: "단기" },
+  { id: "968", terminal: "2", kind: "장기" },
+]
+// 구역 단위 좌표는 원천에 없다 — 길찾기는 해당 터미널로 보낸다
+const TERMINAL_COORD: Record<"1" | "2", { lat: number; lng: number }> = {
+  "1": { lat: 37.4495715, lng: 126.4521194 },
+  "2": { lat: 37.468044, lng: 126.4348646 },
+}
 
 const NO_DATA = "정보 없음"
 
@@ -118,6 +136,47 @@ async function loadSnapshot(): Promise<IncheonSnapshot> {
     snapshotPromise = null
   })
   return snapshotPromise
+}
+
+/** 주차 페이지 1장 파싱 — 구역명·잔여·점유율 세 값이 한 블록에 붙어 있다 */
+function parseParkPage(html: string, terminal: "1" | "2", kind: string): CrowdParkingLot[] {
+  const flat = html.replace(/\s+/g, " ")
+  const re =
+    /<div class="num-txt">\s*<span>([^<]*)<\/span>\s*<strong[^>]*>\s*([^<]*?)\s*<\/strong>\s*<\/div>\s*<div class="num-line[^"]*"><span style="width:\s*([\d.]+)%"/g
+  const out: CrowdParkingLot[] = []
+  for (let m = re.exec(flat); m; m = re.exec(flat)) {
+    const zone = m[1].trim()
+    if (!zone) continue
+    // "만차"는 잔여 0 — 숫자가 없다고 건너뛰면 가장 중요한 상태가 사라진다
+    const availMatch = /([\d,]+)\s*대/.exec(m[2])
+    const available = availMatch ? Number.parseInt(availMatch[1].replace(/,/g, ""), 10) : 0
+    out.push({
+      name: `T${terminal} ${kind} ${zone}`,
+      capacity: 0,
+      available: Number.isFinite(available) ? available : 0,
+      ...TERMINAL_COORD[terminal],
+      occupancyPct: Math.round(Number.parseFloat(m[3])),
+    })
+  }
+  return out
+}
+
+async function fetchParking(): Promise<CrowdParkingLot[]> {
+  const pages = await Promise.all(
+    PARK_PAGES.map(async (p) => {
+      try {
+        const res = await fetch(`https://www.airport.kr/ap_ko/${p.id}/subview.do`, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(12000),
+        })
+        if (!res.ok) return []
+        return parseParkPage(await res.text(), p.terminal, p.kind)
+      } catch {
+        return [] // 페이지 단위 실패 = 그 구역만 빠진다
+      }
+    }),
+  )
+  return pages.flat()
 }
 
 const LV_BY_N = ["", "여유", "보통", "약간 붐빔", "붐빔"]
@@ -231,6 +290,28 @@ export async function fetchIncheonDetail(name: string): Promise<CrowdDetail> {
     peakForecastLevel: "",
     weather,
     cctv,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+/** 인천공항 부가정보 — 주차 16구역 (다른 도시의 CrowdExtra와 같은 형태로 수렴) */
+export async function fetchIncheonExtra(name: string): Promise<CrowdExtra> {
+  if (!INCHEON_SPOTS.some((s) => s.name === name)) throw new Error(`unknown incheon spot: ${name}`)
+  const lots = await fetchParking()
+
+  // 총면수를 모르니 전체 여유율은 구역 점유율의 평균으로 낸다(면수 가중은 불가) — 요약 지표라 허용.
+  const pcts = lots.map((l) => l.occupancyPct).filter((p): p is number => p != null)
+  const freePct = pcts.length > 0 ? Math.round(100 - pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0
+
+  return {
+    alerts: [],
+    parking:
+      lots.length > 0
+        ? { available: lots.reduce((s, l) => s + l.available, 0), percent: freePct, lots }
+        : null,
+    events: [],
+    road: null,
+    bike: null,
     updatedAt: new Date().toISOString(),
   }
 }
