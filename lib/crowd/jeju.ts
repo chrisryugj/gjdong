@@ -137,9 +137,14 @@ async function geonetDirect(path: string): Promise<unknown> {
  */
 async function geonetViaProxy(path: string, proxy: string): Promise<unknown> {
   const raw = await krgovJson(`${proxy}${encodeURIComponent(`${GEONET}${path}`)}`, { timeoutMs: 15000 })
-  const env = raw as { status?: number; body?: unknown } | null
+  const env = raw as { status?: number; body?: unknown; error?: string } | null
   if (env && typeof env === "object" && "body" in env) {
-    if (typeof env.status === "number" && env.status >= 400) throw new Error(`proxy upstream ${env.status}`)
+    // 봉투가 실패를 알리는 방식이 둘이다: 상류 상태코드, 그리고 프록시 자체 사유(쿨다운 등).
+    // status 0 + body "" 를 성공으로 읽으면 JSON.parse("")가 터져 원인이 가려진다.
+    if (env.error) throw new Error(`proxy ${env.error}`)
+    if (typeof env.status === "number" && (env.status === 0 || env.status >= 400)) {
+      throw new Error(`proxy upstream ${env.status}`)
+    }
     return typeof env.body === "string" ? JSON.parse(env.body) : env.body
   }
   return raw
