@@ -75,7 +75,7 @@ interface GateRow {
   at: string
 }
 
-function toNumOrNull(v: unknown): number | null {
+export function toNumOrNull(v: unknown): number | null {
   const s = String(v ?? "").trim()
   if (!s || s === "-") return null
   const n = Number.parseFloat(s)
@@ -139,7 +139,7 @@ async function loadSnapshot(): Promise<IncheonSnapshot> {
 }
 
 /** 주차 페이지 1장 파싱 — 구역명·잔여·점유율 세 값이 한 블록에 붙어 있다 */
-function parseParkPage(html: string, terminal: "1" | "2", kind: string): CrowdParkingLot[] {
+export function parseParkPage(html: string, terminal: "1" | "2", kind: string): CrowdParkingLot[] {
   const flat = html.replace(/\s+/g, " ")
   const re =
     /<div class="num-txt">\s*<span>([^<]*)<\/span>\s*<strong[^>]*>\s*([^<]*?)\s*<\/strong>\s*<\/div>\s*<div class="num-line[^"]*"><span style="width:\s*([\d.]+)%"/g
@@ -181,7 +181,7 @@ async function fetchParking(): Promise<CrowdParkingLot[]> {
 
 const LV_BY_N = ["", "여유", "보통", "약간 붐빔", "붐빔"]
 
-function gateLevelNum(waitMin: number): number {
+export function gateLevelNum(waitMin: number): number {
   return waitMin >= 30 ? 4 : waitMin >= 20 ? 3 : waitMin >= 10 ? 2 : 1
 }
 
@@ -212,7 +212,7 @@ export async function fetchIncheonSpots(): Promise<CrowdSpot[]> {
 }
 
 /** "0630" → "06:30" (원천이 시각을 4자리 문자열로 준다) */
-function hhmm(v: string): string {
+export function hhmm(v: string): string {
   return /^\d{4}$/.test(v) ? `${v.slice(0, 2)}:${v.slice(2)}` : ""
 }
 
