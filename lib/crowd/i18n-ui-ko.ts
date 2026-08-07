@@ -159,6 +159,23 @@ export const KO = {
   // 등급 산출 근거 병기 — 부산·강원(주차·도로)·인천공항(대기시간)은 인파 실측이 아니라서 오독 방지
   basisAccess: "주차·도로 기준",
   basisWait: "대기시간 기준",
+  // 상황실 모드 (행사·축제 안전 담당자용 다지점 동시 모니터링)
+  opsMode: "상황실 모드",
+  opsExit: "일반 모드",
+  opsEmpty: "감시할 지점을 추가해 상황실을 구성하세요",
+  opsSeedFavs: (n: number) => `즐겨찾기 ${n}곳 가져오기`,
+  opsAddPlaceholder: "지점 추가 (이름 검색)",
+  opsMaxSpots: (n: number) => `최대 ${n}곳까지 감시할 수 있어요`,
+  opsShareLink: "상황실 링크 복사",
+  opsShareCopied: "복사됨",
+  opsFullscreen: "전체화면",
+  opsFullscreenExit: "전체화면 해제",
+  opsRemove: (n: string) => `${n} 감시 해제`,
+  opsPollNote: (m: number) => `${m}분 주기 자동 갱신`,
+  opsWatchCount: (n: number, max: number) => `감시 ${n}/${max}`,
+  opsClear: "모두 해제",
+  districtAll: "전체 구역",
+  districtAddAll: (d: string) => `${d} 전체 추가`,
 }
 
 export type UIStrings = typeof KO

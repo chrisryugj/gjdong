@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
+import { LayoutDashboard, Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
 import { CITY_IDS, type CityId } from "@/lib/crowd/cities"
 import { AutoMarquee, formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
@@ -20,6 +20,8 @@ interface CrowdHeaderProps {
   onRefresh: () => void
   onToggleTheme: () => void
   onToggleDisaster: () => void
+  /** 상황실 모드 진입 (행사·축제 안전 담당자용 다지점 모니터링) */
+  onEnterOps: () => void
 }
 
 export default function CrowdHeader({
@@ -34,6 +36,7 @@ export default function CrowdHeader({
   onRefresh,
   onToggleTheme,
   onToggleDisaster,
+  onEnterOps,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
   // 도시 전환 시 제목도 동기화 — 4개 언어 제목 속 현지화된 "서울"만 해당 도시명으로 치환
@@ -123,6 +126,14 @@ export default function CrowdHeader({
                 <span className="hidden text-[var(--cp-text-faint)] xl:inline">· {t.autoRefresh}</span>
               </span>
             )}
+            <button
+              onClick={onEnterOps}
+              className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+              title={t.opsMode}
+              aria-label={t.opsMode}
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+            </button>
             <button
               onClick={onRefresh}
               className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"

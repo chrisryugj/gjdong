@@ -15,16 +15,28 @@ import { LangProvider, useLang } from "@/components/crowd/lang-context"
 import { AutoMarquee, formatKm, haversineKm, LevelBadge, LEVEL_ORDER, type AddressPin } from "@/components/crowd/shared"
 import { useCrowdData } from "@/components/crowd/hooks/use-crowd-data"
 import { useInstallPrompt } from "@/components/crowd/hooks/use-install-prompt"
+import { useOpsMode } from "@/components/crowd/hooks/use-ops-mode"
 import { usePersistedPrefs } from "@/components/crowd/hooks/use-persisted-prefs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSpotFilters } from "@/components/crowd/hooks/use-spot-filters"
 import { useSpotSelection } from "@/components/crowd/hooks/use-spot-selection"
+import { useWatchlist } from "@/components/crowd/hooks/use-watchlist"
 
 // recharts가 무거워서 상세 패널은 선택 시점에 로드
 const SpotDetail = dynamic(() => import("@/components/crowd/spot-detail"), {
   ssr: false,
   loading: () => (
     <div className="flex h-40 items-center justify-center">
+      <LoaderCircle className="h-5 w-5 animate-spin text-[var(--cp-text-dim)]" />
+    </div>
+  ),
+})
+
+// 상황실 보드도 진입 시점에 로드 — 시민 모드 첫 페인트에 0바이트
+const OpsBoard = dynamic(() => import("@/components/crowd/ops/ops-board"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-1 items-center justify-center">
       <LoaderCircle className="h-5 w-5 animate-spin text-[var(--cp-text-dim)]" />
     </div>
   ),
@@ -64,6 +76,8 @@ function CrowdDashboardInner() {
   const split = useSplitPane()
   const { mapH, splitDragging, mapBoxRef } = split
   const install = useInstallPrompt()
+  const { opsMode, enterOps, exitOps } = useOpsMode()
+  const watchlist = useWatchlist(city)
 
   const [query, setQuery] = useState("")
   const [addressPin, setAddressPin] = useState<AddressPin | null>(null)
@@ -191,9 +205,28 @@ function CrowdDashboardInner() {
         onRefresh={() => void data.loadSpots()}
         onToggleTheme={toggleTheme}
         onToggleDisaster={() => data.setDisasterOpen((v) => !v)}
+        onEnterOps={() => {
+          selection.reset()
+          enterOps()
+        }}
       />
 
-      {/* ── 본문: 지도 + 패널 */}
+      {/* ── 상황실 모드: 본문(지도+패널)을 통째로 카드 보드로 교체. 카드 클릭은 기존 상세로 */}
+      {opsMode && !selectedName ? (
+        <OpsBoard
+          city={city ?? "seoul"}
+          spots={spots}
+          updatedAt={updatedAt}
+          watch={watchlist.names}
+          favs={favs}
+          light={light}
+          onToggleWatch={watchlist.toggle}
+          onAddMany={watchlist.addMany}
+          onClearWatch={watchlist.clear}
+          onOpenSpot={selectSpot}
+          onExit={exitOps}
+        />
+      ) : (
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* 모바일: 지도는 컴팩트하게, 목록에 공간을 양보 (상세/근처 목록이 열리면 더 축소).
             핸들로 조절했으면(--crowd-map-h) 그 높이가 자동 전환보다 우선 */}
@@ -478,6 +511,7 @@ function CrowdDashboardInner() {
           </footer>
         </aside>
       </div>
+      )}
     </div>
   )
 }
