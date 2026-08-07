@@ -155,6 +155,44 @@ function isEmpty(rows: unknown): boolean {
   return !Array.isArray(rows) || rows.length === 0
 }
 
+// ── 맥미니 스냅샷 (data-jeju 브랜치)
+// 원천이 데이터센터 대역을 거르므로 배포 환경에서는 직결·프록시가 모두 빈손일 수 있다.
+// 국내 회선에서 15분마다 떠 올린 원본 행을 최후 폴백으로 쓴다 (scripts/collect-jeju.ts).
+const SNAPSHOT_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data-jeju/jeju.json"
+const SNAPSHOT_TTL = 300_000
+
+interface JejuSnapshot {
+  updated: string
+  pop: Record<string, GeonetRow[]>
+}
+let snapshot: { at: number; data: JejuSnapshot | null } | null = null
+let snapshotPromise: Promise<JejuSnapshot | null> | null = null
+
+function loadSnapshot(): Promise<JejuSnapshot | null> {
+  if (snapshot && Date.now() - snapshot.at < SNAPSHOT_TTL) return Promise.resolve(snapshot.data)
+  snapshotPromise ??= fetch(SNAPSHOT_URL, { cache: "no-store", signal: AbortSignal.timeout(10000) })
+    .then((r) => (r.ok ? (r.json() as Promise<JejuSnapshot>) : null))
+    .catch(() => null)
+    .then((data) => {
+      snapshot = { at: Date.now(), data }
+      snapshotPromise = null
+      return data
+    })
+  return snapshotPromise
+}
+
+/** 지점 인구 조회 — 직결 → 프록시 → 맥미니 스냅샷 순으로 내려간다 */
+async function geonetPop(s: JejuSpotDef): Promise<unknown> {
+  try {
+    const rows = await geonetFetch(popUrl(s))
+    if (!isEmpty(rows)) return rows
+  } catch {
+    // 직결·프록시가 모두 막힌 회선 — 스냅샷으로 간다
+  }
+  const snap = await loadSnapshot()
+  return snap?.pop?.[s.name] ?? []
+}
+
 async function geonetFetch(path: string): Promise<unknown> {
   const proxy = process.env.GEONET_PROXY
   try {
@@ -226,7 +264,7 @@ export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
     await Promise.all(
       JEJU_SPOTS.slice(i, i + BATCH).map(async (s) => {
         try {
-          const rows = (await geonetFetch(popUrl(s))) as GeonetRow[]
+          const rows = (await geonetPop(s)) as GeonetRow[]
           if (!Array.isArray(rows)) {
             firstError ??= `not-array: ${JSON.stringify(rows).slice(0, 160)}`
             return
@@ -266,7 +304,8 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
   if (!def) throw new Error(`unknown jeju spot: ${name}`)
 
   const [popRaw, sexAgeRaw, weatherRaw] = await Promise.all([
-    geonetFetch(popUrl(def)),
+    geonetPop(def),
+    // 성·연령은 스냅샷에 없다 — 막힌 회선에서는 이 축만 비고 나머지 상세는 그대로 나온다
     geonetFetch(`getSexAgePopByCircle.php?X=${def.lng}&Y=${def.lat}&R=${def.r}`).catch(() => null),
     fetch(
       `${METEO}?latitude=${def.lat}&longitude=${def.lng}&hourly=temperature_2m,precipitation_probability&forecast_hours=12&timezone=Asia%2FSeoul`,
