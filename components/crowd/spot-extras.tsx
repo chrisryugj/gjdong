@@ -63,7 +63,10 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
           </div>
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
             {parkingLots.map((lot) => {
-              const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, lot.lat, lot.lng)) : null
+              // 좌표 없는(0,0) 주차장에 거리를 붙이면 (0,0)까지 1.3만km가 나온다 — 링크와 같이 좌표 유효할 때만
+              const linked = lot.lat !== 0 && lot.lng !== 0
+              const meters =
+                origin && linked ? Math.round(distanceM(origin.lat, origin.lng, lot.lat, lot.lng)) : null
               // 여유 비율 — 총면수를 주는 원천은 잔여÷총면, 점유율만 주는 원천(인천공항)은 그 보수
               const pct =
                 lot.occupancyPct != null
@@ -71,7 +74,6 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                   : lot.capacity > 0
                     ? Math.round((lot.available / lot.capacity) * 100)
                     : 0
-              const linked = lot.lat !== 0 && lot.lng !== 0
               return (
                 <li key={lot.name} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
                   <a
@@ -197,8 +199,9 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
           </div>
           <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
             {bikeStations.map((st) => {
-              const meters = origin ? Math.round(distanceM(origin.lat, origin.lng, st.lat, st.lng)) : null
               const linked = st.lat !== 0 && st.lng !== 0
+              const meters =
+                origin && linked ? Math.round(distanceM(origin.lat, origin.lng, st.lat, st.lng)) : null
               return (
                 <li key={st.name} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
                   <a

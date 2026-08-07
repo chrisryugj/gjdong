@@ -108,6 +108,15 @@ function gnCall(op: string, rows = 100): Promise<unknown> {
   return krgovJson(`${GN}${op}?serviceKey=${key}&pageNo=1&numOfRows=${rows}&type=json`)
 }
 
+// ⚠️동일 키는 순차 호출조차 간헐적으로 빈 {}를 준다 (2026-08-07 실측: 연속 2호출 중 1건 침묵 실패).
+// getParkInfo가 비면 주차장 좌표가 (0,0)으로 남아 길안내 링크·거리 표기가 통째로 죽는다 — 빈 응답은 한 번 재시도.
+async function gnCallItems(op: string): Promise<Array<Record<string, unknown>>> {
+  const items = gnItems(await gnCall(op))
+  if (items.length > 0) return items
+  await new Promise((r) => setTimeout(r, 400))
+  return gnItems(await gnCall(op))
+}
+
 // LOS A~F → 도로 등급 (원천이 등급 대신 서비스수준 문자를 준다)
 export function losGrade(los: unknown): number {
   const g = String(los ?? "").toUpperCase()
@@ -127,7 +136,7 @@ const gangwonSnapshot = createSnapshot(120_000, async (): Promise<GangwonSnapsho
   // ⚠️순차 — 동일 키 동시 요청은 빈 {}로 침묵 실패한다
   let rltm: Array<Record<string, unknown>> = []
   try {
-    rltm = gnItems(await gnCall("getParkRltm"))
+    rltm = await gnCallItems("getParkRltm")
   } catch {
     // 주차 축만 강등 — 교차로 축으로 계속 간다
   }
@@ -148,7 +157,7 @@ const gangwonSnapshot = createSnapshot(120_000, async (): Promise<GangwonSnapsho
   }
 
   try {
-    for (const r of gnItems(await gnCall("getParkInfo"))) {
+    for (const r of await gnCallItems("getParkInfo")) {
       const lot = lots.get(String(r.prkId ?? ""))
       if (!lot) continue
       lot.lat = toNum(r.yCrdn)
@@ -165,7 +174,7 @@ const gangwonSnapshot = createSnapshot(120_000, async (): Promise<GangwonSnapsho
   const roads: GnRoad[] = []
   try {
     const latest = new Map<string, Record<string, unknown>>()
-    for (const r of gnItems(await gnCall("getSmrtTrff"))) {
+    for (const r of await gnCallItems("getSmrtTrff")) {
       const k = String(r.crossName ?? "")
       if (!k) continue
       const prev = latest.get(k)
