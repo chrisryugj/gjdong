@@ -232,6 +232,19 @@ export default function SpotListPanel({
                   </p>
                   <p className="text-[12px] text-[var(--cp-text-dim)]">
                     {cat(spot.category)}
+                    {/* 인천공항: 대기 분(운영 중)·운영시간(미운영)을 부제로 — 뱃지만으론 "몇 분?"이 안 보인다 */}
+                    {spot.waitMin != null && (
+                      <span>
+                        {" · "}
+                        {t.waitShort(spot.waitMin)}
+                      </span>
+                    )}
+                    {spot.hours && (
+                      <span className="text-[var(--cp-text-faint)]">
+                        {" · "}
+                        {t.gateHours(spot.hours)}
+                      </span>
+                    )}
                     {/* 인파 실측이 아닌 등급은 근거를 병기 — 서울·제주(ppl)는 붙지 않아 첫인상 불변 */}
                     {(spot.basis === "access" || spot.basis === "wait") && (
                       <span className="text-[var(--cp-text-faint)]">

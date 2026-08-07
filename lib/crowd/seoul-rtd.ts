@@ -52,6 +52,10 @@ export interface CrowdSpot {
   color: string
   /** 생략 = "ppl" (서울·제주). 부산·강원·인천은 인파 실측이 아니라서 명시 — UI가 오독 방지 문구를 병기한다 */
   basis?: LevelBasis
+  /** 인천공항: 운영 중 입구의 최대 대기 분 — 목록 부제에 상시 노출 */
+  waitMin?: number
+  /** 인천공항: 미운영 출국장의 운영 시간("05:00~19:00") — 미운영일 때만 채운다 */
+  hours?: string
 }
 
 export interface CrowdSeriesPoint {

@@ -79,7 +79,7 @@ export function buildReport({
 
   const counts: Record<string, number> = {}
   for (const s of watchSpots) counts[s.level] = (counts[s.level] ?? 0) + 1
-  const summary = ["붐빔", "약간 붐빔", "보통", "여유", "정보 없음"]
+  const summary = ["붐빔", "약간 붐빔", "보통", "여유", "미운영", "정보 없음"]
     .filter((lv) => counts[lv])
     .map((lv) => `${lv} ${counts[lv]}`)
     .join(" · ")

@@ -41,6 +41,8 @@ const TERMINAL_COORD: Record<"1" | "2", { lat: number; lng: number }> = {
 }
 
 const NO_DATA = "정보 없음"
+// 닫힌 출국장은 데이터 실패("정보 없음")가 아니라 운영 상태다 — 분류를 뭉개지 않는다
+const CLOSED = "미운영"
 
 interface GateDef {
   name: string
@@ -172,11 +174,15 @@ export function gateLevelNum(waitMin: number): number {
   return waitMin >= 30 ? 4 : waitMin >= 20 ? 3 : waitMin >= 10 ? 2 : 1
 }
 
-/** 출국장 단위 집계 — 운영 중 입구만 본다. 전부 닫혔으면 등급을 만들지 않는다. */
-function aggregate(def: GateDef, snap: IncheonSnapshot) {
+/** 출국장 단위 집계 — 운영 중 입구만 본다. 입구 행은 있는데 전부 닫혔으면 "미운영",
+ *  행 자체가 없거나 열려 있는데 수치가 없으면 "정보 없음"으로 구분한다. */
+export function aggregate(def: GateDef, snap: IncheonSnapshot) {
   const all = snap.rows.get(`${def.terminal}-${def.no}`) ?? []
   const live = all.filter((r) => r.open && r.waitMin != null)
-  if (live.length === 0) return { level: NO_DATA, waitMin: null as number | null, people: null as number | null, all }
+  if (live.length === 0) {
+    const closed = all.length > 0 && !all.some((r) => r.open)
+    return { level: closed ? CLOSED : NO_DATA, waitMin: null as number | null, people: null as number | null, all }
+  }
   const waitMin = Math.max(...live.map((r) => r.waitMin as number))
   const people = live.reduce((sum, r) => sum + (r.people ?? 0), 0)
   return { level: LV_BY_N[gateLevelNum(waitMin)], waitMin, people, all }
@@ -185,7 +191,10 @@ function aggregate(def: GateDef, snap: IncheonSnapshot) {
 export async function fetchIncheonSpots(): Promise<CrowdSpot[]> {
   const snap = await loadSnapshot()
   return INCHEON_SPOTS.map((s) => {
-    const { level } = aggregate(s, snap)
+    const { level, waitMin, all } = aggregate(s, snap)
+    // 미운영이면 운영시간을 목록 부제로 — "언제 다시 여나"가 다음 질문이라서
+    const hoursRow = level === CLOSED ? all.find((r) => r.operBgn && r.operEnd) : undefined
+    const hours = hoursRow ? `${hhmm(hoursRow.operBgn)}~${hhmm(hoursRow.operEnd)}` : undefined
     return {
       name: s.name,
       category: s.category,
@@ -194,7 +203,9 @@ export async function fetchIncheonSpots(): Promise<CrowdSpot[]> {
       level,
       levelNum: levelNum(level),
       color: LEVEL_COLORS[level] ?? "#999",
-      basis: level === NO_DATA ? ("none" as const) : ("wait" as const),
+      basis: waitMin != null ? ("wait" as const) : ("none" as const),
+      ...(waitMin != null ? { waitMin } : {}),
+      ...(hours ? { hours } : {}),
     }
   })
 }

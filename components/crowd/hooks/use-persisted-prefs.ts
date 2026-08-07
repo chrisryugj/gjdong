@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-/** 즐겨찾기·테마 — localStorage 영속 (crowdFavs · crowdTheme) */
+/** 즐겨찾기·테마·지도 이름표 — localStorage 영속 (crowdFavs · crowdTheme · crowdLabels) */
 export function usePersistedPrefs() {
   const [favs, setFavs] = useState<Set<string>>(new Set())
   const [light, setLight] = useState(true)
+  // 명소 이름표는 기본 표시 — 끈 사람만 기억한다
+  const [labels, setLabels] = useState(true)
 
   useEffect(() => {
     if (localStorage.getItem("crowdTheme") === "dark") setLight(false)
+    if (localStorage.getItem("crowdLabels") === "off") setLabels(false)
     try {
       const stored = JSON.parse(localStorage.getItem("crowdFavs") ?? "[]") as string[]
       if (Array.isArray(stored)) setFavs(new Set(stored))
@@ -34,5 +37,12 @@ export function usePersistedPrefs() {
     })
   }, [])
 
-  return { favs, toggleFav, light, toggleTheme }
+  const toggleLabels = useCallback(() => {
+    setLabels((prev) => {
+      localStorage.setItem("crowdLabels", prev ? "off" : "on")
+      return !prev
+    })
+  }, [])
+
+  return { favs, toggleFav, light, toggleTheme, labels, toggleLabels }
 }

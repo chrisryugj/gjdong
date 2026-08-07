@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, X } from "lucide-react"
+import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, Tags, X } from "lucide-react"
 import { LEVEL_COLORS } from "@/lib/crowd/seoul-rtd"
 import { META, UI } from "@/lib/crowd/i18n"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
@@ -78,7 +78,7 @@ function CrowdDashboardInner() {
   const { selectedName, detail, detailLoading, fetchDetail, selectSpot } = selection
 
   const prefs = usePersistedPrefs()
-  const { favs, toggleFav, light, toggleTheme } = prefs
+  const { favs, toggleFav, light, toggleTheme, labels, toggleLabels } = prefs
   const split = useSplitPane()
   const { mapH, splitDragging, mapBoxRef } = split
   const install = useInstallPrompt()
@@ -285,11 +285,27 @@ function CrowdDashboardInner() {
             zoom={CITIES[city ?? "seoul"].zoom}
             fitCity={city}
             hoveredName={hoverName}
+            showLabels={labels}
           />
-          {/* 시간대 패턴 렌즈 — 히트맵 보유 도시(서울·제주)만, 상세 열림 중엔 숨겨 시야 확보 */}
-          {timeLens.available && !selectedName && (
-            <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
-          )}
+          {/* 지도 우상단 컨트롤 스택 — 이름표 토글(전 도시) + 시간대 렌즈(서울·제주, 상세 중 숨김) */}
+          <div className="absolute right-2 top-2 z-[1000] flex flex-col items-end gap-1.5">
+            <button
+              onClick={toggleLabels}
+              aria-pressed={labels}
+              title={t.labelsToggle}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] backdrop-blur-sm transition-colors ${
+                labels
+                  ? "border-[var(--cp-border-active)] bg-[var(--cp-overlay)] font-medium text-[var(--cp-text-strong)]"
+                  : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
+              }`}
+            >
+              <Tags className="h-3.5 w-3.5" />
+              {t.labelsToggle}
+            </button>
+            {timeLens.available && !selectedName && (
+              <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
+            )}
+          </div>
           {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
           <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden">
             {LEVEL_ORDER.map((level) => (

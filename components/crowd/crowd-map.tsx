@@ -21,6 +21,8 @@ interface CrowdMapProps {
   fitCity?: string | null
   /** 목록 hover ↔ 지도 연동 — 해당 마커를 키우고 툴팁을 연다 */
   hoveredName?: string | null
+  /** 명소 이름표 상시 표시 (기본 켬 — 토글로 끔). 켜면 hover 툴팁 대신 이름 pill이 붙는다 */
+  showLabels?: boolean
   /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
   opsLabels?: Map<string, string>
 }
@@ -31,7 +33,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, opsLabels }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, opsLabels }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -194,6 +196,15 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
           opacity: 1,
           className: "crowd-ops-label",
         })
+      } else if (showLabels) {
+        // 이름표 모드(기본) — 어느 점이 어디인지 호버 없이 보이게. 등급은 점 색이 이미 말한다
+        marker.bindTooltip(`<span>${escapeHtml(trSpot(spot.name, lang))}</span>`, {
+          permanent: true,
+          direction: "right",
+          offset: [8, 0],
+          opacity: 1,
+          className: "crowd-name-label",
+        })
       } else {
         marker.bindTooltip(
           `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span>${basisLine}</div>`,
@@ -205,7 +216,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       markersRef.current.set(spot.name, { marker, spot })
     }
     applyMarkerStates()
-  }, [ready, spots, lang, applyMarkerStates, opsLabels])
+  }, [ready, spots, lang, applyMarkerStates, opsLabels, showLabels])
 
   // 선택 변경 반영
   useEffect(() => {
@@ -219,11 +230,13 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     hoveredNameRef.current = hoveredName ?? null
     if (!ready || opsLabels) return
     applyMarkerStates()
+    // 이름표 모드에선 툴팁이 전부 permanent라 여닫지 않는다 — 마커 확대만으로 짚어준다
+    if (showLabels) return
     for (const [name, { marker }] of markersRef.current) {
       if (name === hoveredName) marker.openTooltip()
       else if (marker.isTooltipOpen()) marker.closeTooltip()
     }
-  }, [ready, hoveredName, applyMarkerStates, opsLabels])
+  }, [ready, hoveredName, applyMarkerStates, opsLabels, showLabels])
 
   // 도시 전환·첫 로드 시 실좌표 bbox로 뷰 최적화 — 고정 줌은 화면 폭에 따라 낭비가 커서(강원 내륙 2/3)
   // 데이터가 도착한 시점에 도시당 1회만 맞춘다. 딥링크로 상세·주소핀이 열려 있으면 그쪽 flyTo가 우선.

@@ -97,6 +97,10 @@ export const KO = {
   lensChip: "시간대 패턴",
   lensNote: "누적 평균 패턴 · 실시간 아님",
   lensExit: "지금으로",
+  // 지도 이름표 토글 · 인천공항 목록 부제
+  labelsToggle: "이름표",
+  waitShort: (m: number) => `대기 ${m}분`,
+  gateHours: (h: string) => `운영 ${h}`,
   // CCTV
   cctvTitle: "주변 CCTV",
   noVideo: "영상 없음",
