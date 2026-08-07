@@ -220,6 +220,7 @@ function CrowdDashboardInner() {
           watch={watchlist.names}
           favs={favs}
           light={light}
+          disaster={disaster}
           onToggleWatch={watchlist.toggle}
           onAddMany={watchlist.addMany}
           onClearWatch={watchlist.clear}

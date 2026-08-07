@@ -158,4 +158,6 @@ export const EN: UIStrings = {
   opsClear: "Clear all",
   districtAll: "All districts",
   districtAddAll: (d) => `Add all in ${d}`,
+  opsExportCsv: "CSV",
+  opsCopyReport: "Copy report",
 }

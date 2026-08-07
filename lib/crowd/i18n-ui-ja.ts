@@ -158,4 +158,6 @@ export const JA: UIStrings = {
   opsClear: "すべて解除",
   districtAll: "全地区",
   districtAddAll: (d) => `${d}をすべて追加`,
+  opsExportCsv: "CSV",
+  opsCopyReport: "状況報告をコピー",
 }

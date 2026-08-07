@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Star } from "lucide-react"
-import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import { UI } from "@/lib/crowd/i18n"
+import { buildCsv, buildReport, csvFilename } from "@/lib/crowd/export"
 import { useLang } from "@/components/crowd/lang-context"
 import { useOpsDetails } from "@/components/crowd/hooks/use-ops-details"
 import OpsCard from "@/components/crowd/ops/ops-card"
@@ -17,6 +19,7 @@ export default function OpsBoard({
   watch,
   favs,
   light,
+  disaster,
   onToggleWatch,
   onAddMany,
   onClearWatch,
@@ -29,6 +32,7 @@ export default function OpsBoard({
   watch: string[]
   favs: Set<string>
   light: boolean
+  disaster: CrowdDisaster[]
   onToggleWatch: (name: string) => void
   onAddMany: (names: string[]) => void
   onClearWatch: () => void
@@ -67,6 +71,40 @@ export default function OpsBoard({
 
   const seedable = useMemo(() => Array.from(favs).filter((n) => spots.some((s) => s.name === n)), [favs, spots])
 
+  // CSV = 전 지점 스냅샷 (기록·증빙용, extra 미호출) — 파일로 다운로드
+  const exportCsv = useCallback(() => {
+    const blob = new Blob([buildCsv({ city, spots, updatedAt })], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = csvFilename(city, new Date())
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [city, spots, updatedAt])
+
+  // 상황보고 = 감시 지점만 — 복사 시점에 사고·통제(extra)를 감시 지점 수만큼만 팬아웃
+  const copyReport = useCallback(async () => {
+    const targets = CITY_CAPS[city].extra ? watchSpots : []
+    const settled = await Promise.allSettled(
+      targets.map(async (s) => {
+        const res = await fetch(`/api/crowd/extra?spot=${encodeURIComponent(s.name)}&city=${city}`)
+        if (!res.ok) throw new Error("bad status")
+        return [s.name, (await res.json()) as CrowdExtra] as const
+      }),
+    )
+    const extras = new Map(settled.filter((r) => r.status === "fulfilled").map((r) => r.value))
+    // 보고 문안은 한국 행정 문서 성격이라 UI 언어와 무관하게 한국어 고정
+    const text = buildReport({
+      cityName: UI.ko.cityNames[city],
+      watchSpots,
+      details,
+      extras,
+      disaster,
+      at: new Date(),
+    })
+    await navigator.clipboard.writeText(text)
+  }, [city, watchSpots, details, disaster])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cp-border)] px-3 py-2">
@@ -93,6 +131,8 @@ export default function OpsBoard({
         onToggle={onToggleWatch}
         onAddMany={onAddMany}
         onClear={onClearWatch}
+        onExportCsv={exportCsv}
+        onCopyReport={watch.length > 0 ? copyReport : undefined}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
