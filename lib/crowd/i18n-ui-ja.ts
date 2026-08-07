@@ -165,4 +165,5 @@ export const JA: UIStrings = {
   alertNote: "監視スポットが「混雑」になったら通知します — 約5分間隔の監視でリアルタイム警報ではありません",
   alertDenied: "ブラウザの通知がブロックされています。アドレスバーの鍵アイコンから許可してください",
   alertUnsupported: "このブラウザはシステム通知に対応していないため、画面内通知のみ表示されます",
+  methodologyLink: "混雑度の基準",
 }
