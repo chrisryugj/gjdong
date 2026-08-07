@@ -8,6 +8,7 @@
 // - 스트림 호스트(topiscctv*.eseoul.go.kr)는 Access-Control-Allow-Origin:* — 브라우저 직접 재생 가능
 
 import type { CrowdCctv } from "@/lib/crowd/seoul-rtd"
+import { createSnapshot } from "@/lib/crowd/adapter-kit"
 import { haversineKmServer } from "@/lib/crowd/geo"
 import { krgovFetch, krgovJson } from "@/lib/crowd/krgov-fetch"
 
@@ -23,39 +24,27 @@ interface TopisCam {
 }
 
 // KML 목록은 준정적 — 인스턴스 생존 동안 6시간 캐시
-let camList: TopisCam[] | null = null
-let camListAt = 0
-let camListPromise: Promise<TopisCam[]> | null = null
-const LIST_TTL = 6 * 3600_000
+const camListSnapshot = createSnapshot(6 * 3600_000, async (): Promise<TopisCam[]> => {
+  const xml = await krgovFetch("https://topis.seoul.go.kr/map/cctvKml.do", { headers: TOPIS_HEADERS })
+  const cams: TopisCam[] = []
+  // KML Placemark 단위 파싱 — 외부 XML 파서 없이 정규식으로 충분한 고정 구조
+  const placemarks = xml.split("<Placemark>").slice(1)
+  for (const block of placemarks) {
+    const name = block.match(/<name>([^<]*)<\/name>/)?.[1]?.trim()
+    const code = block.match(/<Data name="code"><value>([^<]*)<\/value>/)?.[1]?.trim()
+    const coords = block.match(/<coordinates>([^<]*)<\/coordinates>/)?.[1]?.trim()
+    if (!name || !code || !coords) continue
+    const [lngStr, latStr] = coords.split(",")
+    const lat = Number.parseFloat(latStr)
+    const lng = Number.parseFloat(lngStr)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+    cams.push({ code, name, lat, lng })
+  }
+  if (cams.length === 0) throw new Error("TOPIS kml empty")
+  return cams
+})
 
-async function loadCamList(): Promise<TopisCam[]> {
-  if (camList && Date.now() - camListAt < LIST_TTL) return camList
-  if (camListPromise) return camListPromise
-  camListPromise = (async () => {
-    const xml = await krgovFetch("https://topis.seoul.go.kr/map/cctvKml.do", { headers: TOPIS_HEADERS })
-    const cams: TopisCam[] = []
-    // KML Placemark 단위 파싱 — 외부 XML 파서 없이 정규식으로 충분한 고정 구조
-    const placemarks = xml.split("<Placemark>").slice(1)
-    for (const block of placemarks) {
-      const name = block.match(/<name>([^<]*)<\/name>/)?.[1]?.trim()
-      const code = block.match(/<Data name="code"><value>([^<]*)<\/value>/)?.[1]?.trim()
-      const coords = block.match(/<coordinates>([^<]*)<\/coordinates>/)?.[1]?.trim()
-      if (!name || !code || !coords) continue
-      const [lngStr, latStr] = coords.split(",")
-      const lat = Number.parseFloat(latStr)
-      const lng = Number.parseFloat(lngStr)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
-      cams.push({ code, name, lat, lng })
-    }
-    if (cams.length === 0) throw new Error("TOPIS kml empty")
-    camList = cams
-    camListAt = Date.now()
-    return cams
-  })().finally(() => {
-    camListPromise = null
-  })
-  return camListPromise
-}
+const loadCamList = () => camListSnapshot.get()
 
 // 스트림 URL은 카메라별 고정에 가까움 — 12시간 캐시 (실패는 30분 네거티브 캐시)
 const streamCache = new Map<string, { url: string; at: number }>()

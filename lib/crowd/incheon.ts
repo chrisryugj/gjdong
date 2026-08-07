@@ -19,11 +19,10 @@ import {
   type CrowdExtra,
   type CrowdParkingLot,
   type CrowdSpot,
-  type CrowdWeatherHour,
 } from "@/lib/crowd/seoul-rtd"
+import { createSnapshot, emptyDetailFields, fetchMeteo12h, LV_BY_N } from "@/lib/crowd/adapter-kit"
 
 const WAIT = "https://www.airport.kr/pgn/ap_ko/passengerNoticeApiData.do?tmnlId="
-const METEO = "https://api.open-meteo.com/v1/forecast"
 
 // 주차 현황 — 공항 홈페이지 SSR HTML 4장(무키). 실측 16구역: T1 단기3·장기5, T2 단기5·장기3.
 // 각 <li>에 구역명·잔여("N대 가능"/"만차")·점유율(num-line 의 width%)이 함께 있다.
@@ -84,11 +83,7 @@ export function toNumOrNull(v: unknown): number | null {
 
 interface IncheonSnapshot {
   rows: Map<string, GateRow[]> // key = `${terminal}-${no}`
-  at: number
 }
-let snapshot: IncheonSnapshot | null = null
-let snapshotPromise: Promise<IncheonSnapshot> | null = null
-const SNAPSHOT_TTL = 60_000 // 원천이 1분 주기
 
 async function fetchTerminal(tmnlId: "1" | "2"): Promise<Array<Record<string, unknown>>> {
   try {
@@ -101,42 +96,36 @@ async function fetchTerminal(tmnlId: "1" | "2"): Promise<Array<Record<string, un
   }
 }
 
-async function loadSnapshot(): Promise<IncheonSnapshot> {
-  if (snapshot && Date.now() - snapshot.at < SNAPSHOT_TTL) return snapshot
-  if (snapshotPromise) return snapshotPromise
-  snapshotPromise = (async () => {
-    const [t1, t2] = await Promise.all([fetchTerminal("1"), fetchTerminal("2")])
-    const rows = new Map<string, GateRow[]>()
-    for (const [terminal, list] of [["1", t1], ["2", t2]] as const) {
-      for (const r of list) {
-        const id = String(r.gateId ?? "")
-        const m = /^DG(\d)_([A-Z])$/.exec(id)
-        if (!m) continue
-        const key = `${terminal}-${m[1]}`
-        const row: GateRow = {
-          id,
-          side: m[2],
-          open: String(r.gateStts ?? "") === "OP",
-          waitMin: toNumOrNull(r.wtngTm),
-          people: toNumOrNull(r.wtngPrsnm),
-          operBgn: String(r.operBgngTm ?? "").trim(),
-          operEnd: String(r.operEndTm ?? "").trim(),
-          at: String(r.ocrTm ?? ""),
-        }
-        const arr = rows.get(key)
-        if (arr) arr.push(row)
-        else rows.set(key, [row])
+// TTL 60초 — 원천이 1분 주기
+const incheonSnapshot = createSnapshot(60_000, async (): Promise<IncheonSnapshot> => {
+  const [t1, t2] = await Promise.all([fetchTerminal("1"), fetchTerminal("2")])
+  const rows = new Map<string, GateRow[]>()
+  for (const [terminal, list] of [["1", t1], ["2", t2]] as const) {
+    for (const r of list) {
+      const id = String(r.gateId ?? "")
+      const m = /^DG(\d)_([A-Z])$/.exec(id)
+      if (!m) continue
+      const key = `${terminal}-${m[1]}`
+      const row: GateRow = {
+        id,
+        side: m[2],
+        open: String(r.gateStts ?? "") === "OP",
+        waitMin: toNumOrNull(r.wtngTm),
+        people: toNumOrNull(r.wtngPrsnm),
+        operBgn: String(r.operBgngTm ?? "").trim(),
+        operEnd: String(r.operEndTm ?? "").trim(),
+        at: String(r.ocrTm ?? ""),
       }
+      const arr = rows.get(key)
+      if (arr) arr.push(row)
+      else rows.set(key, [row])
     }
-    if (rows.size === 0) throw new Error("인천공항 승객예고 응답 없음")
-    const snap: IncheonSnapshot = { rows, at: Date.now() }
-    snapshot = snap
-    return snap
-  })().finally(() => {
-    snapshotPromise = null
-  })
-  return snapshotPromise
-}
+  }
+  if (rows.size === 0) throw new Error("인천공항 승객예고 응답 없음")
+  return { rows }
+})
+
+const loadSnapshot = () => incheonSnapshot.get()
 
 /** 주차 페이지 1장 파싱 — 구역명·잔여·점유율 세 값이 한 블록에 붙어 있다 */
 export function parseParkPage(html: string, terminal: "1" | "2", kind: string): CrowdParkingLot[] {
@@ -179,8 +168,6 @@ async function fetchParking(): Promise<CrowdParkingLot[]> {
   return pages.flat()
 }
 
-const LV_BY_N = ["", "여유", "보통", "약간 붐빔", "붐빔"]
-
 export function gateLevelNum(waitMin: number): number {
   return waitMin >= 30 ? 4 : waitMin >= 20 ? 3 : waitMin >= 10 ? 2 : 1
 }
@@ -220,15 +207,7 @@ export async function fetchIncheonDetail(name: string): Promise<CrowdDetail> {
   const def = INCHEON_SPOTS.find((s) => s.name === name)
   if (!def) throw new Error(`unknown incheon spot: ${name}`)
 
-  const [snap, weatherRaw] = await Promise.all([
-    loadSnapshot(),
-    fetch(
-      `${METEO}?latitude=${def.lat}&longitude=${def.lng}&hourly=temperature_2m,precipitation_probability&forecast_hours=12&timezone=Asia%2FSeoul`,
-      { next: { revalidate: 1800 } },
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null),
-  ])
+  const [snap, weather] = await Promise.all([loadSnapshot(), fetchMeteo12h(def.lat, def.lng)])
 
   const { level, waitMin, people, all } = aggregate(def, snap)
   const sideLabel = (s: string) => (def.terminal === "2" ? `${s}입구` : s === "E" ? "동편" : "서편")
@@ -254,18 +233,6 @@ export async function fetchIncheonDetail(name: string): Promise<CrowdDetail> {
     }
   }
 
-  const hourly = (weatherRaw as { hourly?: Record<string, unknown[]> } | null)?.hourly
-  const times = (hourly?.time ?? []) as string[]
-  const weather: CrowdWeatherHour[] = times.slice(0, 12).map((iso, i) => ({
-    hour: `${Number.parseInt(String(iso).slice(11, 13), 10)}시`,
-    temp:
-      hourly?.temperature_2m?.[i] != null ? Math.round(Number(hourly.temperature_2m[i]) || 0) : null,
-    rainProb:
-      hourly?.precipitation_probability?.[i] != null ? Number(hourly.precipitation_probability[i]) || 0 : null,
-    precip: "",
-    icon: "",
-  }))
-
   const cctv: CrowdCctv[] = [] // 공항 공개 CCTV 원천 미확보
 
   return {
@@ -275,19 +242,7 @@ export async function fetchIncheonDetail(name: string): Promise<CrowdDetail> {
     levelNum: levelNum(level),
     color: LEVEL_COLORS[level] ?? "#999",
     message,
-    trend: {
-      hour1: { rate: "", dir: "" },
-      hour3: { rate: "", dir: "" },
-      month1: { rate: "", dir: "" },
-    },
-    gender: { male: 0, female: 0 },
-    ages: [],
-    resident: { resident: 0, nonResident: 0 },
-    series: [],
-    nowIndex: -1,
-    peakPastHour: "",
-    peakForecastHour: "",
-    peakForecastLevel: "",
+    ...emptyDetailFields(),
     weather,
     cctv,
     updatedAt: new Date().toISOString(),
