@@ -442,6 +442,7 @@ function CrowdDashboardInner() {
           ) : (
             <SpotListPanel
               filtered={filtered}
+              allSpots={spots}
               showPresets={CITY_CAPS[city ?? "seoul"].presets}
               categories={filters.categories}
               categoryFilter={filters.categoryFilter}
