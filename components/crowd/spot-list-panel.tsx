@@ -38,6 +38,8 @@ interface SpotListPanelProps {
   onHover?: (name: string | null) => void
   onToggleFav: (name: string) => void
   onRetry: () => void
+  /** 목록 아래 추가 콘텐츠 (인천공항 실황 보드) — 같은 스크롤 영역에 이어 붙는다 */
+  extra?: React.ReactNode
 }
 
 /** 프리셋·혼잡도·카테고리 필터 + 명소 목록 */
@@ -68,6 +70,7 @@ export default function SpotListPanel({
   onHover,
   onToggleFav,
   onRetry,
+  extra,
 }: SpotListPanelProps) {
   const { t, spot: trSpotName, level: trLv, cat } = useLang()
   // MBTI 재미 추천 패널 (서울만) — 열림 상태만 여기서, 유형 선택은 패널 내부가 기억
@@ -279,6 +282,7 @@ export default function SpotListPanel({
         {noSpotMatch && (
           <p className="p-6 text-center text-[13px] text-[var(--cp-text-dim)]">{t.noSpotMatch}</p>
         )}
+        {extra}
       </div>
     </div>
   )

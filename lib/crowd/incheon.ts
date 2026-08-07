@@ -152,7 +152,7 @@ export function parseParkPage(html: string, terminal: "1" | "2", kind: string): 
   return out
 }
 
-async function fetchParking(): Promise<CrowdParkingLot[]> {
+export async function fetchParking(): Promise<CrowdParkingLot[]> {
   const pages = await Promise.all(
     PARK_PAGES.map(async (p) => {
       try {

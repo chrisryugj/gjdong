@@ -6,6 +6,7 @@ export { LANGS, detectLang, isLang, type Lang } from "./i18n-core"
 export {
   trAge,
   trAlert,
+  trArrStat,
   trBeach,
   trCategory,
   trDisaster,

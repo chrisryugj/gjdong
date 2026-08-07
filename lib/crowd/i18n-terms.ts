@@ -149,6 +149,16 @@ const AGE_T: Record<string, [string, string, string]> = {
   "60대 이상": ["60s & over", "60代以上", "60岁以上"],
 }
 
+// ── 인천공항 도착편 상태 (airport.kr stattxt: 도착·착륙·지연, 빈값=예정)
+const ARRSTAT_T: Record<string, [string, string, string]> = {
+  도착: ["Arrived", "到着", "已到达"],
+  착륙: ["Landed", "着陸", "已降落"],
+  지연: ["Delayed", "遅延", "延误"],
+  결항: ["Cancelled", "欠航", "取消"],
+  회항: ["Diverted", "回航", "备降"],
+}
+
+export const trArrStat = (word: string, lang: Lang) => pick(ARRSTAT_T, word, lang)
 export const trLevel = (level: string, lang: Lang) => pick(LEVEL_T, level, lang)
 export const trCategory = (cat: string, lang: Lang) => pick(CATEGORY_T, cat, lang)
 export const trRoad = (idx: string, lang: Lang) => pick(ROAD_T, idx, lang)
