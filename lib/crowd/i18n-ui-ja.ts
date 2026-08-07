@@ -140,4 +140,6 @@ export const JA: UIStrings = {
   rhythmNowGood: "今は一日の中でも比較的空いている時間帯です",
   rhythmNote: "過去24時間の同時刻の人出に基づく推定です",
   instaSearch: "Instagramで見る",
+  basisAccess: "駐車・道路基準",
+  basisWait: "待ち時間基準",
 }

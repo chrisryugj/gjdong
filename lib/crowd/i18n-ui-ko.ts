@@ -156,6 +156,9 @@ export const KO = {
   rhythmNowGood: "지금이 하루 리듬상 여유로운 편이에요",
   rhythmNote: "지난 24시간 같은 시각 인파 기준 추정이에요",
   instaSearch: "인스타그램에서 보기",
+  // 등급 산출 근거 병기 — 부산·강원(주차·도로)·인천공항(대기시간)은 인파 실측이 아니라서 오독 방지
+  basisAccess: "주차·도로 기준",
+  basisWait: "대기시간 기준",
 }
 
 export type UIStrings = typeof KO
