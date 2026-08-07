@@ -41,3 +41,4 @@ next-env.d.ts
 # vercel
 .vercel
 out-data/
+out-data-jeju/

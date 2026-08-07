@@ -127,10 +127,13 @@ export interface CrowdAlert {
 
 export interface CrowdParkingLot {
   name: string
+  /** 총 주차면수. 원천이 주지 않으면 0 — 역산하면 근사치가 확정 숫자처럼 보이므로 넣지 않는다(인천공항) */
   capacity: number
   available: number
   lat: number
   lng: number
+  /** 원천이 점유율을 직접 줄 때(인천공항). capacity 없이도 혼잡을 표시하기 위한 값 */
+  occupancyPct?: number
 }
 
 export interface CrowdEvent {

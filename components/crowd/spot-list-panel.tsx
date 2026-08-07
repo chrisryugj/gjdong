@@ -65,7 +65,9 @@ export default function SpotListPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 프리셋 + 혼잡도 필터 한 줄 — 지금 가볼 만한 곳 고르기 (지도에도 반영) */}
-      <div className="scrollbar-thin flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-[var(--cp-border-faint)] px-3 py-1.5 md:flex-wrap md:overflow-visible md:py-2">
+      {/* 모바일은 가로 스크롤(PC는 줄바꿈) — 끝을 페이드로 흐려 "더 있다"를 알린다.
+          페이드가 없으면 마지막 칩이 그냥 잘린 것처럼 보여 스크롤할 생각을 못 한다 */}
+      <div className="scrollbar-thin flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-[var(--cp-border-faint)] px-3 py-1.5 [mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] md:[mask-image:none] md:flex-wrap md:overflow-visible md:py-2">
         {/* 즐겨찾기 모아보기 — 별을 하나라도 찍었을 때만 노출 */}
         {(favs.size > 0 || favOnly) && (
           <button
@@ -128,7 +130,7 @@ export default function SpotListPanel({
       </div>
       {/* 카테고리 필터 (다중선택, 한 줄 가로 스크롤) + 정렬 고정 */}
       <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--cp-border)] px-3 py-1.5 md:py-2.5">
-        <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible">
+        <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)] md:[mask-image:none] md:flex-wrap md:overflow-visible">
           {categories.map((c) => {
             const active = c === "전체" ? categoryFilter.size === 0 : categoryFilter.has(c)
             return (

@@ -248,7 +248,7 @@ function parsePop(rows: GeonetRow[]): JejuPop | null {
 // ② 밀도 상한 = 인구/면적(명/km²)이 낮으면 등급 상한 (한적한 넓은 반경이 자기 피크라는
 //    이유만으로 '붐빔'이 되는 과대해석 방지)
 const LV_BY_N = ["", "여유", "보통", "약간 붐빔", "붐빔"]
-function deriveLevel(now: number, rhythmMax: number, rKm: number): string {
+export function deriveLevel(now: number, rhythmMax: number, rKm: number): string {
   const ratio = now / Math.max(rhythmMax, 1)
   const n = ratio >= 0.85 ? 4 : ratio >= 0.6 ? 3 : ratio >= 0.35 ? 2 : 1
   const dens = now / Math.max(Math.PI * rKm * rKm, 0.01)
