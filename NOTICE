@@ -52,11 +52,36 @@ ISC License
 
 ================================================================================
 
+hls.js
+https://github.com/video-dev/hls.js
+Copyright (c) 2017 video-dev
+Apache License 2.0
+
+CCTV HLS 스트림 재생에 사용한다 (부산 ITS·서울 TOPIS 개방 스트림).
+
+================================================================================
+
 데이터 출처
 
 주소·좌표 조회는 Kakao Local API(https://developers.kakao.com/)를 통해 이루어진다.
 조회 결과의 권리는 카카오 및 원 데이터 제공처에 있으며, 본 프로젝트의 MIT 라이선스는
 API 응답 데이터에 적용되지 않는다.
+
+인파레이더(/crowd)는 아래 공공·공개 원천의 데이터를 조회·표시한다. 각 데이터의
+권리는 원 제공 기관에 있으며 본 프로젝트의 MIT 라이선스는 데이터에 적용되지 않는다.
+
+- 서울특별시 열린데이터광장 — 실시간 도시데이터 (혼잡도·인구·날씨·CCTV·주차·
+  문화행사·도로·따릉이·재난문자) https://data.seoul.go.kr/SeoulRtd/
+- 서울특별시 TOPIS — 교통 CCTV https://topis.seoul.go.kr/
+- 제주관광공사 — 비짓제주 빅데이터 지도(GEONET, SKT 통신 기반 추정 인구)
+  https://www.visitjeju.net/
+- 부산광역시 교통정보서비스센터(ITS) — 도로소통·돌발·주차·CCTV https://its.busan.go.kr/
+- 부산시설공단 — 공영주차장 실시간 현황 https://www.bisco.or.kr/
+- 국립해양조사원(KHOA) — 해수욕장 생활지수 https://www.khoa.go.kr/
+- 강릉시 — 스마트교통정보 개방 API (공공데이터포털) https://www.data.go.kr/data/15140011/openapi.do
+- 인천국제공항공사 — 출국장 승객예고·주차 현황 https://www.airport.kr/
+- KBS — 재난감시 CCTV https://d.kbs.co.kr/
+- Open-Meteo — 시간별 기상 예보 (CC BY 4.0) https://open-meteo.com/
 
 ================================================================================
 
