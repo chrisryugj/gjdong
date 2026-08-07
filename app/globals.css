@@ -368,6 +368,33 @@
   border-radius: 4px;
 }
 
+/* 시간대 렌즈 시간 슬라이더 — 테마 변수 기반 최소 스타일 */
+.crowd-page .crowd-lens-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--cp-track);
+  outline: none;
+  cursor: pointer;
+}
+.crowd-page .crowd-lens-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cp-text-strong);
+  border: 2px solid var(--cp-bg);
+}
+.crowd-page .crowd-lens-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cp-text-strong);
+  border: 2px solid var(--cp-bg);
+}
+
 /* 푸터 자동 마퀴 — 내용이 넘칠 때만 좌우 왕복(양 끝에서 잠시 멈춤), 이동량은 인라인 CSS 변수 */
 @keyframes crowd-marquee {
   0%,

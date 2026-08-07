@@ -2,37 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { CONGEST_LEVELS, LEVEL_COLORS, textColor } from "@/lib/crowd/seoul-rtd"
+import { loadHeatmap, patternLevel, type HeatEntry } from "@/lib/crowd/heatmap-client"
 import { useLang } from "@/components/crowd/lang-context"
 
-// ── 요일×시간 히트맵
-// 서울은 GitHub Actions가 3시간마다(data 브랜치), 제주는 맥미니가 15분마다(data-jeju 브랜치) 누적한다.
-// 제주 원천은 호출 1회에 지난 24시간을 함께 주므로 첫 회차에 하루치가 한 번에 들어온다.
-const HEATMAP_URLS: Record<string, string> = {
-  seoul: "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json",
-  jeju: "https://raw.githubusercontent.com/chrisryugj/gjdong/data-jeju/jeju-heatmap.json",
-}
+// ── 요일×시간 히트맵 — 데이터 로더는 heatmap-client(시간대 렌즈와 공용)
 const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
-
-interface HeatEntry {
-  sum: number[][]
-  cnt: number[][]
-}
-
-// 도시마다 원천 파일이 달라 캐시도 도시별로 나눈다
-const heatmapCache = new Map<string, Promise<Record<string, HeatEntry> | null>>()
-function loadHeatmap(city: string): Promise<Record<string, HeatEntry> | null> {
-  const url = HEATMAP_URLS[city]
-  if (!url) return Promise.resolve(null)
-  let cached = heatmapCache.get(city)
-  if (!cached) {
-    cached = fetch(url)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { spots?: Record<string, HeatEntry> } | null) => d?.spots ?? null)
-      .catch(() => null)
-    heatmapCache.set(city, cached)
-  }
-  return cached
-}
 
 /** 요일×시간 혼잡 패턴 — 셀 탭(모바일)·호버(PC)로 개별 확인 */
 export default function SpotHeatmap({ name, light, city }: { name: string; light: boolean; city: string }) {
@@ -63,8 +37,7 @@ export default function SpotHeatmap({ name, light, city }: { name: string; light
 
   const cellInfo = (d: number, h: number) => {
     const cnt = heat.cnt[d]?.[h] ?? 0
-    const avg = cnt > 0 ? (heat.sum[d]?.[h] ?? 0) / cnt : 0
-    const lv = cnt > 0 ? Math.min(Math.max(Math.round(avg), 1), 4) : 0
+    const lv = patternLevel(heat, d, h)
     return { cnt, lv, label: lv > 0 ? trLv(CONGEST_LEVELS[lv - 1]) : t.noData }
   }
 
