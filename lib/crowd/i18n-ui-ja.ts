@@ -160,6 +160,7 @@ export const JA: UIStrings = {
   districtAddAll: (d) => `${d}をすべて追加`,
   opsExportCsv: "CSV",
   opsCopyReport: "状況報告をコピー",
+  opsPrintReport: "報告書を印刷",
   alertsOn: "混雑アラートON",
   alertsOff: "混雑アラート",
   alertNote: "監視スポットが「混雑」になったら通知します — 約5分間隔の監視でリアルタイム警報ではありません",

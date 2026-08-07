@@ -160,6 +160,7 @@ export const EN: UIStrings = {
   districtAddAll: (d) => `Add all in ${d}`,
   opsExportCsv: "CSV",
   opsCopyReport: "Copy report",
+  opsPrintReport: "Print report",
   alertsOn: "Crowded alerts on",
   alertsOff: "Crowded alerts",
   alertNote: "Get notified when a watched spot turns Crowded — checked about every 5 min, not a real-time siren",

@@ -159,6 +159,7 @@ export const ZH: UIStrings = {
   districtAddAll: (d) => `添加${d}全部地点`,
   opsExportCsv: "CSV",
   opsCopyReport: "复制状况报告",
+  opsPrintReport: "打印报告",
   alertsOn: "拥挤提醒已开启",
   alertsOff: "拥挤提醒",
   alertNote: "监控地点转为“拥挤”时通知您 — 约每5分钟检查一次，并非实时警报",
