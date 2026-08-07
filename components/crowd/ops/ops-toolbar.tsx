@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useRef, useState } from "react"
-import { Check, Link2, Maximize, Minimize, Plus, X } from "lucide-react"
+import { Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { districtOf, listDistricts } from "@/lib/crowd/districts"
@@ -17,6 +17,8 @@ export default function OpsToolbar({
   onToggle,
   onAddMany,
   onClear,
+  onExportCsv,
+  onCopyReport,
 }: {
   city: CityId
   spots: CrowdSpot[]
@@ -24,11 +26,15 @@ export default function OpsToolbar({
   onToggle: (name: string) => void
   onAddMany: (names: string[]) => void
   onClear: () => void
+  onExportCsv: () => void
+  /** 감시 지점이 없으면 undefined — 버튼 비노출 */
+  onCopyReport?: () => Promise<void>
 }) {
   const { lang, t, spot: trSpotName } = useLang()
   const [query, setQuery] = useState("")
   const [district, setDistrict] = useState("")
   const [copied, setCopied] = useState(false)
+  const [reportCopied, setReportCopied] = useState(false)
   const [isFull, setIsFull] = useState(false)
   const [maxHit, setMaxHit] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -178,6 +184,27 @@ export default function OpsToolbar({
 
         <span className="flex-1" />
 
+        {/* 기록·증빙 — CSV(전 지점)·상황보고 문안(감시 지점, 한국어 고정) */}
+        <button
+          onClick={onExportCsv}
+          className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+        >
+          <Download className="h-3.5 w-3.5" /> {t.opsExportCsv}
+        </button>
+        {onCopyReport && (
+          <button
+            onClick={() => {
+              void onCopyReport().then(() => {
+                setReportCopied(true)
+                setTimeout(() => setReportCopied(false), 2000)
+              })
+            }}
+            className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+          >
+            {reportCopied ? <Check className="h-3.5 w-3.5 text-[#00d369]" /> : <ClipboardList className="h-3.5 w-3.5" />}
+            {reportCopied ? t.opsShareCopied : t.opsCopyReport}
+          </button>
+        )}
         <button
           onClick={copyLink}
           className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"

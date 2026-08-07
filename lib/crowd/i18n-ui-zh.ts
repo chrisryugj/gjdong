@@ -157,4 +157,6 @@ export const ZH: UIStrings = {
   opsClear: "全部取消",
   districtAll: "全部区域",
   districtAddAll: (d) => `添加${d}全部地点`,
+  opsExportCsv: "CSV",
+  opsCopyReport: "复制状况报告",
 }

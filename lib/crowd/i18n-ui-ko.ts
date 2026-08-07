@@ -176,6 +176,8 @@ export const KO = {
   opsClear: "모두 해제",
   districtAll: "전체 구역",
   districtAddAll: (d: string) => `${d} 전체 추가`,
+  opsExportCsv: "CSV",
+  opsCopyReport: "상황보고 복사",
 }
 
 export type UIStrings = typeof KO
