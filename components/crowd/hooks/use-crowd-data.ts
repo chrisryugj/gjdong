@@ -8,6 +8,8 @@ import { CITY_CAPS, isCityId, type CityId } from "@/lib/crowd/cities"
 export function useCrowdData(
   cityRef: MutableRefObject<CityId>,
   onSilentDetailRefresh: () => void,
+  /** true면 숨김 탭에서도 폴링 유지(붐빔 알림 무장 시) — 제주는 원천 보호로 예외 */
+  alertsArmedRef?: MutableRefObject<boolean>,
 ) {
   // 도시는 URL(?city=)에서 복원 — SSR 표준 출력은 서울이라 마운트 후 확정 (null=미확정)
   const [city, setCity] = useState<CityId | null>(null)
@@ -57,7 +59,9 @@ export function useCrowdData(
       onSilentDetailRefresh()
     }
     const timer = setInterval(() => {
-      if (!document.hidden) refresh()
+      // 알림 무장 중엔 숨김 탭에서도 감시를 잇는다 — 단 제주는 원천 보호가 우선(2026-08 차단 사고)
+      const keepHidden = alertsArmedRef?.current === true && cityRef.current !== "jeju"
+      if (!document.hidden || keepHidden) refresh()
     }, periodMs)
     const onVisibility = () => {
       if (!document.hidden && Date.now() - lastAt >= periodMs) refresh()

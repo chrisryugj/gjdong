@@ -20,6 +20,9 @@ export default function OpsBoard({
   favs,
   light,
   disaster,
+  alertsEnabled,
+  alertsPermission,
+  onToggleAlerts,
   onToggleWatch,
   onAddMany,
   onClearWatch,
@@ -33,6 +36,9 @@ export default function OpsBoard({
   favs: Set<string>
   light: boolean
   disaster: CrowdDisaster[]
+  alertsEnabled: boolean
+  alertsPermission: "default" | "granted" | "denied" | "unsupported"
+  onToggleAlerts: () => Promise<void>
   onToggleWatch: (name: string) => void
   onAddMany: (names: string[]) => void
   onClearWatch: () => void
@@ -133,6 +139,9 @@ export default function OpsBoard({
         onClear={onClearWatch}
         onExportCsv={exportCsv}
         onCopyReport={watch.length > 0 ? copyReport : undefined}
+        alertsEnabled={alertsEnabled}
+        alertsPermission={alertsPermission}
+        onToggleAlerts={onToggleAlerts}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">

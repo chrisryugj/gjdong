@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useRef, useState } from "react"
-import { Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, X } from "lucide-react"
+import { Bell, BellOff, Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { districtOf, listDistricts } from "@/lib/crowd/districts"
@@ -19,6 +19,9 @@ export default function OpsToolbar({
   onClear,
   onExportCsv,
   onCopyReport,
+  alertsEnabled,
+  alertsPermission,
+  onToggleAlerts,
 }: {
   city: CityId
   spots: CrowdSpot[]
@@ -29,6 +32,9 @@ export default function OpsToolbar({
   onExportCsv: () => void
   /** 감시 지점이 없으면 undefined — 버튼 비노출 */
   onCopyReport?: () => Promise<void>
+  alertsEnabled: boolean
+  alertsPermission: "default" | "granted" | "denied" | "unsupported"
+  onToggleAlerts: () => Promise<void>
 }) {
   const { lang, t, spot: trSpotName } = useLang()
   const [query, setQuery] = useState("")
@@ -183,6 +189,28 @@ export default function OpsToolbar({
         )}
 
         <span className="flex-1" />
+
+        {/* 붐빔 전환 알림 — 권한 요청은 이 클릭에서만. 폴링 편승이라 "약 5분 주기 감시" 명시 */}
+        <button
+          onClick={() => void onToggleAlerts()}
+          disabled={alertsPermission === "denied"}
+          title={
+            alertsPermission === "denied"
+              ? t.alertDenied
+              : alertsPermission === "unsupported"
+                ? t.alertUnsupported
+                : t.alertNote
+          }
+          aria-pressed={alertsEnabled}
+          className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] transition-colors disabled:opacity-40 ${
+            alertsEnabled
+              ? "border-[#ff3939]/60 bg-[#ff3939]/10 font-medium text-[var(--cp-text-strong)]"
+              : "border-[var(--cp-border-strong)] bg-[var(--cp-panel)] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+          }`}
+        >
+          {alertsEnabled ? <Bell className="h-3.5 w-3.5 text-[#ff3939]" /> : <BellOff className="h-3.5 w-3.5" />}
+          {alertsEnabled ? t.alertsOn : t.alertsOff}
+        </button>
 
         {/* 기록·증빙 — CSV(전 지점)·상황보고 문안(감시 지점, 한국어 고정) */}
         <button

@@ -160,4 +160,9 @@ export const JA: UIStrings = {
   districtAddAll: (d) => `${d}をすべて追加`,
   opsExportCsv: "CSV",
   opsCopyReport: "状況報告をコピー",
+  alertsOn: "混雑アラートON",
+  alertsOff: "混雑アラート",
+  alertNote: "監視スポットが「混雑」になったら通知します — 約5分間隔の監視でリアルタイム警報ではありません",
+  alertDenied: "ブラウザの通知がブロックされています。アドレスバーの鍵アイコンから許可してください",
+  alertUnsupported: "このブラウザはシステム通知に対応していないため、画面内通知のみ表示されます",
 }
