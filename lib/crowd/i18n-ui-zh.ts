@@ -164,4 +164,5 @@ export const ZH: UIStrings = {
   alertNote: "监控地点转为“拥挤”时通知您 — 约每5分钟检查一次，并非实时警报",
   alertDenied: "浏览器通知已被屏蔽，请在地址栏锁形图标中允许",
   alertUnsupported: "此浏览器不支持系统通知，仅显示页面内提醒",
+  methodologyLink: "等级标准",
 }

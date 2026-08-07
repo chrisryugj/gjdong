@@ -502,6 +502,16 @@ function CrowdDashboardInner() {
               >
                 {FOOTER_T[city ?? "seoul"]?.[1] ?? t.footerSource}
               </a>
+              {/* 등급 산출식 공개 문서 — "이 붐빔이 어떻게 계산됐나"의 답 */}
+              {" · "}
+              <a
+                href="https://github.com/chrisryugj/gjdong/blob/main/docs/crowd-methodology.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-[var(--cp-text-muted)]"
+              >
+                {t.methodologyLink}
+              </a>
             </AutoMarquee>
             {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}
             <a
@@ -525,7 +535,7 @@ function CrowdDashboardInner() {
       {/* 붐빔 전환 인앱 토스트 — OS 알림 미지원(iOS Safari)·백그라운드 복귀 시 안전망 */}
       {alerts.toast && (
         <div className="pointer-events-none fixed bottom-4 left-1/2 z-[2000] -translate-x-1/2">
-          <div className="rounded-md border border-[#ff3939]/50 bg-[var(--cp-panel)] px-4 py-2 text-[13px] font-medium text-[var(--cp-text-strong)] shadow-lg">
+          <div className="rounded-md border border-[#ff3939]/50 bg-[var(--cp-tip-bg)] px-4 py-2 text-[13px] font-medium text-[var(--cp-text-strong)] shadow-lg">
             {alerts.toast}
           </div>
         </div>

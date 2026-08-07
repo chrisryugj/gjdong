@@ -134,7 +134,8 @@ export default function OpsToolbar({
             )}
           </div>
           {query.trim() && suggestions.length > 0 && (
-            <ul className="absolute left-0 right-0 top-9 z-[1200] overflow-hidden rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] shadow-lg">
+            /* 배경은 불투명 --cp-tip-bg — --cp-panel(3% 틴트)을 쓰면 뒤 버튼이 비쳐 보인다 (모바일 실측) */
+            <ul className="absolute left-0 right-0 top-9 z-[1200] overflow-hidden rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-tip-bg)] shadow-lg">
               {suggestions.map((s) => (
                 <li key={s.name}>
                   <button
