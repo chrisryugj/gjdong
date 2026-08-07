@@ -36,6 +36,9 @@ const SpotDetail = dynamic(() => import("@/components/crowd/spot-detail"), {
   ),
 })
 
+// 인천공항 실황 보드 — 인천에서만 쓰므로 타 도시 번들에 0바이트
+const AirportBoard = dynamic(() => import("@/components/crowd/airport-board"), { ssr: false })
+
 // 상황실 보드도 진입 시점에 로드 — 시민 모드 첫 페인트에 0바이트
 const OpsBoard = dynamic(() => import("@/components/crowd/ops/ops-board"), {
   ssr: false,
@@ -513,6 +516,7 @@ function CrowdDashboardInner() {
                 data.setLoading(true)
                 void data.loadSpots()
               }}
+              extra={city === "incheon" ? <AirportBoard light={light} updatedAt={updatedAt} /> : undefined}
             />
           )}
 
