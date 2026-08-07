@@ -81,6 +81,12 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         zoom: zoomRef.current ?? 12,
         zoomControl: false,
         attributionControl: true,
+        // 휠 줌 부드럽게 — 기본값(정수 스냅·틱당 1레벨)은 맥 휠에서 '퍽퍽' 점프.
+        // 1/4 레벨 스냅 + 휠 픽셀당 줌량 절반 + 짧은 디바운스로 관성 스크롤에 비례해 미끄러진다
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
+        wheelPxPerZoomLevel: 120,
+        wheelDebounceTime: 20,
       })
       L.control.zoom({ position: "bottomright" }).addTo(map)
 
