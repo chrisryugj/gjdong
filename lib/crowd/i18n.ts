@@ -85,6 +85,13 @@ const ROAD_MSG_T: Record<string, [string, string, string]> = {
 
 // 혼잡도 안내문(API 한국어 자유 텍스트) 대체 — 단계별 캔드 문장
 const LEVEL_MSG_T: Record<number, [string, string, string]> = {
+  // 0 = 등급을 낼 원천이 그 지점에 없음(강원 강릉권 밖·인천공항 미운영 출국장).
+  // 이 항목이 없으면 비한국어에서 안내문이 통째로 사라져 화면이 빈 채로 남는다.
+  0: [
+    "No live congestion data for this spot — see the details below instead.",
+    "この地点のリアルタイム混雑情報はありません。下の詳細をご確認ください。",
+    "该地点暂无实时拥挤度数据，请参考下方详情。",
+  ],
   1: [
     "Not crowded right now — a relaxed time to visit.",
     "今は空いていて、ゆったり過ごせます。",
