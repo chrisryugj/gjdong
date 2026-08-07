@@ -53,7 +53,8 @@ export default function CrowdHeader({
   const [subtitleFn, fallbackCount] = SUBTITLE[city] ?? SUBTITLE.seoul
   const subtitle = subtitleFn(spotCount > 0 ? spotCount : fallbackCount)
   // 도시 스위처 — 헤더 안(md↑)과 헤더 아래 독립 행(모바일) 두 곳에서 같은 것을 쓴다.
-  // 도시가 5개가 되면서 모바일 헤더 폭으로는 우측 갱신시각과 부딪혀 잘렸다.
+  // 선택 도시는 반전 대비(라이트=먹색 pill·다크=백색 pill)로 한눈에 — 배경색 은은한 구분은
+  // 5개 pill 사이에서 잘 안 읽혔다.
   const citySwitcher = (
     <div
       role="group"
@@ -67,7 +68,7 @@ export default function CrowdHeader({
           aria-pressed={city === id}
           className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors md:py-1 ${
             city === id
-              ? "bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
+              ? "bg-[var(--cp-text-strong)] text-[var(--cp-bg)]"
               : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
           }`}
         >
@@ -77,15 +78,31 @@ export default function CrowdHeader({
     </div>
   )
 
+  // 라이브 갱신 시각 — md↑는 헤더 우측, 모바일은 도시 행 우측(dateline)에 붙는다
+  const liveClock = updatedAt && (
+    <span
+      className="flex shrink-0 items-center gap-1.5 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]"
+      title={t.autoRefresh}
+    >
+      <span className="relative flex h-1.5 w-1.5" aria-hidden>
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-50" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
+      </span>
+      {t.updatedAt(formatClock(updatedAt))}
+      <span className="hidden text-[var(--cp-text-faint)] xl:inline">· {t.autoRefresh}</span>
+    </span>
+  )
+
   return (
     <>
       {/* ── 헤더 */}
-      <header className="flex min-h-0 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 py-1 md:min-h-14 md:py-0 md:px-5">
+      <header className="flex min-h-0 shrink-0 items-center justify-between gap-3 border-b border-[var(--cp-border)] px-4 py-1.5 md:min-h-14 md:py-0 md:px-5">
         {/* 제목은 min-w-0+truncate — 긴 외국어 제목이 우측 컨트롤과 겹치지 않게 말줄임.
-            모바일은 wrap 허용 — 폭이 모자라면 도시 스위처가 둘째 줄로 내려가 제목이 살아남는다 */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 md:flex-nowrap">
+            모바일 우측은 아이콘만(시각은 도시 행으로) — 제목이 한 줄을 온전히 가져간다 */}
+        <div className="flex min-w-0 items-center gap-x-3">
+          {/* md↑에선 제목은 성역 — 짤림은 부제(subtitle)가 대신 진다 */}
           <h1
-            className={`min-w-0 truncate text-[var(--cp-text-strong)] ${
+            className={`min-w-0 truncate md:shrink-0 text-[var(--cp-text-strong)] ${
               lang === "ko"
                 ? "text-xl md:text-2xl [font-family:Joseon100Years,serif]"
                 : "text-lg font-semibold tracking-tight sm:text-xl md:text-2xl"
@@ -93,13 +110,18 @@ export default function CrowdHeader({
           >
             {title}
           </h1>
-          {/* 도시 스위처 (선택 도시는 URL ?city=로 공유 가능) — 모바일은 헤더 아래 독립 행으로 */}
-          <div className="hidden shrink-0 md:block">{citySwitcher}</div>
-          <p className="hidden truncate text-[12px] text-[var(--cp-text-dim)] lg:block">{subtitle}</p>
+          {/* 도시 스위처 (선택 도시는 URL ?city=로 공유 가능) — 모바일은 헤더 아래 독립 행으로.
+              긴 언어(영어 Incheon Airport)가 md 폭에서 우측 시계를 침범하지 않게 내부 스크롤로 양보 */}
+          <div className="hidden min-w-0 overflow-x-auto md:block [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="w-max">{citySwitcher}</div>
+          </div>
+          <p className="hidden min-w-0 truncate text-[12px] text-[var(--cp-text-dim)] xl:block">{subtitle}</p>
         </div>
 
         <div className="flex shrink-0 items-center gap-3 md:gap-4">
-          <div className="hidden items-center gap-3 md:flex">
+          {/* 등급 분포 — xl부터만 (md~lg 폭에서 제목을 짜부라뜨리던 주범.
+              그 폭에선 목록 패널의 등급 필터 칩이 같은 숫자를 보여준다) */}
+          <div className="hidden items-center gap-3 xl:flex">
             {LEVEL_ORDER.map((lv) => (
               <div key={lv} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ background: LEVEL_COLORS[lv] }} />
@@ -112,20 +134,8 @@ export default function CrowdHeader({
           </div>
 
           <div className="flex items-center gap-1.5 border-l border-[var(--cp-border)] pl-3 md:pl-4">
-            {/* 갱신 시각 — 라이브 점과 함께 모든 폭에서 노출 (좁으면 제목 줄이 wrap으로 양보) */}
-            {updatedAt && (
-              <span
-                className="flex shrink-0 items-center gap-1.5 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]"
-                title={t.autoRefresh}
-              >
-                <span className="relative flex h-1.5 w-1.5" aria-hidden>
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-50" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
-                </span>
-                {t.updatedAt(formatClock(updatedAt))}
-                <span className="hidden text-[var(--cp-text-faint)] xl:inline">· {t.autoRefresh}</span>
-              </span>
-            )}
+            {/* 갱신 시각 — md↑만 여기, 모바일은 도시 행 우측 (좁은 폭에서 제목과 폭 다툼 금지) */}
+            <div className="hidden md:contents">{liveClock}</div>
             <button
               onClick={onEnterOps}
               className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
@@ -155,17 +165,20 @@ export default function CrowdHeader({
 
           <Link
             href="/"
-            className="hidden border-l border-[var(--cp-border)] pl-3 text-[12px] text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text-strong)] sm:block md:pl-4"
+            className="hidden border-l border-[var(--cp-border)] pl-3 text-[12px] text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text-strong)] sm:block md:hidden lg:block md:pl-4"
           >
             {t.homeLink}
           </Link>
         </div>
       </header>
 
-      {/* ── 도시 스위처 (모바일) — 헤더 안에서는 우측 갱신시각과 폭을 다투다 잘려서 독립 행으로 뺐다.
-             5개가 좁은 폭에 안 들어가면 가로 스크롤하되, 스크롤 가능하다는 걸 알 수 있게 좌우 여백을 둔다 */}
-      <div className="shrink-0 overflow-x-auto border-b border-[var(--cp-border)] px-4 py-1.5 md:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="w-max">{citySwitcher}</div>
+      {/* ── 도시 행 (모바일) — 좌측 도시 스위처(넘치면 가로 스크롤) + 우측 라이브 갱신 시각.
+             갱신 시각이 헤더 1행에 있으면 제목과 폭을 다투다 제목이 잘려서 여기로 내렸다 */}
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-4 py-1.5 md:hidden">
+        <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="w-max">{citySwitcher}</div>
+        </div>
+        {liveClock}
       </div>
 
       {/* ── 재난문자 배너 (오늘 발송분 있을 때만, 탭하면 전체 펼침) — 본문은 원문 유지, 머리말만 번역 */}
