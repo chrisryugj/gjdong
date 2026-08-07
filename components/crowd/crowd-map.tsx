@@ -227,6 +227,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
 
   // 도시 전환·첫 로드 시 실좌표 bbox로 뷰 최적화 — 고정 줌은 화면 폭에 따라 낭비가 커서(강원 내륙 2/3)
   // 데이터가 도착한 시점에 도시당 1회만 맞춘다. 딥링크로 상세·주소핀이 열려 있으면 그쪽 flyTo가 우선.
+  // 뷰는 등급이 있는 지점 위주 — "정보 없음" 외곽(강원 속초~삼척 8곳)까지 다 담으면 신호 밀도가 죽는다.
   useEffect(() => {
     const map = mapInstanceRef.current
     const L = leafletRef.current
@@ -234,7 +235,9 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     if (lastFitCityRef.current === fitCity) return
     lastFitCityRef.current = fitCity
     if (selectedNameRef.current || addressPin) return
-    const bounds = L.latLngBounds(spots.map((s) => [s.lat, s.lng] as [number, number]))
+    const graded = spots.filter((s) => s.levelNum > 0)
+    const target = graded.length >= 2 ? graded : spots
+    const bounds = L.latLngBounds(target.map((s) => [s.lat, s.lng] as [number, number]))
     map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 })
   }, [ready, spots, fitCity, addressPin])
 
