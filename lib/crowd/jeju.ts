@@ -234,7 +234,7 @@ interface JejuPop {
   series: Array<{ h: number; v: number }> // 시간 오름차순 24점
 }
 
-function parsePop(rows: GeonetRow[]): JejuPop | null {
+export function parsePop(rows: GeonetRow[]): JejuPop | null {
   let nowRow: GeonetRow | null = null
   let avgRow: GeonetRow | null = null
   const series: Array<{ h: number; v: number }> = []

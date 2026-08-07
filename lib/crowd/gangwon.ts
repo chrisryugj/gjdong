@@ -92,7 +92,7 @@ interface GnRoad {
 }
 
 /** 공공데이터포털 응답 껍질 벗기기 — 실패·빈 응답은 모두 빈 배열 */
-function gnItems(raw: unknown): Array<Record<string, unknown>> {
+export function gnItems(raw: unknown): Array<Record<string, unknown>> {
   const body = (raw as { body?: { items?: { item?: unknown } } } | null)?.body
   const item = body?.items?.item
   return Array.isArray(item) ? (item as Array<Record<string, unknown>>) : []
@@ -106,7 +106,7 @@ function gnCall(op: string, rows = 100): Promise<unknown> {
 }
 
 // LOS A~F → 도로 등급 (원천이 등급 대신 서비스수준 문자를 준다)
-function losGrade(los: unknown): number {
+export function losGrade(los: unknown): number {
   const g = String(los ?? "").toUpperCase()
   if (g === "A" || g === "B") return 1
   if (g === "E" || g === "F") return 3
@@ -202,7 +202,7 @@ async function loadSnapshot(): Promise<GangwonSnapshot> {
 // 개장 전인 성내동광장(08시~)·중앙시장제1(10시~)까지 0인 반면, 같은 시각 강문제1은 170/170,
 // 중앙시장제3은 32/32로 정상적인 '텅 빔'을 보고했다). 0을 재차율 100%로 읽으면 새벽 내내
 // 강릉역 410면이 "붐빔"이 된다 — 그 주차장을 등급 산출에서 빼고, 근거가 하나도 없으면 정보 없음.
-function isCounting(lot: GnLot): boolean {
+export function isCounting(lot: GnLot): boolean {
   return lot.cell > 0 && lot.cell !== lot.cur
 }
 
