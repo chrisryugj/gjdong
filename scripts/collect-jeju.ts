@@ -48,8 +48,7 @@ const SEL =
 // 원천이 자기 페이지發 XHR만 받는다 — 이 헤더가 빠지면 전건 403
 const HEADERS = { "Sec-Fetch-Site": "same-origin" }
 
-async function fetchPop(lat: number, lng: number, r: number): Promise<unknown[] | null> {
-  const url = `${GEONET}getTimePopByCircle.php?SELECT=${SEL}&X=${lng}&Y=${lat}&R=${r}`
+async function geonetRows(url: string): Promise<unknown[] | null> {
   for (let i = 1; i <= 3; i++) {
     try {
       const res = await fetch(url, { cache: "no-store", headers: HEADERS, signal: AbortSignal.timeout(15000) })
@@ -64,6 +63,15 @@ async function fetchPop(lat: number, lng: number, r: number): Promise<unknown[] 
     }
   }
   return null
+}
+
+function fetchPop(lat: number, lng: number, r: number): Promise<unknown[] | null> {
+  return geonetRows(`${GEONET}getTimePopByCircle.php?SELECT=${SEL}&X=${lng}&Y=${lat}&R=${r}`)
+}
+
+/** 성·연령 구성 — 상세 패널의 한 축이라 스냅샷에도 담는다(도민/관광객 2행, 한글 키) */
+function fetchSexAge(lat: number, lng: number, r: number): Promise<unknown[] | null> {
+  return geonetRows(`${GEONET}getSexAgePopByCircle.php?X=${lng}&Y=${lat}&R=${r}`)
 }
 
 interface PopRow {
@@ -103,15 +111,21 @@ function pastSlots(rows: PopRow[], nowKst: Date) {
 
 async function main() {
   const pop: Record<string, unknown[]> = {}
+  const sexAge: Record<string, unknown[]> = {}
   let failed = 0
 
   const BATCH = 6
   for (let i = 0; i < JEJU_SPOTS.length; i += BATCH) {
     await Promise.all(
       JEJU_SPOTS.slice(i, i + BATCH).map(async (s) => {
-        const rows = await fetchPop(s.lat, s.lng, s.r)
+        const [rows, sa] = await Promise.all([
+          fetchPop(s.lat, s.lng, s.r),
+          // 성·연령은 실패해도 그 축만 비면 되므로 수집 성공 여부에 넣지 않는다
+          fetchSexAge(s.lat, s.lng, s.r),
+        ])
         if (rows) pop[s.name] = rows
         else failed++
+        if (sa) sexAge[s.name] = sa
       }),
     )
   }
@@ -127,7 +141,7 @@ async function main() {
   await mkdir("out-data-jeju", { recursive: true })
   await writeFile(
     "out-data-jeju/jeju.json",
-    JSON.stringify({ updated: kst.toISOString().replace("Z", "+09:00"), pop }),
+    JSON.stringify({ updated: kst.toISOString().replace("Z", "+09:00"), pop, sexAge }),
   )
 
   // ── 요일×시간 누적
