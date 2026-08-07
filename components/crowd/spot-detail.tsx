@@ -5,6 +5,7 @@ import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, Move
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
+import { romanizeAddress } from "@/lib/crowd/romanize"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
 import SpotCctv from "@/components/crowd/spot-cctv"
@@ -273,7 +274,12 @@ export default function SpotDetail({
                   {trAlert(a.type, lang)}
                   {a.detail && a.detail !== a.type && <span className="font-normal">· {trAlert(a.detail, lang)}</span>}
                 </p>
-                {a.info && <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cp-text)]">{a.info}</p>}
+                {/* 사고 내용은 구간·차로가 섞인 자유 텍스트라 사전화 불가 — 로마자로 읽게만 한다 */}
+                {a.info && (
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--cp-text)]">
+                    {lang === "ko" ? a.info : romanizeAddress(a.info)}
+                  </p>
+                )}
                 {a.expectedClearAt && (
                   <p className="mt-0.5 font-mono text-[11px] tabular-nums text-[var(--cp-text-dim)]">
                     {/* 자정 넘겨 해소되는 공사는 시각만 보여주면 오해 — 오늘이 아니면 날짜까지 */}

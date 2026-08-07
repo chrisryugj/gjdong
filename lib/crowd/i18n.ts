@@ -138,6 +138,12 @@ const ALERT_T: Record<string, [string, string, string]> = {
   낙하물: ["Fallen object", "落下物", "坠落物"],
   차량고장: ["Vehicle breakdown", "車両故障", "车辆故障"],
   통제: ["Road control", "通行規制", "交通管制"],
+  // 세부 사유(detail) — 서울 TOPIS 실측 상위 값
+  시설물보수: ["Facility repair", "施設補修", "设施维修"],
+  도로보수: ["Road repair", "道路補修", "道路维修"],
+  상수도공사: ["Waterworks", "上水道工事", "供水施工"],
+  전기통신공사: ["Utility works", "電気通信工事", "电力通信施工"],
+  포장공사: ["Repaving", "舗装工事", "路面铺装"],
 }
 
 // ── 재난문자 유형·단계 (배너 굵은 머리말만 번역, 본문은 원문 유지)
