@@ -17,6 +17,7 @@ export {
   trRoadMsg,
 } from "./i18n-terms"
 export { trSpot } from "./i18n-spots"
+export { trDistrict } from "./i18n-districts"
 export { META } from "./i18n-meta"
 export type { UIStrings } from "./i18n-ui-ko"
 
