@@ -208,7 +208,9 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     title={linked ? t.kakaoNavTitle : undefined}
                     className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
-                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{st.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">
+                      {lang === "ko" ? st.name : romanizeAddress(st.name)}
+                    </span>
                     {meters != null && (
                       <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
                         {formatMeters(meters)}
