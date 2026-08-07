@@ -20,8 +20,8 @@ import {
   type CrowdDetail,
   type CrowdSeriesPoint,
   type CrowdSpot,
-  type CrowdWeatherHour,
 } from "@/lib/crowd/seoul-rtd"
+import { fetchMeteo12h, LV_BY_N, toNum } from "@/lib/crowd/adapter-kit"
 import { krgovJson } from "@/lib/crowd/krgov-fetch"
 
 const GEONET = "https://jeju.mms.gislab.co.kr/mms_new/GEONET."
@@ -29,7 +29,6 @@ const GEONET = "https://jeju.mms.gislab.co.kr/mms_new/GEONET."
 const GEONET_HEADERS = { "Sec-Fetch-Site": "same-origin" }
 const GEONET_SEL =
   "M_POP_00,M_POP_10,M_POP_20,M_POP_30,M_POP_40,M_POP_50,M_POP_60,M_POP_70,M_POP_80,M_POP_90,W_POP_00,W_POP_10,W_POP_20,W_POP_30,W_POP_40,W_POP_50,W_POP_60,W_POP_70,W_POP_80,W_POP_90"
-const METEO = "https://api.open-meteo.com/v1/forecast"
 
 interface JejuSpotDef {
   name: string
@@ -221,11 +220,6 @@ function popUrl(s: JejuSpotDef): string {
   return `getTimePopByCircle.php?SELECT=${GEONET_SEL}&X=${s.lng}&Y=${s.lat}&R=${s.r}`
 }
 
-function toNum(v: unknown): number {
-  const n = Number.parseFloat(String(v ?? ""))
-  return Number.isFinite(n) ? n : 0
-}
-
 interface JejuPop {
   inp: number // 도민
   outp: number // 관광객
@@ -260,7 +254,6 @@ export function parsePop(rows: GeonetRow[]): JejuPop | null {
 // ① 리듬 비율 = 현재 ÷ 자기 지난 24시간 최대 (자기 정규화 — 지점 간 규모 차 무관)
 // ② 밀도 상한 = 인구/면적(명/km²)이 낮으면 등급 상한 (한적한 넓은 반경이 자기 피크라는
 //    이유만으로 '붐빔'이 되는 과대해석 방지)
-const LV_BY_N = ["", "여유", "보통", "약간 붐빔", "붐빔"]
 export function deriveLevel(now: number, rhythmMax: number, rKm: number): string {
   const ratio = now / Math.max(rhythmMax, 1)
   const n = ratio >= 0.85 ? 4 : ratio >= 0.6 ? 3 : ratio >= 0.35 ? 2 : 1
@@ -316,15 +309,10 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
   const def = JEJU_SPOTS.find((s) => s.name === name)
   if (!def) throw new Error(`unknown jeju spot: ${name}`)
 
-  const [popRaw, sexAgeRaw, weatherRaw] = await Promise.all([
+  const [popRaw, sexAgeRaw, weather] = await Promise.all([
     geonetPop(def),
     geonetSexAge(def),
-    fetch(
-      `${METEO}?latitude=${def.lat}&longitude=${def.lng}&hourly=temperature_2m,precipitation_probability&forecast_hours=12&timezone=Asia%2FSeoul`,
-      { next: { revalidate: 1800 } },
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null),
+    fetchMeteo12h(def.lat, def.lng),
   ])
 
   const pop = parsePop(popRaw as GeonetRow[])
@@ -388,16 +376,6 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
 
   // 도민/관광객 비율 — 서울의 상주/비상주와 같은 의미 축 (라벨은 클라이언트에서 도시별 분기)
   const residentPct = pop.total > 0 ? Math.round((pop.inp / pop.total) * 100) : 50
-
-  const hourly = (weatherRaw as { hourly?: Record<string, unknown[]> } | null)?.hourly
-  const times = (hourly?.time ?? []) as string[]
-  const weather: CrowdWeatherHour[] = times.slice(0, 12).map((iso, i) => ({
-    hour: `${Number.parseInt(String(iso).slice(11, 13), 10)}시`,
-    temp: hourly?.temperature_2m?.[i] != null ? Math.round(toNum(hourly.temperature_2m[i])) : null,
-    rainProb: hourly?.precipitation_probability?.[i] != null ? toNum(hourly.precipitation_probability[i]) : null,
-    precip: "",
-    icon: "",
-  }))
 
   const peakPast = pop.series.reduce((best, p) => (p.v > best.v ? p : best), pop.series[0])
 
