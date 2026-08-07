@@ -28,6 +28,9 @@ export default function OpsBoard({
   onClearWatch,
   onOpenSpot,
   onExit,
+  logCount,
+  onExportLog,
+  onClearLog,
 }: {
   city: CityId
   spots: CrowdSpot[]
@@ -44,6 +47,10 @@ export default function OpsBoard({
   onClearWatch: () => void
   onOpenSpot: (name: string) => void
   onExit: () => void
+  /** 행사 로그 누적 틱 수 — 0이면 내보내기 버튼 비노출 */
+  logCount: number
+  onExportLog: () => void
+  onClearLog: () => void
 }) {
   const { t } = useLang()
   const details = useOpsDetails(city, watch, updatedAt)
@@ -142,6 +149,9 @@ export default function OpsBoard({
         alertsEnabled={alertsEnabled}
         alertsPermission={alertsPermission}
         onToggleAlerts={onToggleAlerts}
+        logCount={logCount}
+        onExportLog={onExportLog}
+        onClearLog={onClearLog}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">

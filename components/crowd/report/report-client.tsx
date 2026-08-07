@@ -5,6 +5,23 @@ import { ArrowLeft, LoaderCircle, Printer } from "lucide-react"
 import type { CrowdDetail, CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
+import { logStorageKey, sparkSeries, type OpsLogTick } from "@/lib/crowd/oplog"
+
+/** 등급 추이 스파크라인 — 상황실 행사 로그 기반, 벡터라 인쇄에서도 선명 */
+function Spark({ series }: { series: number[] }) {
+  if (series.length < 2) return <span className="text-neutral-300">—</span>
+  const W = 72
+  const H = 16
+  const step = W / (series.length - 1)
+  // 등급축 0~4 고정 — 보고서 간 비교 가능성 유지
+  const y = (lv: number) => H - 1.5 - (Math.min(lv, 4) / 4) * (H - 3)
+  const points = series.map((lv, i) => `${(i * step).toFixed(1)},${y(lv).toFixed(1)}`).join(" ")
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="block">
+      <polyline points={points} fill="none" stroke="#525252" strokeWidth="1.2" />
+    </svg>
+  )
+}
 
 /**
  * 인쇄용 상황보고서 — A4 결재 첨부물이 목표. window.print() → PDF 저장이 곧 산출물.
@@ -15,6 +32,17 @@ import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
 export default function ReportClient({ city, watch }: { city: CityId; watch: string[] }) {
   const [model, setModel] = useState<ReportModel | null>(null)
   const [error, setError] = useState(false)
+  const [log, setLog] = useState<OpsLogTick[]>([])
+
+  // 행사 로그(상황실이 쌓은 시간축 기록) — 같은 origin localStorage라 새 탭에서도 읽힌다
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(logStorageKey(city))
+      setLog(raw ? (JSON.parse(raw) as OpsLogTick[]) : [])
+    } catch {
+      setLog([])
+    }
+  }, [city])
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +111,17 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
     if (!model) return ""
     return model.scope === "watch" ? `감시 지점 ${model.totalCount}곳` : `전 지점 ${model.totalCount}곳`
   }, [model])
+
+  // 감시 지점 보고 + 로그 2틱 이상일 때만 추이 열 노출 (전 지점 121행에 스파크라인은 소음)
+  const sparks = useMemo(() => {
+    if (!model || model.scope !== "watch" || log.length < 2) return null
+    const m = new Map<string, number[]>()
+    for (const r of model.rows) {
+      const s = sparkSeries(log, r.name)
+      if (s.length >= 2) m.set(r.name, s)
+    }
+    return m.size > 0 ? m : null
+  }, [model, log])
 
   if (error) {
     return (
@@ -172,6 +211,7 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                 <th className="py-1.5 pr-2 font-normal">등급</th>
                 <th className="py-1.5 pr-2 font-normal">산출근거</th>
                 <th className="py-1.5 pr-2 font-normal">실측 인원</th>
+                {sparks && <th className="py-1.5 pr-2 font-normal">등급 추이</th>}
                 <th className="py-1.5 font-normal">특이사항</th>
               </tr>
             </thead>
@@ -190,6 +230,11 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                   </td>
                   <td className="py-1.5 pr-2 text-neutral-500">{r.basis}</td>
                   <td className="py-1.5 pr-2 font-mono tabular-nums">{r.people || "—"}</td>
+                  {sparks && (
+                    <td className="py-1.5 pr-2">
+                      {sparks.get(r.name) ? <Spark series={sparks.get(r.name)!} /> : <span className="text-neutral-300">—</span>}
+                    </td>
+                  )}
                   <td className="py-1.5">{r.notes || "—"}</td>
                 </tr>
               ))}
@@ -198,6 +243,11 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           {model.scope === "all" && (
             <p className="mt-1.5 text-[11px] text-neutral-400">
               ※ 실측 인원·특이사항은 감시 지점을 지정한 보고서(상황실 → 보고서 출력)에서만 조회합니다.
+            </p>
+          )}
+          {sparks && (
+            <p className="mt-1.5 text-[11px] text-neutral-400">
+              ※ 등급 추이는 이 기기 상황실이 기록한 행사 로그 {log.length}회분 (여유=하단, 붐빔=상단).
             </p>
           )}
         </section>
