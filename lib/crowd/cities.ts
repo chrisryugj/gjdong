@@ -17,6 +17,40 @@ export interface CityInfo {
   sourceUrl: string
 }
 
+/**
+ * 도시별 데이터 능력 테이블 — 클라이언트 안전(순수 데이터).
+ * UI는 여기서만 도시 분기를 읽고, 서버 라우팅은 adapters.ts의 ADAPTERS를 쓴다.
+ * 도시를 추가할 때는 이 테이블 + 어댑터 항목만 늘리면 라우트·컴포넌트는 무수정.
+ */
+export interface CityCapabilities {
+  /** 24시간 시계열 차트 (서울·제주) */
+  series: boolean
+  /** 예보 포인트 — 서울만. 제주는 과거 실측뿐 */
+  forecast: boolean
+  /** /api/crowd/extra 부가정보(사고·주차·행사·도로·따릉이) — 제주만 없음 */
+  extra: boolean
+  /** 요일×시간 히트맵 데이터 브랜치 (서울·제주) */
+  heatmap: boolean
+  /** 성별·연령·상주/방문 구성 (서울·제주) */
+  demographics: boolean
+  /** KHOA 해수욕장지수 가능 지점 존재 (부산·강원) */
+  beach: boolean
+  /** 재난문자 배너 (서울) */
+  disaster: boolean
+  /** 목적 프리셋 칩 — 카테고리 체계가 서울일 때만 */
+  presets: boolean
+  /** 클라이언트 자동 갱신 주기(분) — 제주 15분은 2026-08 원천 차단 사고 대응 */
+  pollMinutes: number
+}
+
+export const CITY_CAPS: Record<CityId, CityCapabilities> = {
+  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, presets: true, pollMinutes: 5 },
+  jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: false, presets: false, pollMinutes: 15 },
+  busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5 },
+  gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5 },
+  incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: false, presets: false, pollMinutes: 5 },
+}
+
 export const CITIES: Record<CityId, CityInfo> = {
   seoul: {
     id: "seoul",
