@@ -205,12 +205,12 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         // https·CORS 개방 스트림(TOPIS) — 네이티브 HLS는 src 직결, 그 외는 popupopen 때 hls.js 부착
         if (supportsNativeHls()) {
           marker.bindPopup(
-            `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><video src="${c.src}" autoplay muted playsinline></video></div>`,
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p><video src="${c.src}" autoplay muted playsinline></video></div>`,
             { maxWidth: 320, minWidth: 280, closeButton: true },
           )
         } else {
           marker.bindPopup(
-            `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p><video data-hls-src="${c.src}" autoplay muted playsinline></video></div>`,
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p><video data-hls-src="${c.src}" autoplay muted playsinline></video></div>`,
             { maxWidth: 320, minWidth: 280, closeButton: true },
           )
           marker.on("popupopen", (e) => {
@@ -233,7 +233,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
           ? `<video src="${cctvStreamUrl(c)}" autoplay muted playsinline></video>`
           : `<iframe src="${cctvPlayerUrl(c)}" title="CCTV ${escapeHtml(c.name)}" allow="autoplay"></iframe>`
         marker.bindPopup(
-          `<div class="crowd-cctv-pop"><p>${escapeHtml(c.name)}</p>${player}</div>`,
+          `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p>${player}</div>`,
           { maxWidth: 320, minWidth: 280, closeButton: true },
         )
       } else {

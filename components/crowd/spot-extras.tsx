@@ -6,6 +6,7 @@ import { textColor, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
 import { trRoad, trRoadMsg } from "@/lib/crowd/i18n"
+import { romanizeAddress } from "@/lib/crowd/romanize"
 
 interface SpotExtrasProps {
   extra: CrowdExtra
@@ -80,7 +81,10 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                     title={linked ? t.kakaoNavTitle : undefined}
                     className={`flex items-center gap-2.5 px-3 py-2 ${linked ? "transition-colors hover:bg-[var(--cp-hover)]" : ""}`}
                   >
-                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{lot.name}</span>
+                    {/* 주차장·행사명은 원천의 자유 텍스트라 사전화가 불가능 — 로마자로 읽게만 한다 */}
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">
+                      {lang === "ko" ? lot.name : romanizeAddress(lot.name)}
+                    </span>
                     {meters != null && (
                       <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
                         {formatMeters(meters)}
@@ -124,9 +128,11 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                   className="flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-[var(--cp-hover)]"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] text-[var(--cp-text)]">{ev.title}</p>
+                    <p className="truncate text-[14px] text-[var(--cp-text)]">
+                      {lang === "ko" ? ev.title : romanizeAddress(ev.title)}
+                    </p>
                     <p className="truncate text-[12px] text-[var(--cp-text-dim)]">
-                      {ev.place && `${ev.place} · `}
+                      {ev.place && `${lang === "ko" ? ev.place : romanizeAddress(ev.place)} · `}
                       <span className="font-mono tabular-nums">{ev.period}</span>
                     </p>
                   </div>
