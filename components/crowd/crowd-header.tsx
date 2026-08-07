@@ -49,6 +49,31 @@ export default function CrowdHeader({
   }
   const [subtitleFn, fallbackCount] = SUBTITLE[city] ?? SUBTITLE.seoul
   const subtitle = subtitleFn(spotCount > 0 ? spotCount : fallbackCount)
+  // 도시 스위처 — 헤더 안(md↑)과 헤더 아래 독립 행(모바일) 두 곳에서 같은 것을 쓴다.
+  // 도시가 5개가 되면서 모바일 헤더 폭으로는 우측 갱신시각과 부딪혀 잘렸다.
+  const citySwitcher = (
+    <div
+      role="group"
+      aria-label={t.citySwitchLabel}
+      className="flex items-center gap-0.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] p-0.5"
+    >
+      {CITY_IDS.map((id) => (
+        <button
+          key={id}
+          onClick={() => onCityChange(id)}
+          aria-pressed={city === id}
+          className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors md:py-1 ${
+            city === id
+              ? "bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
+              : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+          }`}
+        >
+          {t.cityNames[id]}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <>
       {/* ── 헤더 */}
@@ -65,27 +90,8 @@ export default function CrowdHeader({
           >
             {title}
           </h1>
-          {/* 도시 스위처 — 서울/제주/부산 세그먼트 (선택 도시는 URL ?city=로 공유 가능) */}
-          <div
-            role="group"
-            aria-label={t.citySwitchLabel}
-            className="flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] p-0.5"
-          >
-            {CITY_IDS.map((id) => (
-              <button
-                key={id}
-                onClick={() => onCityChange(id)}
-                aria-pressed={city === id}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors md:py-1 ${
-                  city === id
-                    ? "bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
-                    : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
-                }`}
-              >
-                {t.cityNames[id]}
-              </button>
-            ))}
-          </div>
+          {/* 도시 스위처 (선택 도시는 URL ?city=로 공유 가능) — 모바일은 헤더 아래 독립 행으로 */}
+          <div className="hidden shrink-0 md:block">{citySwitcher}</div>
           <p className="hidden truncate text-[12px] text-[var(--cp-text-dim)] lg:block">{subtitle}</p>
         </div>
 
@@ -144,6 +150,12 @@ export default function CrowdHeader({
           </Link>
         </div>
       </header>
+
+      {/* ── 도시 스위처 (모바일) — 헤더 안에서는 우측 갱신시각과 폭을 다투다 잘려서 독립 행으로 뺐다.
+             5개가 좁은 폭에 안 들어가면 가로 스크롤하되, 스크롤 가능하다는 걸 알 수 있게 좌우 여백을 둔다 */}
+      <div className="shrink-0 overflow-x-auto border-b border-[var(--cp-border)] px-4 py-1.5 md:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="w-max">{citySwitcher}</div>
+      </div>
 
       {/* ── 재난문자 배너 (오늘 발송분 있을 때만, 탭하면 전체 펼침) — 본문은 원문 유지, 머리말만 번역 */}
       {disaster.length > 0 && (
