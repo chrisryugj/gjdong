@@ -2,10 +2,26 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, LoaderCircle, Printer } from "lucide-react"
+import dynamic from "next/dynamic"
 import type { CrowdDetail, CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
 import { logStorageKey, sparkSeries, type OpsLogTick } from "@/lib/crowd/oplog"
+
+// 지도(Leaflet CDN)는 클라이언트 전용 — 보고서도 SSR 없이 로드
+const CrowdMap = dynamic(() => import("@/components/crowd/crowd-map"), { ssr: false })
+
+/** 대상 지점을 다 담는 지도 뷰 — bbox 중심 + 폭에서 줌 근사 (전 지점=도시 기본 뷰) */
+function fitView(spots: CrowdSpot[], city: CityId): { center: [number, number]; zoom: number } {
+  if (spots.length === 0) return { center: CITIES[city].center, zoom: CITIES[city].zoom }
+  const lats = spots.map((s) => s.lat)
+  const lngs = spots.map((s) => s.lng)
+  const center: [number, number] = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2]
+  const span = Math.max(Math.max(...lats) - Math.min(...lats), (Math.max(...lngs) - Math.min(...lngs)) * 0.8, 0.01)
+  // ~700px 박스 기준 근사: 도심 4곳(0.07도)→13, 도시 전역(0.3도)→11 (실측 보정)
+  const zoom = Math.max(9, Math.min(14, Math.floor(Math.log2(700 / span))))
+  return { center, zoom }
+}
 
 /** 등급 추이 스파크라인 — 상황실 행사 로그 기반, 벡터라 인쇄에서도 선명 */
 function Spark({ series }: { series: number[] }) {
@@ -33,6 +49,8 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
   const [model, setModel] = useState<ReportModel | null>(null)
   const [error, setError] = useState(false)
   const [log, setLog] = useState<OpsLogTick[]>([])
+  // 배치도용 원본 지점(좌표 포함) — 모델 행에는 좌표가 없다
+  const [mapSpots, setMapSpots] = useState<CrowdSpot[]>([])
 
   // 행사 로그(상황실이 쌓은 시간축 기록) — 같은 origin localStorage라 새 탭에서도 읽힌다
   useEffect(() => {
@@ -86,6 +104,7 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
       }
 
       if (cancelled) return
+      setMapSpots(watchSpots.length > 0 ? watchSpots : data.spots)
       setModel(
         buildReportModel({
           city,
@@ -145,7 +164,7 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
   return (
     <div className="min-h-dvh bg-neutral-100 text-neutral-900 print:bg-white">
       {/* @page 규격 — A4 세로, 결재 문서 여백 */}
-      <style>{`@page { size: A4 portrait; margin: 18mm 16mm; } @media print { .report-sheet { box-shadow: none !important; margin: 0 !important; width: auto !important; min-height: 0 !important; padding: 0 !important; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 18mm 16mm; } @media print { .report-sheet { box-shadow: none !important; margin: 0 !important; width: auto !important; min-height: 0 !important; padding: 0 !important; } .report-sheet .leaflet-control-zoom { display: none !important; } }`}</style>
 
       {/* 화면 전용 툴바 — 안내 문구는 폭이 되는 md부터 (모바일은 버튼 짤림의 주범이었다) */}
       <div className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur print:hidden">
@@ -204,9 +223,29 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           </div>
         </section>
 
+        {/* 지점 배치도 — 대상 지점 전부를 담는 뷰. 인쇄에서도 타일이 <img>라 그대로 실린다 */}
+        {mapSpots.length > 0 && (
+          <section className="mt-5 break-inside-avoid">
+            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">2. 지점 배치</h2>
+            <div className="relative mt-2 h-[230px] overflow-hidden border border-neutral-200">
+              <CrowdMap
+                spots={mapSpots}
+                lang="ko"
+                selectedName={null}
+                addressPin={null}
+                nearestNames={[]}
+                cctvItems={[]}
+                onSelect={() => {}}
+                center={fitView(mapSpots, city).center}
+                zoom={fitView(mapSpots, city).zoom}
+              />
+            </div>
+          </section>
+        )}
+
         {/* 지점별 표 */}
         <section className="mt-5">
-          <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">2. 지점별 현황 (등급 내림차순)</h2>
+          <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">3. 지점별 현황 (등급 내림차순)</h2>
           {/* 모바일: 열이 세로로 뭉개지는 대신 표 자체가 가로 스크롤 (인쇄·md는 그대로) */}
           <div className="overflow-x-auto print:overflow-visible">
           <table className="mt-2 w-full min-w-[560px] border-collapse text-[12px] leading-snug md:min-w-0 print:min-w-0">
@@ -265,7 +304,7 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
         {/* 재난문자 */}
         {model.disasters.length > 0 && (
           <section className="mt-5">
-            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">3. 오늘 재난문자</h2>
+            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">4. 오늘 재난문자</h2>
             <ul className="mt-2 space-y-1.5 border-y border-neutral-200 py-3 text-[12px] leading-relaxed">
               {model.disasters.slice(0, 5).map((d, i) => (
                 <li key={i}>
