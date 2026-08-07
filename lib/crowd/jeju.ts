@@ -164,6 +164,7 @@ const SNAPSHOT_TTL = 300_000
 interface JejuSnapshot {
   updated: string
   pop: Record<string, GeonetRow[]>
+  sexAge?: Record<string, unknown[]>
 }
 let snapshot: { at: number; data: JejuSnapshot | null } | null = null
 let snapshotPromise: Promise<JejuSnapshot | null> | null = null
@@ -191,6 +192,18 @@ async function geonetPop(s: JejuSpotDef): Promise<unknown> {
   }
   const snap = await loadSnapshot()
   return snap?.pop?.[s.name] ?? []
+}
+
+/** 성·연령 구성 — 인구와 같은 순서로 폴백한다 */
+async function geonetSexAge(s: JejuSpotDef): Promise<unknown> {
+  try {
+    const rows = await geonetFetch(`getSexAgePopByCircle.php?X=${s.lng}&Y=${s.lat}&R=${s.r}`)
+    if (!isEmpty(rows)) return rows
+  } catch {
+    // 막힌 회선 — 스냅샷으로
+  }
+  const snap = await loadSnapshot()
+  return snap?.sexAge?.[s.name] ?? null
 }
 
 async function geonetFetch(path: string): Promise<unknown> {
@@ -305,8 +318,7 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
 
   const [popRaw, sexAgeRaw, weatherRaw] = await Promise.all([
     geonetPop(def),
-    // 성·연령은 스냅샷에 없다 — 막힌 회선에서는 이 축만 비고 나머지 상세는 그대로 나온다
-    geonetFetch(`getSexAgePopByCircle.php?X=${def.lng}&Y=${def.lat}&R=${def.r}`).catch(() => null),
+    geonetSexAge(def),
     fetch(
       `${METEO}?latitude=${def.lat}&longitude=${def.lng}&hourly=temperature_2m,precipitation_probability&forecast_hours=12&timezone=Asia%2FSeoul`,
       { next: { revalidate: 1800 } },

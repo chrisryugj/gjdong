@@ -14,9 +14,15 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 node_modules/.bin/tsx scripts/collect-jeju.ts
 
+# data-jeju 는 JSON만 든 orphan 브랜치라 Vercel이 빌드하면 반드시 실패한다.
+# vercel.json 은 "배포되는 커밋의 것"이 적용되므로 발행물 안에 같이 넣어야 막힌다
+# (main 의 vercel.json 만으로는 이 브랜치의 푸시를 막지 못한다).
+echo '{"git":{"deploymentEnabled":{"data-jeju":false}}}' > out-data-jeju/vercel.json
+
 SNAP=$(git hash-object -w out-data-jeju/jeju.json)
 HEAT=$(git hash-object -w out-data-jeju/jeju-heatmap.json)
-TREE=$(printf '100644 blob %s\tjeju.json\n100644 blob %s\tjeju-heatmap.json\n' "$SNAP" "$HEAT" | git mktree)
+VCFG=$(git hash-object -w out-data-jeju/vercel.json)
+TREE=$(printf '100644 blob %s\tjeju.json\n100644 blob %s\tjeju-heatmap.json\n100644 blob %s\tvercel.json\n' "$SNAP" "$HEAT" "$VCFG" | git mktree)
 COMMIT=$(git commit-tree "$TREE" -m "chore: jeju snapshot $(date '+%Y-%m-%d %H:%M')")
 git push -f origin "$COMMIT:refs/heads/data-jeju"
 
