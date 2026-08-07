@@ -274,6 +274,47 @@
 .crowd-page .leaflet-tooltip::before {
   display: none;
 }
+/* 붐빔(levelNum 4) 마커 강조 — 원 바깥으로 퍼지는 리플 링 (PC·모바일 공통) */
+.crowd-page .crowd-ripple-anchor {
+  background: none;
+  border: none;
+  pointer-events: none;
+}
+.crowd-page .crowd-ripple {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.crowd-page .crowd-ripple::before,
+.crowd-page .crowd-ripple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid #ff3939;
+  opacity: 0;
+  animation: crowd-ripple 2.2s ease-out infinite;
+}
+.crowd-page .crowd-ripple::after {
+  animation-delay: 1.1s;
+}
+@keyframes crowd-ripple {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crowd-page .crowd-ripple::before,
+  .crowd-page .crowd-ripple::after {
+    animation: none;
+    display: none;
+  }
+}
 .crowd-page .crowd-tip {
   display: flex;
   flex-direction: column;

@@ -146,6 +146,14 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
           renderer: glowRenderer,
         }).addTo(glowLayer)
       }
+      // 붐빔은 링이 바깥으로 퍼지는 리플로 다른 등급과 확실히 구분 (색 차이만으론 약해서 모양으로도)
+      if (spot.levelNum === 4) {
+        L.marker([spot.lat, spot.lng], {
+          icon: L.divIcon({ className: "crowd-ripple-anchor", html: `<span class="crowd-ripple"></span>`, iconSize: [22, 22] }),
+          interactive: false,
+          keyboard: false,
+        }).addTo(layer)
+      }
       const marker = L.circleMarker([spot.lat, spot.lng], {
         radius: 5 + spot.levelNum * 1.5,
         color: "#ffffff",
@@ -154,8 +162,13 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         fillOpacity: 0.85,
       })
 
+      // 등급이 인파 실측이 아닌 도시(access/wait)는 툴팁에도 근거 병기
+      const basisLine =
+        spot.basis === "access" || spot.basis === "wait"
+          ? `<span style="opacity:.65">${escapeHtml(spot.basis === "access" ? UI[lang].basisAccess : UI[lang].basisWait)}</span>`
+          : ""
       marker.bindTooltip(
-        `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span></div>`,
+        `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span>${basisLine}</div>`,
         { direction: "top", offset: [0, -8], opacity: 1 },
       )
       marker.on("click", () => onSelectRef.current(spot.name))

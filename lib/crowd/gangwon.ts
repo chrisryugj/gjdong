@@ -236,6 +236,8 @@ export async function fetchGangwonSpots(): Promise<CrowdSpot[]> {
       level,
       levelNum: levelNum(level),
       color: LEVEL_COLORS[level] ?? "#999",
+      // 강릉권 밖 8곳은 산출 축 자체가 없다 — none은 UI가 근거 문구를 붙이지 않는다
+      basis: level === NO_DATA ? ("none" as const) : ("access" as const),
     }
   })
 }

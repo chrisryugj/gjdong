@@ -139,4 +139,6 @@ export const ZH: UIStrings = {
   rhythmNowGood: "现在是一天中相对空闲的时段",
   rhythmNote: "根据过去24小时同时段人流估算",
   instaSearch: "在Instagram查看",
+  basisAccess: "以停车·道路为准",
+  basisWait: "以等候时间为准",
 }

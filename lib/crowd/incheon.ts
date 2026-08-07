@@ -194,6 +194,7 @@ export async function fetchIncheonSpots(): Promise<CrowdSpot[]> {
       level,
       levelNum: levelNum(level),
       color: LEVEL_COLORS[level] ?? "#999",
+      basis: level === NO_DATA ? ("none" as const) : ("wait" as const),
     }
   })
 }

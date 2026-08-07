@@ -39,6 +39,9 @@ export function levelNum(level: string): number {
   return idx === -1 ? 0 : idx + 1
 }
 
+/** 등급 산출 근거 — ppl=인파 실측·파생 / access=주차·도로 프록시 / wait=대기시간 / none=그 지점 원천 없음 */
+export type LevelBasis = "ppl" | "access" | "wait" | "none"
+
 export interface CrowdSpot {
   name: string
   category: string
@@ -47,6 +50,8 @@ export interface CrowdSpot {
   level: string
   levelNum: number
   color: string
+  /** 생략 = "ppl" (서울·제주). 부산·강원·인천은 인파 실측이 아니라서 명시 — UI가 오독 방지 문구를 병기한다 */
+  basis?: LevelBasis
 }
 
 export interface CrowdSeriesPoint {

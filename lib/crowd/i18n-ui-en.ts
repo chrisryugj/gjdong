@@ -140,4 +140,6 @@ export const EN: UIStrings = {
   rhythmNowGood: "Now is a relatively quiet time of day",
   rhythmNote: "Estimated from the same hours over the past 24h",
   instaSearch: "View on Instagram",
+  basisAccess: "by parking & roads",
+  basisWait: "by waiting time",
 }

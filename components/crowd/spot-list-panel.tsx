@@ -200,7 +200,16 @@ export default function SpotListPanel({
                   <p className="truncate text-[14px] text-[var(--cp-text)] group-hover:text-[var(--cp-text-strong)]">
                     {trSpotName(spot.name)}
                   </p>
-                  <p className="text-[12px] text-[var(--cp-text-dim)]">{cat(spot.category)}</p>
+                  <p className="text-[12px] text-[var(--cp-text-dim)]">
+                    {cat(spot.category)}
+                    {/* 인파 실측이 아닌 등급은 근거를 병기 — 서울·제주(ppl)는 붙지 않아 첫인상 불변 */}
+                    {(spot.basis === "access" || spot.basis === "wait") && (
+                      <span className="text-[var(--cp-text-faint)]">
+                        {" · "}
+                        {spot.basis === "access" ? t.basisAccess : t.basisWait}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <LevelBadge level={spot.level} color={spot.color} light={light} />
               </button>

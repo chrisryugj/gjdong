@@ -226,6 +226,7 @@ export async function fetchBusanSpots(): Promise<CrowdSpot[]> {
       level,
       levelNum: levelNum(level),
       color: LEVEL_COLORS[level] ?? "#999",
+      basis: "access" as const,
     }
   })
 }
