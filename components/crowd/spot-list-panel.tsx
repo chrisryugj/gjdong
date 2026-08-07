@@ -1,13 +1,17 @@
 "use client"
 
-import { Star } from "lucide-react"
+import { useState } from "react"
+import { Sparkles, Star } from "lucide-react"
 import { LEVEL_COLORS, textColor, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { LevelBadge, LEVEL_ORDER, PRESETS, type PresetKey, type SortMode } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
+import MbtiPanel from "@/components/crowd/mbti-picker"
 
 interface SpotListPanelProps {
   filtered: CrowdSpot[]
-  /** 목적 프리셋은 서울 카테고리 조합이라 서울에서만 노출 */
+  /** MBTI 재미 추천용 전체 목록 — 필터와 무관하게 전 지점에서 고른다 */
+  allSpots: CrowdSpot[]
+  /** 목적 프리셋은 서울 카테고리 조합이라 서울에서만 노출 (MBTI 추천도 동일 조건) */
   showPresets: boolean
   categories: string[]
   categoryFilter: Set<string>
@@ -37,6 +41,7 @@ interface SpotListPanelProps {
 /** 프리셋·혼잡도·카테고리 필터 + 명소 목록 */
 export default function SpotListPanel({
   filtered,
+  allSpots,
   showPresets,
   categories,
   categoryFilter,
@@ -62,6 +67,8 @@ export default function SpotListPanel({
   onRetry,
 }: SpotListPanelProps) {
   const { t, spot: trSpotName, level: trLv, cat } = useLang()
+  // MBTI 재미 추천 패널 (서울만) — 열림 상태만 여기서, 유형 선택은 패널 내부가 기억
+  const [mbtiOpen, setMbtiOpen] = useState(false)
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 프리셋 + 혼잡도 필터 한 줄 — 지금 가볼 만한 곳 고르기 (지도에도 반영) */}
@@ -82,6 +89,21 @@ export default function SpotListPanel({
             <Star className={`h-3 w-3 ${favOnly ? "fill-amber-400 text-amber-400" : ""}`} />
             {t.favorites}
             <span className="font-mono tabular-nums opacity-70">{favs.size}</span>
+          </button>
+        )}
+        {/* MBTI 재미 추천 칩 — 프리셋과 같은 줄, 목적 프리셋과 구분되는 톤 */}
+        {showPresets && (
+          <button
+            onClick={() => setMbtiOpen((v) => !v)}
+            aria-pressed={mbtiOpen}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] transition-colors ${
+              mbtiOpen
+                ? `border-violet-400/60 bg-violet-400/10 font-medium ${light ? "text-violet-700" : "text-violet-300"}`
+                : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text)]"
+            }`}
+          >
+            <Sparkles className="h-3 w-3" />
+            {t.mbtiChip}
           </button>
         )}
         {showPresets && PRESETS.map((p) => (
@@ -128,6 +150,9 @@ export default function SpotListPanel({
           </button>
         )}
       </div>
+      {showPresets && mbtiOpen && (
+        <MbtiPanel spots={allSpots} light={light} onSelect={onSelect} onClose={() => setMbtiOpen(false)} />
+      )}
       {/* 카테고리 필터 (다중선택, 한 줄 가로 스크롤) + 정렬 고정 */}
       <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--cp-border)] px-3 py-1.5 md:py-2.5">
         <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)] md:[mask-image:none] md:flex-wrap md:overflow-visible">

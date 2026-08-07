@@ -171,5 +171,9 @@ export const EN: UIStrings = {
   alertNote: "Get notified when a watched spot turns Crowded — checked about every 5 min, not a real-time siren",
   alertDenied: "Notifications are blocked in this browser. Allow them from the address-bar lock icon",
   alertUnsupported: "This browser doesn't support system notifications — in-page alerts only",
+  mbtiChip: "MBTI picks",
+  mbtiTitle: "Where to today? Pick by MBTI",
+  mbtiClear: "Clear type",
+  mbtiNote: "Just for fun — a playful mix of category taste and current crowds, unrelated to the level methodology",
   methodologyLink: "How levels work",
 }

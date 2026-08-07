@@ -170,5 +170,9 @@ export const ZH: UIStrings = {
   alertNote: "监控地点转为“拥挤”时通知您 — 约每5分钟检查一次，并非实时警报",
   alertDenied: "浏览器通知已被屏蔽，请在地址栏锁形图标中允许",
   alertUnsupported: "此浏览器不支持系统通知，仅显示页面内提醒",
+  mbtiChip: "MBTI推荐",
+  mbtiTitle: "今天去哪儿？按MBTI挑选",
+  mbtiClear: "清除类型",
+  mbtiNote: "仅供娱乐 — 结合类别偏好与当前人流的趣味推荐，与等级算法无关",
   methodologyLink: "等级标准",
 }

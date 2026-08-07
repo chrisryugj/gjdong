@@ -189,6 +189,10 @@ export const KO = {
   alertNote: "감시 지점이 붐빔으로 전환되면 알려드려요 — 약 5분 주기 감시라 실시간 경보는 아니에요",
   alertDenied: "브라우저 알림 권한이 차단되어 있어요. 주소창 자물쇠에서 허용해주세요",
   alertUnsupported: "이 브라우저는 시스템 알림을 지원하지 않아 화면 안 알림만 표시돼요",
+  mbtiChip: "MBTI 추천",
+  mbtiTitle: "오늘 어디 갈까? MBTI로 골라보기",
+  mbtiClear: "유형 지우기",
+  mbtiNote: "재미로 보는 추천이에요 — 카테고리 취향 + 지금 인파를 버무린 것으로, 등급 산출식과는 무관해요",
   methodologyLink: "등급 기준",
 }
 

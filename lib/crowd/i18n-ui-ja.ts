@@ -171,5 +171,9 @@ export const JA: UIStrings = {
   alertNote: "監視スポットが「混雑」になったら通知します — 約5分間隔の監視でリアルタイム警報ではありません",
   alertDenied: "ブラウザの通知がブロックされています。アドレスバーの鍵アイコンから許可してください",
   alertUnsupported: "このブラウザはシステム通知に対応していないため、画面内通知のみ表示されます",
+  mbtiChip: "MBTIおすすめ",
+  mbtiTitle: "今日はどこへ？MBTIで選ぶ",
+  mbtiClear: "タイプをクリア",
+  mbtiNote: "お楽しみ機能です — カテゴリの好みと現在の混雑を組み合わせたもので、混雑度の算出式とは無関係です",
   methodologyLink: "混雑度の基準",
 }
