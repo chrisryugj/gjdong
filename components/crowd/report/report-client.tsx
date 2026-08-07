@@ -7,21 +7,10 @@ import type { CrowdDetail, CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/cr
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
 import { logStorageKey, sparkSeries, type OpsLogTick } from "@/lib/crowd/oplog"
+import { fitView } from "@/lib/crowd/map-fit"
 
 // 지도(Leaflet CDN)는 클라이언트 전용 — 보고서도 SSR 없이 로드
 const CrowdMap = dynamic(() => import("@/components/crowd/crowd-map"), { ssr: false })
-
-/** 대상 지점을 다 담는 지도 뷰 — bbox 중심 + 폭에서 줌 근사 (전 지점=도시 기본 뷰) */
-function fitView(spots: CrowdSpot[], city: CityId): { center: [number, number]; zoom: number } {
-  if (spots.length === 0) return { center: CITIES[city].center, zoom: CITIES[city].zoom }
-  const lats = spots.map((s) => s.lat)
-  const lngs = spots.map((s) => s.lng)
-  const center: [number, number] = [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lngs) + Math.max(...lngs)) / 2]
-  const span = Math.max(Math.max(...lats) - Math.min(...lats), (Math.max(...lngs) - Math.min(...lngs)) * 0.8, 0.01)
-  // ~700px 박스 기준 근사: 도심 4곳(0.07도)→13, 도시 전역(0.3도)→11 (실측 보정)
-  const zoom = Math.max(9, Math.min(14, Math.floor(Math.log2(700 / span))))
-  return { center, zoom }
-}
 
 /** 등급 추이 스파크라인 — 상황실 행사 로그 기반, 벡터라 인쇄에서도 선명 */
 function Spark({ series }: { series: number[] }) {
@@ -318,11 +307,30 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           </section>
         )}
 
-        {/* 출처 각주 */}
-        <footer className="mt-8 border-t border-neutral-200 pt-3 text-[10.5px] leading-relaxed text-neutral-400">
+        {/* 출처 각주 — 한 줄에 하나씩, 링크는 화면·PDF 모두 클릭 가능 */}
+        <footer className="mt-8 space-y-1 border-t border-neutral-200 pt-3 text-[10.5px] leading-relaxed text-neutral-400">
           <p>
-            데이터 출처: {CITIES[city].sourceUrl} 외 공공 개방 데이터 · 등급 산출식 공개 문서:
-            github.com/chrisryugj/gjdong/blob/main/docs/crowd-methodology.md
+            데이터 출처 —{" "}
+            <a
+              href={CITIES[city].sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all underline underline-offset-2 hover:text-neutral-600"
+            >
+              {CITIES[city].sourceUrl}
+            </a>{" "}
+            외 공공 개방 데이터
+          </p>
+          <p>
+            등급 산출식 공개 문서 —{" "}
+            <a
+              href="https://github.com/chrisryugj/gjdong/blob/main/docs/crowd-methodology.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all underline underline-offset-2 hover:text-neutral-600"
+            >
+              github.com/chrisryugj/gjdong · docs/crowd-methodology.md
+            </a>
           </p>
           <p>본 보고서는 조회 시점의 실시간 데이터 스냅샷이며, 원천 데이터의 갱신 주기에 따라 최대 수 분의 지연이 있을 수 있습니다.</p>
         </footer>

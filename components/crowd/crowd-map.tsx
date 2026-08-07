@@ -17,6 +17,8 @@ interface CrowdMapProps {
   /** 도시 전환 시 지도 초기 뷰 — 생략하면 서울 */
   center?: [number, number]
   zoom?: number
+  /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
+  opsLabels?: Map<string, string>
 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
@@ -25,7 +27,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, opsLabels }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -167,16 +169,28 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         spot.basis === "access" || spot.basis === "wait"
           ? `<span style="opacity:.65">${escapeHtml(spot.basis === "access" ? UI[lang].basisAccess : UI[lang].basisWait)}</span>`
           : ""
-      marker.bindTooltip(
-        `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span>${basisLine}</div>`,
-        { direction: "top", offset: [0, -8], opacity: 1 },
-      )
+      const opsLabel = opsLabels?.get(spot.name)
+      if (opsLabel) {
+        // 상황실 미니맵 — 지점명·등급·인원을 상시 노출 (호버 없이 한눈에)
+        marker.bindTooltip(`<div class="crowd-tip">${opsLabel}</div>`, {
+          permanent: true,
+          direction: "top",
+          offset: [0, -8],
+          opacity: 1,
+          className: "crowd-ops-label",
+        })
+      } else {
+        marker.bindTooltip(
+          `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span>${basisLine}</div>`,
+          { direction: "top", offset: [0, -8], opacity: 1 },
+        )
+      }
       marker.on("click", () => onSelectRef.current(spot.name))
       marker.addTo(layer)
       markersRef.current.set(spot.name, { marker, spot })
     }
     applySelection(selectedNameRef.current)
-  }, [ready, spots, lang, applySelection])
+  }, [ready, spots, lang, applySelection, opsLabels])
 
   // 선택 변경 반영
   useEffect(() => {

@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Map as MapIcon, Star } from "lucide-react"
 import type { CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
-import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import CrowdMap from "@/components/crowd/crowd-map"
 import { UI } from "@/lib/crowd/i18n"
 import { buildCsv, buildReport, buildSnapshotRows, csvFilename } from "@/lib/crowd/export"
 import { buildLogRows, logSpotNames, type OpsLogTick } from "@/lib/crowd/oplog"
+import { trRange } from "@/lib/crowd/i18n"
+import { fitView } from "@/lib/crowd/map-fit"
 import { useLang } from "@/components/crowd/lang-context"
 import { useOpsDetails } from "@/components/crowd/hooks/use-ops-details"
 import OpsCard from "@/components/crowd/ops/ops-card"
@@ -54,7 +56,7 @@ export default function OpsBoard({
   onExportLog: () => void
   onClearLog: () => void
 }) {
-  const { t, lang } = useLang()
+  const { t, lang, spot: trSpotName, level: trLv } = useLang()
   const details = useOpsDetails(city, watch, updatedAt)
 
   // 접이식 미니맵 — 기본 열림(공간 파악이 상황실의 기본 니즈), 접은 사람만 기기별로 기억
@@ -130,6 +132,37 @@ export default function OpsBoard({
   }, [updatedAt, spots])
 
   const seedable = useMemo(() => Array.from(favs).filter((n) => spots.some((s) => s.name === n)), [favs, spots])
+
+  // 미니맵 뷰 — 감시 지점을 다 담게 맞춤(도시 기본 뷰는 지점이 가장자리에 몰려 레이블이 짤렸다).
+  // 지점 구성이 같으면 참조 고정 — 폴링마다 setView로 사용자 팬을 리셋하지 않는다
+  const watchKey = watchSpots.map((s) => s.name).join("|")
+  // eslint 미등록 exhaustive-deps — watchKey가 좌표 동등성을 대신한다 (좌표는 지점당 정적)
+  const mapView = useMemo(() => {
+    const v = fitView(watchSpots, city)
+    // fitView는 ~700px 박스 기준 — 모바일(<768px)은 한 단계 넓혀 가장자리 레이블 여백 확보
+    const narrow = typeof window !== "undefined" && window.innerWidth < 768
+    return narrow ? { center: v.center, zoom: Math.max(9, v.zoom - 1) } : v
+  }, [watchKey, city])
+
+  // 미니맵 상시 레이블 — 지점명·등급·추세·인원(있으면)을 지도에서 바로 판단.
+  // useMemo로 참조 고정 (드래그 등 무관 렌더마다 마커 재생성 방지)
+  const esc = (x: string) => x.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+  const mapLabels = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of watchSpots) {
+      const d = details.get(s.name)
+      const now = d && d.nowIndex >= 0 ? d.series[d.nowIndex] : null
+      const tr = trends.get(s.name) ?? 0
+      const trendMark = tr > 0 ? ` <span style="color:#ff3939">▲</span>` : tr < 0 ? ` <span style="color:#00d369">▼</span>` : ""
+      let html = `<b>${esc(trSpotName(s.name))}</b><span style="color:${s.color}">● ${esc(trLv(s.level))}</span>${trendMark}`
+      if (now && now.people > 0) {
+        html += `<span style="opacity:.7;font-family:var(--font-mono,monospace)">${esc(now.range ? trRange(now.range, lang) : t.approxPeople(now.people))}</span>`
+      }
+      m.set(s.name, html)
+    }
+    return m
+    // eslint 미등록 exhaustive-deps — 의존은 아래 나열로 관리
+  }, [watchSpots, details, trends, lang, trSpotName, trLv, t])
 
   // CSV = 전 지점 스냅샷 (기록·증빙용, extra 미호출) — 파일로 다운로드
   const exportCsv = useCallback(() => {
@@ -233,8 +266,9 @@ export default function OpsBoard({
               nearestNames={[]}
               cctvItems={[]}
               onSelect={onOpenSpot}
-              center={CITIES[city].center}
-              zoom={CITIES[city].zoom}
+              center={mapView.center}
+              zoom={mapView.zoom}
+              opsLabels={mapLabels}
             />
           </div>
           {/* 높이 조절 핸들 — 드래그로 지도/카드 비율 조절, 더블클릭 초기화 (시민 모드 분할 핸들과 동일 문법) */}
