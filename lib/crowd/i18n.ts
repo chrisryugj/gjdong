@@ -57,6 +57,17 @@ const CATEGORY_T: Record<string, [string, string, string]> = {
   출국장: ["Departure Gates", "出発ゲート", "出境大厅"],
 }
 
+// ── 해수욕장 생활지수 (KHOA: 오전/오후 × 매우좋음~매우나쁨)
+const BEACH_T: Record<string, [string, string, string]> = {
+  오전: ["Morning", "午前", "上午"],
+  오후: ["Afternoon", "午後", "下午"],
+  매우좋음: ["Excellent", "非常に良い", "非常好"],
+  좋음: ["Good", "良い", "好"],
+  보통: ["Fair", "普通", "一般"],
+  나쁨: ["Poor", "悪い", "较差"],
+  매우나쁨: ["Very poor", "非常に悪い", "很差"],
+}
+
 // ── 도로 소통 지수 (API: 원활·서행·정체)
 const ROAD_T: Record<string, [string, string, string]> = {
   원활: ["Smooth", "円滑", "畅通"],
@@ -419,6 +430,7 @@ export const trRoadMsg = (idx: string, msg: string, lang: Lang) =>
 export const trAlert = (type: string, lang: Lang) => pick(ALERT_T, type, lang)
 export const trDisaster = (word: string, lang: Lang) => pick(DISASTER_T, word, lang)
 export const trAge = (label: string, lang: Lang) => pick(AGE_T, label, lang)
+export const trBeach = (word: string, lang: Lang) => pick(BEACH_T, word, lang)
 
 /** API 한국어 안내문 대체 — 비한국어는 혼잡 단계별 캔드 문장 1개 */
 export function trLevelMessages(messages: string[], levelNum: number, lang: Lang): string[] {

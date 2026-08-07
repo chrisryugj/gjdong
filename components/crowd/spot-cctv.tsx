@@ -5,11 +5,12 @@ import { Cctv, ChevronDown } from "lucide-react"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
+import { romanizeAddress } from "@/lib/crowd/romanize"
 import HlsVideo from "@/components/crowd/hls-video"
 
 /** 주변 CCTV 목록 + 인라인 플레이어 — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름 */
 export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?: { lat: number; lng: number } }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [openCctv, setOpenCctv] = useState<string | null>(null)
   const nativeHls = useMemo(() => supportsNativeHls(), [])
 
@@ -41,7 +42,10 @@ export default function SpotCctv({ cctv, origin }: { cctv: CrowdCctv[]; origin?:
                 className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors enabled:hover:bg-[var(--cp-hover)] disabled:cursor-default"
               >
                 <Cctv className="h-3.5 w-3.5 shrink-0 text-[var(--cp-text-dim)]" />
-                <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{c.name}</span>
+                {/* 카메라명은 원천이 주는 자유 텍스트라 수백 개 — 사전화가 불가능해 로마자로 읽게만 한다 */}
+                <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">
+                  {lang === "ko" ? c.name : romanizeAddress(c.name)}
+                </span>
                 {c.meters != null && (
                   <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
                     {formatMeters(c.meters)}

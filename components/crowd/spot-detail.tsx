@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert, Waves } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
-import { trAge, trAlert, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
+import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
 import SpotCctv from "@/components/crowd/spot-cctv"
@@ -327,12 +327,16 @@ export default function SpotDetail({
           <div className="grid grid-cols-2 gap-2">
             {detail.beach.map((b) => (
               <div key={b.gubun} className="rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
-                <p className="text-[11px] text-[var(--cp-text-dim)]">{b.gubun}</p>
+                <p className="text-[11px] text-[var(--cp-text-dim)]">{trBeach(b.gubun, lang)}</p>
                 <p className="mt-0.5 font-mono text-[14px] tabular-nums text-[var(--cp-text-strong)]">
                   {b.waterTemp && `${t.beachWater} ${b.waterTemp}°`}
                   {b.waveHeight && ` · ${t.beachWave} ${b.waveHeight}m`}
                 </p>
-                {b.index && <p className="text-[12px] text-[var(--cp-text-muted)]">{t.beachIdx} · {b.index}</p>}
+                {b.index && (
+                  <p className="text-[12px] text-[var(--cp-text-muted)]">
+                    {t.beachIdx} · {trBeach(b.index, lang)}
+                  </p>
+                )}
               </div>
             ))}
           </div>
