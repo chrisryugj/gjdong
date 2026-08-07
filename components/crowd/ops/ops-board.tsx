@@ -57,10 +57,10 @@ export default function OpsBoard({
   const { t, lang } = useLang()
   const details = useOpsDetails(city, watch, updatedAt)
 
-  // 접이식 미니맵 — 평소엔 접혀 카드 중심 유지, 열림 상태는 기기별 기억
-  const [mapOpen, setMapOpen] = useState(false)
+  // 접이식 미니맵 — 기본 열림(공간 파악이 상황실의 기본 니즈), 접은 사람만 기기별로 기억
+  const [mapOpen, setMapOpen] = useState(true)
   useEffect(() => {
-    setMapOpen(localStorage.getItem("crowdOpsMap") === "1")
+    setMapOpen(localStorage.getItem("crowdOpsMap") !== "0")
   }, [])
   const toggleMap = useCallback(() => {
     setMapOpen((v) => {
@@ -184,8 +184,9 @@ export default function OpsBoard({
         </span>
       </div>
 
-      {/* 접이식 미니맵 — 감시 지점만 마커로, 클릭 시 상세 (기존 CrowdMap 재사용, 신규 서버 0) */}
-      {mapOpen && (
+      {/* 접이식 미니맵 — 감시 지점만 마커로, 클릭 시 상세 (기존 CrowdMap 재사용, 신규 서버 0).
+          감시 지점이 없으면 빈 지도 대신 비노출 — 지점을 추가하면 나타난다 */}
+      {mapOpen && watchSpots.length > 0 && (
         <div className="relative h-[26dvh] min-h-[160px] shrink-0 border-b border-[var(--cp-border)]">
           <CrowdMap
             spots={watchSpots}
