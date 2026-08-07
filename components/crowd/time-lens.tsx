@@ -27,7 +27,7 @@ export default function TimeLens({
       <button
         onClick={() => onChange(lensNowKst())}
         title={t.lensNote}
-        className="absolute right-2 top-2 z-[1000] flex items-center gap-1.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-3 py-1.5 text-[12px] text-[var(--cp-text)] backdrop-blur-sm transition-colors hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text-strong)]"
+        className="flex items-center gap-1.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-3 py-1.5 text-[12px] text-[var(--cp-text)] backdrop-blur-sm transition-colors hover:border-[var(--cp-border-strong)] hover:text-[var(--cp-text-strong)]"
       >
         <Clock className="h-3.5 w-3.5" />
         {t.lensChip}
@@ -37,7 +37,7 @@ export default function TimeLens({
 
   const dowLabel = t.dowLabels[DOW_ORDER.indexOf(lens.dow as (typeof DOW_ORDER)[number])]
   return (
-    <div className="absolute right-2 top-2 z-[1000] w-[240px] rounded-lg border border-[var(--cp-border-strong)] bg-[var(--cp-overlay)] p-2.5 backdrop-blur-sm">
+    <div className="w-[240px] rounded-lg border border-[var(--cp-border-strong)] bg-[var(--cp-overlay)] p-2.5 backdrop-blur-sm">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--cp-text-strong)]">
           <Clock className="h-3.5 w-3.5" />

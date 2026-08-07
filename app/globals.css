@@ -368,6 +368,22 @@
   border-radius: 4px;
 }
 
+/* 명소 이름표 — 상시 pill. 화살표 제거, 점 색이 등급을 말하므로 이름만 작게 */
+.crowd-page .leaflet-tooltip.crowd-name-label {
+  background: var(--cp-overlay);
+  border: 1px solid var(--cp-border);
+  color: var(--cp-text);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 10px;
+  line-height: 1.5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  opacity: 0.92;
+}
+.crowd-page .leaflet-tooltip.crowd-name-label::before {
+  display: none;
+}
+
 /* 시간대 렌즈 시간 슬라이더 — 테마 변수 기반 최소 스타일 */
 .crowd-page .crowd-lens-slider {
   -webkit-appearance: none;
