@@ -163,6 +163,8 @@ export const EN: UIStrings = {
   opsPrintReport: "Print report",
   opsExportXlsx: "XLSX",
   opsExportXlsxNote: "Two sheets (snapshot + event log) with column widths and autofilter",
+  opsMapShow: "Show minimap",
+  opsMapHide: "Hide minimap",
   opsLogExport: (n) => `Event log CSV (${n})`,
   opsLogNote: "While the ops board is open, watched-spot levels are recorded at each refresh — a timeline table for post-event reports",
   opsLogClear: "Clear event log",

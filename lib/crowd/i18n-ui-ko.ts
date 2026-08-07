@@ -181,6 +181,8 @@ export const KO = {
   opsPrintReport: "보고서 출력",
   opsExportXlsx: "XLSX",
   opsExportXlsxNote: "현황 + 행사로그 2시트, 열너비·자동필터 적용",
+  opsMapShow: "미니맵 열기",
+  opsMapHide: "미니맵 접기",
   opsLogExport: (n: number) => `행사 로그 CSV (${n}회)`,
   opsLogNote: "상황실이 켜져 있는 동안 갱신 시각마다 감시 지점 등급을 기록해요 — 행사 결과보고용 시간축 표",
   opsLogClear: "행사 로그 지우기",
