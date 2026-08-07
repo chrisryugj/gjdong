@@ -161,6 +161,8 @@ export const JA: UIStrings = {
   opsExportCsv: "CSV",
   opsCopyReport: "状況報告をコピー",
   opsPrintReport: "報告書を印刷",
+  opsExportXlsx: "XLSX",
+  opsExportXlsxNote: "現況+イベントログの2シート、列幅・オートフィルター付き",
   opsLogExport: (n) => `イベントログCSV (${n}回)`,
   opsLogNote: "ボードを開いている間、更新のたびに監視スポットのレベルを記録します — 事後報告用のタイムライン表",
   opsLogClear: "イベントログを消去",

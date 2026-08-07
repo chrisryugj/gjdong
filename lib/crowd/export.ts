@@ -17,8 +17,8 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-/** 현재 도시 전 지점 스냅샷 CSV — BOM+CRLF (Excel 한글 호환). extra는 부르지 않는다(121콜 방지) */
-export function buildCsv({
+/** 전 지점 스냅샷 표 (헤더 포함) — CSV·XLSX가 같은 행을 쓴다 */
+export function buildSnapshotRows({
   city,
   spots,
   updatedAt,
@@ -26,7 +26,7 @@ export function buildCsv({
   city: CityId
   spots: CrowdSpot[]
   updatedAt: string | null
-}): string {
+}): Array<Array<string | number>> {
   const rows: Array<Array<string | number>> = [
     ["순번", "지점", "자치구", "카테고리", "등급", "등급숫자", "산출근거", "위도", "경도", "기준시각"],
   ]
@@ -44,6 +44,12 @@ export function buildCsv({
       updatedAt ?? "",
     ])
   })
+  return rows
+}
+
+/** 현재 도시 전 지점 스냅샷 CSV — BOM+CRLF (Excel 한글 호환). extra는 부르지 않는다(121콜 방지) */
+export function buildCsv(args: { city: CityId; spots: CrowdSpot[]; updatedAt: string | null }): string {
+  const rows = buildSnapshotRows(args)
   return "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n"
 }
 

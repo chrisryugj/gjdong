@@ -18,6 +18,7 @@ export default function OpsToolbar({
   onAddMany,
   onClear,
   onExportCsv,
+  onExportXlsx,
   onCopyReport,
   alertsEnabled,
   alertsPermission,
@@ -33,6 +34,7 @@ export default function OpsToolbar({
   onAddMany: (names: string[]) => void
   onClear: () => void
   onExportCsv: () => void
+  onExportXlsx: () => void
   /** 감시 지점이 없으면 undefined — 버튼 비노출 */
   onCopyReport?: () => Promise<void>
   alertsEnabled: boolean
@@ -221,12 +223,22 @@ export default function OpsToolbar({
         </button>
 
         {/* 기록·증빙 — CSV(전 지점)·상황보고 문안(감시 지점, 한국어 고정) */}
-        <button
-          onClick={onExportCsv}
-          className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
-        >
-          <Download className="h-3.5 w-3.5" /> {t.opsExportCsv}
-        </button>
+        {/* CSV·XLSX 나란히 — XLSX는 현황+행사로그 2시트(열너비·자동필터·머리행 고정) */}
+        <span className="flex h-8 items-center overflow-hidden rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)]">
+          <button
+            onClick={onExportCsv}
+            className="flex h-full items-center gap-1.5 px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+          >
+            <Download className="h-3.5 w-3.5" /> {t.opsExportCsv}
+          </button>
+          <button
+            onClick={onExportXlsx}
+            title={t.opsExportXlsxNote}
+            className="flex h-full items-center border-l border-[var(--cp-border)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+          >
+            {t.opsExportXlsx}
+          </button>
+        </span>
         {onCopyReport && (
           <button
             onClick={() => {

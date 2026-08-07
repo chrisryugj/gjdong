@@ -53,8 +53,8 @@ function clock(at: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** 시간축 표 CSV — 행=틱 시각, 열=지점, 값=등급(인원). BOM+CRLF (Excel 한글 호환) */
-export function buildLogCsv(log: OpsLogTick[]): string {
+/** 시간축 표 (헤더 포함) — 행=틱 시각, 열=지점, 값=등급(인원). CSV·XLSX가 같은 행을 쓴다 */
+export function buildLogRows(log: OpsLogTick[]): Array<Array<string | number>> {
   const names = logSpotNames(log)
   const rows: Array<Array<string | number>> = [["시각", ...names]]
   for (const tick of log) {
@@ -67,7 +67,12 @@ export function buildLogCsv(log: OpsLogTick[]): string {
       }),
     ])
   }
-  return "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n"
+  return rows
+}
+
+/** 시간축 표 CSV — BOM+CRLF (Excel 한글 호환) */
+export function buildLogCsv(log: OpsLogTick[]): string {
+  return "﻿" + buildLogRows(log).map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n"
 }
 
 export function logFilename(city: CityId, at: Date): string {
