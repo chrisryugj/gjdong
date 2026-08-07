@@ -34,6 +34,8 @@ interface SpotListPanelProps {
   onClearFilters: () => void
   onSort: (mode: SortMode) => void
   onSelect: (name: string) => void
+  /** 행 hover ↔ 지도 마커 강조 (PC) */
+  onHover?: (name: string | null) => void
   onToggleFav: (name: string) => void
   onRetry: () => void
 }
@@ -63,6 +65,7 @@ export default function SpotListPanel({
   onClearFilters,
   onSort,
   onSelect,
+  onHover,
   onToggleFav,
   onRetry,
 }: SpotListPanelProps) {
@@ -216,6 +219,8 @@ export default function SpotListPanel({
             <li key={spot.name} className="relative">
               <button
                 onClick={() => onSelect(spot.name)}
+                onMouseEnter={() => onHover?.(spot.name)}
+                onMouseLeave={() => onHover?.(null)}
                 className="group flex w-full items-center gap-3 border-b border-[var(--cp-border-faint)] py-2.5 pl-4 pr-11 text-left transition-colors hover:bg-[var(--cp-hover)]"
               >
                 <span className="w-6 shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-faint)]">

@@ -17,6 +17,10 @@ interface CrowdMapProps {
   /** 도시 전환 시 지도 초기 뷰 — 생략하면 서울 */
   center?: [number, number]
   zoom?: number
+  /** 지정하면 도시별 1회, 데이터 도착 시 실좌표 bbox로 뷰를 맞춘다 (대시보드 전용 — 미니맵은 미지정) */
+  fitCity?: string | null
+  /** 목록 hover ↔ 지도 연동 — 해당 마커를 키우고 툴팁을 연다 */
+  hoveredName?: string | null
   /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
   opsLabels?: Map<string, string>
 }
@@ -27,7 +31,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, opsLabels }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, opsLabels }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -41,6 +45,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const selectedNameRef = useRef(selectedName)
+  const hoveredNameRef = useRef<string | null>(null)
+  const lastFitCityRef = useRef<string | null>(null)
   const centerRef = useRef(center)
   centerRef.current = center
   const zoomRef = useRef(zoom)
@@ -54,16 +60,19 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     map.setView(center, zoom ?? map.getZoom())
   }, [ready, center, zoom])
 
-  // 선택 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
-  const applySelection = useCallback((sel: string | null) => {
+  // 선택·hover 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
+  const applyMarkerStates = useCallback(() => {
+    const sel = selectedNameRef.current
+    const hov = hoveredNameRef.current
     for (const { marker, spot } of markersRef.current.values()) {
       const isSelected = spot.name === sel
+      const isHovered = !isSelected && spot.name === hov
       marker.setStyle({
-        color: isSelected ? "#1e293b" : "#ffffff",
-        weight: isSelected ? 2.5 : 1.2,
-        fillOpacity: isSelected ? 0.95 : 0.85,
+        color: isSelected || isHovered ? "#1e293b" : "#ffffff",
+        weight: isSelected ? 2.5 : isHovered ? 2 : 1.2,
+        fillOpacity: isSelected || isHovered ? 0.95 : 0.85,
       })
-      marker.setRadius(isSelected ? 11 : 5 + spot.levelNum * 1.5)
+      marker.setRadius(isSelected ? 11 : isHovered ? 9 : 5 + spot.levelNum * 1.5)
     }
   }, [])
 
@@ -82,9 +91,9 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         zoomControl: false,
         attributionControl: true,
         // 휠 줌 부드럽게 — 기본값(정수 스냅·틱당 1레벨)은 맥 휠에서 '퍽퍽' 점프.
-        // 1/4 레벨 스냅 + 휠 픽셀당 줌량 절반 + 짧은 디바운스로 관성 스크롤에 비례해 미끄러진다
+        // 휠 줌량은 zoomSnap·wheelPxPerZoomLevel이 결정하고 zoomDelta는 휠에 안 쓰인다(버튼·더블클릭 전용) —
+        // 버튼까지 반 칸으로 줄이면 +/-가 굼떠져서 기본 1을 유지한다
         zoomSnap: 0.25,
-        zoomDelta: 0.5,
         wheelPxPerZoomLevel: 120,
         wheelDebounceTime: 20,
       })
@@ -195,15 +204,39 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       marker.addTo(layer)
       markersRef.current.set(spot.name, { marker, spot })
     }
-    applySelection(selectedNameRef.current)
-  }, [ready, spots, lang, applySelection, opsLabels])
+    applyMarkerStates()
+  }, [ready, spots, lang, applyMarkerStates, opsLabels])
 
   // 선택 변경 반영
   useEffect(() => {
     selectedNameRef.current = selectedName
     if (!ready) return
-    applySelection(selectedName)
-  }, [ready, selectedName, applySelection])
+    applyMarkerStates()
+  }, [ready, selectedName, applyMarkerStates])
+
+  // 목록 hover ↔ 지도 연동 — 마커 강조 + 툴팁 열기 (permanent 라벨을 쓰는 미니맵에선 미동작)
+  useEffect(() => {
+    hoveredNameRef.current = hoveredName ?? null
+    if (!ready || opsLabels) return
+    applyMarkerStates()
+    for (const [name, { marker }] of markersRef.current) {
+      if (name === hoveredName) marker.openTooltip()
+      else if (marker.isTooltipOpen()) marker.closeTooltip()
+    }
+  }, [ready, hoveredName, applyMarkerStates, opsLabels])
+
+  // 도시 전환·첫 로드 시 실좌표 bbox로 뷰 최적화 — 고정 줌은 화면 폭에 따라 낭비가 커서(강원 내륙 2/3)
+  // 데이터가 도착한 시점에 도시당 1회만 맞춘다. 딥링크로 상세·주소핀이 열려 있으면 그쪽 flyTo가 우선.
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    const L = leafletRef.current
+    if (!ready || !map || !L || !fitCity || spots.length === 0) return
+    if (lastFitCityRef.current === fitCity) return
+    lastFitCityRef.current = fitCity
+    if (selectedNameRef.current || addressPin) return
+    const bounds = L.latLngBounds(spots.map((s) => [s.lat, s.lng] as [number, number]))
+    map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 })
+  }, [ready, spots, fitCity, addressPin])
 
   // 선택 시 지도 이동
   useEffect(() => {

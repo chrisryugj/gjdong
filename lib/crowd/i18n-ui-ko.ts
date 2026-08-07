@@ -93,6 +93,10 @@ export const KO = {
   cellTitle: (dow: string, h: number, label: string, cnt: number) =>
     `${dow} ${h}시 · 평균 ${label}${cnt > 0 ? ` (${cnt}회)` : ""}`,
   heatmapLegendNote: "· 테두리 = 지금 시간대 · 칸을 누르면 상세",
+  // 시간대 패턴 렌즈 (지도 오버레이) — "토요일 저녁엔 어디가 붐빌까"를 지도 전체로
+  lensChip: "시간대 패턴",
+  lensNote: "누적 평균 패턴 · 실시간 아님",
+  lensExit: "지금으로",
   // CCTV
   cctvTitle: "주변 CCTV",
   noVideo: "영상 없음",

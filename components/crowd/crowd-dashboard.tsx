@@ -13,8 +13,10 @@ import NearestPanel from "@/components/crowd/nearest-panel"
 import SpotListPanel from "@/components/crowd/spot-list-panel"
 import { LangProvider, useLang } from "@/components/crowd/lang-context"
 import { AutoMarquee, formatKm, haversineKm, LevelBadge, LEVEL_ORDER, type AddressPin } from "@/components/crowd/shared"
+import TimeLens from "@/components/crowd/time-lens"
 import { useCrowdData } from "@/components/crowd/hooks/use-crowd-data"
 import { useInstallPrompt } from "@/components/crowd/hooks/use-install-prompt"
+import { useTimeLens } from "@/components/crowd/hooks/use-time-lens"
 import { useOpsMode } from "@/components/crowd/hooks/use-ops-mode"
 import { usePersistedPrefs } from "@/components/crowd/hooks/use-persisted-prefs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
@@ -95,6 +97,25 @@ function CrowdDashboardInner() {
 
   const filters = useSpotFilters({ spots, favs, query, trSpotName, lang })
   const { mapSpots, filtered, levelCounts } = filters
+
+  // 시간대 패턴 렌즈 — 켜진 동안 지도 마커만 평균 패턴 색으로, 목록·헤더는 실시간 유지
+  const timeLens = useTimeLens(city, mapSpots)
+  // 목록 hover ↔ 지도 마커 연동 (PC) — 상세로 들어가면 잔상이 남지 않게 해제
+  const [hoverName, setHoverName] = useState<string | null>(null)
+  useEffect(() => setHoverName(null), [selectedName])
+
+  // PC 키보드 — Esc로 상세·주소핀 닫기 (입력창 포커스 중엔 브라우저 기본 동작 유지)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA") return
+      if (selectedName) selectSpot(null)
+      else if (addressPin) setAddressPin(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selectedName, addressPin, selectSpot])
 
   // 도시·언어 전환 시 브라우저 탭 제목 동기화 (클라이언트 전환은 generateMetadata가 다시 안 돌므로)
   useEffect(() => {
@@ -253,7 +274,7 @@ function CrowdDashboardInner() {
           }`}
         >
           <CrowdMap
-            spots={mapSpots}
+            spots={timeLens.lensSpots ?? mapSpots}
             lang={lang}
             selectedName={selectedName}
             addressPin={addressPin}
@@ -262,7 +283,13 @@ function CrowdDashboardInner() {
             onSelect={selectSpot}
             center={CITIES[city ?? "seoul"].center}
             zoom={CITIES[city ?? "seoul"].zoom}
+            fitCity={city}
+            hoveredName={hoverName}
           />
+          {/* 시간대 패턴 렌즈 — 히트맵 보유 도시(서울·제주)만, 상세 열림 중엔 숨겨 시야 확보 */}
+          {timeLens.available && !selectedName && (
+            <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
+          )}
           {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
           <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden">
             {LEVEL_ORDER.map((level) => (
@@ -464,6 +491,7 @@ function CrowdDashboardInner() {
               onClearFilters={filters.clearFilters}
               onSort={filters.setSort}
               onSelect={selectSpot}
+              onHover={setHoverName}
               onToggleFav={toggleFav}
               onRetry={() => {
                 data.setLoading(true)
