@@ -122,8 +122,43 @@ interface GeonetRow {
   TIME: number | string
 }
 
-function geonetFetch(path: string): Promise<unknown> {
+/**
+ * 원천 직결. 국내 일반 회선에서는 이것만으로 충분하다.
+ * 클라우드 IP에서는 403 대신 200+빈 배열이 오므로 호출부가 폴백을 판단한다.
+ */
+async function geonetDirect(path: string): Promise<unknown> {
   return krgovJson(`${GEONET}${path}`, { headers: GEONET_HEADERS, timeoutMs: 12000 })
+}
+
+/**
+ * 우회 경로 — 원천이 받아주는 회선에 있는 프록시를 경유한다.
+ * `GEONET_PROXY`에 `...?url=` 형태의 프리픽스를 넣으면 그 뒤에 인코딩된 원천 URL을 붙인다.
+ * 응답이 `{status, body}` 봉투면 벗기고, 원문 그대로면 그대로 파싱한다.
+ */
+async function geonetViaProxy(path: string, proxy: string): Promise<unknown> {
+  const raw = await krgovJson(`${proxy}${encodeURIComponent(`${GEONET}${path}`)}`, { timeoutMs: 15000 })
+  const env = raw as { status?: number; body?: unknown } | null
+  if (env && typeof env === "object" && "body" in env) {
+    if (typeof env.status === "number" && env.status >= 400) throw new Error(`proxy upstream ${env.status}`)
+    return typeof env.body === "string" ? JSON.parse(env.body) : env.body
+  }
+  return raw
+}
+
+// 빈 배열 = 원천이 이 회선을 조용히 거절한 것(클라우드 IP 실측). 직결이 빈손이면 프록시로 한 번 더 간다.
+function isEmpty(rows: unknown): boolean {
+  return !Array.isArray(rows) || rows.length === 0
+}
+
+async function geonetFetch(path: string): Promise<unknown> {
+  const proxy = process.env.GEONET_PROXY
+  try {
+    const direct = await geonetDirect(path)
+    if (!isEmpty(direct) || !proxy) return direct
+  } catch (err) {
+    if (!proxy) throw err
+  }
+  return geonetViaProxy(path, proxy)
 }
 
 function popUrl(s: JejuSpotDef): string {
