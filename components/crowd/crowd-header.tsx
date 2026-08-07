@@ -1,5 +1,7 @@
 "use client"
 
+import { useCallback, useRef } from "react"
+import { flushSync } from "react-dom"
 import Link from "next/link"
 import { LayoutDashboard, Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
@@ -39,6 +41,32 @@ export default function CrowdHeader({
   onEnterOps,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
+
+  // 테마 전환 — 버튼 중심에서 퍼지는 원형 리빌 (View Transition API, lexdiff 레시피).
+  // 미지원 브라우저·reduced-motion은 즉시 전환.
+  const themeBtnRef = useRef<HTMLButtonElement>(null)
+  const animatedToggleTheme = useCallback(() => {
+    const btn = themeBtnRef.current
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (!btn || !document.startViewTransition || reduced) {
+      onToggleTheme()
+      return
+    }
+    document
+      .startViewTransition(() => {
+        flushSync(() => onToggleTheme())
+      })
+      .ready.then(() => {
+        const { top, left, width, height } = btn.getBoundingClientRect()
+        const x = left + width / 2
+        const y = top + height / 2
+        const maxRadius = Math.hypot(Math.max(left, window.innerWidth - left), Math.max(top, window.innerHeight - top))
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${maxRadius}px at ${x}px ${y}px)`] },
+          { duration: 400, easing: "ease-in-out", pseudoElement: "::view-transition-new(root)" },
+        )
+      })
+  }, [onToggleTheme])
   // 도시 전환 시 제목도 동기화 — 4개 언어 제목 속 현지화된 "서울"만 해당 도시명으로 치환
   const title = city === "seoul" ? t.title : t.title.replaceAll(t.cityNames.seoul, t.cityNames[city])
   // 도시별 부제 — 원천이 달라 세는 대상도 다르다(인파/접근·주차/출국장 대기).
@@ -153,7 +181,8 @@ export default function CrowdHeader({
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={onToggleTheme}
+              ref={themeBtnRef}
+              onClick={animatedToggleTheme}
               className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
               title={light ? t.darkMode : t.lightMode}
               aria-label={light ? t.darkMode : t.lightMode}

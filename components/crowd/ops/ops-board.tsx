@@ -69,6 +69,39 @@ export default function OpsBoard({
     })
   }, [])
 
+  // 미니맵 높이 — 핸들 드래그로 조절, 기기별 기억. null=기본(모바일 26dvh·PC 38dvh)
+  const [mapH, setMapH] = useState<number | null>(null)
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("crowdOpsMapH"))
+    if (Number.isFinite(saved) && saved >= 140) setMapH(saved)
+  }, [])
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
+  const onMapHandleDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.previousElementSibling as HTMLElement | null
+    if (!box) return
+    dragRef.current = { startY: e.clientY, startH: box.getBoundingClientRect().height }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+  const onMapHandleMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const next = Math.round(Math.min(window.innerHeight * 0.75, Math.max(140, drag.startH + (e.clientY - drag.startY))))
+    setMapH(next)
+  }, [])
+  const onMapHandleUp = useCallback(() => {
+    if (dragRef.current == null) return
+    dragRef.current = null
+    setMapH((h) => {
+      if (h != null) localStorage.setItem("crowdOpsMapH", String(h))
+      return h
+    })
+  }, [])
+  const resetMapH = useCallback(() => {
+    dragRef.current = null
+    setMapH(null)
+    localStorage.removeItem("crowdOpsMapH")
+  }, [])
+
   // 감시 지점 중 현재 목록에 실존하는 것만 (원천 개편·오타 딥링크는 조용히 제외)
   const watchSpots = useMemo(() => {
     const byName = new Map(spots.map((s) => [s.name, s]))
@@ -187,19 +220,39 @@ export default function OpsBoard({
       {/* 접이식 미니맵 — 감시 지점만 마커로, 클릭 시 상세 (기존 CrowdMap 재사용, 신규 서버 0).
           감시 지점이 없으면 빈 지도 대신 비노출 — 지점을 추가하면 나타난다 */}
       {mapOpen && watchSpots.length > 0 && (
-        <div className="relative h-[26dvh] min-h-[160px] shrink-0 border-b border-[var(--cp-border)]">
-          <CrowdMap
-            spots={watchSpots}
-            lang={lang}
-            selectedName={null}
-            addressPin={null}
-            nearestNames={[]}
-            cctvItems={[]}
-            onSelect={onOpenSpot}
-            center={CITIES[city].center}
-            zoom={CITIES[city].zoom}
-          />
-        </div>
+        <>
+          <div
+            style={mapH != null ? { height: `${mapH}px` } : undefined}
+            className={`relative shrink-0 ${mapH != null ? "" : "h-[26dvh] md:h-[38dvh]"} min-h-[140px]`}
+          >
+            <CrowdMap
+              spots={watchSpots}
+              lang={lang}
+              selectedName={null}
+              addressPin={null}
+              nearestNames={[]}
+              cctvItems={[]}
+              onSelect={onOpenSpot}
+              center={CITIES[city].center}
+              zoom={CITIES[city].zoom}
+            />
+          </div>
+          {/* 높이 조절 핸들 — 드래그로 지도/카드 비율 조절, 더블클릭 초기화 (시민 모드 분할 핸들과 동일 문법) */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t.resizePanel}
+            title={t.resizePanel}
+            onPointerDown={onMapHandleDown}
+            onPointerMove={onMapHandleMove}
+            onPointerUp={onMapHandleUp}
+            onPointerCancel={onMapHandleUp}
+            onDoubleClick={resetMapH}
+            className="flex h-4 shrink-0 cursor-row-resize touch-none items-center justify-center border-b border-[var(--cp-border)]"
+          >
+            <span className="h-1 w-9 rounded-full bg-[var(--cp-border-strong)]" />
+          </div>
+        </>
       )}
 
       <OpsToolbar

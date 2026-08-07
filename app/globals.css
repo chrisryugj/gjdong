@@ -163,6 +163,14 @@
   display: none;
 }
 
+/* View Transition — 테마 전환 원형 리빌 (lexdiff와 동일 레시피).
+   기본 크로스페이드를 끄고 ::view-transition-new(root)를 clip-path circle로 애니메이션 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
 /* ── 서울 인파레이더 (/crowd) 관제판 — 다크 기본 + .crowd-light 테마 */
 .crowd-page {
   /* 인파레이더 본문 서체 = SUIT (layout.tsx next/font 셀프호스팅) — 숫자·타이틀 서체는 별도 유지 */
