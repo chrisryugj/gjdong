@@ -330,6 +330,18 @@
   font-size: 11px;
   line-height: 1.4;
 }
+/* 상황실 미니맵 상시 레이블 — 테마 변수로 다크/라이트 대응, 화살표 제거 */
+.crowd-page .leaflet-tooltip.crowd-ops-label {
+  background: var(--cp-tip-bg);
+  border: 1px solid var(--cp-border-strong);
+  color: var(--cp-text);
+  border-radius: 6px;
+  padding: 3px 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.crowd-page .leaflet-tooltip.crowd-ops-label::before {
+  display: none;
+}
 .crowd-page .crowd-tip b {
   font-weight: 600;
 }
