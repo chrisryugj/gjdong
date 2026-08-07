@@ -112,6 +112,10 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
     return model.scope === "watch" ? `감시 지점 ${model.totalCount}곳` : `전 지점 ${model.totalCount}곳`
   }, [model])
 
+  // 조회하지 않는 값의 열은 "전부 —"로 남기지 않고 열 자체를 뺀다 (전 지점=121콜 방지, 도시별 원천 부재)
+  const showPeople = model?.scope === "watch" && CITY_CAPS[city].opsDetail === "full"
+  const showNotes = model?.scope === "watch" && CITY_CAPS[city].extra
+
   // 감시 지점 보고 + 로그 2틱 이상일 때만 추이 열 노출 (전 지점 121행에 스파크라인은 소음)
   const sparks = useMemo(() => {
     if (!model || model.scope !== "watch" || log.length < 2) return null
@@ -213,9 +217,9 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                 <th className="py-1.5 pr-2 font-normal">자치구</th>
                 <th className="py-1.5 pr-2 font-normal">등급</th>
                 <th className="py-1.5 pr-2 font-normal">산출근거</th>
-                <th className="py-1.5 pr-2 font-normal">실측 인원</th>
+                {showPeople && <th className="py-1.5 pr-2 font-normal">실측 인원</th>}
                 {sparks && <th className="py-1.5 pr-2 font-normal">등급 추이</th>}
-                <th className="py-1.5 font-normal">특이사항</th>
+                {showNotes && <th className="py-1.5 font-normal">특이사항</th>}
               </tr>
             </thead>
             <tbody>
@@ -232,13 +236,15 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                     </span>
                   </td>
                   <td className="whitespace-nowrap py-1.5 pr-2 text-neutral-500">{r.basis}</td>
-                  <td className="whitespace-nowrap py-1.5 pr-2 font-mono tabular-nums">{r.people || "—"}</td>
+                  {showPeople && (
+                    <td className="whitespace-nowrap py-1.5 pr-2 font-mono tabular-nums">{r.people || "—"}</td>
+                  )}
                   {sparks && (
                     <td className="py-1.5 pr-2">
                       {sparks.get(r.name) ? <Spark series={sparks.get(r.name)!} /> : <span className="text-neutral-300">—</span>}
                     </td>
                   )}
-                  <td className="py-1.5">{r.notes || "—"}</td>
+                  {showNotes && <td className="py-1.5">{r.notes || "—"}</td>}
                 </tr>
               ))}
             </tbody>
