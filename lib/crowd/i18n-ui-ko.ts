@@ -178,6 +178,11 @@ export const KO = {
   districtAddAll: (d: string) => `${d} 전체 추가`,
   opsExportCsv: "CSV",
   opsCopyReport: "상황보고 복사",
+  alertsOn: "붐빔 알림 켜짐",
+  alertsOff: "붐빔 알림",
+  alertNote: "감시 지점이 붐빔으로 전환되면 알려드려요 — 약 5분 주기 감시라 실시간 경보는 아니에요",
+  alertDenied: "브라우저 알림 권한이 차단되어 있어요. 주소창 자물쇠에서 허용해주세요",
+  alertUnsupported: "이 브라우저는 시스템 알림을 지원하지 않아 화면 안 알림만 표시돼요",
 }
 
 export type UIStrings = typeof KO

@@ -160,4 +160,9 @@ export const EN: UIStrings = {
   districtAddAll: (d) => `Add all in ${d}`,
   opsExportCsv: "CSV",
   opsCopyReport: "Copy report",
+  alertsOn: "Crowded alerts on",
+  alertsOff: "Crowded alerts",
+  alertNote: "Get notified when a watched spot turns Crowded — checked about every 5 min, not a real-time siren",
+  alertDenied: "Notifications are blocked in this browser. Allow them from the address-bar lock icon",
+  alertUnsupported: "This browser doesn't support system notifications — in-page alerts only",
 }

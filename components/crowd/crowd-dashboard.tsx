@@ -19,6 +19,7 @@ import { useOpsMode } from "@/components/crowd/hooks/use-ops-mode"
 import { usePersistedPrefs } from "@/components/crowd/hooks/use-persisted-prefs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSpotFilters } from "@/components/crowd/hooks/use-spot-filters"
+import { useCrowdAlerts } from "@/components/crowd/hooks/use-crowd-alerts"
 import { useSpotSelection } from "@/components/crowd/hooks/use-spot-selection"
 import { useWatchlist } from "@/components/crowd/hooks/use-watchlist"
 
@@ -66,8 +67,10 @@ function CrowdDashboardInner() {
 
   // 도시 참조는 여기서 만들어 데이터·선택 훅 양쪽에 주입 (훅 간 순환 의존 방지)
   const cityRef = useRef<CityId>("seoul")
+  // 알림 무장 여부도 ref 주입 — 데이터 훅(폴링)과 알림 훅(spots 소비) 사이 순환을 끊는다
+  const alertsArmedRef = useRef(false)
   const selection = useSpotSelection(cityRef)
-  const data = useCrowdData(cityRef, selection.silentRefresh)
+  const data = useCrowdData(cityRef, selection.silentRefresh, alertsArmedRef)
   const { city, spots, updatedAt, loading, error, disaster, disasterOpen } = data
   const { selectedName, detail, detailLoading, fetchDetail, selectSpot } = selection
 
@@ -78,6 +81,8 @@ function CrowdDashboardInner() {
   const install = useInstallPrompt()
   const { opsMode, enterOps, exitOps } = useOpsMode()
   const watchlist = useWatchlist(city)
+  const alerts = useCrowdAlerts({ spots, watch: watchlist.names, onOpen: selection.selectSpot })
+  alertsArmedRef.current = alerts.enabled && watchlist.names.length > 0
 
   const [query, setQuery] = useState("")
   const [addressPin, setAddressPin] = useState<AddressPin | null>(null)
@@ -221,6 +226,9 @@ function CrowdDashboardInner() {
           favs={favs}
           light={light}
           disaster={disaster}
+          alertsEnabled={alerts.enabled}
+          alertsPermission={alerts.permission}
+          onToggleAlerts={alerts.toggle}
           onToggleWatch={watchlist.toggle}
           onAddMany={watchlist.addMany}
           onClearWatch={watchlist.clear}
@@ -512,6 +520,15 @@ function CrowdDashboardInner() {
           </footer>
         </aside>
       </div>
+      )}
+
+      {/* 붐빔 전환 인앱 토스트 — OS 알림 미지원(iOS Safari)·백그라운드 복귀 시 안전망 */}
+      {alerts.toast && (
+        <div className="pointer-events-none fixed bottom-4 left-1/2 z-[2000] -translate-x-1/2">
+          <div className="rounded-md border border-[#ff3939]/50 bg-[var(--cp-panel)] px-4 py-2 text-[13px] font-medium text-[var(--cp-text-strong)] shadow-lg">
+            {alerts.toast}
+          </div>
+        </div>
       )}
     </div>
   )
