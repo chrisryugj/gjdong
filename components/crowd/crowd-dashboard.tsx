@@ -2,26 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Navigation, Search, X } from "lucide-react"
-import { LEVEL_COLORS, type CrowdDetail, type CrowdDisaster, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, X } from "lucide-react"
+import { LEVEL_COLORS } from "@/lib/crowd/seoul-rtd"
 import { META, UI } from "@/lib/crowd/i18n"
-import { CITIES, isCityId, type CityId } from "@/lib/crowd/cities"
+import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
+import DirectionsBar from "@/components/crowd/directions-bar"
 import NearestPanel from "@/components/crowd/nearest-panel"
 import SpotListPanel from "@/components/crowd/spot-list-panel"
 import { LangProvider, useLang } from "@/components/crowd/lang-context"
-import {
-  AutoMarquee,
-  formatKm,
-  haversineKm,
-  LevelBadge,
-  LEVEL_ORDER,
-  PRESETS,
-  type AddressPin,
-  type PresetKey,
-  type SortMode,
-} from "@/components/crowd/shared"
+import { AutoMarquee, formatKm, haversineKm, LevelBadge, LEVEL_ORDER, type AddressPin } from "@/components/crowd/shared"
+import { useCrowdData } from "@/components/crowd/hooks/use-crowd-data"
+import { useInstallPrompt } from "@/components/crowd/hooks/use-install-prompt"
+import { usePersistedPrefs } from "@/components/crowd/hooks/use-persisted-prefs"
+import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
+import { useSpotFilters } from "@/components/crowd/hooks/use-spot-filters"
+import { useSpotSelection } from "@/components/crowd/hooks/use-spot-selection"
 
 // recharts가 무거워서 상세 패널은 선택 시점에 로드
 const SpotDetail = dynamic(() => import("@/components/crowd/spot-detail"), {
@@ -54,170 +51,28 @@ function CrowdDashboardInner() {
     gangwon: [t.footerDataGangwon, t.footerSourceGangwon],
     incheon: [t.footerDataIncheon, t.footerSourceIncheon],
   }
-  // 도시는 URL(?city=)에서 복원 — SSR 표준 출력은 서울이라 마운트 후 확정 (null=미확정)
-  const [city, setCity] = useState<CityId | null>(null)
-  const cityRef = useRef<CityId>("seoul")
-  const [spots, setSpots] = useState<CrowdSpot[]>([])
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<boolean>(false)
-  const [disaster, setDisaster] = useState<CrowdDisaster[]>([])
-  const [disasterOpen, setDisasterOpen] = useState(false)
 
-  const [selectedName, setSelectedName] = useState<string | null>(null)
-  const [detail, setDetail] = useState<CrowdDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+  // 도시 참조는 여기서 만들어 데이터·선택 훅 양쪽에 주입 (훅 간 순환 의존 방지)
+  const cityRef = useRef<CityId>("seoul")
+  const selection = useSpotSelection(cityRef)
+  const data = useCrowdData(cityRef, selection.silentRefresh)
+  const { city, spots, updatedAt, loading, error, disaster, disasterOpen } = data
+  const { selectedName, detail, detailLoading, fetchDetail, selectSpot } = selection
+
+  const prefs = usePersistedPrefs()
+  const { favs, toggleFav, light, toggleTheme } = prefs
+  const split = useSplitPane()
+  const { mapH, splitDragging, mapBoxRef } = split
+  const install = useInstallPrompt()
 
   const [query, setQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set())
-  const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set())
-  const [sort, setSort] = useState<SortMode>("busy")
-  const [preset, setPreset] = useState<PresetKey | null>(null)
-  const [favs, setFavs] = useState<Set<string>>(new Set())
-  const [favOnly, setFavOnly] = useState(false)
-
   const [addressPin, setAddressPin] = useState<AddressPin | null>(null)
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<AddressErrorKey | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
 
-  const [light, setLight] = useState(true)
-
-  // 모바일 지도/패널 분할 — 패널 상단 핸들 드래그로 지도 높이 조절 (null=자동 24/32dvh)
-  const [mapH, setMapH] = useState<number | null>(null)
-  const [splitDragging, setSplitDragging] = useState(false)
-  const mapBoxRef = useRef<HTMLDivElement>(null)
-  const splitDragRef = useRef<{ startY: number; startH: number } | null>(null)
-
-  const [installPrompt, setInstallPrompt] = useState<(Event & { prompt: () => Promise<void> }) | null>(null)
-  const [showInstall, setShowInstall] = useState<false | "android" | "ios">(false)
-
-  const detailAbortRef = useRef<AbortController | null>(null)
-  const selectedNameRef = useRef<string | null>(null)
-
-  // PWA: 서비스워커 등록 + 홈 화면 설치 배너 (모바일, 미설치, 미해제 시)
-  useEffect(() => {
-    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/crowd-sw.js").catch(() => {})
-    const nav = navigator as Navigator & { standalone?: boolean }
-    const standalone = window.matchMedia("(display-mode: standalone)").matches || nav.standalone
-    if (standalone || localStorage.getItem("crowdPwaDismissed")) return
-    const onPrompt = (e: Event) => {
-      e.preventDefault()
-      setInstallPrompt(e as Event & { prompt: () => Promise<void> })
-      setShowInstall("android")
-    }
-    window.addEventListener("beforeinstallprompt", onPrompt)
-    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) setShowInstall("ios")
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt)
-  }, [])
-
-  const dismissInstall = useCallback(() => {
-    setShowInstall(false)
-    localStorage.setItem("crowdPwaDismissed", "1")
-  }, [])
-
-  useEffect(() => {
-    if (localStorage.getItem("crowdTheme") === "dark") setLight(false)
-    const storedMapH = Number(localStorage.getItem("crowdMapH"))
-    if (storedMapH > 0) setMapH(Math.min(Math.max(storedMapH, 96), window.innerHeight * 0.7))
-    try {
-      const stored = JSON.parse(localStorage.getItem("crowdFavs") ?? "[]") as string[]
-      if (Array.isArray(stored)) setFavs(new Set(stored))
-    } catch {
-      // 손상된 저장값은 무시
-    }
-  }, [])
-
-  // 분할 핸들 드래그 — 포인터 캡처로 핸들 밖까지 추적, 더블탭이면 자동 높이로 복귀
-  const onSplitDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const h = mapBoxRef.current?.offsetHeight
-    if (h == null) return
-    splitDragRef.current = { startY: e.clientY, startH: h }
-    setSplitDragging(true)
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }, [])
-
-  const onSplitMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const d = splitDragRef.current
-    if (!d) return
-    setMapH(Math.min(Math.max(d.startH + e.clientY - d.startY, 96), window.innerHeight * 0.7))
-  }, [])
-
-  const onSplitUp = useCallback(() => {
-    if (!splitDragRef.current) return
-    splitDragRef.current = null
-    setSplitDragging(false)
-    setMapH((h) => {
-      if (h != null) localStorage.setItem("crowdMapH", String(Math.round(h)))
-      return h
-    })
-  }, [])
-
-  const resetSplit = useCallback(() => {
-    splitDragRef.current = null
-    setSplitDragging(false)
-    setMapH(null)
-    localStorage.removeItem("crowdMapH")
-  }, [])
-
-  const toggleFav = useCallback((name: string) => {
-    setFavs((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      localStorage.setItem("crowdFavs", JSON.stringify(Array.from(next)))
-      return next
-    })
-  }, [])
-
-  const toggleTheme = useCallback(() => {
-    setLight((prev) => {
-      localStorage.setItem("crowdTheme", prev ? "dark" : "light")
-      return !prev
-    })
-  }, [])
-
-  const loadSpots = useCallback(async () => {
-    try {
-      setError(false)
-      const res = await fetch(`/api/crowd?city=${cityRef.current}`)
-      if (!res.ok) throw new Error("bad status")
-      const data = (await res.json()) as { spots: CrowdSpot[]; disaster?: CrowdDisaster[]; updatedAt: string }
-      setSpots(data.spots)
-      setDisaster(data.disaster ?? [])
-      setUpdatedAt(data.updatedAt)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const fetchDetail = useCallback((name: string, silent = false) => {
-    detailAbortRef.current?.abort()
-    const controller = new AbortController()
-    detailAbortRef.current = controller
-    if (!silent) setDetailLoading(true)
-    fetch(`/api/crowd?spot=${encodeURIComponent(name)}&city=${cityRef.current}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("bad status"))))
-      .then((data: CrowdDetail) => setDetail(data))
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return
-        if (!silent) setDetail(null)
-      })
-      .finally(() => {
-        // 이미 다음 요청이 시작됐으면 그쪽 로딩 표시를 건드리지 않는다 (탭 연타 시 에러 플래시 방지)
-        if (detailAbortRef.current === controller && !silent) setDetailLoading(false)
-      })
-  }, [])
-
-  // URL에서 도시 확정 → 이후 목록 로드 시작 (?city 없으면 서울)
-  useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get("city")
-    const resolved: CityId = isCityId(raw) ? raw : "seoul"
-    cityRef.current = resolved
-    setCity(resolved)
-  }, [])
+  const filters = useSpotFilters({ spots, favs, query, trSpotName, lang })
+  const { mapSpots, filtered, levelCounts } = filters
 
   // 도시·언어 전환 시 브라우저 탭 제목 동기화 (클라이언트 전환은 generateMetadata가 다시 안 돌므로)
   useEffect(() => {
@@ -227,115 +82,20 @@ function CrowdDashboardInner() {
       city === "seoul" ? base : base.replaceAll(UI[lang].cityNames.seoul, UI[lang].cityNames[city])
   }, [city, lang])
 
-  // 갱신 주기 — 제주는 명소당 1콜(66콜/회) 구조라 원천 부담이 서울·부산의 수십 배라 길게 잡는다.
-  // 숨겨진 탭에서는 아예 멈춘다: 켜둔 채 방치된 탭이 쌓이면 아무도 보지 않는 데이터를 위해
-  // 상류 호출만 누적된다(2026-08 제주 원천 차단 사고의 교훈). 복귀 시 주기가 지났으면 즉시 1회.
-  useEffect(() => {
-    if (!city) return
-    const periodMs = (city === "jeju" ? 15 : 5) * 60 * 1000
-    void loadSpots()
-    let lastAt = Date.now()
-    const refresh = () => {
-      lastAt = Date.now()
-      void loadSpots()
-      // 상세를 열어둔 채 방치해도 조용히 최신화
-      if (selectedNameRef.current) fetchDetail(selectedNameRef.current, true)
-    }
-    const timer = setInterval(() => {
-      if (!document.hidden) refresh()
-    }, periodMs)
-    const onVisibility = () => {
-      if (!document.hidden && Date.now() - lastAt >= periodMs) refresh()
-    }
-    document.addEventListener("visibilitychange", onVisibility)
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener("visibilitychange", onVisibility)
-    }
-  }, [city, loadSpots, fetchDetail])
-
   // 도시 전환 — 목록·선택·검색·필터 전부 초기화 후 새 도시 로드 (URL은 ?city=로 공유 가능)
   const changeCity = useCallback(
     (next: CityId) => {
       if (next === cityRef.current) return
       cityRef.current = next
-      detailAbortRef.current?.abort()
-      setSpots([])
-      setLoading(true)
-      setSelectedName(null)
-      selectedNameRef.current = null
-      setDetail(null)
+      selection.reset()
       setAddressPin(null)
       setQuery("")
       setAddressError(null)
-      setDisaster([])
-      setDisasterOpen(false)
-      setPreset(null)
-      setLevelFilter(new Set())
-      setCategoryFilter(new Set())
-      setFavOnly(false)
-      const params = new URLSearchParams(window.location.search)
-      if (next === "seoul") params.delete("city")
-      else params.set("city", next)
-      params.delete("spot")
-      const qs = params.toString()
-      window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
-      setCity(next)
+      filters.clearFilters()
+      data.resetForCity(next)
     },
-    [],
+    [selection, filters, data],
   )
-
-  // 히스토리를 건드리지 않는 순수 선택 반영 (popstate·딥링크에서 재사용)
-  const applySpot = useCallback(
-    (name: string | null) => {
-      setSelectedName(name)
-      selectedNameRef.current = name
-      setDetail(null)
-      detailAbortRef.current?.abort()
-      if (name) fetchDetail(name)
-    },
-    [fetchDetail],
-  )
-
-  const selectSpot = useCallback(
-    (name: string | null) => {
-      // ?lang= 등 다른 파라미터는 보존하고 spot만 갱신
-      const params = new URLSearchParams(window.location.search)
-      if (name) params.set("spot", name)
-      else params.delete("spot")
-      const qs = params.toString()
-      const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
-      const cur = window.history.state as { crowdSpot?: string; pushed?: boolean } | null
-      if (name) {
-        // 상세→상세 이동은 replace — 뒤로가기 한 번이면 항상 목록으로
-        if (cur?.crowdSpot) window.history.replaceState({ crowdSpot: name, pushed: cur.pushed ?? false }, "", url)
-        else window.history.pushState({ crowdSpot: name, pushed: true }, "", url)
-      } else if (cur?.pushed) {
-        // 우리가 쌓은 항목이면 back으로 정리 (모바일 뒤로가기와 동일 경로)
-        window.history.back()
-        return
-      } else {
-        window.history.replaceState(null, "", url)
-      }
-      applySpot(name)
-    },
-    [applySpot],
-  )
-
-  // ?spot= 딥링크 진입 + 뒤로가기로 상세 닫기
-  useEffect(() => {
-    const spot = new URLSearchParams(window.location.search).get("spot")
-    if (spot) {
-      window.history.replaceState({ crowdSpot: spot, pushed: false }, "", window.location.href)
-      applySpot(spot)
-    }
-    const onPop = (e: PopStateEvent) => {
-      const state = e.state as { crowdSpot?: string } | null
-      applySpot(state?.crowdSpot ?? null)
-    }
-    window.addEventListener("popstate", onPop)
-    return () => window.removeEventListener("popstate", onPop)
-  }, [applySpot])
 
   const searchAddress = useCallback(async () => {
     const address = query.trim()
@@ -351,15 +111,15 @@ function CrowdDashboardInner() {
       if (!res.ok) throw new Error("bad status")
       const data = await res.json()
       if (data?.fallback || !data?.meta?.lat) throw new Error("not found")
-      setSelectedName(null)
-      setDetail(null)
+      selection.setSelectedName(null)
+      selection.setDetail(null)
       setAddressPin({ label: data.display ?? address, lat: data.meta.lat, lng: data.meta.lon })
     } catch {
       setAddressError("errAddress")
     } finally {
       setAddressLoading(false)
     }
-  }, [query])
+  }, [query, selection])
 
   // 내 위치 기반 근처 명소 추천 — 주소 검색과 같은 nearest 흐름 재사용
   const locateMe = useCallback(() => {
@@ -383,85 +143,6 @@ function CrowdDashboardInner() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
   }, [selectSpot, t])
-
-  const categories = useMemo(() => {
-    const set = new Set(spots.map((s) => s.category))
-    return ["전체", ...Array.from(set)]
-  }, [spots])
-
-  const levelCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const s of spots) counts[s.level] = (counts[s.level] ?? 0) + 1
-    return counts
-  }, [spots])
-
-  const toggleLevel = useCallback((level: string) => {
-    setPreset(null)
-    setLevelFilter((prev) => {
-      const next = new Set(prev)
-      if (next.has(level)) next.delete(level)
-      else next.add(level)
-      return next
-    })
-  }, [])
-
-  const toggleCategory = useCallback((c: string) => {
-    setPreset(null)
-    if (c === "전체") {
-      setCategoryFilter(new Set())
-      return
-    }
-    setCategoryFilter((prev) => {
-      const next = new Set(prev)
-      if (next.has(c)) next.delete(c)
-      else next.add(c)
-      return next
-    })
-  }, [])
-
-  const clearFilters = useCallback(() => {
-    setPreset(null)
-    setLevelFilter(new Set())
-    setCategoryFilter(new Set())
-    setFavOnly(false)
-  }, [])
-
-  const applyPreset = useCallback(
-    (key: PresetKey) => {
-      if (preset === key) {
-        clearFilters()
-        return
-      }
-      const p = PRESETS.find((x) => x.key === key)
-      if (!p) return
-      setPreset(key)
-      setCategoryFilter(new Set(p.categories))
-      setLevelFilter(new Set(p.levels))
-    },
-    [preset, clearFilters],
-  )
-
-  // 필터는 지도에도 반영 — "지금 여유로운 공원만"·"내 단골만" 탐색용
-  const mapSpots = useMemo(() => {
-    let list = spots
-    if (favOnly) list = list.filter((s) => favs.has(s.name))
-    if (levelFilter.size > 0) list = list.filter((s) => levelFilter.has(s.level))
-    if (categoryFilter.size > 0) list = list.filter((s) => categoryFilter.has(s.category))
-    return list
-  }, [spots, levelFilter, categoryFilter, favOnly, favs])
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    let list = mapSpots
-    // 한국어 원문·현지어 표기 양쪽 매칭 (예: "hongdae" → 홍대)
-    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q) || trSpotName(s.name).toLowerCase().includes(q))
-    const byName = (a: CrowdSpot, b: CrowdSpot) => trSpotName(a.name).localeCompare(trSpotName(b.name), lang)
-    const byFav = (a: CrowdSpot, b: CrowdSpot) => (favs.has(b.name) ? 1 : 0) - (favs.has(a.name) ? 1 : 0)
-    if (sort === "busy") list = [...list].sort((a, b) => byFav(a, b) || b.levelNum - a.levelNum || byName(a, b))
-    else if (sort === "calm") list = [...list].sort((a, b) => byFav(a, b) || a.levelNum - b.levelNum || byName(a, b))
-    else list = [...list].sort((a, b) => byFav(a, b) || byName(a, b))
-    return list
-  }, [mapSpots, query, sort, favs, trSpotName, lang])
 
   const nearest = useMemo(() => {
     if (!addressPin) return []
@@ -507,9 +188,9 @@ function CrowdDashboardInner() {
         disaster={disaster}
         disasterOpen={disasterOpen}
         onCityChange={changeCity}
-        onRefresh={() => void loadSpots()}
+        onRefresh={() => void data.loadSpots()}
         onToggleTheme={toggleTheme}
-        onToggleDisaster={() => setDisasterOpen((v) => !v)}
+        onToggleDisaster={() => data.setDisasterOpen((v) => !v)}
       />
 
       {/* ── 본문: 지도 + 패널 */}
@@ -560,11 +241,11 @@ function CrowdDashboardInner() {
             aria-orientation="horizontal"
             aria-label={t.resizePanel}
             title={t.resizePanel}
-            onPointerDown={onSplitDown}
-            onPointerMove={onSplitMove}
-            onPointerUp={onSplitUp}
-            onPointerCancel={onSplitUp}
-            onDoubleClick={resetSplit}
+            onPointerDown={split.onSplitDown}
+            onPointerMove={split.onSplitMove}
+            onPointerUp={split.onSplitUp}
+            onPointerCancel={split.onSplitUp}
+            onDoubleClick={split.resetSplit}
             className="flex h-5 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
           >
             <span className="h-1 w-9 rounded-full bg-[var(--cp-border-strong)]" />
@@ -699,35 +380,7 @@ function CrowdDashboardInner() {
                   </div>
                 )}
               </div>
-              {/* 길찾기 고정 액션바 — "가기로 결정"은 어느 스크롤 위치에서든 나오므로 항상 손에 */}
-              {selectedSpot && (
-                <div className="flex shrink-0 gap-1.5 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2">
-                  <a
-                    href={`https://map.kakao.com/link/to/${encodeURIComponent(selectedSpot.name)},${selectedSpot.lat},${selectedSpot.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
-                  >
-                    <Navigation className="h-3.5 w-3.5 text-[#ffb100]" /> {t.kakaoDirections}
-                  </a>
-                  <a
-                    href={`https://map.naver.com/p/directions/-/${selectedSpot.lng},${selectedSpot.lat},${encodeURIComponent(selectedSpot.name)}/-/transit`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
-                  >
-                    <Navigation className="h-3.5 w-3.5 text-[#03c75a]" /> {t.naverDirections}
-                  </a>
-                  {/* 티맵은 웹 라우팅이 없어 앱 스킴 — 미설치/데스크톱은 무동작이라 앱 필요 표기 */}
-                  <a
-                    href={`tmap://route?goalname=${encodeURIComponent(selectedSpot.name)}&goaly=${selectedSpot.lat}&goalx=${selectedSpot.lng}`}
-                    title={t.tmapNeedsApp}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-2 text-[13px] font-medium text-[var(--cp-text)] transition-colors hover:bg-[var(--cp-hover2)]"
-                  >
-                    <Navigation className="h-3.5 w-3.5 text-[#4b2ea8]" /> {t.tmapDirections}
-                  </a>
-                </div>
-              )}
+              {selectedSpot && <DirectionsBar spot={selectedSpot} />}
             </div>
           ) : addressPin ? (
             <NearestPanel
@@ -741,52 +394,56 @@ function CrowdDashboardInner() {
           ) : (
             <SpotListPanel
               filtered={filtered}
-              showPresets={(city ?? "seoul") === "seoul"}
-              categories={categories}
-              categoryFilter={categoryFilter}
-              levelFilter={levelFilter}
+              showPresets={CITY_CAPS[city ?? "seoul"].presets}
+              categories={filters.categories}
+              categoryFilter={filters.categoryFilter}
+              levelFilter={filters.levelFilter}
               levelCounts={levelCounts}
-              sort={sort}
-              preset={preset}
+              sort={filters.sort}
+              preset={filters.preset}
               favs={favs}
-              favOnly={favOnly}
+              favOnly={filters.favOnly}
               light={light}
               loading={loading}
               error={error}
               originDown={error && city === "jeju"}
               noSpotMatch={noSpotMatch}
-              onApplyPreset={applyPreset}
-              onToggleFavOnly={() => setFavOnly((v) => !v)}
-              onToggleLevel={toggleLevel}
-              onToggleCategory={toggleCategory}
-              onClearFilters={clearFilters}
-              onSort={setSort}
+              onApplyPreset={filters.applyPreset}
+              onToggleFavOnly={() => filters.setFavOnly((v) => !v)}
+              onToggleLevel={filters.toggleLevel}
+              onToggleCategory={filters.toggleCategory}
+              onClearFilters={filters.clearFilters}
+              onSort={filters.setSort}
               onSelect={selectSpot}
               onToggleFav={toggleFav}
               onRetry={() => {
-                setLoading(true)
-                void loadSpots()
+                data.setLoading(true)
+                void data.loadSpots()
               }}
             />
           )}
 
-          {showInstall && (
+          {install.showInstall && (
             <div className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 md:hidden">
               <p className="min-w-0 flex-1 text-[12px] leading-snug text-[var(--cp-text-muted)]">
-                {showInstall === "ios" ? t.installIos : t.installAndroid}
+                {install.showInstall === "ios" ? t.installIos : t.installAndroid}
               </p>
-              {showInstall === "android" && (
+              {install.showInstall === "android" && (
                 <button
                   onClick={() => {
-                    void installPrompt?.prompt()
-                    dismissInstall()
+                    void install.installPrompt?.prompt()
+                    install.dismissInstall()
                   }}
                   className="shrink-0 rounded-md border border-[var(--cp-border-strong)] px-2.5 py-1 text-[12px] font-medium text-[var(--cp-text-strong)] transition-colors hover:bg-[var(--cp-hover2)]"
                 >
                   {t.install}
                 </button>
               )}
-              <button onClick={dismissInstall} aria-label={t.installDismiss} className="shrink-0 p-1 text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]">
+              <button
+                onClick={install.dismissInstall}
+                aria-label={t.installDismiss}
+                className="shrink-0 p-1 text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
+              >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
