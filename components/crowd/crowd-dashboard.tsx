@@ -20,6 +20,7 @@ import { usePersistedPrefs } from "@/components/crowd/hooks/use-persisted-prefs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSpotFilters } from "@/components/crowd/hooks/use-spot-filters"
 import { useCrowdAlerts } from "@/components/crowd/hooks/use-crowd-alerts"
+import { useOpsLog } from "@/components/crowd/hooks/use-ops-log"
 import { useSpotSelection } from "@/components/crowd/hooks/use-spot-selection"
 import { useWatchlist } from "@/components/crowd/hooks/use-watchlist"
 
@@ -81,6 +82,8 @@ function CrowdDashboardInner() {
   const install = useInstallPrompt()
   const { opsMode, enterOps, exitOps } = useOpsMode()
   const watchlist = useWatchlist(city)
+  // 행사 로그 — 상황실 켜진 동안 폴링 스냅샷 누적 (추가 API 콜 0)
+  const opsLog = useOpsLog(city, opsMode, watchlist.names, spots, updatedAt)
   const alerts = useCrowdAlerts({ spots, watch: watchlist.names, onOpen: selection.selectSpot })
   alertsArmedRef.current = alerts.enabled && watchlist.names.length > 0
 
@@ -234,6 +237,9 @@ function CrowdDashboardInner() {
           onClearWatch={watchlist.clear}
           onOpenSpot={selectSpot}
           onExit={exitOps}
+          logCount={opsLog.count}
+          onExportLog={opsLog.exportCsv}
+          onClearLog={opsLog.clear}
         />
       ) : (
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">

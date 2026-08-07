@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useRef, useState } from "react"
-import { Bell, BellOff, Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, Printer, X } from "lucide-react"
+import { Bell, BellOff, Check, ClipboardList, Download, History, Link2, Maximize, Minimize, Plus, Printer, X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { districtOf, listDistricts } from "@/lib/crowd/districts"
@@ -22,6 +22,9 @@ export default function OpsToolbar({
   alertsEnabled,
   alertsPermission,
   onToggleAlerts,
+  logCount,
+  onExportLog,
+  onClearLog,
 }: {
   city: CityId
   spots: CrowdSpot[]
@@ -35,6 +38,10 @@ export default function OpsToolbar({
   alertsEnabled: boolean
   alertsPermission: "default" | "granted" | "denied" | "unsupported"
   onToggleAlerts: () => Promise<void>
+  /** 행사 로그 누적 틱 수 — 0이면 내보내기 버튼 비노출 */
+  logCount: number
+  onExportLog: () => void
+  onClearLog: () => void
 }) {
   const { lang, t, spot: trSpotName } = useLang()
   const [query, setQuery] = useState("")
@@ -233,6 +240,26 @@ export default function OpsToolbar({
             {reportCopied ? <Check className="h-3.5 w-3.5 text-[#00d369]" /> : <ClipboardList className="h-3.5 w-3.5" />}
             {reportCopied ? t.opsShareCopied : t.opsCopyReport}
           </button>
+        )}
+        {/* 행사 로그 — 상황실 켜진 동안 쌓인 시간축 기록. 지우기는 title 길게 노출 대신 우클릭 아닌 별도 x */}
+        {logCount > 0 && (
+          <span className="flex h-8 items-center overflow-hidden rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)]">
+            <button
+              onClick={onExportLog}
+              title={t.opsLogNote}
+              className="flex h-full items-center gap-1.5 px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+            >
+              <History className="h-3.5 w-3.5" /> {t.opsLogExport(logCount)}
+            </button>
+            <button
+              onClick={onClearLog}
+              title={t.opsLogClear}
+              aria-label={t.opsLogClear}
+              className="flex h-full items-center border-l border-[var(--cp-border)] px-1.5 text-[var(--cp-text-dim)] hover:bg-[var(--cp-hover2)] hover:text-[var(--cp-text-strong)]"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
         )}
         {/* 인쇄용 상황보고서 — 새 탭에서 A4 문서로 (감시 지점 있으면 그 지점만, 없으면 전 지점) */}
         <a
