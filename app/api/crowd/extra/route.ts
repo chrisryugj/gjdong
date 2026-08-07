@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { fetchSpotExtra } from "@/lib/crowd/seoul-rtd"
-import { fetchBusanExtra } from "@/lib/crowd/busan"
-import { fetchGangwonExtra } from "@/lib/crowd/gangwon"
-import { fetchIncheonExtra } from "@/lib/crowd/incheon"
+import { ADAPTERS } from "@/lib/crowd/adapters"
+import { isCityId, type CityId } from "@/lib/crowd/cities"
 
 export const dynamic = "force-dynamic"
 
@@ -18,15 +16,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const city = request.nextUrl.searchParams.get("city")
-    const extra =
-      city === "busan"
-        ? await fetchBusanExtra(spot)
-        : city === "gangwon"
-          ? await fetchGangwonExtra(spot)
-          : city === "incheon"
-            ? await fetchIncheonExtra(spot)
-            : await fetchSpotExtra(spot)
+    const cityRaw = request.nextUrl.searchParams.get("city")
+    const city: CityId = isCityId(cityRaw) ? cityRaw : "seoul"
+    // fetchExtra 부재 도시(제주)는 종전처럼 서울 폴백 — UI는 CITY_CAPS.extra 가드로 호출하지 않는다
+    const fetchExtra = ADAPTERS[city].fetchExtra ?? ADAPTERS.seoul.fetchExtra
+    const extra = await fetchExtra!(spot)
     return NextResponse.json(extra, { headers: CACHE_HEADERS })
   } catch (error) {
     console.error("[crowd/extra] API error:", error instanceof Error ? error.message : "Unknown error")

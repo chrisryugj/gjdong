@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert, Waves } from "lucide-react"
+import { CITY_CAPS } from "@/lib/crowd/cities"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange, trRoad } from "@/lib/crowd/i18n"
@@ -121,7 +122,7 @@ export default function SpotDetail({
   const [extra, setExtra] = useState<CrowdExtra | null>(null)
   useEffect(() => {
     setExtra(null)
-    if (city === "jeju") return
+    if (!CITY_CAPS[city].extra) return
     const controller = new AbortController()
     fetch(`/api/crowd/extra?spot=${encodeURIComponent(detail.name)}&city=${city}`, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<CrowdExtra>) : null))
@@ -320,7 +321,7 @@ export default function SpotDetail({
       {detail.series.length > 0 && <SpotChart detail={detail} light={light} />}
 
       {/* 요일×시간 패턴 — 누적 원천이 있는 도시만 (서울: GH Actions 3h · 제주: 맥미니 15분) */}
-      {(city === "seoul" || city === "jeju") && (
+      {CITY_CAPS[city].heatmap && (
         <SpotHeatmap name={detail.name} light={light} city={city} />
       )}
 
