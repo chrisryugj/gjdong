@@ -143,30 +143,31 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
       {/* @page 규격 — A4 세로, 결재 문서 여백 */}
       <style>{`@page { size: A4 portrait; margin: 18mm 16mm; } @media print { .report-sheet { box-shadow: none !important; margin: 0 !important; width: auto !important; min-height: 0 !important; padding: 0 !important; } }`}</style>
 
-      {/* 화면 전용 툴바 */}
+      {/* 화면 전용 툴바 — 안내 문구는 폭이 되는 md부터 (모바일은 버튼 짤림의 주범이었다) */}
       <div className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-[210mm] items-center gap-3 px-4 py-2.5">
           <button
             onClick={() => window.history.back()}
-            className="flex items-center gap-1.5 text-[13px] text-neutral-500 hover:text-neutral-900"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[13px] text-neutral-500 hover:text-neutral-900"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> 돌아가기
           </button>
-          <span className="text-[13px] text-neutral-400">
+          <span className="hidden min-w-0 truncate text-[13px] text-neutral-400 md:inline">
             인쇄 대화상자에서 &ldquo;PDF로 저장&rdquo;을 선택하면 결재 첨부용 PDF가 됩니다
           </span>
           <span className="flex-1" />
           <button
             onClick={() => window.print()}
-            className="flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-[13px] font-medium text-white hover:bg-neutral-700"
+            className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-neutral-900 px-3 text-[13px] font-medium text-white hover:bg-neutral-700"
           >
             <Printer className="h-3.5 w-3.5" /> 인쇄 · PDF 저장
           </button>
         </div>
       </div>
 
-      {/* 문서 본문 — 화면에서는 A4 시트 프리뷰, 인쇄에서는 그대로 문서 */}
-      <div className="report-sheet mx-auto my-6 min-h-[297mm] w-[210mm] max-w-full bg-white px-[16mm] py-[18mm] shadow-sm print:my-0">
+      {/* 문서 본문 — md↑는 A4 시트 프리뷰, 모바일은 전폭 유동(16mm 패딩이 390px에서 본문을 270px로 짜부라뜨렸다).
+          인쇄는 @media print가 패딩·폭을 리셋하고 @page 여백을 쓰므로 화면 분기와 무관 */}
+      <div className="report-sheet mx-auto w-full bg-white px-5 py-8 md:my-6 md:min-h-[297mm] md:w-[210mm] md:max-w-full md:px-[16mm] md:py-[18mm] md:shadow-sm print:my-0">
         {/* 표제부 */}
         <header className="border-b-2 border-neutral-900 pb-4">
           <p className="font-mono text-[11px] tracking-widest text-neutral-400">
@@ -175,14 +176,14 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           <h1 className="mt-1 text-[26px] font-bold tracking-tight">{model.cityName} 인파 상황보고서</h1>
         </header>
 
-        {/* 메타 표 */}
-        <dl className="mt-4 grid grid-cols-[92px_1fr_92px_1fr] gap-x-3 gap-y-1.5 border-b border-neutral-200 pb-4 text-[12.5px]">
+        {/* 메타 표 — 모바일은 2열(라벨·값), md부터 4열 */}
+        <dl className="mt-4 grid grid-cols-[92px_1fr] gap-x-3 gap-y-1.5 border-b border-neutral-200 pb-4 text-[12.5px] md:grid-cols-[92px_1fr_92px_1fr]">
           <dt className="text-neutral-400">작성 기준</dt>
-          <dd className="font-mono tabular-nums">{model.stamp}</dd>
+          <dd className="whitespace-nowrap font-mono tabular-nums">{model.stamp}</dd>
           <dt className="text-neutral-400">대상</dt>
-          <dd>{scopeLabel}</dd>
+          <dd className="whitespace-nowrap">{scopeLabel}</dd>
           <dt className="text-neutral-400">작성 방식</dt>
-          <dd className="col-span-3">인파레이더 자동 생성 — 공공 개방 데이터 실시간 조회 (수기 가공 없음)</dd>
+          <dd className="md:col-span-3">인파레이더 자동 생성 — 공공 개방 데이터 실시간 조회 (수기 가공 없음)</dd>
         </dl>
 
         {/* 등급 분포 */}
@@ -202,9 +203,11 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
         {/* 지점별 표 */}
         <section className="mt-5">
           <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">2. 지점별 현황 (등급 내림차순)</h2>
-          <table className="mt-2 w-full border-collapse text-[12px] leading-snug">
+          {/* 모바일: 열이 세로로 뭉개지는 대신 표 자체가 가로 스크롤 (인쇄·md는 그대로) */}
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="mt-2 w-full min-w-[560px] border-collapse text-[12px] leading-snug md:min-w-0 print:min-w-0">
             <thead>
-              <tr className="border-b border-neutral-900 text-left text-[11px] text-neutral-400">
+              <tr className="whitespace-nowrap border-b border-neutral-900 text-left text-[11px] text-neutral-400">
                 <th className="py-1.5 pr-2 font-normal">No.</th>
                 <th className="py-1.5 pr-2 font-normal">지점</th>
                 <th className="py-1.5 pr-2 font-normal">자치구</th>
@@ -220,16 +223,16 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                 <tr key={r.name} className="border-b border-neutral-100">
                   <td className="py-1.5 pr-2 font-mono tabular-nums text-neutral-400">{String(r.idx).padStart(2, "0")}</td>
                   <td className="py-1.5 pr-2 font-medium">{r.name}</td>
-                  <td className="py-1.5 pr-2 text-neutral-500">{r.district || "—"}</td>
+                  <td className="whitespace-nowrap py-1.5 pr-2 text-neutral-500">{r.district || "—"}</td>
                   <td className="py-1.5 pr-2">
                     {/* 색 + 텍스트 병기 — 흑백 인쇄에서도 등급이 살아남는다 */}
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                       <span className="inline-block h-2 w-2 rounded-full border border-neutral-300" style={{ background: r.color }} />
                       {r.level}
                     </span>
                   </td>
-                  <td className="py-1.5 pr-2 text-neutral-500">{r.basis}</td>
-                  <td className="py-1.5 pr-2 font-mono tabular-nums">{r.people || "—"}</td>
+                  <td className="whitespace-nowrap py-1.5 pr-2 text-neutral-500">{r.basis}</td>
+                  <td className="whitespace-nowrap py-1.5 pr-2 font-mono tabular-nums">{r.people || "—"}</td>
                   {sparks && (
                     <td className="py-1.5 pr-2">
                       {sparks.get(r.name) ? <Spark series={sparks.get(r.name)!} /> : <span className="text-neutral-300">—</span>}
@@ -240,6 +243,7 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
               ))}
             </tbody>
           </table>
+          </div>
           {model.scope === "all" && (
             <p className="mt-1.5 text-[11px] text-neutral-400">
               ※ 실측 인원·특이사항은 감시 지점을 지정한 보고서(상황실 → 보고서 출력)에서만 조회합니다.
