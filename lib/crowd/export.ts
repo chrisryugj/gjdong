@@ -101,3 +101,97 @@ export function buildReport({
   lines.push("", "— 인파레이더 자동 생성 (서울시 실시간 도시데이터 등 공공 개방 데이터 기반)")
   return lines.join("\n")
 }
+
+// ── 인쇄용 상황보고서 (/crowd/report) — 화면·인쇄가 같은 모델을 그린다. 순수 함수 (테스트 대상).
+
+export interface ReportRow {
+  idx: number
+  name: string
+  district: string
+  category: string
+  level: string
+  levelNum: number
+  color: string
+  basis: string
+  /** 실측 인원 구간 "6,500~7,000명" — 상세 없는 도시·지점은 빈 문자열 */
+  people: string
+  /** 사고·통제 특이사항 "교통사고·공사 2건" — extra 없는 도시는 빈 문자열 */
+  notes: string
+}
+
+export interface ReportModel {
+  cityName: string
+  /** "2026.08.07 15:30" — 작성 기준시각 */
+  stamp: string
+  /** watch = 감시 지점 보고, all = 전 지점 보고 */
+  scope: "watch" | "all"
+  totalCount: number
+  summary: Array<{ level: string; count: number; color: string }>
+  rows: ReportRow[]
+  disasters: CrowdDisaster[]
+}
+
+/** 보고서 모델 — watch가 비면 전 지점(등급 내림차순). 특이사항·인원은 주어진 맵에 있는 만큼만 */
+export function buildReportModel({
+  city,
+  cityName,
+  spots,
+  watch,
+  details,
+  extras,
+  disaster,
+  at,
+}: {
+  city: CityId
+  cityName: string
+  spots: CrowdSpot[]
+  watch: string[]
+  details: Map<string, CrowdDetail>
+  extras: Map<string, CrowdExtra>
+  disaster: CrowdDisaster[]
+  at: Date
+}): ReportModel {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const stamp = `${at.getFullYear()}.${pad(at.getMonth() + 1)}.${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
+
+  const byName = new Map(spots.map((s) => [s.name, s]))
+  const included =
+    watch.length > 0 ? watch.map((n) => byName.get(n)).filter((s): s is CrowdSpot => s != null) : [...spots]
+  const sorted = [...included].sort((a, b) => b.levelNum - a.levelNum)
+
+  const counts = new Map<string, { count: number; color: string }>()
+  for (const s of sorted) {
+    const cur = counts.get(s.level)
+    if (cur) cur.count += 1
+    else counts.set(s.level, { count: 1, color: s.color })
+  }
+
+  const rows: ReportRow[] = sorted.map((s, i) => {
+    const d = details.get(s.name)
+    const now = d && d.nowIndex >= 0 ? d.series[d.nowIndex] : null
+    const alerts = (extras.get(s.name)?.alerts ?? []).filter((a) => a.type || a.info)
+    const kinds = Array.from(new Set(alerts.map((a) => a.type).filter(Boolean)))
+    return {
+      idx: i + 1,
+      name: s.name,
+      district: districtOf(city, s.name) ?? "",
+      category: s.category,
+      level: s.level,
+      levelNum: s.levelNum,
+      color: s.color,
+      basis: BASIS_LABEL[s.basis ?? "ppl"],
+      people: now && now.people > 0 ? (now.range || `약 ${now.people.toLocaleString("ko-KR")}명`) : "",
+      notes: alerts.length > 0 ? `${kinds.join("·")} ${alerts.length}건` : "",
+    }
+  })
+
+  return {
+    cityName,
+    stamp,
+    scope: watch.length > 0 ? "watch" : "all",
+    totalCount: sorted.length,
+    summary: Array.from(counts, ([level, v]) => ({ level, count: v.count, color: v.color })),
+    rows,
+    disasters: disaster,
+  }
+}

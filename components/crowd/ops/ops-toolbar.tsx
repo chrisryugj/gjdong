@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useRef, useState } from "react"
-import { Bell, BellOff, Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, X } from "lucide-react"
+import { Bell, BellOff, Check, ClipboardList, Download, Link2, Maximize, Minimize, Plus, Printer, X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { districtOf, listDistricts } from "@/lib/crowd/districts"
@@ -234,6 +234,15 @@ export default function OpsToolbar({
             {reportCopied ? t.opsShareCopied : t.opsCopyReport}
           </button>
         )}
+        {/* 인쇄용 상황보고서 — 새 탭에서 A4 문서로 (감시 지점 있으면 그 지점만, 없으면 전 지점) */}
+        <a
+          href={`/crowd/report?city=${city}${watch.length > 0 ? `&spots=${serializeSpotsParam(watch)}` : ""}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+        >
+          <Printer className="h-3.5 w-3.5" /> {t.opsPrintReport}
+        </a>
         <button
           onClick={copyLink}
           className="flex h-8 items-center gap-1.5 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-2.5 text-[13px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
