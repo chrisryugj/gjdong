@@ -177,6 +177,8 @@ const gangwonSnapshot = createSnapshot(120_000, async (): Promise<GangwonSnapsho
     for (const r of await gnCallItems("getSmrtTrff")) {
       const k = String(r.crossName ?? "")
       if (!k) continue
+      // 감지기 오프라인 행(LOS 공란)은 버린다 — losGrade가 2로 뭉개면 없는 "서행"을 지어내게 된다
+      if (!String(r.los ?? "").trim()) continue
       const prev = latest.get(k)
       if (!prev || String(r.colDate ?? "") > String(prev.colDate ?? "")) latest.set(k, r)
     }
@@ -207,14 +209,16 @@ export function isCounting(lot: GnLot): boolean {
   return lot.cell > 0 && lot.cell !== lot.cur
 }
 
-function parkLvOf(s: GangwonSpotDef, snap: GangwonSnapshot): number {
-  let best = 0
+function parkLvOf(s: GangwonSpotDef, snap: GangwonSnapshot): { lv: number; counting: number } {
+  let lv = 0
+  let counting = 0
   for (const [id] of s.prk) {
     const lot = snap.lots.get(id)
     if (!lot || !isCounting(lot)) continue
-    best = Math.max(best, parkRatioLv(lot.cur / lot.cell))
+    counting++
+    lv = Math.max(lv, parkRatioLv(lot.cur / lot.cell))
   }
-  return best
+  return { lv, counting }
 }
 
 function roadRowsOf(s: GangwonSpotDef, snap: GangwonSnapshot): GnRoad[] {
@@ -225,9 +229,13 @@ function roadLvOf(s: GangwonSpotDef, snap: GangwonSnapshot): number {
   return meanRoadLv(roadRowsOf(s, snap).map((r) => r.grade))
 }
 
-function levelOf(s: GangwonSpotDef, snap: GangwonSnapshot): { level: string; parkLv: number; roadLv: number } {
-  const parkLv = parkLvOf(s, snap)
+export function levelOf(s: GangwonSpotDef, snap: GangwonSnapshot): { level: string; parkLv: number; roadLv: number } {
+  const park = parkLvOf(s, snap)
   const roadLv = roadLvOf(s, snap)
+  // 붐빔(4)은 복수 근거일 때만 — 집계 주차장이 1곳뿐이면 센서 고착(avail=1 고정)과 실제 만차를
+  // 구분할 수 없다 (2026-08-08 07:54 실측: 경포아쿠아리움 68면 avail=1 하나가 도로 서행인데도
+  // 경포해변·아르떼를 붐빔으로 만들었다). 도로 정체가 뒷받침하지 않는 한 3으로 상한.
+  const parkLv = park.lv === 4 && park.counting < 2 && roadLv < 3 ? 3 : park.lv
   const n = Math.max(parkLv, roadLv)
   // 두 축 모두 원천이 없으면 등급을 만들지 않는다 (강릉권 밖) — 회색 "정보 없음"으로 나간다
   return { level: n ? LV_BY_N[n] : NO_DATA, parkLv, roadLv }
