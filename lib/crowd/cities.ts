@@ -41,14 +41,19 @@ export interface CityCapabilities {
   presets: boolean
   /** 클라이언트 자동 갱신 주기(분) — 제주 15분은 2026-08 원천 차단 사고 대응 */
   pollMinutes: number
+  /** 상황실 카드의 상세(인원) 팬아웃 허용 — 서울만. 제주는 원천 보호(2026-08 차단 사고),
+   *  부산·강원은 인원 원천이 없고, 인천은 상세를 불러도 카드에 더할 숫자가 없다 */
+  opsDetail: "full" | "levelOnly"
+  /** 자치구 필터 노출 — 인천공항은 단일 시설이라 무의미 */
+  districts: boolean
 }
 
 export const CITY_CAPS: Record<CityId, CityCapabilities> = {
-  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, presets: true, pollMinutes: 5 },
-  jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: false, presets: false, pollMinutes: 15 },
-  busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5 },
-  gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5 },
-  incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: false, presets: false, pollMinutes: 5 },
+  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, presets: true, pollMinutes: 5, opsDetail: "full", districts: true },
+  jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: false, presets: false, pollMinutes: 15, opsDetail: "levelOnly", districts: true },
+  busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
+  gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
+  incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: false },
 }
 
 export const CITIES: Record<CityId, CityInfo> = {

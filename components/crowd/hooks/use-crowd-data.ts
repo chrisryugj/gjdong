@@ -79,6 +79,7 @@ export function useCrowdData(
     if (next === "seoul") params.delete("city")
     else params.set("city", next)
     params.delete("spot")
+    params.delete("spots") // 감시 목록은 도시 스코프 — 새 도시에서는 저장본을 다시 읽는다
     const qs = params.toString()
     window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
     setCity(next)
