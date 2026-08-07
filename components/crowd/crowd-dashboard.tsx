@@ -237,7 +237,7 @@ function CrowdDashboardInner() {
           onClearWatch={watchlist.clear}
           onOpenSpot={selectSpot}
           onExit={exitOps}
-          logCount={opsLog.count}
+          logTicks={opsLog.ticks}
           onExportLog={opsLog.exportCsv}
           onClearLog={opsLog.clear}
         />

@@ -5,7 +5,8 @@ import { ArrowLeft, Star } from "lucide-react"
 import type { CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { UI } from "@/lib/crowd/i18n"
-import { buildCsv, buildReport, csvFilename } from "@/lib/crowd/export"
+import { buildCsv, buildReport, buildSnapshotRows, csvFilename } from "@/lib/crowd/export"
+import { buildLogRows, logSpotNames, type OpsLogTick } from "@/lib/crowd/oplog"
 import { useLang } from "@/components/crowd/lang-context"
 import { useOpsDetails } from "@/components/crowd/hooks/use-ops-details"
 import OpsCard from "@/components/crowd/ops/ops-card"
@@ -28,7 +29,7 @@ export default function OpsBoard({
   onClearWatch,
   onOpenSpot,
   onExit,
-  logCount,
+  logTicks,
   onExportLog,
   onClearLog,
 }: {
@@ -47,8 +48,8 @@ export default function OpsBoard({
   onClearWatch: () => void
   onOpenSpot: (name: string) => void
   onExit: () => void
-  /** 행사 로그 누적 틱 수 — 0이면 내보내기 버튼 비노출 */
-  logCount: number
+  /** 행사 로그 — XLSX 시트에 함께 실린다. 비어 있으면 내보내기 버튼 비노출 */
+  logTicks: OpsLogTick[]
   onExportLog: () => void
   onClearLog: () => void
 }) {
@@ -94,6 +95,25 @@ export default function OpsBoard({
     a.click()
     URL.revokeObjectURL(url)
   }, [city, spots, updatedAt])
+
+  // XLSX = 현황 시트 + (있으면) 행사로그 시트 — 열너비·자동필터.
+  // xlsx는 무거워서 클릭 시점 dynamic import (ops 청크에도 싣지 않는다).
+  // 셀 배경색·머리행 고정은 SheetJS CE가 출력하지 않음(ZIP 실측) — 등급 텍스트·자동필터로 판독 보장.
+  const exportXlsx = useCallback(async () => {
+    const XLSX = await import("xlsx")
+    const wb = XLSX.utils.book_new()
+    const rows = buildSnapshotRows({ city, spots, updatedAt })
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws["!cols"] = [{ wch: 6 }, { wch: 26 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 22 }]
+    ws["!autofilter"] = { ref: `A1:J${rows.length}` }
+    XLSX.utils.book_append_sheet(wb, ws, "현황")
+    if (logTicks.length > 0) {
+      const lws = XLSX.utils.aoa_to_sheet(buildLogRows(logTicks))
+      lws["!cols"] = [{ wch: 18 }, ...logSpotNames(logTicks).map(() => ({ wch: 16 }))]
+      XLSX.utils.book_append_sheet(wb, lws, "행사로그")
+    }
+    XLSX.writeFile(wb, csvFilename(city, new Date()).replace(/\.csv$/, ".xlsx"))
+  }, [city, spots, updatedAt, logTicks])
 
   // 상황보고 = 감시 지점만 — 복사 시점에 사고·통제(extra)를 감시 지점 수만큼만 팬아웃
   const copyReport = useCallback(async () => {
@@ -145,11 +165,12 @@ export default function OpsBoard({
         onAddMany={onAddMany}
         onClear={onClearWatch}
         onExportCsv={exportCsv}
+        onExportXlsx={() => void exportXlsx()}
         onCopyReport={watch.length > 0 ? copyReport : undefined}
         alertsEnabled={alertsEnabled}
         alertsPermission={alertsPermission}
         onToggleAlerts={onToggleAlerts}
-        logCount={logCount}
+        logCount={logTicks.length}
         onExportLog={onExportLog}
         onClearLog={onClearLog}
       />

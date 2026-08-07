@@ -160,6 +160,8 @@ export const ZH: UIStrings = {
   opsExportCsv: "CSV",
   opsCopyReport: "复制状况报告",
   opsPrintReport: "打印报告",
+  opsExportXlsx: "XLSX",
+  opsExportXlsxNote: "现况+活动日志两个工作表，含列宽与自动筛选",
   opsLogExport: (n) => `活动日志CSV (${n}次)`,
   opsLogNote: "监控面板开启期间，每次刷新记录监控地点的等级 — 用于活动后报告的时间轴表格",
   opsLogClear: "清除活动日志",
