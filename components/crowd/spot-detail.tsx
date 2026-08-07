@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert, Waves } from "lucide-react"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
-import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange } from "@/lib/crowd/i18n"
+import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange, trRoad } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
 import SpotChart from "@/components/crowd/spot-chart"
 import SpotHeatmap from "@/components/crowd/spot-heatmap"
@@ -224,7 +224,7 @@ export default function SpotDetail({
             {extra?.road && (
               <JumpChip
                 icon={<CarFront className="h-3 w-3" />}
-                value={extra.road.idx}
+                value={trRoad(extra.road.idx, lang)}
                 color={textColor(extra.road.color, light)}
                 target="crowd-sec-road"
               />
