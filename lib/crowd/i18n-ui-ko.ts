@@ -124,6 +124,12 @@ export const KO = {
   busPick: "지역을 고르고 노선을 선택하세요",
   apSpots: (n: number) => `${n}면`,
   apMore: (n: number) => `외 ${n}편`,
+  apInoutTitle: "입국장별 예상 인원",
+  apInoutNote: "공항공사 예고 자료(매일 17시 갱신) · 실측 아님",
+  apTrainTitle: "공항철도",
+  trainAll: "일반열차 · 서울역행",
+  trainExpress: "직통열차",
+  apTrainNote: "공식 시각표 기준 · 토·일=휴일 시간표, 공휴일 미반영",
   // CCTV
   cctvTitle: "주변 CCTV",
   noVideo: "영상 없음",

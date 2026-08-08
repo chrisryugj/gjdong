@@ -4,9 +4,16 @@
 // 데이터: /api/crowd/airport (도착·택시 2분 캐시, 주차 동봉) · ?busArea=/?routeId=(6h 캐시)
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bus, CarTaxiFront, LoaderCircle, PlaneLanding, SquareParking } from "lucide-react"
+import { Bus, CarTaxiFront, LoaderCircle, PlaneLanding, SquareParking, TramFront } from "lucide-react"
 import { trArrStat } from "@/lib/crowd/i18n"
-import type { AirportArrival, AirportTaxi, BusDetail, BusRoute } from "@/lib/crowd/incheon-airport"
+import type {
+  AirportArrival,
+  AirportTaxi,
+  ArexStation,
+  BusDetail,
+  BusRoute,
+  InoutForecast,
+} from "@/lib/crowd/incheon-airport"
 import type { CrowdParkingLot } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 
@@ -14,6 +21,12 @@ interface BoardData {
   arrivals: AirportArrival[]
   taxi: AirportTaxi | null
   parking: CrowdParkingLot[]
+  inout: { t1: InoutForecast | null; t2: InoutForecast | null } | null
+}
+
+interface ArexData {
+  t1: ArexStation | null
+  t2: ArexStation | null
 }
 
 // 지역 탭 — id는 원천 코드(1서울 2경기 3인천 4강원 5충청 7전라 6경상), 라벨은 cityNames와 무관한 짧은 지명
@@ -47,6 +60,21 @@ export default function AirportBoard({ light, updatedAt }: { light: boolean; upd
   const [routeId, setRouteId] = useState<string | null>(null)
   const [busDetail, setBusDetail] = useState<BusDetail | null>(null)
   const [busLoading, setBusLoading] = useState(false)
+  const [arex, setArex] = useState<ArexData | null>(null)
+
+  // 공항철도 시각표 — 하루 단위 데이터라 마운트 시 1회
+  useEffect(() => {
+    let alive = true
+    void fetch("/api/crowd/airport?arex=1")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d) setArex(d as ArexData)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // 본판은 목록 갱신 주기에 맞춰 재조회 (숨김탭 일시정지 등 폴링 정책은 상위가 이미 처리)
   useEffect(() => {
@@ -199,6 +227,38 @@ export default function AirportBoard({ light, updatedAt }: { light: boolean; upd
           {arrivals.length > shownArrivals.length && (
             <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.apMore(arrivals.length - shownArrivals.length)}</p>
           )}
+          {/* 입국장별 예상 인원 — 지금·다음 시간대 (마중객이 어느 문 앞이 붐빌지) */}
+          {board.inout && (board.inout.t1 || board.inout.t2) && (
+            <div className="mt-2 border-t border-[var(--cp-border-faint)] pt-2">
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+                {t.apInoutTitle}
+              </p>
+              {(["t1", "t2"] as const).map((term) => {
+                const fc = board.inout?.[term]
+                if (!fc) return null
+                const hourNow = new Date(Date.now() + 9 * 3600 * 1000).getUTCHours()
+                const slots = [hourNow, (hourNow + 1) % 24].map((h) =>
+                  fc.rows.find((r) => r.hour.startsWith(String(h).padStart(2, "0"))),
+                )
+                return (
+                  <div key={term} className="py-0.5">
+                    {slots.map(
+                      (row) =>
+                        row && (
+                          <p key={row.hour} className="text-[12px] text-[var(--cp-text-muted)]">
+                            <span className="font-semibold text-[var(--cp-text)]">{term.toUpperCase()}</span>{" "}
+                            <span className="font-mono tabular-nums">{row.hour}</span>
+                            {" · "}
+                            {fc.labels.map((lb, i) => `${lb} ${row.counts[i]?.toLocaleString() ?? 0}`).join(" · ")}
+                          </p>
+                        ),
+                    )}
+                  </div>
+                )
+              })}
+              <p className="mt-0.5 text-[10px] text-[var(--cp-text-faint)]">{t.apInoutNote}</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -241,6 +301,47 @@ export default function AirportBoard({ light, updatedAt }: { light: boolean; upd
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── 공항철도 — 다음 열차(서울역 방면) · 공식 시각표 SSR 파싱, 토·일=휴일 다이어 */}
+      {arex && (arex.t1 || arex.t2) && (
+        <section>
+          <SectionHead icon={<TramFront className="h-3.5 w-3.5" />} title={t.apTrainTitle} />
+          {(() => {
+            const kst = new Date(Date.now() + 9 * 3600 * 1000)
+            const isHoliday = kst.getUTCDay() === 0 || kst.getUTCDay() === 6
+            const rows: Array<{ term: string; label: string; times: string[] }> = []
+            for (const [term, stn] of [
+              ["T1", arex.t1],
+              ["T2", arex.t2],
+            ] as const) {
+              if (!stn) continue
+              const day = isHoliday ? stn.holiday : stn.weekday
+              rows.push({ term, label: t.trainAll, times: day.all })
+              rows.push({ term, label: t.trainExpress, times: day.express })
+            }
+            return (
+              <ul>
+                {rows.map(({ term, label, times }) => {
+                  const next = times.filter((x) => x >= nowKst).slice(0, 3)
+                  return (
+                    <li key={term + label} className="flex items-baseline gap-2 py-0.5">
+                      <span className="w-7 shrink-0 text-[12px] font-semibold text-[var(--cp-text)]">{term}</span>
+                      <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--cp-text-muted)]">{label}</span>
+                      <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text)]">
+                        {next.length > 0 ? next.join(" · ") : `${t.busFirst} ${times[0] ?? "—"}`}
+                      </span>
+                      <span className="hidden shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-faint)] sm:inline">
+                        {t.busLast} {times[times.length - 1] ?? "—"}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+          })()}
+          <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">{t.apTrainNote}</p>
         </section>
       )}
 
