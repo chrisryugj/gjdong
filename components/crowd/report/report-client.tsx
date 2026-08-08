@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 import type { CrowdDetail, CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
+import { districtOf } from "@/lib/crowd/districts"
 import { logStorageKey, sparkSeries, type OpsLogTick } from "@/lib/crowd/oplog"
 import { fitView } from "@/lib/crowd/map-fit"
 
@@ -120,6 +121,20 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
     return model.scope === "watch" ? `감시 지점 ${model.totalCount}곳` : `전 지점 ${model.totalCount}곳`
   }, [model])
 
+  // 어느 구역의 보고인지 제목에 명시 — 감시 지점의 자치구 집합. 3개까지 나열, 그 이상은 "외 N개 구".
+  // 전 지점 보고(도시 전역)·미매핑 도시(인천공항)는 도시명만.
+  const districtsTitle = useMemo(() => {
+    if (!model || model.scope !== "watch" || mapSpots.length === 0) return null
+    const set = new Set<string>()
+    for (const s of mapSpots) {
+      const d = districtOf(city, s.name)
+      if (d) set.add(d)
+    }
+    if (set.size === 0) return null
+    const sorted = Array.from(set).sort((a, b) => a.localeCompare(b, "ko"))
+    return sorted.length <= 3 ? sorted.join("·") : `${sorted[0]} 외 ${sorted.length - 1}개 구`
+  }, [model, mapSpots, city])
+
   // 조회하지 않는 값의 열은 "전부 —"로 남기지 않고 열 자체를 뺀다 (전 지점=121콜 방지, 도시별 원천 부재)
   const showPeople = model?.scope === "watch" && CITY_CAPS[city].opsDetail === "full"
   const showNotes = model?.scope === "watch" && CITY_CAPS[city].extra
@@ -153,7 +168,8 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
   return (
     <div className="min-h-dvh bg-neutral-100 text-neutral-900 print:bg-white">
       {/* @page 규격 — A4 세로, 결재 문서 여백 */}
-      <style>{`@page { size: A4 portrait; margin: 18mm 16mm; } @media print { .report-sheet { box-shadow: none !important; margin: 0 !important; width: auto !important; min-height: 0 !important; padding: 0 !important; } .report-sheet .leaflet-control-zoom { display: none !important; } }`}</style>
+      {/* 지점 이름표는 crowd-page 테마 변수 밖이라 보고서 전용 흑백 스타일을 따로 준다 (인쇄 대비) */}
+      <style>{`@page { size: A4 portrait; margin: 18mm 16mm; } @media print { .report-sheet { box-shadow: none !important; margin: 0 !important; width: auto !important; min-height: 0 !important; padding: 0 !important; } .report-sheet .leaflet-control-zoom { display: none !important; } } .report-sheet .leaflet-tooltip.crowd-name-label { background: #fff; border: 1px solid #d4d4d4; color: #171717; border-radius: 999px; padding: 0 5px; font-size: 9px; line-height: 1.6; box-shadow: none; opacity: 0.95; } .report-sheet .leaflet-tooltip.crowd-name-label::before { display: none; }`}</style>
 
       {/* 화면 전용 툴바 — 안내 문구는 폭이 되는 md부터 (모바일은 버튼 짤림의 주범이었다) */}
       <div className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur print:hidden">
@@ -185,7 +201,10 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           <p className="font-mono text-[11px] tracking-widest text-neutral-400">
             {CITIES[city].nameKo.toUpperCase()} CROWD RADAR — SITUATION REPORT
           </p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-tight">{model.cityName} 인파 상황보고서</h1>
+          <h1 className="mt-1 text-[26px] font-bold tracking-tight">
+            {model.cityName}
+            {districtsTitle ? ` ${districtsTitle}` : ""} 인파 상황보고서
+          </h1>
         </header>
 
         {/* 메타 표 — 모바일은 2열(라벨·값), md부터 4열 */}
@@ -227,6 +246,9 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                 onSelect={() => {}}
                 center={fitView(mapSpots, city).center}
                 zoom={fitView(mapSpots, city).zoom}
+                // fitView는 ~700px 박스 근사라 230px 배치도에선 지점이 잘린다 — 실좌표 fitBounds로 보정
+                fitCity={city}
+                showLabels
               />
             </div>
           </section>
