@@ -1,6 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { parseArrivals, parseBusDetail, parseBusRoutes, parseTaxiPage } from "../lib/crowd/incheon-airport"
+import {
+  parseArexStation,
+  parseArrivals,
+  parseBusDetail,
+  parseBusRoutes,
+  parseInoutForecast,
+  parseTaxiPage,
+} from "../lib/crowd/incheon-airport"
 
 // 인천공항 실황 보드 파서 특성화 — 픽스처는 2026-08-08 실측 응답 축약본.
 // 핵심 계약: 코드셰어 본편 우선 · SSR 표 구조 변경 시 null(지어내지 않기) · 시간표 블록 수집.
@@ -89,4 +96,45 @@ test("parseBusDetail: 첫차·막차·요금·운수사·시간표 블록 (운�
   assert.equal(d.company, "공항리무진(02-2664-9898)")
   assert.equal(d.tables.length, 2)
   assert.deepEqual(d.tables[0], { label: "T1/평일", times: ["05:29", "05:59", "06:24"] })
+})
+
+// ── 입국장별 예상 인원 (예상 혼잡도 SSR 표)
+const INOUT_HTML = `<thead> <tr> <th rowspan="2">시간</th> <th colspan="5" class="border">입국장</th> <th colspan="6">출국장</th> </tr>
+  <tr> <th class="color">A,B</th> <th class="color">C</th> <th class="color">D</th> <th class="color">E,F</th> <th class="color border total">합계</th>
+  <th class="color">1</th> <th class="color">2</th> <th class="color">3</th> <th class="color">4</th> <th class="color">5,6</th> <th class="color total">합계</th> </tr> </thead>
+  <tbody> <tr> <th>07~08시</th> <td>1,902</td> <td>373</td> <td>373</td> <td>1616</td> <td class="total">4,264</td> <td>0</td> <td>1682</td> <td>1235</td> <td>1142</td> <td>220</td> <td class="total">4279</td> </tr> </tbody>`
+
+test("parseInoutForecast: 입국장 그룹 라벨과 시간대별 인원 (출국장 열은 버린다)", () => {
+  const fc = parseInoutForecast(INOUT_HTML)
+  assert.ok(fc)
+  assert.deepEqual(fc.labels, ["A,B", "C", "D", "E,F"])
+  assert.equal(fc.rows.length, 1)
+  assert.deepEqual(fc.rows[0], { hour: "07~08시", counts: [1902, 373, 373, 1616], total: 4264 })
+})
+
+test("parseInoutForecast: 표 구조가 다르면 null", () => {
+  assert.equal(parseInoutForecast("<table><thead><tr><th>없음</th></tr></thead></table>"), null)
+})
+
+// ── 공항철도 시각표 (airportrailroad.com SSR — A010 직통·B010 일반, 타행선 B040은 제외)
+const arexTable = (kind: string) => `열차시각표(${kind})_서울역 방면</caption><tbody>
+  <tr> <td class="pcBlind">5</td> <td><div>
+    <span data-id="B010" data-expr="0" class=""> 08 </span>
+    <span data-id="A010" data-expr="0" class=""> 16 </span>
+    <span data-id="B040" data-expr="0" class=""> 20 </span>
+  </div></td> </tr>
+  <tr> <td class="pcBlind">23</td> <td><div>
+    <span data-id="B010" data-expr="0" class=""> 50 </span>
+  </div></td> </tr></tbody></table>`
+
+test("parseArexStation: 평일·휴일 표에서 직통(A010)·일반 서울역행(B010)만 수집", () => {
+  const st = parseArexStation(arexTable("평일") + arexTable("휴일"))
+  assert.ok(st)
+  assert.deepEqual(st.weekday.all, ["05:08", "23:50"])
+  assert.deepEqual(st.weekday.express, ["05:16"])
+  assert.deepEqual(st.holiday.all, ["05:08", "23:50"])
+})
+
+test("parseArexStation: 표가 하나라도 없으면 null (반쪽 시각표 금지)", () => {
+  assert.equal(parseArexStation(arexTable("평일")), null)
 })

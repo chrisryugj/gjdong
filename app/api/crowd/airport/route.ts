@@ -1,5 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { BUS_AREAS, fetchAirportBoard, fetchBusDetail, fetchBusRoutes } from "@/lib/crowd/incheon-airport"
+import {
+  BUS_AREAS,
+  fetchAirportBoard,
+  fetchArexTimetables,
+  fetchBusDetail,
+  fetchBusRoutes,
+  fetchInoutForecast,
+} from "@/lib/crowd/incheon-airport"
 import { fetchParking } from "@/lib/crowd/incheon"
 
 export const dynamic = "force-dynamic"
@@ -24,8 +31,15 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json({ routes: await fetchBusRoutes(area) }, { headers: BUS_HEADERS })
     }
-    const [board, parking] = await Promise.all([fetchAirportBoard(), fetchParking().catch(() => [])])
-    return NextResponse.json({ ...board, parking, updatedAt: new Date().toISOString() }, { headers: LIVE_HEADERS })
+    if (sp.get("arex") != null) {
+      return NextResponse.json(await fetchArexTimetables(), { headers: BUS_HEADERS })
+    }
+    const [board, parking, inout] = await Promise.all([
+      fetchAirportBoard(),
+      fetchParking().catch(() => []),
+      fetchInoutForecast().catch(() => null),
+    ])
+    return NextResponse.json({ ...board, parking, inout, updatedAt: new Date().toISOString() }, { headers: LIVE_HEADERS })
   } catch (error) {
     console.error("[crowd/airport] API error:", error instanceof Error ? error.message : "Unknown error")
     return NextResponse.json({ error: "공항 실황을 불러오지 못했습니다." }, { status: 502 })

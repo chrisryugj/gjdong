@@ -152,6 +152,118 @@ const boardSnapshot = createSnapshot(120_000, async (): Promise<AirportBoardData
 
 export const fetchAirportBoard = () => boardSnapshot.get()
 
+// ── 입국장별 예상 인원 (공항 예상 혼잡도, 매일 17시 갱신 예고 자료) ──────────
+// POST /pni/ap_ko/statisticPredictCrowdedOfInout.do — layout=hex("ap_ko@@883@@fnct1").
+// 표: thead 2행째가 입국장 그룹(첫 "합계" 전까지) → 출국장 열. tbody 행 = "HH~HH시" + 숫자들.
+
+export interface InoutForecast {
+  labels: string[] // 입국장 그룹 ["A,B","C","D","E,F"](T1) — 터미널마다 다르다
+  rows: Array<{ hour: string; counts: number[]; total: number }>
+}
+
+export function parseInoutForecast(html: string): InoutForecast | null {
+  const flat = html.replace(/\s+/g, " ")
+  const head = /<thead>\s*<tr>.*?<\/tr>\s*<tr>(.*?)<\/tr>\s*<\/thead>/.exec(flat)?.[1] ?? ""
+  const labels: string[] = []
+  for (const m of head.matchAll(/<th[^>]*>([^<]+)<\/th>/g)) labels.push(m[1].trim())
+  const nGroups = labels.indexOf("합계")
+  if (nGroups <= 0) return null
+  const rows: InoutForecast["rows"] = []
+  for (const m of flat.matchAll(/<th>(\d{2}~\d{2}시)<\/th>((?:\s*<td[^>]*>[\d,]*<\/td>)+)/g)) {
+    const nums = Array.from(m[2].matchAll(/<td[^>]*>([\d,]*)<\/td>/g)).map((x) =>
+      Number.parseInt(x[1].replace(/,/g, "") || "0", 10),
+    )
+    if (nums.length <= nGroups) continue
+    rows.push({ hour: m[1], counts: nums.slice(0, nGroups), total: nums[nGroups] })
+  }
+  return rows.length > 0 ? { labels: labels.slice(0, nGroups), rows } : null
+}
+
+async function fetchInoutOne(selTm: "T1" | "T2"): Promise<InoutForecast | null> {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000)
+  const pday = kst.toISOString().slice(0, 10).replace(/-/g, "")
+  try {
+    const res = await fetch("https://www.airport.kr/pni/ap_ko/statisticPredictCrowdedOfInout.do", {
+      method: "POST",
+      headers: { ...FORM, referer: "https://www.airport.kr/ap_ko/883/subview.do" },
+      body: new URLSearchParams({ selTm, pday, layout: "61705f6b6f40403838334040666e637431", siteId: "ap_ko" }).toString(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!res.ok) return null
+    return parseInoutForecast(await res.text())
+  } catch {
+    return null
+  }
+}
+
+// 예고 자료는 하루 1회(17시) 갱신 — 1시간 캐시
+const inoutSnapshot = createSnapshot(3600_000, async () => {
+  const [t1, t2] = await Promise.all([fetchInoutOne("T1"), fetchInoutOne("T2")])
+  return { t1, t2 }
+})
+
+export const fetchInoutForecast = () => inoutSnapshot.get()
+
+// ── 공항철도 시각표 (airportrailroad.com SSR — 공식 API 없음, 일 1회 파싱) ────
+// /train/normal/info/{100|110}/0 페이지에 평일·휴일 표가 함께 SSR된다.
+// 분 셀 span의 data-id: A010=직통열차 · B010=일반열차(서울역행) — DMC행(B040)·검암행(B070)은 제외.
+
+export interface ArexDayTimes {
+  express: string[] // 직통 "HH:MM" 정렬
+  all: string[] // 일반열차(서울역행)
+}
+export interface ArexStation {
+  weekday: ArexDayTimes
+  holiday: ArexDayTimes
+}
+
+export function parseArexStation(html: string): ArexStation | null {
+  const dayOf = (kind: "평일" | "휴일"): ArexDayTimes | null => {
+    const i = html.indexOf(`열차시각표(${kind})_서울역 방면`)
+    if (i < 0) return null
+    const seg = html.slice(i, html.indexOf("</table>", i))
+    const out: ArexDayTimes = { express: [], all: [] }
+    for (const row of seg.matchAll(/<td class="pcBlind">(\d{1,2})<\/td>([\s\S]*?)<\/tr>/g)) {
+      const hour = row[1].padStart(2, "0")
+      // 원천 HTML은 속성마다 줄바꿈+깊은 들여쓰기라 여는 태그 닫힘(>)까지 수백 자를 허용해야 한다
+      for (const sp of row[2].matchAll(/data-id="([AB]010)"[\s\S]{0,400}?>\s*(\d{1,2})\s*<\/span>/g)) {
+        const t = `${hour}:${sp[2].padStart(2, "0")}`
+        if (sp[1] === "A010") out.express.push(t)
+        else out.all.push(t)
+      }
+    }
+    out.express.sort()
+    out.all.sort()
+    return out.all.length > 0 || out.express.length > 0 ? out : null
+  }
+  const weekday = dayOf("평일")
+  const holiday = dayOf("휴일")
+  return weekday && holiday ? { weekday, holiday } : null
+}
+
+async function fetchArexOne(stn: "100" | "110"): Promise<ArexStation | null> {
+  try {
+    const res = await fetch(`https://www.airportrailroad.com/train/normal/info/${stn}/0`, {
+      headers: { "user-agent": "Mozilla/5.0" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return null
+    return parseArexStation(await res.text())
+  } catch {
+    return null
+  }
+}
+
+// 시각표는 개정 전까지 고정 — 24시간 캐시
+const arexSnapshot = createSnapshot(24 * 3600_000, async () => {
+  const [t1, t2] = await Promise.all([fetchArexOne("100"), fetchArexOne("110")])
+  return { t1, t2 }
+})
+
+export const fetchArexTimetables = () => arexSnapshot.get()
+
 // ── 공항버스 ────────────────────────────────────────────────────
 
 export const BUS_AREAS = [
