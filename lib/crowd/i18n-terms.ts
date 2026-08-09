@@ -137,6 +137,20 @@ const DISASTER_T: Record<string, [string, string, string]> = {
   안전안내: ["Safety advisory", "安全のお知らせ", "安全提示"],
   위급재난: ["Emergency alert", "緊急災害", "紧急灾难"],
   긴급재난: ["Emergency alert", "緊急災害", "紧急灾难"],
+  // 기상특보 유형·단계 (safety.ts가 기본어+단계로 쪼개 보낸다: "폭염"+"경보")
+  한파: ["Cold wave", "寒波", "寒潮"],
+  건조: ["Dry weather", "乾燥", "干燥"],
+  풍랑: ["High seas", "波浪", "风浪"],
+  폭풍해일: ["Storm surge", "高潮", "风暴潮"],
+  지진해일: ["Tsunami", "津波", "海啸"],
+  해일: ["Storm surge", "高潮", "海啸"],
+  황사: ["Yellow dust", "黄砂", "沙尘"],
+  안개: ["Dense fog", "濃霧", "大雾"],
+  경보: ["warning", "警報", "警报"],
+  주의보: ["advisory", "注意報", "预警"],
+  지진: ["Earthquake", "地震", "地震"],
+  산불: ["Wildfire", "山火事", "山火"],
+  교통통제: ["Road control", "交通規制", "交通管制"],
 }
 
 // ── 연령 라벨 (lib/crowd/seoul-rtd.ts의 한국어 라벨 기준)

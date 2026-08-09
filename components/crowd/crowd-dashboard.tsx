@@ -14,6 +14,7 @@ import SpotListPanel from "@/components/crowd/spot-list-panel"
 import { LangProvider, useLang } from "@/components/crowd/lang-context"
 import { AutoMarquee, formatKm, haversineKm, LevelBadge, LEVEL_ORDER, type AddressPin } from "@/components/crowd/shared"
 import TimeLens from "@/components/crowd/time-lens"
+import { useBaseline } from "@/components/crowd/hooks/use-baseline"
 import { useCrowdData } from "@/components/crowd/hooks/use-crowd-data"
 import { useInstallPrompt } from "@/components/crowd/hooks/use-install-prompt"
 import { useTimeLens } from "@/components/crowd/hooks/use-time-lens"
@@ -103,6 +104,8 @@ function CrowdDashboardInner() {
 
   // 시간대 패턴 렌즈 — 켜진 동안 지도 마커만 평균 패턴 색으로, 목록·헤더는 실시간 유지
   const timeLens = useTimeLens(city, mapSpots)
+  // 지금 vs 평소 — 누적 히트맵 대비 상대 배지 (서울·제주, 파일 1회 로드)
+  const baseline = useBaseline(city, spots)
   // 목록 hover ↔ 지도 마커 연동 (PC) — 상세로 들어가면 잔상이 남지 않게 해제
   const [hoverName, setHoverName] = useState<string | null>(null)
   useEffect(() => setHoverName(null), [selectedName])
@@ -433,6 +436,7 @@ function CrowdDashboardInner() {
                       origin={selectedSpot ? { lat: selectedSpot.lat, lng: selectedSpot.lng } : undefined}
                       isFav={favs.has(detail.name)}
                       onToggleFav={() => toggleFav(detail.name)}
+                      baselineNow={baseline?.[detail.name] ?? null}
                     />
                     {nearbyOfSelected.length > 0 && (
                       <div className="border-t border-[var(--cp-border)] px-4 pb-4 pt-3">
@@ -501,6 +505,7 @@ function CrowdDashboardInner() {
               light={light}
               loading={loading}
               error={error}
+              baseline={baseline}
               originDown={error && city === "jeju"}
               noSpotMatch={noSpotMatch}
               onApplyPreset={filters.applyPreset}

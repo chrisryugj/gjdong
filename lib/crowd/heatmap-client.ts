@@ -37,3 +37,21 @@ export function patternLevel(entry: HeatEntry | undefined | null, dow: number, h
   const avg = (entry.sum[dow]?.[hour] ?? 0) / cnt
   return Math.min(Math.max(Math.round(avg), 1), 4)
 }
+
+// ── 지금 vs 평소 (누적 히트맵 대비 현재 등급) — 목록 배지·상세 헤드라인 공용
+export type BaselineDelta = "above" | "below" | "usual"
+
+/** 현재 등급을 같은 요일·시각의 평균과 비교 — 표본 3회 미만이면 판단하지 않는다(null) */
+export function baselineDelta(
+  entry: HeatEntry | undefined | null,
+  levelNum: number,
+  dow: number,
+  hour: number,
+): BaselineDelta | null {
+  if (!entry || levelNum <= 0) return null
+  if ((entry.cnt[dow]?.[hour] ?? 0) < 3) return null
+  const base = patternLevel(entry, dow, hour)
+  if (base <= 0) return null
+  const diff = levelNum - base
+  return diff >= 1 ? "above" : diff <= -1 ? "below" : "usual"
+}

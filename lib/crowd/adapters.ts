@@ -16,6 +16,7 @@ import { fetchBusanDetail, fetchBusanExtra, fetchBusanSpots } from "@/lib/crowd/
 import { fetchGangwonDetail, fetchGangwonExtra, fetchGangwonSpots } from "@/lib/crowd/gangwon"
 import { fetchIncheonDetail, fetchIncheonExtra, fetchIncheonSpots } from "@/lib/crowd/incheon"
 import { augmentWithTopis } from "@/lib/crowd/topis"
+import { fetchSafety } from "@/lib/crowd/safety"
 import type { CityId } from "@/lib/crowd/cities"
 
 export interface CrowdAdapter {
@@ -26,7 +27,7 @@ export interface CrowdAdapter {
   fetchDetail(spot: string): Promise<CrowdDetail>
   /** 부가정보(사고·주차·행사·도로·따릉이). 부재 = CITY_CAPS[city].extra false와 일치해야 한다 */
   fetchExtra?(spot: string): Promise<CrowdExtra>
-  /** 재난문자 — 서울만 */
+  /** 안전 정보(기상특보 + 당일 재난문자) — 전 도시. 키 미승인 축은 빈 배열로 강등 */
   fetchDisaster?(): Promise<CrowdDisaster[]>
 }
 
@@ -77,14 +78,23 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
       return { ...detail, city: "seoul" }
     },
     fetchExtra: fetchSpotExtra,
-    fetchDisaster: fetchDisasterToday,
+    async fetchDisaster() {
+      // RTD 재난문자가 이미 당일 서울 발송분 — 행안부 원천은 중복이라 특보만 얹는다
+      const [warnings, msgs] = await Promise.all([
+        fetchSafety("seoul", { withEmergency: false }).catch(() => []),
+        fetchDisasterToday().catch(() => []),
+      ])
+      return [...warnings, ...msgs]
+    },
   },
   jeju: {
     id: "jeju",
     cacheHeaders: CACHE_900,
     fetchSpots: fetchJejuSpots,
     fetchDetail: fetchJejuDetail,
-    // 제주는 extra 원천이 없다 — CITY_CAPS.jeju.extra=false와 쌍
+    // 제주는 extra 원천이 없다 — CITY_CAPS.jeju.extra=false와 쌍.
+    // 안전 정보는 GEONET과 무관한 별도 원천이라 원천 보호 제약에 걸리지 않는다.
+    fetchDisaster: () => fetchSafety("jeju"),
   },
   busan: {
     id: "busan",
@@ -92,6 +102,7 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
     fetchSpots: fetchBusanSpots,
     fetchDetail: fetchBusanDetail,
     fetchExtra: fetchBusanExtra,
+    fetchDisaster: () => fetchSafety("busan"),
   },
   gangwon: {
     id: "gangwon",
@@ -99,6 +110,7 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
     fetchSpots: fetchGangwonSpots,
     fetchDetail: fetchGangwonDetail,
     fetchExtra: fetchGangwonExtra,
+    fetchDisaster: () => fetchSafety("gangwon"),
   },
   incheon: {
     id: "incheon",
@@ -106,5 +118,6 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
     fetchSpots: fetchIncheonSpots,
     fetchDetail: fetchIncheonDetail,
     fetchExtra: fetchIncheonExtra,
+    fetchDisaster: () => fetchSafety("incheon"),
   },
 }

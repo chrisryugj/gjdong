@@ -169,12 +169,23 @@ export interface CrowdBikeStation {
   lng: number
 }
 
+/** 명소 근처 지하철역 실시간 도착 — RTD `subway` 엔드포인트 (무키, 서울 전용) */
+export interface CrowdSubwayStation {
+  line: string // "3" · "경의중앙" 등
+  station: string
+  lat: number
+  lng: number
+  /** 도착 안내 상위 4건 — msg는 "5분 30초 후 (을지로3가)" 꼴 원문 */
+  arrivals: Array<{ dest: string; dir: string; msg: string }>
+}
+
 export interface CrowdExtra {
   alerts: CrowdAlert[]
   parking: { available: number; percent: number; lots: CrowdParkingLot[] } | null
   events: CrowdEvent[]
   road: CrowdRoadInfo | null
   bike: { bikes: number; stations: CrowdBikeStation[] } | null
+  subway?: CrowdSubwayStation[]
   updatedAt: string
 }
 
@@ -199,12 +210,13 @@ export async function fetchDisasterToday(name = "광화문·덕수궁"): Promise
 }
 
 export async function fetchSpotExtra(name: string): Promise<CrowdExtra> {
-  const [accRaw, parkingRaw, eventRaw, roadRaw, bikeRaw] = await Promise.all([
+  const [accRaw, parkingRaw, eventRaw, roadRaw, bikeRaw, subwayRaw] = await Promise.all([
     rtdFetch("acc", { hotspotNm: name }).catch(() => null),
     rtdFetch("parking", { hotspotNm: name }).catch(() => null),
     rtdFetch("event", { hotspotNm: name }).catch(() => null),
     rtdFetch("road", { hotspotNm: name }).catch(() => null),
     rtdFetch("bike", { hotspotNm: name }).catch(() => null),
+    rtdFetch("subway", { hotspotNm: name }).catch(() => null),
   ])
 
   const alerts: CrowdAlert[] = (Array.isArray(accRaw) ? accRaw : [])
@@ -294,7 +306,33 @@ export async function fetchSpotExtra(name: string): Promise<CrowdExtra> {
     .slice(0, 24)
   const bike = stations.length > 0 ? { bikes: toNum(bk?.parkingBikeTotCnt), stations } : null
 
-  return { alerts, parking, events, road, bike, updatedAt: new Date().toISOString() }
+  const subway = parseSubwayRows((subwayRaw as { row?: unknown[] } | null)?.row)
+
+  return { alerts, parking, events, road, bike, subway, updatedAt: new Date().toISOString() }
+}
+
+// 지하철 응답 실측(2026-08-09): {line: HTML 아이콘 문자열(버림), row: [{호선, STATN_NM, Latitude,
+// Longitude, realtimeArrivalList: [{arvlMsg2 "5분 30초 후 (을지로3가)", bstatnNm 행선, updnLine}]}]}
+export function parseSubwayRows(rows: unknown[] | undefined): CrowdSubwayStation[] {
+  return (Array.isArray(rows) ? rows : [])
+    .map((r) => r as Record<string, unknown>)
+    .map((r) => ({
+      line: String(r["호선"] ?? "").trim(),
+      station: String(r.STATN_NM ?? "").trim(),
+      lat: toNum(r.Latitude),
+      lng: toNum(r.Longitude),
+      arrivals: (Array.isArray(r.realtimeArrivalList) ? r.realtimeArrivalList : [])
+        .map((a) => a as Record<string, string>)
+        .map((a) => ({
+          dest: (a.bstatnNm ?? "").trim(),
+          dir: (a.updnLine ?? "").trim(),
+          msg: (a.arvlMsg2 ?? "").trim(),
+        }))
+        .filter((a) => a.msg)
+        .slice(0, 4),
+    }))
+    .filter((s) => s.line && s.station && s.arrivals.length > 0)
+    .slice(0, 4)
 }
 
 /** 서울시 실시간도시데이터의 CCTV 라이브 플레이어 페이지 (HLS 프록시 내장, iframe 허용) */

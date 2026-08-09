@@ -1,9 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, Share2, SquareParking, Star, TriangleAlert, Waves } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Cctv, Check, ChevronDown, Instagram, MoveDown, MoveUp, PartyPopper, Share2, SquareParking, Star, TrainFront, TriangleAlert, Waves, Wind } from "lucide-react"
 import { CITY_CAPS } from "@/lib/crowd/cities"
 import { textColor, type CrowdDetail, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
+import type { AirInfo } from "@/lib/crowd/air"
+import type { TourEvent } from "@/lib/crowd/events"
+import { loadTourEvents, tourMatchRadius } from "@/lib/crowd/events-client"
+import type { BaselineDelta } from "@/lib/crowd/heatmap-client"
+import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
 import { trAge, trAlert, trBeach, trHour, trLevelMessages, trRange, trRoad } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
@@ -96,18 +101,24 @@ const BAR_COLORS = {
   light: { ageMax: "#0f172a", ageBase: "#94a3b8", residentL: "#94a3b8", residentR: "#1e293b" },
 }
 
+// 대기질 4단계 색 — 혼잡 등급 팔레트 재사용 (앱 전체가 같은 신호 체계를 쓰게)
+const AIR_COLORS = ["", "#00d369", "#ffb100", "#ff8040", "#ff3939"]
+
 export default function SpotDetail({
   detail,
   origin,
   light = false,
   isFav = false,
   onToggleFav,
+  baselineNow = null,
 }: {
   detail: CrowdDetail
   origin?: { lat: number; lng: number }
   light?: boolean
   isFav?: boolean
   onToggleFav?: () => void
+  /** 지금 vs 평소 (누적 히트맵 대비) — 서울·제주만, 표본 부족은 null */
+  baselineNow?: BaselineDelta | null
 }) {
   const { lang, t, spot: trSpotName, level: trLv } = useLang()
   const trAgeLabel = (label: string) => trAge(label, lang)
@@ -134,6 +145,44 @@ export default function SpotDetail({
       })
     return () => controller.abort()
   }, [detail.name, city])
+
+  // 대기질 — 시도당 1콜 스냅샷 위 조회라 가볍다. 실패·미승인 키는 섹션 미노출
+  const [air, setAir] = useState<AirInfo | null>(null)
+  useEffect(() => {
+    setAir(null)
+    if (!CITY_CAPS[city].air) return
+    const controller = new AbortController()
+    fetch(`/api/crowd/air?spot=${encodeURIComponent(detail.name)}&city=${city}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { air?: AirInfo | null } | null) => {
+        if (d?.air) setAir(d.air)
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [detail.name, city])
+
+  // 주변 축제·행사 (TourAPI, 제주·부산·강원) — 도시 목록에서 지점 반경으로 거른다
+  const [cityEvents, setCityEvents] = useState<TourEvent[] | null>(null)
+  useEffect(() => {
+    setCityEvents(null)
+    if (!CITY_CAPS[city].tourEvents) return
+    let alive = true
+    void loadTourEvents(city).then((events) => {
+      if (alive) setCityEvents(events)
+    })
+    return () => {
+      alive = false
+    }
+  }, [detail.name, city])
+  const tourEvents = useMemo(() => {
+    if (!cityEvents || !origin) return []
+    const radius = tourMatchRadius(city)
+    return cityEvents
+      .filter((e) => e.lat !== 0 && e.lng !== 0)
+      .map((e) => ({ ...e, meters: Math.round(distanceM(origin.lat, origin.lng, e.lat, e.lng)) }))
+      .filter((e) => e.meters <= radius)
+      .slice(0, 5)
+  }, [cityEvents, origin, city])
 
   const share = async () => {
     const url = window.location.href
@@ -207,8 +256,28 @@ export default function SpotDetail({
             </span>
           </p>
         )}
+        {/* 지금 vs 평소 — "붐빔"이 이 지점 기준 이례적인지 한 줄 판정 (누적 히트맵 대비) */}
+        {baselineNow && (
+          <p
+            title={t.baselineNote}
+            className={`mt-1 text-[13px] font-medium ${
+              baselineNow === "above"
+                ? light
+                  ? "text-orange-700"
+                  : "text-orange-400"
+                : baselineNow === "below"
+                  ? light
+                    ? "text-emerald-700"
+                    : "text-emerald-400"
+                  : "text-[var(--cp-text-dim)]"
+            }`}
+          >
+            {baselineNow === "above" ? t.baselineAbove : baselineNow === "below" ? t.baselineBelow : t.baselineUsual}
+            <span className="ml-1.5 font-normal text-[var(--cp-text-faint)]">· {t.baselineNote}</span>
+          </p>
+        )}
         {/* 요약 스트립 — 아래 섹션들의 답을 한 줄로, 칩 탭 = 해당 섹션 점프 */}
-        {(extra || detail.cctv.length > 0) && (
+        {(extra || detail.cctv.length > 0 || air) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {extra?.parking && (
               <JumpChip
@@ -244,6 +313,31 @@ export default function SpotDetail({
                 label={t.chipBike}
                 value={t.bikeCount(extra.bike.bikes)}
                 target="crowd-sec-bike"
+              />
+            )}
+            {extra?.subway && extra.subway.length > 0 && (
+              <JumpChip
+                icon={<TrainFront className="h-3 w-3" />}
+                label={t.chipSubway}
+                value={String(extra.subway.length)}
+                target="crowd-sec-subway"
+              />
+            )}
+            {air && air.grade > 0 && (
+              <JumpChip
+                icon={<Wind className="h-3 w-3" />}
+                label={t.chipAir}
+                value={t.airGrades[air.grade] ?? ""}
+                color={textColor(AIR_COLORS[air.grade], light)}
+                target="crowd-sec-air"
+              />
+            )}
+            {tourEvents.length > 0 && (
+              <JumpChip
+                icon={<PartyPopper className="h-3 w-3" />}
+                label={t.chipEvents}
+                value={String(tourEvents.length)}
+                target="crowd-sec-tour"
               />
             )}
             {detail.cctv.length > 0 && (
@@ -353,10 +447,130 @@ export default function SpotDetail({
       {/* CCTV — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름이라 상단 배치 */}
       <SpotCctv cctv={detail.cctv} origin={origin} />
 
-      {/* 부가정보: 주차·행사·도로·따릉이 */}
+      {/* 부가정보: 주차·행사·도로·지하철·따릉이 */}
       {extra && <SpotExtras extra={extra} origin={origin} light={light} />}
 
-      {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘. 원천 없는 도시(부산)는 생략 */}
+      {/* 주변 축제·행사 (TourAPI, 제주·부산·강원) — "왜 붐비는지"와 "갈 이유"를 같이 답한다 */}
+      {tourEvents.length > 0 && (
+        <div id="crowd-sec-tour" className="scroll-mt-2">
+          <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <PartyPopper className="h-3.5 w-3.5" /> {t.tourTitle}{" "}
+            <span className="font-mono tabular-nums">({tourEvents.length})</span>
+          </h3>
+          <ul className="overflow-hidden rounded-md border border-[var(--cp-border)]">
+            {tourEvents.map((ev) => {
+              const kstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+              const ongoing = ev.start <= kstToday && kstToday <= ev.end
+              const dday = Math.ceil((Date.parse(ev.start) - Date.parse(kstToday)) / 86400_000)
+              return (
+                <li key={ev.title} className="border-b border-[var(--cp-border-faint)] last:border-b-0">
+                  <a
+                    href={`https://map.kakao.com/link/map/${encodeURIComponent(ev.title)},${ev.lat},${ev.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-[var(--cp-hover)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] text-[var(--cp-text)]">
+                        {lang === "ko" ? ev.title : romanizeAddress(ev.title)}
+                      </p>
+                      <p className="truncate text-[12px] text-[var(--cp-text-dim)]">
+                        <span className="font-mono tabular-nums">
+                          {ev.start.slice(5).replace("-", ".")}~{ev.end.slice(5).replace("-", ".")}
+                        </span>
+                        {" · "}
+                        <span className="font-mono tabular-nums">{formatMeters(ev.meters)}</span>
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums ${
+                        ongoing
+                          ? `border-emerald-500/40 ${light ? "text-emerald-700" : "text-emerald-500"}`
+                          : "border-[var(--cp-border)] text-[var(--cp-text-dim)]"
+                      }`}
+                    >
+                      {ongoing ? t.tourOngoing : `D-${dday}`}
+                    </span>
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.tourNote}</p>
+        </div>
+      )}
+
+      {/* 대기질 — 나들이 판단의 마지막 관문. 지점 인근(자치구) 측정소 실시간 값 */}
+      {air && (
+        <div id="crowd-sec-air" className="scroll-mt-2">
+          <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <Wind className="h-3.5 w-3.5" /> {t.airTitle}
+          </h3>
+          <div className="flex items-center gap-2.5 rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2.5">
+            {air.grade > 0 && (
+              <span
+                className="shrink-0 rounded-full px-2 py-0.5 text-[12px] font-bold"
+                style={{
+                  color: textColor(AIR_COLORS[air.grade], light),
+                  background: `${AIR_COLORS[air.grade]}1f`,
+                  border: `1px solid ${AIR_COLORS[air.grade]}55`,
+                }}
+              >
+                {t.airGrades[air.grade]}
+              </span>
+            )}
+            <p className="min-w-0 flex-1 font-mono text-[13px] tabular-nums text-[var(--cp-text)]">
+              {air.pm25 != null && (
+                <span>
+                  PM2.5 <b className="text-[var(--cp-text-strong)]">{air.pm25}</b>
+                </span>
+              )}
+              {air.pm10 != null && (
+                <span>
+                  {air.pm25 != null && " · "}PM10 <b className="text-[var(--cp-text-strong)]">{air.pm10}</b>
+                </span>
+              )}
+              {air.o3 != null && <span> · O₃ {air.o3}</span>}
+            </p>
+          </div>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.airStation(air.station)}</p>
+        </div>
+      )}
+
+      {/* 날씨 */}
+      {detail.weather.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            {t.weatherTitle}
+          </h3>
+          <div className="scrollbar-thin flex gap-1 overflow-x-auto pb-1">
+            {detail.weather.map((w) => (
+              <div
+                key={w.hour}
+                className="flex min-w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-md border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] px-1.5 py-2"
+              >
+                <span className="text-[11px] text-[var(--cp-text-dim)]">{trHour(w.hour, lang)}</span>
+                <span className="font-mono text-[14px] font-semibold tabular-nums text-[var(--cp-text-strong)]">
+                  {w.temp != null ? `${w.temp}°` : "-"}
+                </span>
+                <span
+                  className={`font-mono text-[11px] tabular-nums ${
+                    (w.rainProb ?? 0) >= 60 ? (light ? "text-sky-600" : "text-sky-300") : "text-[var(--cp-text-faint)]"
+                  }`}
+                >
+                  {w.rainProb != null ? `${w.rainProb}%` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">
+            {city === "seoul" ? t.weatherNote : "Open-Meteo"}
+          </p>
+        </div>
+      )}
+
+      {/* 방문자 구성 (연령·성비·상주비) — 의사결정 가치가 낮은 꼬리라 기본 접힘·최하단.
+          원천 없는 도시(부산)는 생략 */}
       {detail.ages.length > 0 && (
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text)] [&::-webkit-details-marker]:hidden">
@@ -403,38 +617,6 @@ export default function SpotDetail({
           </div>
         </div>
       </details>
-      )}
-
-      {/* 날씨 */}
-      {detail.weather.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-            {t.weatherTitle}
-          </h3>
-          <div className="scrollbar-thin flex gap-1 overflow-x-auto pb-1">
-            {detail.weather.map((w) => (
-              <div
-                key={w.hour}
-                className="flex min-w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-md border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] px-1.5 py-2"
-              >
-                <span className="text-[11px] text-[var(--cp-text-dim)]">{trHour(w.hour, lang)}</span>
-                <span className="font-mono text-[14px] font-semibold tabular-nums text-[var(--cp-text-strong)]">
-                  {w.temp != null ? `${w.temp}°` : "-"}
-                </span>
-                <span
-                  className={`font-mono text-[11px] tabular-nums ${
-                    (w.rainProb ?? 0) >= 60 ? (light ? "text-sky-600" : "text-sky-300") : "text-[var(--cp-text-faint)]"
-                  }`}
-                >
-                  {w.rainProb != null ? `${w.rainProb}%` : ""}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">
-            {city === "seoul" ? t.weatherNote : "Open-Meteo"}
-          </p>
-        </div>
       )}
     </div>
   )

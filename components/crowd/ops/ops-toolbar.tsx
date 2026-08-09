@@ -1,12 +1,15 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
-import { Bell, BellOff, Check, ClipboardList, Download, History, Link2, Maximize, Minimize, Plus, Printer, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Bell, BellOff, Check, ClipboardList, Download, History, Link2, Maximize, Minimize, PartyPopper, Plus, Printer, X } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { TourEvent } from "@/lib/crowd/events"
+import { loadTourEvents, tourMatchRadius } from "@/lib/crowd/events-client"
 import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { districtOf, listDistricts } from "@/lib/crowd/districts"
 import { serializeSpotsParam, WATCH_MAX } from "@/lib/crowd/watchlist"
 import { useLang } from "@/components/crowd/lang-context"
+import { distanceM } from "@/components/crowd/shared"
 import { trDistrict } from "@/lib/crowd/i18n"
 
 /** 상황실 툴바 — 지점 추가(typeahead)·자치구 일괄 추가·링크 공유·전체화면 */
@@ -53,6 +56,33 @@ export default function OpsToolbar({
   const [isFull, setIsFull] = useState(false)
   const [maxHit, setMaxHit] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // 행사 연동 — 진행 중·예정 행사 주변 지점을 감시 후보로 (TourAPI 도시만, 패널 첫 오픈 시 로드)
+  const [eventsOpen, setEventsOpen] = useState(false)
+  const [tourEvents, setTourEvents] = useState<TourEvent[] | null>(null)
+  useEffect(() => {
+    if (!eventsOpen || tourEvents || !CITY_CAPS[city].tourEvents) return
+    let alive = true
+    void loadTourEvents(city).then((events) => {
+      if (alive) setTourEvents(events)
+    })
+    return () => {
+      alive = false
+    }
+  }, [eventsOpen, tourEvents, city])
+  // 행사별 매칭 지점 — 반경 내 지점이 있는 행사만
+  const eventMatches = useMemo(() => {
+    if (!tourEvents) return null
+    const radius = tourMatchRadius(city)
+    return tourEvents
+      .filter((e) => e.lat !== 0 && e.lng !== 0)
+      .map((e) => ({
+        event: e,
+        names: spots.filter((s) => distanceM(s.lat, s.lng, e.lat, e.lng) <= radius).map((s) => s.name),
+      }))
+      .filter((m) => m.names.length > 0)
+      .slice(0, 8)
+  }, [tourEvents, spots, city])
 
   const districts = useMemo(
     () => (CITY_CAPS[city].districts ? listDistricts(city, spots.map((s) => s.name)) : []),
@@ -200,6 +230,23 @@ export default function OpsToolbar({
 
         <span className="flex-1" />
 
+        {/* 행사 연동 — 행사 주변 지점 일괄 감시 (TourAPI 도시만) */}
+        {CITY_CAPS[city].tourEvents && (
+          <button
+            onClick={() => setEventsOpen((v) => !v)}
+            aria-pressed={eventsOpen}
+            title={t.opsEventsNote}
+            className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] transition-colors ${
+              eventsOpen
+                ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] font-medium text-[var(--cp-text-strong)]"
+                : "border-[var(--cp-border-strong)] bg-[var(--cp-panel)] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+            }`}
+          >
+            <PartyPopper className="h-3.5 w-3.5" />
+            {t.opsEvents}
+          </button>
+        )}
+
         {/* 붐빔 전환 알림 — 권한 요청은 이 클릭에서만. 폴링 편승이라 "약 5분 주기 감시" 명시 */}
         <button
           onClick={() => void onToggleAlerts()}
@@ -299,6 +346,63 @@ export default function OpsToolbar({
         </button>
       </div>
       {maxHit && <p className="mt-1.5 text-[12px] text-amber-500">{t.opsMaxSpots(WATCH_MAX)}</p>}
+      {/* 행사 연동 패널 — 행사별 매칭 지점을 한 번에 감시목록으로 */}
+      {eventsOpen && (
+        <div className="mt-2 rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)]">
+          <p className="border-b border-[var(--cp-border-faint)] px-3 py-1.5 text-[12px] text-[var(--cp-text-dim)]">
+            {t.opsEventsNote}
+          </p>
+          {eventMatches == null ? (
+            <p className="px-3 py-2 text-[12px] text-[var(--cp-text-faint)]">…</p>
+          ) : eventMatches.length === 0 ? (
+            <p className="px-3 py-2 text-[12px] text-[var(--cp-text-dim)]">{t.opsEventsNone}</p>
+          ) : (
+            <ul>
+              {eventMatches.map(({ event, names }) => {
+                const kstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+                const ongoing = event.start <= kstToday && kstToday <= event.end
+                const toAdd = names.filter((n) => !watch.includes(n))
+                return (
+                  <li
+                    key={event.title}
+                    className="flex items-center gap-2.5 border-b border-[var(--cp-border-faint)] px-3 py-2 last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] text-[var(--cp-text)]">
+                        {event.title}
+                        {ongoing && (
+                          <span className="ml-1.5 rounded-full border border-emerald-500/40 px-1.5 py-0.5 text-[11px] text-emerald-500">
+                            {t.tourOngoing}
+                          </span>
+                        )}
+                      </p>
+                      <p className="truncate text-[12px] text-[var(--cp-text-dim)]">
+                        <span className="font-mono tabular-nums">
+                          {event.start.slice(5).replace("-", ".")}~{event.end.slice(5).replace("-", ".")}
+                        </span>
+                        {" · "}
+                        {names.map((n) => trSpotName(n)).join(" · ")}
+                      </p>
+                    </div>
+                    {toAdd.length > 0 && (
+                      <button
+                        onClick={() => {
+                          // 상한 초과면 경고를 띄우되 잘라서라도 담는다 — 자치구 일괄 추가와 동일 정책
+                          guard(toAdd.length)
+                          onAddMany(toAdd)
+                        }}
+                        className="shrink-0 rounded-md border border-[var(--cp-border-strong)] px-2 py-1 text-[12px] text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]"
+                      >
+                        {t.opsEventsAddSpots(toAdd.length)}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
