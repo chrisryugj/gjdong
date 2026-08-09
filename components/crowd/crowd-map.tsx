@@ -23,6 +23,8 @@ interface CrowdMapProps {
   hoveredName?: string | null
   /** 명소 이름표 상시 표시 (기본 켬 — 토글로 끔). 켜면 hover 툴팁 대신 이름 pill이 붙는다 */
   showLabels?: boolean
+  /** 겹치는 이름표 컬링 (대시보드 전용) — 보고서 배치도는 전 지점 이름이 실려야 해서 끔 */
+  declutterLabels?: boolean
   /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
   opsLabels?: Map<string, string>
 }
@@ -37,7 +39,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, opsLabels }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -65,6 +67,37 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     if (!ready || !map || !center) return
     map.setView(center, zoom ?? map.getZoom())
   }, [ready, center, zoom])
+
+  // 이름표 겹침 컬링 — 겹치는 pill은 하나만 남긴다(선택 > 붐빔 순). 서울 121개가 도시 줌에서
+  // 서로를 뒤덮어, interactive 이름표를 탭하면 엉뚱한 위 pill이 가로채던 문제의 근본 수정.
+  // 숨김은 visibility(display 금지 — offsetWidth 측정이 0이 되어 다음 계산이 무너진다)
+  const declutterRef = useRef(declutterLabels)
+  declutterRef.current = declutterLabels
+  const cullLabels = useCallback(() => {
+    const map = mapInstanceRef.current
+    if (!map || !declutterRef.current) return
+    const kept: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+    const sel = selectedNameRef.current
+    const entries = [...markersRef.current.values()].sort(
+      (a, b) => Number(b.spot.name === sel) - Number(a.spot.name === sel) || b.spot.levelNum - a.spot.levelNum,
+    )
+    for (const { marker, spot } of entries) {
+      const el = marker.getTooltip()?.getElement()
+      if (!el) continue
+      const p = map.latLngToContainerPoint([spot.lat, spot.lng])
+      const w = el.offsetWidth || 64
+      const h = el.offsetHeight || 20
+      const rect = { x1: p.x + 8, y1: p.y - h / 2, x2: p.x + 8 + w, y2: p.y + h / 2 }
+      const overlaps = kept.some((r) => rect.x1 < r.x2 && rect.x2 > r.x1 && rect.y1 < r.y2 && rect.y2 > r.y1)
+      if (overlaps) el.classList.add("crowd-label-culled")
+      else {
+        el.classList.remove("crowd-label-culled")
+        kept.push(rect)
+      }
+    }
+  }, [])
+  const cullLabelsRef = useRef(cullLabels)
+  cullLabelsRef.current = cullLabels
 
   // 선택·hover 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
   const applyMarkerStates = useCallback(() => {
@@ -122,6 +155,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
       cctvLayerRef.current = L.layerGroup().addTo(map)
+      // 줌·팬마다 이름표 겹침 재계산 (declutter 미사용 호출부에선 즉시 반환)
+      map.on("zoomend moveend", () => cullLabelsRef.current())
       mapInstanceRef.current = map
       setReady(true)
     }
@@ -223,6 +258,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       markersRef.current.set(spot.name, { marker, spot })
     }
     applyMarkerStates()
+    // 툴팁 DOM은 addTo 직후 프레임에 붙는다 — 붙은 뒤 겹침 컬링
+    requestAnimationFrame(() => cullLabelsRef.current())
   }, [ready, spots, lang, applyMarkerStates, opsLabels, showLabels])
 
   // 선택 변경 반영
@@ -230,6 +267,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     selectedNameRef.current = selectedName
     if (!ready) return
     applyMarkerStates()
+    // 선택 지점 이름표는 컬링 최우선 생존 — 재계산
+    cullLabelsRef.current()
   }, [ready, selectedName, applyMarkerStates])
 
   // 목록 hover ↔ 지도 연동 — 마커 강조 + 툴팁 열기 (permanent 라벨을 쓰는 미니맵에선 미동작)
