@@ -13,6 +13,7 @@ import {
   type Lang,
   type UIStrings,
 } from "@/lib/crowd/i18n"
+import { DEFAULT_LANG, parseCrowdPathname } from "@/lib/crowd/crowd-url"
 
 interface LangContextValue {
   lang: Lang
@@ -32,14 +33,16 @@ export function useLang(): LangContextValue {
 }
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  // SSR·첫 페인트는 ko — 마운트 후 ?lang= → 저장값 → 브라우저 언어 순으로 확정
+  // SSR·첫 페인트는 ko — 마운트 후 ?lang= → 경로(/crowd/en) → 저장값 → 브라우저 언어 순으로 확정
   const [lang, setLangState] = useState<Lang>("ko")
 
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("lang")
-    if (isLang(param)) {
-      setLangState(param)
-      localStorage.setItem("crowdLang", param)
+    const fromPath = parseCrowdPathname(window.location.pathname).lang
+    const explicit = isLang(param) ? param : fromPath !== DEFAULT_LANG ? fromPath : null
+    if (explicit) {
+      setLangState(explicit)
+      localStorage.setItem("crowdLang", explicit)
       return
     }
     const stored = localStorage.getItem("crowdLang")

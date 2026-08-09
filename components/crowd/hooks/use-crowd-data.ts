@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState, type MutableRefObject } from "react"
 import type { CrowdDisaster, CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { CITY_CAPS, isCityId, type CityId } from "@/lib/crowd/cities"
+import { crowdPath, parseCrowdPathname } from "@/lib/crowd/crowd-url"
 
-/** 도시 확정(?city=) · 목록 로드 · 자동 폴링 — 도시 상태의 단일 소유자 */
+/** 도시 확정(경로·?city=) · 목록 로드 · 자동 폴링 — 도시 상태의 단일 소유자 */
 export function useCrowdData(
   cityRef: MutableRefObject<CityId>,
   onSilentDetailRefresh: () => void,
@@ -38,10 +39,11 @@ export function useCrowdData(
     }
   }, [cityRef])
 
-  // URL에서 도시 확정 → 이후 목록 로드 시작 (?city 없으면 서울, 고정 서피스는 URL 무시)
+  // URL에서 도시 확정 → 이후 목록 로드 시작.
+  // 고정 서피스(/gwangjin) → ?city= (기존 공유 링크 하위호환) → 경로(/crowd/busan) → 서울 순.
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get("city")
-    const resolved: CityId = fixedCity ?? (isCityId(raw) ? raw : "seoul")
+    const resolved: CityId = fixedCity ?? (isCityId(raw) ? raw : parseCrowdPathname(window.location.pathname).city)
     cityRef.current = resolved
     setCity(resolved)
   }, [cityRef, fixedCity])
@@ -81,13 +83,15 @@ export function useCrowdData(
     setLoading(true)
     setDisaster([])
     setDisasterOpen(false)
+    // 도시는 경로가 표현한다 — ?city=를 덧붙이면 경로와 쿼리가 어긋난 URL이 공유된다
+    const { lang } = parseCrowdPathname(window.location.pathname)
     const params = new URLSearchParams(window.location.search)
-    if (next === "seoul") params.delete("city")
-    else params.set("city", next)
+    params.delete("city")
     params.delete("spot")
     params.delete("spots") // 감시 목록은 도시 스코프 — 새 도시에서는 저장본을 다시 읽는다
     const qs = params.toString()
-    window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
+    const path = crowdPath(lang, next)
+    window.history.replaceState(null, "", qs ? `${path}?${qs}` : path)
     setCity(next)
   }, [])
 

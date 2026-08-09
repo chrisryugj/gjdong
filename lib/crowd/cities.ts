@@ -67,6 +67,20 @@ export const CITY_CAPS: Record<CityId, CityCapabilities> = {
   gwangjin: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: true, subway: true, presets: false, pollMinutes: 5, opsDetail: "full", districts: false },
 }
 
+/**
+ * 도시별 지점 수 — 목록이 도착하기 전(헤더 부제)과 서버 렌더 시점(메타데이터)의 기대값.
+ * 제주·부산·강원·인천은 정적 목록 길이와 일치해야 한다(tests/crowd-url.test.ts가 고정).
+ * 서울만 런타임 원천(RTD 전체 조회) — 실측 121곳.
+ */
+export const SPOT_COUNTS: Record<CityId, number> = {
+  seoul: 121,
+  jeju: 66,
+  busan: 26,
+  gangwon: 18,
+  incheon: 8,
+  gwangjin: 6,
+}
+
 export const CITIES: Record<CityId, CityInfo> = {
   seoul: {
     id: "seoul",

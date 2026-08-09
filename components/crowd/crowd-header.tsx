@@ -8,7 +8,7 @@ import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
 import { SWITCH_CITY_IDS, type CityId } from "@/lib/crowd/cities"
 import { AutoMarquee, formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
 import { LangSwitcher, useLang } from "@/components/crowd/lang-context"
-import { trDisaster } from "@/lib/crowd/i18n"
+import { citySubtitle, trDisaster } from "@/lib/crowd/i18n"
 
 interface CrowdHeaderProps {
   city: CityId
@@ -86,18 +86,8 @@ export default function CrowdHeader({
   // 광진은 인파레이더가 아니라 생활상황판 서피스 — 브랜드부터 갈아끼운다
   const title =
     city === "gwangjin" ? t.gwangjinTitle : city === "seoul" ? t.title : t.title.replaceAll(t.cityNames.seoul, t.cityNames[city])
-  // 도시별 부제 — 원천이 달라 세는 대상도 다르다(인파/접근·주차/출국장 대기).
-  // 목록 도착 전에는 도시별 기대 개수를 보여준다.
-  const SUBTITLE: Record<string, [(n: number) => string, number]> = {
-    jeju: [t.subtitleJeju, 66],
-    busan: [t.subtitleBusan, 26],
-    gangwon: [t.subtitleGangwon, 18],
-    incheon: [t.subtitleIncheon, 8],
-    seoul: [t.subtitle, 121],
-    gwangjin: [t.gwangjinSubtitle, 6],
-  }
-  const [subtitleFn, fallbackCount] = SUBTITLE[city] ?? SUBTITLE.seoul
-  const subtitle = subtitleFn(spotCount > 0 ? spotCount : fallbackCount)
+  // 목록 도착 전에는 도시별 기대 개수를 보여준다 (citySubtitle 기본값)
+  const subtitle = citySubtitle(t, city, spotCount)
   // 도시 스위처 — 헤더 안(md↑)과 헤더 아래 독립 행(모바일) 두 곳에서 같은 것을 쓴다.
   // 선택 도시는 반전 대비(라이트=먹색 pill·다크=백색 pill)로 한눈에 — 배경색 은은한 구분은
   // 5개 pill 사이에서 잘 안 읽혔다.
