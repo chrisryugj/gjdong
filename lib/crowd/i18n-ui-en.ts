@@ -36,6 +36,7 @@ export const EN: UIStrings = {
   sortBusy: "Busiest",
   sortCalm: "Quietest",
   sortName: "A–Z",
+  sortLabel: "Sort",
   emptyFiltered: "No spots match your filters.",
   noSpotMatch: "No matching spot. Try the address search above.",
   retry: "Retry",

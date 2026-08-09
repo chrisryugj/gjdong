@@ -39,6 +39,7 @@ export const KO = {
   sortBusy: "붐빔순",
   sortCalm: "여유순",
   sortName: "가나다",
+  sortLabel: "정렬",
   emptyFiltered: "조건에 맞는 명소가 없습니다.",
   noSpotMatch: "명소 중에는 없습니다. 위 버튼으로 주소 검색을 해보세요.",
   retry: "다시 시도",

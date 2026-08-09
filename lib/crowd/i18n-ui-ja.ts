@@ -36,6 +36,7 @@ export const JA: UIStrings = {
   sortBusy: "混雑順",
   sortCalm: "空いてる順",
   sortName: "名前順",
+  sortLabel: "並び順",
   emptyFiltered: "条件に合うスポットがありません。",
   noSpotMatch: "該当するスポットがありません。上のボタンで住所検索をお試しください。",
   retry: "再試行",

@@ -35,6 +35,7 @@ export const ZH: UIStrings = {
   sortBusy: "最拥挤",
   sortCalm: "最舒适",
   sortName: "按名称",
+  sortLabel: "排序",
   emptyFiltered: "没有符合条件的地点。",
   noSpotMatch: "未找到相关地点。请用上方按钮按地址搜索。",
   retry: "重试",
