@@ -131,6 +131,8 @@ export default function SpotListPanel({
           </button>
         ))}
         <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--cp-border)]" />
+        {/* 혼잡도 칩은 모바일에서 맨 앞으로(order-first) — 프리셋 5개 뒤에 있으면 인파레이더의
+            주 필터가 가로 스크롤 밖(x>400)으로 밀려 아예 안 보였다. PC는 DOM 순서 그대로 */}
         {LEVEL_ORDER.slice().reverse().map((level) => {
           const active = levelFilter.has(level)
           return (
@@ -138,7 +140,7 @@ export default function SpotListPanel({
               key={level}
               onClick={() => onToggleLevel(level)}
               aria-pressed={active}
-              className="shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] transition-colors"
+              className="order-first shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] transition-colors md:order-none"
               style={
                 active
                   ? { borderColor: LEVEL_COLORS[level], color: textColor(LEVEL_COLORS[level], light), background: `${LEVEL_COLORS[level]}1a` }
@@ -184,7 +186,19 @@ export default function SpotListPanel({
             )
           })}
         </div>
-        <div className="flex shrink-0 items-center gap-1 border-l border-[var(--cp-border-faint)] pl-1.5">
+        {/* 정렬 — 모바일은 select 하나로 압축. 3개 링크가 140px를 먹어 카테고리 칩이
+            2개만 보이던 자리를 되돌려준다 (PC는 한눈에 보이는 3링크 유지) */}
+        <select
+          value={sort}
+          onChange={(e) => onSort(e.target.value as SortMode)}
+          aria-label={t.sortLabel}
+          className="ml-0.5 shrink-0 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] py-1 pl-2 pr-1 text-[12px] text-[var(--cp-text-muted)] md:hidden"
+        >
+          <option value="busy">{t.sortBusy}</option>
+          <option value="calm">{t.sortCalm}</option>
+          <option value="name">{t.sortName}</option>
+        </select>
+        <div className="hidden shrink-0 items-center gap-1 border-l border-[var(--cp-border-faint)] pl-1.5 md:flex">
           {(
             [
               ["busy", t.sortBusy],
