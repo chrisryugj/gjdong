@@ -428,6 +428,26 @@
   border: 2px solid var(--cp-bg);
 }
 
+/* 특보·재난문자 다건 교체 — 새 항목이 아래에서 밀려 올라온다 (부모 overflow-hidden이 잘라준다) */
+.crowd-page .crowd-alert-slide {
+  animation: crowd-alert-slide 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes crowd-alert-slide {
+  from {
+    transform: translateY(90%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crowd-page .crowd-alert-slide {
+    animation: none;
+  }
+}
+
 /* 푸터 자동 마퀴 — 내용이 넘칠 때만 좌우 왕복(양 끝에서 잠시 멈춤), 이동량은 인라인 CSS 변수 */
 @keyframes crowd-marquee {
   0%,
