@@ -161,7 +161,8 @@ export default function SpotDetail({
     return () => controller.abort()
   }, [detail.name, city])
 
-  // 주변 축제·행사 (TourAPI, 제주·부산·강원) — 도시 목록에서 지점 반경으로 거른다
+  // 주변 축제·행사 (TourAPI, 인천공항 제외 전 도시) — 도시 목록에서 지점 반경으로 거른다.
+  // 서울은 RTD 문화행사(공연·전시)와 별개 축 — TourAPI는 축제·야외행사 위주라 성격이 다르다
   const [cityEvents, setCityEvents] = useState<TourEvent[] | null>(null)
   useEffect(() => {
     setCityEvents(null)
@@ -450,7 +451,7 @@ export default function SpotDetail({
       {/* 부가정보: 주차·행사·도로·지하철·따릉이 */}
       {extra && <SpotExtras extra={extra} origin={origin} light={light} />}
 
-      {/* 주변 축제·행사 (TourAPI, 제주·부산·강원) — "왜 붐비는지"와 "갈 이유"를 같이 답한다 */}
+      {/* 주변 축제·행사 (TourAPI) — "왜 붐비는지"와 "갈 이유"를 같이 답한다 */}
       {tourEvents.length > 0 && (
         <div id="crowd-sec-tour" className="scroll-mt-2">
           <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">

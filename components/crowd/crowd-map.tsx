@@ -29,6 +29,10 @@ interface CrowdMapProps {
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
 
+// 터치 기기는 지름 ~13px 점이 탭 표적으로 너무 작다 — 마커 반지름 가산 (모듈 로드 시 1회 판정)
+const TOUCH_PAD =
+  typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? 3 : 0
+
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
@@ -74,7 +78,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         weight: isSelected ? 2.5 : isHovered ? 2 : 1.2,
         fillOpacity: isSelected || isHovered ? 0.95 : 0.85,
       })
-      marker.setRadius(isSelected ? 11 : isHovered ? 9 : 5 + spot.levelNum * 1.5)
+      marker.setRadius(isSelected ? 11 + TOUCH_PAD : isHovered ? 9 : 5 + spot.levelNum * 1.5 + TOUCH_PAD)
     }
   }, [])
 
@@ -174,7 +178,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         }).addTo(layer)
       }
       const marker = L.circleMarker([spot.lat, spot.lng], {
-        radius: 5 + spot.levelNum * 1.5,
+        radius: 5 + spot.levelNum * 1.5 + TOUCH_PAD,
         color: "#ffffff",
         weight: 1.2,
         fillColor: spot.color,
@@ -197,13 +201,16 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
           className: "crowd-ops-label",
         })
       } else if (showLabels) {
-        // 이름표 모드(기본) — 어느 점이 어디인지 호버 없이 보이게. 등급은 점 색이 이미 말한다
+        // 이름표 모드(기본) — 어느 점이 어디인지 호버 없이 보이게. 등급은 점 색이 이미 말한다.
+        // interactive: 이름표 탭 = 마커 클릭으로 전달(Leaflet interactive 툴팁) — 모바일에서
+        // 작은 점 대신 pill 전체가 탭 표적이 된다 (점만 남기면 레이블이 점 옆을 가려 오탭 유발)
         marker.bindTooltip(`<span>${escapeHtml(trSpot(spot.name, lang))}</span>`, {
           permanent: true,
           direction: "right",
           offset: [8, 0],
           opacity: 1,
           className: "crowd-name-label",
+          interactive: true,
         })
       } else {
         marker.bindTooltip(

@@ -39,7 +39,7 @@ export interface CityCapabilities {
   disaster: boolean
   /** 대기질(에어코리아) 섹션 — 측정소 매핑이 있는 도시 */
   air: boolean
-  /** TourAPI 축제·행사 레이어 — 서울은 RTD 문화행사가 이미 있어 제외 */
+  /** TourAPI 축제·행사 레이어 — 인천공항만 제외(영종도 행사와 출국장 대기는 무관) */
   tourEvents: boolean
   /** 지점 근처 지하철 실시간 도착(서울 RTD subway) — extra에 실려온다 */
   subway: boolean
@@ -55,7 +55,7 @@ export interface CityCapabilities {
 }
 
 export const CITY_CAPS: Record<CityId, CityCapabilities> = {
-  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: false, subway: true, presets: true, pollMinutes: 5, opsDetail: "full", districts: true },
+  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: true, subway: true, presets: true, pollMinutes: 5, opsDetail: "full", districts: true },
   jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 15, opsDetail: "levelOnly", districts: true },
   busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
   gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
