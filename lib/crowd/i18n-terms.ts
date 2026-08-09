@@ -150,7 +150,10 @@ const DISASTER_T: Record<string, [string, string, string]> = {
   주의보: ["advisory", "注意報", "预警"],
   지진: ["Earthquake", "地震", "地震"],
   산불: ["Wildfire", "山火事", "山火"],
+  산사태: ["Landslide", "土砂災害", "山体滑坡"],
   교통통제: ["Road control", "交通規制", "交通管制"],
+  // SSR 재난문자에 분류가 없을 때의 머리말 (본문에 재난어가 없으면 유형을 지어내지 않는다)
+  재난문자: ["Emergency alert", "緊急速報", "应急短信"],
 }
 
 // ── 연령 라벨 (lib/crowd/seoul-rtd.ts의 한국어 라벨 기준)

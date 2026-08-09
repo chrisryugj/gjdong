@@ -347,10 +347,8 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
             <ul className="mt-2 space-y-1.5 border-y border-neutral-200 py-3 text-[12px] leading-relaxed">
               {model.disasters.slice(0, 8).map((d, i) => (
                 <li key={i}>
-                  <b>
-                    [{d.type} {d.step}]
-                  </b>{" "}
-                  {d.content}
+                  {/* SSR 재난문자는 step이 비므로 빈 칸 없이 잇는다 */}
+                  <b>[{[d.type, d.step].filter(Boolean).join(" ")}]</b> {d.content}
                 </li>
               ))}
             </ul>

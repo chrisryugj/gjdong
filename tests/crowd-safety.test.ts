@@ -1,6 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { joinStringFields, matchRegion, parseEmergencyMsgs, parseWarnings, splitRegions } from "../lib/crowd/safety"
+import {
+  joinStringFields,
+  matchRegion,
+  parseEmergencyMsgs,
+  parseNotificationPage,
+  parseWarnings,
+  splitRegions,
+  toDisasters,
+} from "../lib/crowd/safety"
 
 // 기상특보 현황 파서 — 라이브 실측(2026-08-09) 전국 통보문 t6 형식 기준.
 // stnId는 필터가 아니다(전 관서 동일 응답) — 지역 텍스트의 시도 세그먼트 매칭이 전부다.
@@ -118,4 +126,48 @@ test("parseEmergencyMsgs: 인천공항은 시 전체·중구만 (옹진군 등 �
 test("parseEmergencyMsgs: 비배열·빈 본문은 빈 배열", () => {
   assert.deepEqual(parseEmergencyMsgs(null, ["서울특별시"]), [])
   assert.deepEqual(parseEmergencyMsgs([MSG({ MSG_CN: " " })], ["부산광역시"]), [])
+})
+
+// ── safetydata 알림 목록 SSR 파서 (무키 1차 원천) — 실측 HTML 행 구조 축약 픽스처
+
+const SDN_ROW = (sn: number, content: string, at: string) => `
+  <tr>
+    <td class="cell-no">${sn}</td>
+    <td class="board-list-new cell-subject"><a class="tableHover"
+      href="/disaster-data/disasterNotificationDetail?sn=${sn}">${content}</a><i class="ico ico-new">N</i></td>
+    <td class="cell-date">${at}</td>
+  </tr>`
+
+const SDN_HTML =
+  SDN_ROW(1, "부산 폭염주의보 발효 중 ▲야외활동 자제[부산시]", "2026/08/09 11:02:31") +
+  SDN_ROW(2, "위험물 누출 사고 발생. 외출 자제.[부산광역시]", "2026/08/08 20:08:38") +
+  SDN_ROW(3, "단수 발생. 복구작업중. [사상구]", "2026/08/09 09:58:18")
+
+test("parseNotificationPage: 내용·등록일 쌍을 뽑는다 (구조 불일치는 빈 배열)", () => {
+  const rows = parseNotificationPage(SDN_HTML)
+  assert.equal(rows.length, 3)
+  assert.equal(rows[0].content, "부산 폭염주의보 발효 중 ▲야외활동 자제[부산시]")
+  assert.equal(rows[0].at, "2026/08/09 11:02:31")
+  assert.deepEqual(parseNotificationPage("<html>개편된 페이지</html>"), [])
+})
+
+test("toDisasters: 당일만 남기고 본문의 재난어를 유형으로 (없으면 '재난문자')", () => {
+  const out = toDisasters(parseNotificationPage(SDN_HTML), "2026/08/09", "busan")
+  assert.equal(out.length, 2) // 08/08 사고 문자는 제외
+  assert.equal(out[0].type, "폭염")
+  assert.equal(out[1].type, "재난문자") // 단수는 유형 사전에 없음 — 지어내지 않는다
+  assert.equal(out[1].step, "")
+})
+
+test("toDisasters: 인천은 공항 무관 발신 구를 [발신기관] 정확 일치로 거른다", () => {
+  const rows = [
+    { content: "무더위 유의 [인천광역시]", at: "2026/08/09 10:00:00" },
+    { content: "행사 안내 [연수구]", at: "2026/08/09 10:01:00" },
+    { content: "안개 주의 [영종구]", at: "2026/08/09 10:02:00" },
+  ]
+  const out = toDisasters(rows, "2026/08/09", "incheon")
+  assert.deepEqual(
+    out.map((d) => d.content),
+    ["무더위 유의 [인천광역시]", "안개 주의 [영종구]"],
+  )
 })
