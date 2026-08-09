@@ -388,6 +388,11 @@
   pointer-events: auto;
   cursor: pointer;
 }
+/* 겹침 컬링된 이름표 — display:none이면 offsetWidth=0이라 visibility로 숨긴다 (탭 가로채기 차단) */
+.crowd-page .leaflet-tooltip.crowd-name-label.crowd-label-culled {
+  visibility: hidden;
+  pointer-events: none !important;
+}
 /* 터치 기기: 이름표를 탭 표적 크기로 키운다 (44px 가이드에 근접하게) */
 @media (pointer: coarse) {
   .crowd-page .leaflet-tooltip.crowd-name-label {

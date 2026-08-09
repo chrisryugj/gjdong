@@ -292,6 +292,7 @@ function CrowdDashboardInner() {
             fitCity={city}
             hoveredName={hoverName}
             showLabels={labels}
+            declutterLabels
           />
           {/* 지도 우상단 컨트롤 스택 — 이름표 토글(전 도시) + 시간대 렌즈(서울·제주, 상세 중 숨김) */}
           <div className="absolute right-2 top-2 z-[1000] flex flex-col items-end gap-1.5">
