@@ -41,7 +41,11 @@ export function patternLevel(entry: HeatEntry | undefined | null, dow: number, h
 // ── 지금 vs 평소 (누적 히트맵 대비 현재 등급) — 목록 배지·상세 헤드라인 공용
 export type BaselineDelta = "above" | "below" | "usual"
 
-/** 현재 등급을 같은 요일·시각의 평균과 비교 — 표본 3회 미만이면 판단하지 않는다(null) */
+/**
+ * 현재 등급을 같은 요일·비슷한 시각(±1h)의 평균과 비교 — 합산 표본 2회 미만이면 판단하지 않는다(null).
+ * 셀당 표본이 주 1회씩만 쌓이는 수집 구조라, 인접 시간대까지 모수에 넣어 초기 몇 주의 공백을 줄인다.
+ * 자정 경계는 같은 요일 안에서만 본다(요일을 넘어가면 "평소" 패턴이 달라짐).
+ */
 export function baselineDelta(
   entry: HeatEntry | undefined | null,
   levelNum: number,
@@ -49,9 +53,15 @@ export function baselineDelta(
   hour: number,
 ): BaselineDelta | null {
   if (!entry || levelNum <= 0) return null
-  if ((entry.cnt[dow]?.[hour] ?? 0) < 3) return null
-  const base = patternLevel(entry, dow, hour)
-  if (base <= 0) return null
+  let sum = 0
+  let cnt = 0
+  for (const h of [hour - 1, hour, hour + 1]) {
+    if (h < 0 || h > 23) continue
+    sum += entry.sum[dow]?.[h] ?? 0
+    cnt += entry.cnt[dow]?.[h] ?? 0
+  }
+  if (cnt < 2) return null
+  const base = Math.min(Math.max(Math.round(sum / cnt), 1), 4)
   const diff = levelNum - base
   return diff >= 1 ? "above" : diff <= -1 ? "below" : "usual"
 }

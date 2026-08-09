@@ -200,7 +200,7 @@ export const KO = {
   baselineAbove: "평소보다 붐빔",
   baselineBelow: "평소보다 한산",
   baselineUsual: "평소 수준",
-  baselineNote: "같은 요일·시각 누적 평균 대비",
+  baselineNote: "같은 요일·비슷한 시각 누적 평균 대비",
   // 대기질 (에어코리아 — 지점 인근 측정소)
   airTitle: "대기질",
   chipAir: "대기질",
