@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import CrowdDashboard from "@/components/crowd/crowd-dashboard"
+import CrowdDashboard from "@/components/crowd/dashboard-client"
 import { isLang, META, UI, type Lang } from "@/lib/crowd/i18n"
 import { isCityId } from "@/lib/crowd/cities"
 
