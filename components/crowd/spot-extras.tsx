@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Bike, CalendarDays, CarFront, Navigation, SquareParking } from "lucide-react"
+import { Bike, CalendarDays, CarFront, Navigation, SquareParking, TrainFront } from "lucide-react"
 import { textColor, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
@@ -182,6 +182,43 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 지하철 실시간 도착 — 명소 인근 역 (서울 RTD, "언제 출발하면 되나"의 답) */}
+      {extra.subway && extra.subway.length > 0 && (
+        <div id="crowd-sec-subway" className="scroll-mt-2">
+          <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
+            <TrainFront className="h-3.5 w-3.5" /> {t.subwayTitle}
+          </h3>
+          <ul className="space-y-1.5">
+            {extra.subway.map((st) => (
+              <li
+                key={`${st.line}:${st.station}`}
+                className="rounded-md border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2"
+              >
+                <p className="text-[13px] font-medium text-[var(--cp-text-strong)]">
+                  {lang === "ko" ? st.station : romanizeAddress(st.station)}
+                  <span className="ml-1.5 text-[12px] font-normal text-[var(--cp-text-dim)]">
+                    {t.subwayLine(st.line)}
+                  </span>
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {st.arrivals.slice(0, 3).map((a, i) => (
+                    <li key={i} className="flex items-baseline gap-2 text-[12px]">
+                      {/* 도착 안내는 원천 자유 텍스트("5분 30초 후 (을지로3가)") — 행선지만 앞에 세운다 */}
+                      <span className="min-w-0 truncate text-[var(--cp-text-muted)]">
+                        {lang === "ko" ? `${a.dest}행` : romanizeAddress(a.dest)}
+                      </span>
+                      <span className="ml-auto shrink-0 font-mono tabular-nums text-[var(--cp-text)]">
+                        {lang === "ko" ? a.msg : romanizeAddress(a.msg)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

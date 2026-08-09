@@ -196,6 +196,29 @@ export const KO = {
   // 등급 산출 근거 병기 — 부산·강원(주차·도로)·인천공항(대기시간)은 인파 실측이 아니라서 오독 방지
   basisAccess: "주차·도로 기준",
   basisWait: "대기시간 기준",
+  // 지금 vs 평소 — 누적 히트맵(같은 요일·시각 평균) 대비 상대 배지 (서울·제주)
+  baselineAbove: "평소보다 붐빔",
+  baselineBelow: "평소보다 한산",
+  baselineUsual: "평소 수준",
+  baselineNote: "같은 요일·시각 누적 평균 대비",
+  // 대기질 (에어코리아 — 지점 인근 측정소)
+  airTitle: "대기질",
+  chipAir: "대기질",
+  airGrades: ["", "좋음", "보통", "나쁨", "매우나쁨"] as string[],
+  airStation: (s: string) => `${s} 측정소 · 에어코리아`,
+  // 지하철 실시간 도착 (서울 RTD)
+  subwayTitle: "지하철 실시간 도착",
+  chipSubway: "지하철",
+  subwayLine: (l: string) => (/^\d+$/.test(l) ? `${l}호선` : l),
+  // 주변 축제·행사 (TourAPI — 제주·부산·강원)
+  tourTitle: "주변 축제·행사",
+  tourOngoing: "진행 중",
+  tourNote: "한국관광공사 TourAPI · 지점 주변 기준",
+  // 상황실 행사 연동 — 행사 주변 지점을 감시목록으로
+  opsEvents: "행사 연동",
+  opsEventsNote: "진행 중·예정 행사 주변의 감시 후보 지점이에요",
+  opsEventsAddSpots: (n: number) => `지점 ${n}곳 감시 추가`,
+  opsEventsNone: "지점과 겹치는 행사가 없습니다",
   // 상황실 모드 (행사·축제 안전 담당자용 다지점 동시 모니터링)
   opsMode: "상황실 모드",
   opsExit: "일반 모드",

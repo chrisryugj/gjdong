@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Sparkles, Star } from "lucide-react"
 import { LEVEL_COLORS, textColor, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { BaselineDelta } from "@/lib/crowd/heatmap-client"
 import { LevelBadge, LEVEL_ORDER, PRESETS, type PresetKey, type SortMode } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
 import MbtiPanel from "@/components/crowd/mbti-picker"
@@ -24,6 +25,8 @@ interface SpotListPanelProps {
   light: boolean
   loading: boolean
   error: boolean
+  /** 지금 vs 평소 (누적 히트맵 대비) — 히트맵 없는 도시·미로드는 null */
+  baseline?: Record<string, BaselineDelta> | null
   /** 원천 자체가 응답하지 않는 실패 — 일반 재시도 안내 대신 원천 상태를 알린다 */
   originDown: boolean
   noSpotMatch: boolean
@@ -58,6 +61,7 @@ export default function SpotListPanel({
   light,
   loading,
   error,
+  baseline,
   originDown,
   noSpotMatch,
   onApplyPreset,
@@ -253,6 +257,19 @@ export default function SpotListPanel({
                       <span className="text-[var(--cp-text-faint)]">
                         {" · "}
                         {spot.basis === "access" ? t.basisAccess : t.basisWait}
+                      </span>
+                    )}
+                    {/* 지금 vs 평소 — 평소와 다를 때만 (평소 수준은 소음이라 생략) */}
+                    {baseline?.[spot.name] === "above" && (
+                      <span className={light ? "text-orange-700" : "text-orange-400"}>
+                        {" · "}
+                        {t.baselineAbove}
+                      </span>
+                    )}
+                    {baseline?.[spot.name] === "below" && (
+                      <span className={light ? "text-emerald-700" : "text-emerald-400"}>
+                        {" · "}
+                        {t.baselineBelow}
                       </span>
                     )}
                   </p>

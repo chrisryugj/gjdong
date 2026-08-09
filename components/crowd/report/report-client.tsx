@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, LoaderCircle, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import type { CrowdDetail, CrowdDisaster, CrowdExtra, CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { TourEvent } from "@/lib/crowd/events"
+import { loadTourEvents, tourMatchRadius } from "@/lib/crowd/events-client"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
 import { buildReportModel, type ReportModel } from "@/lib/crowd/export"
+import { distanceM } from "@/components/crowd/shared"
 import { districtOf } from "@/lib/crowd/districts"
 import { logStorageKey, sparkSeries, type OpsLogTick } from "@/lib/crowd/oplog"
 import { fitView } from "@/lib/crowd/map-fit"
@@ -41,6 +44,31 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
   const [log, setLog] = useState<OpsLogTick[]>([])
   // 배치도용 원본 지점(좌표 포함) — 모델 행에는 좌표가 없다
   const [mapSpots, setMapSpots] = useState<CrowdSpot[]>([])
+
+  // 주변 축제·행사 (TourAPI 도시만) — 대상 지점 반경과 겹치는 행사를 부록으로
+  const [tourEvents, setTourEvents] = useState<TourEvent[]>([])
+  useEffect(() => {
+    if (!CITY_CAPS[city].tourEvents) return
+    let alive = true
+    void loadTourEvents(city).then((events) => {
+      if (alive) setTourEvents(events)
+    })
+    return () => {
+      alive = false
+    }
+  }, [city])
+  const matchedEvents = useMemo(() => {
+    if (tourEvents.length === 0 || mapSpots.length === 0) return []
+    const radius = tourMatchRadius(city)
+    return tourEvents
+      .filter((e) => e.lat !== 0 && e.lng !== 0)
+      .map((e) => ({
+        ...e,
+        near: mapSpots.filter((s) => distanceM(s.lat, s.lng, e.lat, e.lng) <= radius).map((s) => s.name),
+      }))
+      .filter((e) => e.near.length > 0)
+      .slice(0, 10)
+  }, [tourEvents, mapSpots, city])
 
   // 행사 로그(상황실이 쌓은 시간축 기록) — 같은 origin localStorage라 새 탭에서도 읽힌다
   useEffect(() => {
@@ -312,12 +340,12 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
           )}
         </section>
 
-        {/* 재난문자 */}
+        {/* 안전 정보 — 발효 중 기상특보 + 오늘 재난문자 (safety.ts가 한 배열로 병합) */}
         {model.disasters.length > 0 && (
           <section className="mt-5">
-            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">4. 오늘 재난문자</h2>
+            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">4. 기상특보 · 재난문자</h2>
             <ul className="mt-2 space-y-1.5 border-y border-neutral-200 py-3 text-[12px] leading-relaxed">
-              {model.disasters.slice(0, 5).map((d, i) => (
+              {model.disasters.slice(0, 8).map((d, i) => (
                 <li key={i}>
                   <b>
                     [{d.type} {d.step}]
@@ -326,6 +354,36 @@ export default function ReportClient({ city, watch }: { city: CityId; watch: str
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* 주변 축제·행사 — 대상 지점 반경과 겹치는 행사 (인파 유발 요인·안전관리 대상) */}
+        {matchedEvents.length > 0 && (
+          <section className="mt-5 break-inside-avoid">
+            <h2 className="text-[13px] font-semibold tracking-wide text-neutral-500">
+              {model.disasters.length > 0 ? "5" : "4"}. 주변 축제·행사
+            </h2>
+            <table className="mt-2 w-full border-collapse text-[12px] leading-snug">
+              <thead>
+                <tr className="whitespace-nowrap border-b border-neutral-900 text-left text-[11px] text-neutral-400">
+                  <th className="py-1.5 pr-2 font-normal">행사명</th>
+                  <th className="py-1.5 pr-2 font-normal">기간</th>
+                  <th className="py-1.5 font-normal">인근 지점</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matchedEvents.map((e) => (
+                  <tr key={e.title} className="border-b border-neutral-100">
+                    <td className="py-1.5 pr-2 font-medium">{e.title}</td>
+                    <td className="whitespace-nowrap py-1.5 pr-2 font-mono tabular-nums text-neutral-500">
+                      {e.start.slice(5).replace("-", ".")}~{e.end.slice(5).replace("-", ".")}
+                    </td>
+                    <td className="py-1.5 text-neutral-500">{e.near.join(" · ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1.5 text-[11px] text-neutral-400">※ 한국관광공사 TourAPI 기준 · 지점 반경 내 행사만 수록.</p>
           </section>
         )}
 

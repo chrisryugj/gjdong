@@ -26,9 +26,18 @@ test("caps.extra와 어댑터 fetchExtra 존재가 일치한다 (제주만 없�
   assert.equal(CITY_CAPS.jeju.extra, false)
 })
 
-test("caps.disaster와 어댑터 fetchDisaster 존재가 일치한다 (서울만)", () => {
+test("caps.disaster와 어댑터 fetchDisaster 존재가 일치한다 (전 도시 — 특보+재난문자)", () => {
   for (const id of CITY_IDS) {
     assert.equal(CITY_CAPS[id].disaster, ADAPTERS[id].fetchDisaster != null, `${id} disaster 불일치`)
+    assert.equal(CITY_CAPS[id].disaster, true, `${id}: 안전축 확장 후 전 도시 true`)
+  }
+})
+
+test("신규 caps: 대기질 전 도시 · TourAPI 행사는 제주·부산·강원 · 지하철은 서울만", () => {
+  for (const id of CITY_IDS) {
+    assert.equal(CITY_CAPS[id].air, true, `${id} air`)
+    assert.equal(CITY_CAPS[id].tourEvents, id === "jeju" || id === "busan" || id === "gangwon", `${id} tourEvents`)
+    assert.equal(CITY_CAPS[id].subway, id === "seoul", `${id} subway`)
   }
 })
 

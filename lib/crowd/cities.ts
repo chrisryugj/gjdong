@@ -35,8 +35,14 @@ export interface CityCapabilities {
   demographics: boolean
   /** KHOA 해수욕장지수 가능 지점 존재 (부산·강원) */
   beach: boolean
-  /** 재난문자 배너 (서울) */
+  /** 안전 배너(기상특보+재난문자) — 전 도시. 서울=RTD 재난문자+특보, 나머지=행안부+특보 */
   disaster: boolean
+  /** 대기질(에어코리아) 섹션 — 측정소 매핑이 있는 도시 */
+  air: boolean
+  /** TourAPI 축제·행사 레이어 — 서울은 RTD 문화행사가 이미 있어 제외 */
+  tourEvents: boolean
+  /** 지점 근처 지하철 실시간 도착(서울 RTD subway) — extra에 실려온다 */
+  subway: boolean
   /** 목적 프리셋 칩 — 카테고리 체계가 서울일 때만 */
   presets: boolean
   /** 클라이언트 자동 갱신 주기(분) — 제주 15분은 2026-08 원천 차단 사고 대응 */
@@ -49,11 +55,11 @@ export interface CityCapabilities {
 }
 
 export const CITY_CAPS: Record<CityId, CityCapabilities> = {
-  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, presets: true, pollMinutes: 5, opsDetail: "full", districts: true },
-  jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: false, presets: false, pollMinutes: 15, opsDetail: "levelOnly", districts: true },
-  busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
-  gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
-  incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: false },
+  seoul: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: false, subway: true, presets: true, pollMinutes: 5, opsDetail: "full", districts: true },
+  jeju: { series: true, forecast: false, extra: false, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 15, opsDetail: "levelOnly", districts: true },
+  busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
+  gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
+  incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: true, air: true, tourEvents: false, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: false },
 }
 
 export const CITIES: Record<CityId, CityInfo> = {
