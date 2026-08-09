@@ -1,17 +1,19 @@
 // 전국 안전축 — 기상청 기상특보 + 행정안전부 긴급재난문자 (서버 전용)
 // ── 데이터 계약 실측 (2026-08-09)
-// 두 원천 모두 공공데이터포털(data.go.kr) 활용신청 필요 — DATA_GO_KR_KEY 계정 키 공용.
-//   기상특보: apis.data.go.kr/1360000/WthrWrnInfoService/getPwnStatus?stnId= (발표관서별 발효 현황)
-//     응답 item의 텍스트 필드에 "o 폭염경보 : 서울특별시, ..." 꼴 자유 텍스트 — 필드명이 문서와
-//     다를 수 있어 item의 모든 문자열 필드를 이어붙여 정규식으로 긁는다(파서는 텍스트 앵커).
-//   재난문자: www.safetydata.go.kr/V2/api/DSSP-IF-00247?crtDt=&rgnNm= (당일·시도 필터)
-//     body[]: MSG_CN·RCPTN_RGN_NM·CRT_DT("2026/08/09 10:52:35")·EMRG_STEP_NM·DST_SE_NM
-// 키 미신청/미승인이면 "등록되지 않은 서비스키"가 오는데, 이는 빈 배열로 조용히 강등 —
-// 서울(RTD 자체 재난문자)만 있던 배너가 키 승인과 동시에 전국으로 켜지는 구조.
+//   기상특보: apis.data.go.kr/1360000/WthrWrnInfoService/getPwnStatus?stnId= (data.go.kr 활용신청,
+//     DATA_GO_KR_KEY 공용). 응답 item의 텍스트 필드에 "o 폭염경보 : 서울특별시, ..." 자유 텍스트 —
+//     필드명 편차에 대비해 모든 문자열 필드를 이어붙여 정규식으로 긁는다(파서는 텍스트 앵커).
+//   재난문자 1차: safetydata.go.kr 재난안전 알림 SSR 페이지(무키) —
+//     /disaster-data/disasterNotification?keyword=&cntPerPage= 목록에 원문+[발신기관]+등록일이
+//     그대로 실린다. keyword는 본문뿐 아니라 숨은 수신지역 필드까지 검색한다(실측: 본문에
+//     "부산" 없는 사상구 단수안내가 keyword=부산에 잡힘) — 시도명 키워드 1개면 지역 필터 완성.
+//   재난문자 2차(폴백): www.safetydata.go.kr/V2/api/DSSP-IF-00247?crtDt=&rgnNm= (data.go.kr
+//     15134001 활용신청 필요). SSR이 개편으로 깨지면 이쪽이 받친다 — 키 미승인이면 빈 배열.
 // 서울은 RTD 재난문자가 이미 당일 서울 재난문자라 행안부 원천을 겹쳐 부르지 않는다(중복).
 
 import type { CrowdDisaster } from "@/lib/crowd/seoul-rtd"
 import { createSnapshot } from "@/lib/crowd/adapter-kit"
+import { krgovFetch } from "@/lib/crowd/krgov-fetch"
 import type { CityId } from "@/lib/crowd/cities"
 
 const KEY = () => process.env.DATA_GO_KR_KEY ?? ""
@@ -38,15 +40,21 @@ const WARN_REGION: Record<CityId, WarnMatcher> = {
 // 전 도시가 같은 전국 통보문을 쓰므로 원천 호출도 stnId 108(전국) 하나로 합친다
 const WARN_STN_ID = "108"
 
-/** 도시 → 재난문자 수신지역(rgnNm 파라미터·응답 재필터 키워드) */
-const MSG_RGN: Record<CityId, { rgnNm: string; keywords: string[] }> = {
-  seoul: { rgnNm: "서울특별시", keywords: ["서울특별시"] },
-  busan: { rgnNm: "부산광역시", keywords: ["부산광역시"] },
-  jeju: { rgnNm: "제주특별자치도", keywords: ["제주특별자치도"] },
-  gangwon: { rgnNm: "강원특별자치도", keywords: ["강원특별자치도"] },
-  // 공항은 인천 중구 — 시 전체 발송분과 중구 발송분만 (섬 반대편 옹진군 등은 소음)
-  incheon: { rgnNm: "인천광역시", keywords: ["인천광역시 전체", "중구"] },
+/** 도시 → 재난문자 수신지역 — sdn=SSR 검색 키워드(수신지역 필드까지 검색), rgnNm·keywords=V2 API 폴백용 */
+const MSG_RGN: Record<CityId, { sdn: string; rgnNm: string; keywords: string[] }> = {
+  seoul: { sdn: "서울", rgnNm: "서울특별시", keywords: ["서울특별시"] },
+  busan: { sdn: "부산", rgnNm: "부산광역시", keywords: ["부산광역시"] },
+  jeju: { sdn: "제주", rgnNm: "제주특별자치도", keywords: ["제주특별자치도"] },
+  gangwon: { sdn: "강원", rgnNm: "강원특별자치도", keywords: ["강원특별자치도"] },
+  // 공항 소재지는 영종도(2026 개편으로 영종구, 구 중구) — 시 전체 발송분과 영종권만
+  incheon: { sdn: "인천", rgnNm: "인천광역시", keywords: ["인천광역시 전체", "중구", "영종"] },
 }
+
+// 인천 SSR 결과에서 공항(영종도)과 무관한 발신 구 — [발신기관] 꼬리와 정확 일치로 거른다
+// (서구·동구는 부산에도 있지만 인천 키워드 결과 안에서만 적용되므로 안전)
+const INCHEON_EXCLUDE = new Set([
+  "연수구", "남동구", "부평구", "계양구", "미추홀구", "제물포구", "검단구", "서구", "동구", "옹진군", "강화군",
+])
 
 const WARN_TYPES = "폭염|호우|대설|강풍|태풍|한파|건조|풍랑|폭풍해일|지진해일|해일|황사|안개"
 
@@ -150,6 +158,59 @@ async function fetchKmaWarnings(city: CityId): Promise<CrowdDisaster[]> {
   }))
 }
 
+// ── 재난문자 1차: safetydata 알림 목록 SSR 파서
+// 행 구조 실측: <a class="tableHover" href="...Detail?sn=N">내용[발신기관]</a> … <td class="cell-date">2026/08/09 11:02:31</td>
+
+const MSG_TYPES = "폭염|호우|대설|강풍|태풍|한파|황사|산사태|지진|산불|미세먼지|안개|풍랑|해일"
+
+/** SSR 목록에서 (내용, 등록일) 쌍 추출 — 구조가 바뀌면 빈 배열(지어내지 않음) */
+export function parseNotificationPage(html: string): Array<{ content: string; at: string }> {
+  const out: Array<{ content: string; at: string }> = []
+  const re = /disasterNotificationDetail\?sn=\d+"\s*>([^<]+)<\/a>[\s\S]*?cell-date">\s*([^<]+?)\s*</g
+  for (const m of html.matchAll(re)) {
+    const content = m[1].replace(/\s+/g, " ").trim()
+    if (content) out.push({ content, at: m[2].trim() })
+  }
+  return out
+}
+
+/** SSR 행 → 당일·도시 관련만 CrowdDisaster로. 유형은 본문에 실제로 있는 재난어만 뽑는다(추론 금지) */
+export function toDisasters(
+  rows: Array<{ content: string; at: string }>,
+  todaySlash: string,
+  city: CityId,
+): CrowdDisaster[] {
+  const out: CrowdDisaster[] = []
+  const seen = new Set<string>()
+  for (const r of rows) {
+    if (!r.at.startsWith(todaySlash)) continue
+    if (seen.has(r.content)) continue
+    if (city === "incheon") {
+      const sender = r.content.match(/\[([^[\]]+)\]\s*$/)?.[1]?.trim()
+      if (sender && INCHEON_EXCLUDE.has(sender)) continue
+    }
+    seen.add(r.content)
+    out.push({
+      type: r.content.match(new RegExp(MSG_TYPES))?.[0] ?? "재난문자",
+      step: "",
+      content: r.content,
+      at: r.at,
+    })
+  }
+  return out.slice(0, 8)
+}
+
+async function fetchEmergencyMsgsSdn(city: CityId): Promise<CrowdDisaster[]> {
+  const url =
+    `https://www.safetydata.go.kr/disaster-data/disasterNotification` +
+    `?keyword=${encodeURIComponent(MSG_RGN[city].sdn)}&currentPage=1&cntPerPage=30&pageSize=10`
+  const html = await krgovFetch(url, { timeoutMs: 10000 })
+  const todaySlash = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "/")
+  return toDisasters(parseNotificationPage(html), todaySlash, city)
+}
+
+// ── 재난문자 2차(폴백): 행안부 V2 API — data.go.kr 15134001 활용신청 필요
+
 interface RawMsgBody {
   MSG_CN?: string
   RCPTN_RGN_NM?: string
@@ -184,7 +245,7 @@ function kstYmd(): string {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "")
 }
 
-async function fetchEmergencyMsgs(city: CityId): Promise<CrowdDisaster[]> {
+async function fetchEmergencyMsgsApi(city: CityId): Promise<CrowdDisaster[]> {
   const { rgnNm, keywords } = MSG_RGN[city]
   const url =
     `https://www.safetydata.go.kr/V2/api/DSSP-IF-00247` +
@@ -194,6 +255,13 @@ async function fetchEmergencyMsgs(city: CityId): Promise<CrowdDisaster[]> {
   )) as { header?: { resultCode?: string }; body?: unknown } | null
   if (!raw || (raw.header?.resultCode && raw.header.resultCode !== "00")) return []
   return parseEmergencyMsgs(raw.body, keywords)
+}
+
+/** 재난문자 — SSR(무키) 우선, 비거나 깨지면 V2 API 폴백(키 승인 시) */
+async function fetchEmergencyMsgs(city: CityId): Promise<CrowdDisaster[]> {
+  const sdn = await fetchEmergencyMsgsSdn(city).catch(() => [])
+  if (sdn.length > 0) return sdn
+  return fetchEmergencyMsgsApi(city).catch(() => [])
 }
 
 // 특보·재난문자 모두 분 단위로 변하는 원천이 아니다 — 도시별 10분 스냅샷
