@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import Link from "next/link"
 import { LayoutDashboard, Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
@@ -41,6 +41,18 @@ export default function CrowdHeader({
   onEnterOps,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
+
+  // 특보·재난문자가 여러 건이면 7초마다 한 건씩 교체 (아래에서 밀려 올라오는 슬라이드).
+  // 펼친 동안은 전문이 다 보이므로 멈춘다. 인덱스는 계속 증가시키고 렌더에서 나머지연산 —
+  // 폴링으로 건수가 줄어도 범위를 벗어나지 않는다
+  const [alertIdx, setAlertIdx] = useState(0)
+  useEffect(() => {
+    if (disaster.length < 2 || disasterOpen) return
+    const timer = setInterval(() => setAlertIdx((i) => i + 1), 7000)
+    return () => clearInterval(timer)
+  }, [disaster.length, disasterOpen])
+  const alertPos = disaster.length > 0 ? alertIdx % disaster.length : 0
+  const alertNow = disaster[alertPos]
 
   // 테마 전환 — 버튼 중심에서 퍼지는 원형 리빌 (View Transition API, lexdiff 레시피).
   // 미지원 브라우저·reduced-motion은 즉시 전환.
@@ -230,16 +242,23 @@ export default function CrowdHeader({
               ))}
             </span>
           ) : (
-            /* 잘릴 만큼 길면 좌우 왕복 마퀴로 전문 노출 (푸터 출처와 동일 동작) */
-            <AutoMarquee className="flex-1 text-[12px] leading-5 text-[var(--cp-text)]">
-              <b className="text-amber-500">
-                {trDisaster(disaster[0].type, lang)} {trDisaster(disaster[0].step, lang)}
-              </b>{" "}
-              {disaster[0].content}
+            /* 한 건씩 교체 노출 — 항목이 잘릴 만큼 길면 그 안에서 좌우 왕복 마퀴(푸터 출처와 동일 동작).
+               우측 카운터는 몇 건 중 몇 번째인지 (숫자라 언어 무관) */
+            <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+              <span key={alertPos} className="crowd-alert-slide block min-w-0 flex-1">
+                <AutoMarquee className="text-[12px] leading-5 text-[var(--cp-text)]">
+                  <b className="text-amber-500">
+                    {trDisaster(alertNow.type, lang)} {trDisaster(alertNow.step, lang)}
+                  </b>{" "}
+                  {alertNow.content}
+                </AutoMarquee>
+              </span>
               {disaster.length > 1 && (
-                <span className="text-[var(--cp-text-dim)]">{t.moreCount(disaster.length - 1)}</span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-dim)]">
+                  {alertPos + 1}/{disaster.length}
+                </span>
               )}
-            </AutoMarquee>
+            </span>
           )}
         </button>
       )}
