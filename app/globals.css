@@ -383,6 +383,18 @@
 .crowd-page .leaflet-tooltip.crowd-name-label::before {
   display: none;
 }
+/* interactive 이름표 = 탭 표적 — leaflet 기본 .leaflet-tooltip이 pointer-events:none이라 명시 복구 */
+.crowd-page .leaflet-tooltip.crowd-name-label.leaflet-interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* 터치 기기: 이름표를 탭 표적 크기로 키운다 (44px 가이드에 근접하게) */
+@media (pointer: coarse) {
+  .crowd-page .leaflet-tooltip.crowd-name-label {
+    font-size: 12px;
+    padding: 4px 9px;
+  }
+}
 
 /* 시간대 렌즈 시간 슬라이더 — 테마 변수 기반 최소 스타일 */
 .crowd-page .crowd-lens-slider {
