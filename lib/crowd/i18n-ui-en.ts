@@ -179,7 +179,7 @@ export const EN: UIStrings = {
   baselineAbove: "Busier than usual",
   baselineBelow: "Quieter than usual",
   baselineUsual: "About usual",
-  baselineNote: "vs. average for this day & hour",
+  baselineNote: "vs. average for this day & nearby hours",
   airTitle: "Air quality",
   chipAir: "Air",
   airGrades: ["", "Good", "Moderate", "Poor", "Very poor"],
