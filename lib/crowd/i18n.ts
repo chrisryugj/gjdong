@@ -23,9 +23,26 @@ export { META } from "./i18n-meta"
 export type { UIStrings } from "./i18n-ui-ko"
 
 import type { Lang } from "./i18n-core"
+import { SPOT_COUNTS, type CityId } from "./cities"
 import { KO, type UIStrings } from "./i18n-ui-ko"
 import { EN } from "./i18n-ui-en"
 import { JA } from "./i18n-ui-ja"
 import { ZH } from "./i18n-ui-zh"
 
 export const UI: Record<Lang, UIStrings> = { ko: KO, en: EN, ja: JA, zh: ZH }
+
+/**
+ * 도시별 부제 — 원천이 달라 세는 대상도 다르다(인파/접근·주차/출국장 대기).
+ * 헤더와 페이지 메타데이터가 같은 문장을 쓴다. n 생략 시 도시별 기대 개수.
+ */
+export function citySubtitle(t: UIStrings, city: CityId, n?: number): string {
+  const fn: Record<CityId, (n: number) => string> = {
+    seoul: t.subtitle,
+    jeju: t.subtitleJeju,
+    busan: t.subtitleBusan,
+    gangwon: t.subtitleGangwon,
+    incheon: t.subtitleIncheon,
+    gwangjin: t.gwangjinSubtitle,
+  }
+  return fn[city](n && n > 0 ? n : SPOT_COUNTS[city])
+}
