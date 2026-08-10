@@ -9,6 +9,7 @@ import { KEY_GUIDES, STATIONS, type NeedKey } from "@/lib/gwangjin/constants"
 import { LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
 import type { SubwayBoard } from "@/lib/gwangjin/subway"
+import type { Pharmacy } from "@/lib/gwangjin/emergency"
 import type { CareBundle } from "@/components/gwangjin/use-gwangjin-life"
 
 export function Card({
@@ -143,6 +144,8 @@ export function SubwayCard({
 // ── 응급실 + 약국 ───────────────────────────────────────────────────────
 export function CareCard({ care }: { care: CareBundle | null }) {
   const [tab, setTab] = useState<"er" | "pharm">("er")
+  const [showAllPharm, setShowAllPharm] = useState(false)
+  const [pharmQuery, setPharmQuery] = useState("")
   const er = care?.er
   const pharmacies = care?.pharmacies
   const openCount = (pharmacies ?? []).filter((p) => p.openNow).length
@@ -189,25 +192,78 @@ export function CareCard({ care }: { care: CareBundle | null }) {
       ) : pharmacies === null || pharmacies === undefined ? (
         care === null ? <Empty text="불러오는 중…" /> : <NeedKeyNote guide={KEY_GUIDES.pharmacy} />
       ) : (
-        <>
-          <ul className="space-y-1">
-            {(pharmacies ?? []).slice(0, 6).map((p) => (
-              <li key={p.name + p.addr} className="flex items-center gap-2 text-[12px]">
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.openNow ? "bg-emerald-500" : "bg-[var(--cp-text-faint)]"}`}
-                />
-                <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--cp-text-dim)]">{p.hours}</span>
-                <a href={`tel:${p.tel}`} className="gj-info shrink-0 text-[11px]">
-                  전화
-                </a>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1.5 text-[10px] text-[var(--cp-text-faint)]">신고 기반 운영시간 — 방문 전 전화 확인 권장</p>
-        </>
+        <PharmacyList
+          pharmacies={pharmacies}
+          showAll={showAllPharm}
+          query={pharmQuery}
+          onToggleAll={() => setShowAllPharm((v) => !v)}
+          onQuery={setPharmQuery}
+        />
       )}
     </Card>
+  )
+}
+
+/** 약국 목록 — 기본 6곳(영업중·심야 우선 정렬순), 전체 보기 = 검색 인풋 + 스크롤 리스트 */
+function PharmacyList({
+  pharmacies,
+  showAll,
+  query,
+  onToggleAll,
+  onQuery,
+}: {
+  pharmacies: Pharmacy[]
+  showAll: boolean
+  query: string
+  onToggleAll: () => void
+  onQuery: (q: string) => void
+}) {
+  const q = query.trim()
+  const filtered = q
+    ? pharmacies.filter((p) => p.name.includes(q) || p.addr.includes(q))
+    : pharmacies
+  const visible = showAll ? filtered : filtered.slice(0, 6)
+  return (
+    <>
+      {showAll && (
+        <input
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="약국명·주소·동으로 검색 (예: 자양동)"
+          className="mb-1.5 w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-bg)] px-2.5 py-1.5 text-[12px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
+        />
+      )}
+      <ul className={`space-y-1 ${showAll ? "max-h-64 overflow-y-auto pr-1" : ""}`}>
+        {visible.map((p) => (
+          <li key={p.name + p.addr} className="flex items-center gap-2 text-[12px]">
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.openNow ? "bg-emerald-500" : "bg-[var(--cp-text-faint)]"}`}
+              title={p.openNow ? "영업 중" : "영업 종료"}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">
+                {p.name}
+                {p.lateNight && <span className="gj-info ml-1 text-[10px]">심야</span>}
+              </span>
+              {showAll && <span className="block truncate text-[10px] text-[var(--cp-text-dim)]">{p.addr}</span>}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--cp-text-dim)]">{p.hours}</span>
+            <a href={`tel:${p.tel}`} className="gj-info shrink-0 text-[11px]">
+              전화
+            </a>
+          </li>
+        ))}
+        {visible.length === 0 && <Empty text={`"${q}" 검색 결과 없음`} />}
+      </ul>
+      <button
+        type="button"
+        onClick={onToggleAll}
+        className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
+      >
+        {showAll ? "접기" : `전체 ${pharmacies.length}곳 보기·검색`}
+      </button>
+      <p className="mt-1.5 text-[10px] text-[var(--cp-text-faint)]">신고 기반 운영시간 — 방문 전 전화 확인 권장</p>
+    </>
   )
 }
 
