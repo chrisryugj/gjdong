@@ -3,9 +3,10 @@
 // 따릉이: 마스터 tbCycleStationInfo(총 3,237개소, STA_LOC="광진구" 필드 실측)를 24h 캐시로
 //   조인키를 만들고, bikeList(실시간 rackTotCnt/parkingBikeTotCnt/shared)를 60s 캐시로 훑는다.
 //   둘 다 1000행 페이징 — 4콜씩. 광진 대여소 번호는 500번대 실측이나 번호 규칙에 의존하지 않는다.
-// 행사: culturalEventInfo/{start}/{end}/%20/%20/{yyyy-MM-dd} — 날짜 위치인자 실측(해당일 진행
-//   행사만 반환, 2026-08-15 → 12건). 구명 요청 인자는 없음 — GUNAME="광진구" 후처리.
-//   빈 위치인자는 공백 한 칸(%20) — 실측 확인.
+// 행사: RTD citydata event 블록(무키) — 광진 6개 스팟 합산 후 제목 dedupe, 30분 캐시.
+//   ⚠️culturalEventInfo 날짜 위치인자는 기간 겹침이 아니라 "시작일 또는 종료일 = 그 날짜"만
+//   매칭(2026-08-10 실측: 당일 4건 전부 시작·종료가 그날) — 진행 중 장기 행사가 다 빠져서
+//   crowd 상세와 어긋났다. RTD event는 strtDate/endDate를 줘서 진행 중 필터가 정확.
 // 생활인구: SPOP_LOCAL_RESD_DONG/1/24/{yyyyMMdd}/{시간대?}/{동코드} — 시간대 생략 시 24행
 //   전부 오는지는 미실측이라 시간대 24회 호출 대신 "날짜/동코드"만 넣어 24행을 기대하고,
 //   부족하면 시간대별 폴백. 최신 일자는 오늘-7부터 역방향 탐색(실측: 8/10 시점 최신 7/31 = D-10).
@@ -20,8 +21,9 @@
 //   공유플랫폼(safetydata.go.kr DSSP-IF-10942, 별도 가입)이 유일한 전국 대안이나 서울은 이걸로 충분.
 
 import { krgovJson } from "@/lib/crowd/krgov-fetch"
-import { seoulRows, kstNow } from "@/lib/gwangjin/seoul-open"
-import { DONG_CODES } from "@/lib/gwangjin/constants"
+import { fetchSpotEvents } from "@/lib/crowd/seoul-rtd"
+import { seoulRows } from "@/lib/gwangjin/seoul-open"
+import { DONG_CODES, GWANGJIN_SPOTS, NEARBY_SPOTS } from "@/lib/gwangjin/constants"
 
 const DATA_KEY = () => process.env.DATA_GO_KR_KEY ?? ""
 
@@ -104,26 +106,31 @@ export interface GjEvent {
   date: string
   fee: string
   link: string
-  img: string
 }
 
+// 스팟 6곳 × 30분 캐시 — RTD 무키 원천이라 키 상태와 무관하게 항상 동작
+let eventsCache: { at: number; data: GjEvent[] } | null = null
+
 export async function fetchEvents(): Promise<GjEvent[] | null> {
-  const { date } = kstNow()
-  const iso = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`
-  const rows = (await seoulRows("culturalEventInfo", `1/300/%20/%20/${iso}`, 3600)) as
-    | Array<Record<string, unknown>>
-    | null
-  if (rows === null) return null
-  return rows
-    .filter((r) => String(r.GUNAME ?? "") === "광진구")
-    .map((r) => ({
-      title: String(r.TITLE ?? ""),
-      place: String(r.PLACE ?? ""),
-      date: String(r.DATE ?? ""),
-      fee: String(r.IS_FREE ?? "") === "무료" ? "무료" : String(r.USE_FEE ?? ""),
-      link: String(r.ORG_LINK ?? r.HMPG_ADDR ?? ""),
-      img: String(r.MAIN_IMG ?? ""),
-    }))
+  if (eventsCache && Date.now() - eventsCache.at < 1_800_000) return eventsCache.data
+  const per = await Promise.all(
+    [...GWANGJIN_SPOTS, ...NEARBY_SPOTS].map((s) => fetchSpotEvents(s).catch(() => [])),
+  )
+  const seen = new Set<string>()
+  const data: GjEvent[] = []
+  for (const e of per.flat()) {
+    if (seen.has(e.title)) continue
+    seen.add(e.title)
+    data.push({
+      title: e.title,
+      place: e.place,
+      date: e.period,
+      fee: e.free ? "무료" : "",
+      link: e.url,
+    })
+  }
+  if (data.length > 0) eventsCache = { at: Date.now(), data }
+  return data
 }
 
 // ── 생활인구 시간대 패턴 ─────────────────────────────────────────────────
