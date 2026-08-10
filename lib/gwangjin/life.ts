@@ -1,0 +1,237 @@
+// 광진 생활 묶음 (서버 전용) — 따릉이, EV충전, 문화행사, 생활인구 패턴, 무더위쉼터
+// ── 데이터 계약 실측 (2026-08-10, 샘플키 실호출 — EV·쉼터만 명세 기반, 실키 검증 대기)
+// 따릉이: 마스터 tbCycleStationInfo(총 3,237개소, STA_LOC="광진구" 필드 실측)를 24h 캐시로
+//   조인키를 만들고, bikeList(실시간 rackTotCnt/parkingBikeTotCnt/shared)를 60s 캐시로 훑는다.
+//   둘 다 1000행 페이징 — 4콜씩. 광진 대여소 번호는 500번대 실측이나 번호 규칙에 의존하지 않는다.
+// 행사: culturalEventInfo/{start}/{end}/%20/%20/{yyyy-MM-dd} — 날짜 위치인자 실측(해당일 진행
+//   행사만 반환, 2026-08-15 → 12건). 구명 요청 인자는 없음 — GUNAME="광진구" 후처리.
+//   빈 위치인자는 공백 한 칸(%20) — 실측 확인.
+// 생활인구: SPOP_LOCAL_RESD_DONG/1/24/{yyyyMMdd}/{시간대?}/{동코드} — 시간대 생략 시 24행
+//   전부 오는지는 미실측이라 시간대 24회 호출 대신 "날짜/동코드"만 넣어 24행을 기대하고,
+//   부족하면 시간대별 폴백. 최신 일자는 오늘-7부터 역방향 탐색(실측: 8/10 시점 최신 7/31 = D-10).
+//   일배치 데이터 — 하루 캐시.
+// EV: apis.data.go.kr/B552584/EvCharger/getChargerInfo?zcode=11&zscode=11215 (15076352 활용신청
+//   필요·자동승인). zscode 시군구 필터는 명세 기반 미실측 — 실패 시 zcode=11 폴백 후 주소 필터.
+//   응답에 stat(2=충전대기=사용가능)·statUpdDt 포함. dataType=JSON 지원.
+// 쉼터: 서울 열린데이터광장 TbGtnHwcwP (OA-21065) — 2026-08-10 실측: 전 행 YEAR=2026,
+//   총 4,056행 중 광진구 96행(AREA_CD 11215 프리픽스), LAT/LON 좌표 내장. 구 필터 파라미터
+//   없음 → 1000행×5페이징 후 클라이언트 필터, 24h 모듈 캐시.
+//   ⚠️행안부 data.go.kr API(HeatWaveShelter3·4·5)와 safemap은 전부 폐기 실측(2026-08-10) —
+//   공유플랫폼(safetydata.go.kr DSSP-IF-10942, 별도 가입)이 유일한 전국 대안이나 서울은 이걸로 충분.
+
+import { krgovJson } from "@/lib/crowd/krgov-fetch"
+import { seoulRows, kstNow } from "@/lib/gwangjin/seoul-open"
+
+const DATA_KEY = () => process.env.DATA_GO_KR_KEY ?? ""
+
+// ── 따릉이 ──────────────────────────────────────────────────────────────
+export interface BikeStation {
+  id: string
+  name: string
+  racks: number
+  bikes: number
+  lat: number
+  lng: number
+}
+
+// 마스터(광진 대여소 ID 집합)는 배포 인스턴스 수명 동안 사실상 불변 — 24h 모듈 캐시
+let bikeMasterCache: Map<string, { name: string; lat: number; lng: number }> | null = null
+let bikeMasterAt = 0
+
+async function gwangjinBikeMaster(): Promise<Map<string, { name: string; lat: number; lng: number }> | null> {
+  if (bikeMasterCache && Date.now() - bikeMasterAt < 86_400_000) return bikeMasterCache
+  const pages = await Promise.all(
+    [1, 1001, 2001, 3001].map((s) => seoulRows("tbCycleStationInfo", `${s}/${s + 999}/`, 86_400)),
+  )
+  if (pages.every((p) => p === null)) return null
+  const map = new Map<string, { name: string; lat: number; lng: number }>()
+  for (const rows of pages) {
+    for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+      if (String(r.STA_LOC ?? "") !== "광진구") continue
+      map.set(String(r.RENT_ID ?? ""), {
+        name: String(r.RENT_ID_NM ?? r.RENT_NM ?? "").replace(/^\d+\.\s*/, ""),
+        lat: Number.parseFloat(String(r.STA_LAT ?? "0")) || 0,
+        lng: Number.parseFloat(String(r.STA_LONG ?? "0")) || 0,
+      })
+    }
+  }
+  if (map.size > 0) {
+    bikeMasterCache = map
+    bikeMasterAt = Date.now()
+  }
+  return map
+}
+
+export async function fetchBikes(): Promise<BikeStation[] | null> {
+  const master = await gwangjinBikeMaster()
+  if (master === null) return null
+  const pages = await Promise.all([1, 1001, 2001, 3001].map((s) => seoulRows("bikeList", `${s}/${s + 999}/`, 60)))
+  const out: BikeStation[] = []
+  for (const rows of pages) {
+    for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+      const id = String(r.stationId ?? "")
+      const m = master.get(id)
+      if (!m) continue
+      out.push({
+        id,
+        name: m.name,
+        racks: Number.parseInt(String(r.rackTotCnt ?? "0"), 10) || 0,
+        bikes: Number.parseInt(String(r.parkingBikeTotCnt ?? "0"), 10) || 0,
+        lat: m.lat,
+        lng: m.lng,
+      })
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, "ko"))
+}
+
+// ── 문화행사 ────────────────────────────────────────────────────────────
+export interface GjEvent {
+  title: string
+  place: string
+  date: string
+  fee: string
+  link: string
+  img: string
+}
+
+export async function fetchEvents(): Promise<GjEvent[] | null> {
+  const { date } = kstNow()
+  const iso = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`
+  const rows = (await seoulRows("culturalEventInfo", `1/300/%20/%20/${iso}`, 3600)) as
+    | Array<Record<string, unknown>>
+    | null
+  if (rows === null) return null
+  return rows
+    .filter((r) => String(r.GUNAME ?? "") === "광진구")
+    .map((r) => ({
+      title: String(r.TITLE ?? ""),
+      place: String(r.PLACE ?? ""),
+      date: String(r.DATE ?? ""),
+      fee: String(r.IS_FREE ?? "") === "무료" ? "무료" : String(r.USE_FEE ?? ""),
+      link: String(r.ORG_LINK ?? r.HMPG_ADDR ?? ""),
+      img: String(r.MAIN_IMG ?? ""),
+    }))
+}
+
+// ── 생활인구 시간대 패턴 ─────────────────────────────────────────────────
+export interface DongPattern {
+  dongCode: string
+  /** 기준일 yyyyMMdd — 일배치라 열흘 안팎 지연 */
+  date: string
+  /** 0~23시 총 생활인구 (천 단위 반올림 전 원값) */
+  hours: number[]
+}
+
+// 동별 하루 캐시 — 일배치 데이터라 인스턴스당 하루 한 번이면 충분
+const popCache = new Map<string, { at: number; data: DongPattern }>()
+
+export async function fetchDongPattern(dongCode: string): Promise<DongPattern | null> {
+  const hit = popCache.get(dongCode)
+  if (hit && Date.now() - hit.at < 43_200_000) return hit.data
+
+  // 1) 최신 적재일 탐색: 1행 프로브(0시)로 D-7 → D-14 역방향 — 실측상 D-10 부근이 최신.
+  //    (24행 벌크로 탐색하면 샘플키 5행 상한(ERROR-335)에 걸려 영원히 못 찾는다 — 실측 함정)
+  let date = ""
+  for (let back = 7; back <= 14; back++) {
+    const d = new Date(Date.now() + 9 * 3600_000 - back * 86_400_000).toISOString().slice(0, 10).replace(/-/g, "")
+    // ⚠️시간대는 2자리 제로패딩("00"~"23") — "0"은 INFO-200 (2026-08-10 실측)
+    const probe = await seoulRows("SPOP_LOCAL_RESD_DONG", `1/1/${d}/00/${dongCode}`, 3600)
+    if (probe === null) return null
+    if (probe.length > 0) {
+      date = d
+      break
+    }
+  }
+  if (!date) return { dongCode, date: "", hours: [] }
+
+  // 2) 벌크(24행) 시도 — 시간대 위치인자 공백 스킵은 미실측이라 실패 시 시간별 1행 24콜 폴백
+  const hours = new Array(24).fill(0)
+  const bulk = (await seoulRows("SPOP_LOCAL_RESD_DONG", `1/24/${date}/%20/${dongCode}`, 3600)) ?? []
+  for (const r of bulk as Array<Record<string, unknown>>) {
+    const h = Number.parseInt(String(r.TMZON_PD_SE ?? ""), 10)
+    if (h >= 0 && h < 24) hours[h] = Number.parseFloat(String(r.TOT_LVPOP_CO ?? "0")) || 0
+  }
+  if (hours.filter((v) => v > 0).length < 12) {
+    const fills = await Promise.all(
+      Array.from({ length: 24 }, (_, h) =>
+        seoulRows("SPOP_LOCAL_RESD_DONG", `1/1/${date}/${String(h).padStart(2, "0")}/${dongCode}`, 3600),
+      ),
+    )
+    fills.forEach((rows2, h) => {
+      const r = (rows2 ?? [])[0] as Record<string, unknown> | undefined
+      if (r) hours[h] = Number.parseFloat(String(r.TOT_LVPOP_CO ?? "0")) || 0
+    })
+  }
+  const data = { dongCode, date, hours }
+  popCache.set(dongCode, { at: Date.now(), data })
+  return data
+}
+
+// ── EV 충전소 ───────────────────────────────────────────────────────────
+export interface EvSummary {
+  /** 충전소 단위 집계 */
+  stations: Array<{ name: string; addr: string; total: number; available: number }>
+  updatedAt: string
+}
+
+export async function fetchEv(): Promise<EvSummary | null> {
+  const key = DATA_KEY()
+  if (!key) return null
+  const url = `https://apis.data.go.kr/B552584/EvCharger/getChargerInfo?serviceKey=${key}&pageNo=1&numOfRows=9999&zcode=11&zscode=11215&dataType=JSON`
+  const raw = (await krgovJson(url, { timeoutMs: 15000 }).catch(() => null)) as {
+    items?: { item?: Array<Record<string, unknown>> }
+  } | null
+  const items = raw?.items?.item ?? []
+  if (items.length === 0) return { stations: [], updatedAt: "" }
+  const byStation = new Map<string, { name: string; addr: string; total: number; available: number }>()
+  let latest = ""
+  for (const it of items) {
+    // zscode 필터가 무시되는 원천 대비 — 주소로 한 번 더 거른다
+    if (!String(it.addr ?? "").includes("광진구")) continue
+    const sid = String(it.statId ?? "")
+    const entry = byStation.get(sid) ?? { name: String(it.statNm ?? ""), addr: String(it.addr ?? ""), total: 0, available: 0 }
+    entry.total += 1
+    if (String(it.stat ?? "") === "2") entry.available += 1 // 2 = 충전대기(사용가능)
+    byStation.set(sid, entry)
+    const upd = String(it.statUpdDt ?? "")
+    if (upd > latest) latest = upd
+  }
+  return { stations: [...byStation.values()].sort((a, b) => b.available - a.available), updatedAt: latest }
+}
+
+// ── 무더위쉼터 ──────────────────────────────────────────────────────────
+export interface Shelter {
+  name: string
+  addr: string
+  capacity: number
+  lat: number
+  lng: number
+}
+
+// 쉼터 목록은 연 단위 관리 데이터 — 24h 모듈 캐시로 5페이징 부담을 상쇄
+let shelterCache: { at: number; data: Shelter[] } | null = null
+
+export async function fetchShelters(): Promise<Shelter[] | null> {
+  if (shelterCache && Date.now() - shelterCache.at < 86_400_000) return shelterCache.data
+  const pages = await Promise.all(
+    [1, 1001, 2001, 3001, 4001].map((s) => seoulRows("TbGtnHwcwP", `${s}/${s + 999}/`, 86_400)),
+  )
+  if (pages.every((p) => p === null)) return null
+  const out: Shelter[] = []
+  for (const rows of pages) {
+    for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+      if (!String(r.AREA_CD ?? "").startsWith("11215")) continue
+      out.push({
+        name: String(r.R_AREA_NM ?? ""),
+        addr: String(r.R_DETL_ADD ?? r.LOTNO_ADDR ?? ""),
+        capacity: Number.parseInt(String(r.USE_PRNB ?? "0"), 10) || 0,
+        lat: Number.parseFloat(String(r.LAT ?? "0")) || 0,
+        lng: Number.parseFloat(String(r.LON ?? "0")) || 0,
+      })
+    }
+  }
+  const data = out.filter((s) => s.name).sort((a, b) => a.name.localeCompare(b.name, "ko"))
+  if (data.length > 0) shelterCache = { at: Date.now(), data }
+  return data
+}
