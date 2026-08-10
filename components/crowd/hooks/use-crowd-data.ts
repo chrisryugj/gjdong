@@ -10,6 +10,8 @@ export function useCrowdData(
   onSilentDetailRefresh: () => void,
   /** true면 숨김 탭에서도 폴링 유지(붐빔 알림 무장 시) — 제주는 원천 보호로 예외 */
   alertsArmedRef?: MutableRefObject<boolean>,
+  /** 도시 고정 서피스(/gwangjin) — URL ?city= 대신 이 값으로 확정하고 전환을 막는다 */
+  fixedCity?: CityId,
 ) {
   // 도시는 URL(?city=)에서 복원 — SSR 표준 출력은 서울이라 마운트 후 확정 (null=미확정)
   const [city, setCity] = useState<CityId | null>(null)
@@ -36,13 +38,13 @@ export function useCrowdData(
     }
   }, [cityRef])
 
-  // URL에서 도시 확정 → 이후 목록 로드 시작 (?city 없으면 서울)
+  // URL에서 도시 확정 → 이후 목록 로드 시작 (?city 없으면 서울, 고정 서피스는 URL 무시)
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get("city")
-    const resolved: CityId = isCityId(raw) ? raw : "seoul"
+    const resolved: CityId = fixedCity ?? (isCityId(raw) ? raw : "seoul")
     cityRef.current = resolved
     setCity(resolved)
-  }, [cityRef])
+  }, [cityRef, fixedCity])
 
   // 갱신 주기 — 제주는 명소당 1콜(66콜/회) 구조라 원천 부담이 서울·부산의 수십 배라 길게 잡는다.
   // 숨겨진 탭에서는 아예 멈춘다: 켜둔 채 방치된 탭이 쌓이면 아무도 보지 않는 데이터를 위해

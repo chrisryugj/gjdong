@@ -33,11 +33,12 @@ test("caps.disaster와 어댑터 fetchDisaster 존재가 일치한다 (전 도�
   }
 })
 
-test("신규 caps: 대기질 전 도시 · TourAPI 행사는 인천공항만 제외 · 지하철은 서울만", () => {
+test("신규 caps: 대기질 전 도시 · TourAPI 행사는 인천공항만 제외 · 지하철은 서울 계열만", () => {
   for (const id of CITY_IDS) {
     assert.equal(CITY_CAPS[id].air, true, `${id} air`)
     assert.equal(CITY_CAPS[id].tourEvents, id !== "incheon", `${id} tourEvents`)
-    assert.equal(CITY_CAPS[id].subway, id === "seoul", `${id} subway`)
+    // 광진은 서울 RTD 부분집합 — 서울 플럼빙을 그대로 타므로 지하철도 함께 켠다
+    assert.equal(CITY_CAPS[id].subway, id === "seoul" || id === "gwangjin", `${id} subway`)
   }
 })
 

@@ -17,6 +17,7 @@ import { fetchGangwonDetail, fetchGangwonExtra, fetchGangwonSpots } from "@/lib/
 import { fetchIncheonDetail, fetchIncheonExtra, fetchIncheonSpots } from "@/lib/crowd/incheon"
 import { augmentWithTopis } from "@/lib/crowd/topis"
 import { fetchSafety } from "@/lib/crowd/safety"
+import { GWANGJIN_SPOTS, NEARBY_SPOTS } from "@/lib/gwangjin/constants"
 import type { CityId } from "@/lib/crowd/cities"
 
 export interface CrowdAdapter {
@@ -59,6 +60,27 @@ async function seoulSpotCoords(name: string): Promise<{ lat: number; lng: number
   return seoulCoords.get(name) ?? null
 }
 
+// 서울 상세·안전은 광진(서울 부분집합 도시)과 공유 — detail.city는 "seoul"로 흘려
+// spot-detail의 extra/air/행사 후속 호출이 서울 플럼빙을 그대로 탄다
+async function seoulFetchDetail(spot: string): Promise<CrowdDetail> {
+  const detail = await fetchSpotDetail(spot)
+  // 서울 RTD 지점별 CCTV(0~8대)에 TOPIS 전역 510대 근접 카메라 병합
+  const origin = detail.cctv[0] ?? null
+  const coords = await seoulSpotCoords(spot)
+  if (coords) detail.cctv = await augmentWithTopis(coords, detail.cctv)
+  else if (origin) detail.cctv = await augmentWithTopis({ lat: origin.lat, lng: origin.lng }, detail.cctv)
+  return { ...detail, city: "seoul" }
+}
+
+async function seoulFetchDisaster(): Promise<CrowdDisaster[]> {
+  // RTD 재난문자가 이미 당일 서울 발송분 — 행안부 원천은 중복이라 특보만 얹는다
+  const [warnings, msgs] = await Promise.all([
+    fetchSafety("seoul", { withEmergency: false }).catch(() => []),
+    fetchDisasterToday().catch(() => []),
+  ])
+  return [...warnings, ...msgs]
+}
+
 export const ADAPTERS: Record<CityId, CrowdAdapter> = {
   seoul: {
     id: "seoul",
@@ -68,24 +90,23 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
       cacheSeoulCoords(spots)
       return spots
     },
-    async fetchDetail(spot) {
-      const detail = await fetchSpotDetail(spot)
-      // 서울 RTD 지점별 CCTV(0~8대)에 TOPIS 전역 510대 근접 카메라 병합
-      const origin = detail.cctv[0] ?? null
-      const coords = await seoulSpotCoords(spot)
-      if (coords) detail.cctv = await augmentWithTopis(coords, detail.cctv)
-      else if (origin) detail.cctv = await augmentWithTopis({ lat: origin.lat, lng: origin.lng }, detail.cctv)
-      return { ...detail, city: "seoul" }
-    },
+    fetchDetail: seoulFetchDetail,
     fetchExtra: fetchSpotExtra,
-    async fetchDisaster() {
-      // RTD 재난문자가 이미 당일 서울 발송분 — 행안부 원천은 중복이라 특보만 얹는다
-      const [warnings, msgs] = await Promise.all([
-        fetchSafety("seoul", { withEmergency: false }).catch(() => []),
-        fetchDisasterToday().catch(() => []),
-      ])
-      return [...warnings, ...msgs]
+    fetchDisaster: seoulFetchDisaster,
+  },
+  // 광진 = 서울 RTD 121곳 중 광진 소재 5곳 + 생활권 1곳(광나루) — /gwangjin 전용 서피스
+  gwangjin: {
+    id: "gwangjin",
+    cacheHeaders: CACHE_120,
+    async fetchSpots() {
+      const all = await fetchAllSpots()
+      cacheSeoulCoords(all)
+      const want = new Set<string>([...GWANGJIN_SPOTS, ...NEARBY_SPOTS])
+      return all.filter((s) => want.has(s.name))
     },
+    fetchDetail: seoulFetchDetail,
+    fetchExtra: fetchSpotExtra,
+    fetchDisaster: seoulFetchDisaster,
   },
   jeju: {
     id: "jeju",

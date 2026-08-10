@@ -167,8 +167,8 @@ export const KO = {
   footerSource: "서울 열린데이터광장",
   visitStats: "인파레이더 방문 통계 보기",
   // 멀티시티 (제주=GEONET 실인파 · 부산·강원=접근·주차 프록시 · 인천공항=출국장 대기)
-  cityNames: { seoul: "서울", jeju: "제주", busan: "부산", gangwon: "강원", incheon: "인천공항" } as Record<
-    "seoul" | "jeju" | "busan" | "gangwon" | "incheon",
+  cityNames: { seoul: "서울", jeju: "제주", busan: "부산", gangwon: "강원", incheon: "인천공항", gwangjin: "광진구" } as Record<
+    "seoul" | "jeju" | "busan" | "gangwon" | "incheon" | "gwangjin",
     string
   >,
   citySwitchLabel: "도시 선택",

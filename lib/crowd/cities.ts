@@ -1,8 +1,11 @@
 // 인파레이더 멀티시티 레지스트리 — 도시별 지도 초기 뷰·데이터 출처 표기
 // 어댑터(seoul-rtd / jeju / busan)는 모두 CrowdSpot·CrowdDetail 공통 형태로 수렴한다.
 
-export const CITY_IDS = ["seoul", "jeju", "busan", "gangwon", "incheon"] as const
+export const CITY_IDS = ["seoul", "jeju", "busan", "gangwon", "incheon", "gwangjin"] as const
 export type CityId = (typeof CITY_IDS)[number]
+
+/** 도시 스위처에 노출할 목록 — gwangjin은 /gwangjin 전용 서피스(서울 부분집합)라 /crowd 칩에서 숨긴다 */
+export const SWITCH_CITY_IDS: readonly CityId[] = CITY_IDS.filter((c) => c !== "gwangjin")
 
 export function isCityId(value: string | null | undefined): value is CityId {
   return CITY_IDS.includes(value as CityId)
@@ -60,6 +63,8 @@ export const CITY_CAPS: Record<CityId, CityCapabilities> = {
   busan: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
   gangwon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: true, disaster: true, air: true, tourEvents: true, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: true },
   incheon: { series: false, forecast: false, extra: true, heatmap: false, demographics: false, beach: false, disaster: true, air: true, tourEvents: false, subway: false, presets: false, pollMinutes: 5, opsDetail: "levelOnly", districts: false },
+  // 광진 = 서울 RTD의 광진 부분집합 — 데이터 능력은 서울과 동일 (상세는 city:"seoul"로 흘러 서울 플럼빙 재사용)
+  gwangjin: { series: true, forecast: true, extra: true, heatmap: true, demographics: true, beach: false, disaster: true, air: true, tourEvents: true, subway: true, presets: false, pollMinutes: 5, opsDetail: "full", districts: false },
 }
 
 export const CITIES: Record<CityId, CityInfo> = {
@@ -98,5 +103,13 @@ export const CITIES: Record<CityId, CityInfo> = {
     center: [37.4588, 126.4435],
     zoom: 14,
     sourceUrl: "https://www.airport.kr/",
+  },
+  gwangjin: {
+    id: "gwangjin",
+    nameKo: "광진구",
+    // 광진구 중심(구의동 일대) — 실제 뷰는 fitCity가 스팟 bbox로 맞춘다
+    center: [37.548, 127.0855],
+    zoom: 13,
+    sourceUrl: "https://data.seoul.go.kr/SeoulRtd/",
   },
 }

@@ -4,13 +4,11 @@
 // 데이터가 null이면 해당 원천의 키 미설정 — 발급 주소 카드로 강등 (KEY_GUIDES)
 
 import { useState } from "react"
-import Link from "next/link"
 import { ExternalLink, KeyRound } from "lucide-react"
-import { LEVEL_COLORS, textColor, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { KEY_GUIDES, STATIONS, type NeedKey } from "@/lib/gwangjin/constants"
 import type { RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
 import type { SubwayBoard } from "@/lib/gwangjin/subway"
-import type { CareBundle } from "@/components/gwangjin/gwangjin-dashboard"
+import type { CareBundle } from "@/components/gwangjin/use-gwangjin-life"
 
 export function Card({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
   return (
@@ -200,38 +198,6 @@ function BedStat({ label, v }: { label: string; v: number | null }) {
         {v <= 0 ? "포화" : v}
       </b>
     </span>
-  )
-}
-
-// ── 명소 혼잡도 ─────────────────────────────────────────────────────────
-export function SpotsCard({ spots, light }: { spots: CrowdSpot[]; light: boolean }) {
-  return (
-    <Card title="지금 혼잡도" badge="서울 실시간 도시데이터 · 5분">
-      {spots.length === 0 ? (
-        <Empty text="불러오는 중…" />
-      ) : (
-        <ul className="space-y-1">
-          {spots.map((s) => (
-            <li key={s.name}>
-              <Link
-                href={`/crowd?city=seoul&spot=${encodeURIComponent(s.name)}`}
-                className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-[12px] transition-colors hover:bg-[var(--cp-hover)]"
-              >
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: LEVEL_COLORS[s.level] ?? "#999" }}
-                />
-                <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                <span className="shrink-0 text-[11px] text-[var(--cp-text-dim)]">{s.category}</span>
-                <b className="shrink-0 text-[11px]" style={{ color: textColor(LEVEL_COLORS[s.level] ?? "#999", light) }}>
-                  {s.level}
-                </b>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   )
 }
 

@@ -32,6 +32,7 @@ const SIDO: Record<CityId, string> = {
   jeju: "제주",
   gangwon: "강원",
   incheon: "인천",
+  gwangjin: "서울", // 서울 부분집합 도시 — 상세는 city:"seoul"로 흘러 실호출은 서울 경로
 }
 
 /** 자치구(시군) → 측정소 후보 (우선순위순) — 시도별 응답의 실존 측정소명 실측(2026-08-09) 기준.
@@ -81,6 +82,7 @@ const CITY_FALLBACK: Record<CityId, string[]> = {
   gangwon: ["옥천동", "금호동"],
   // 운서·영종이 공항 소재 영종도 측정소
   incheon: ["운서", "영종"],
+  gwangjin: ["광진구"],
 }
 
 function toNumOrNull(v: unknown): number | null {

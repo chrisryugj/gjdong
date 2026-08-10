@@ -151,7 +151,7 @@ export const EN: UIStrings = {
   footerData: "Seoul Real-time City Data (5-min updates, KT mobile-signal estimates) · ",
   footerSource: "Seoul Open Data Plaza",
   visitStats: "View visit stats",
-  cityNames: { seoul: "Seoul", jeju: "Jeju", busan: "Busan", gangwon: "Gangwon", incheon: "Incheon Airport" },
+  cityNames: { seoul: "Seoul", jeju: "Jeju", busan: "Busan", gangwon: "Gangwon", incheon: "Incheon Airport", gwangjin: "Gwangjin" },
   citySwitchLabel: "Select city",
   subtitleJeju: (n) => `Live crowd levels at ${n} Jeju spots`,
   subtitleBusan: (n) => `Access & parking congestion at ${n} Busan spots`,
