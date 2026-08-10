@@ -257,27 +257,7 @@ export async function fetchSpotExtra(name: string): Promise<CrowdExtra> {
       : null
 
   // 문화행사: row가 주최기관별 그룹 — 오늘 진행 중인 것만, 무료 우선
-  const kstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
-  const groups = (eventRaw as { row?: Record<string, unknown[]> } | null)?.row ?? {}
-  const events: CrowdEvent[] = Object.values(groups)
-    .flat()
-    .map((e) => e as Record<string, string>)
-    .filter((e) => {
-      const start = (e.strtDate ?? "").slice(0, 10)
-      const end = (e.endDate ?? "").slice(0, 10)
-      return start && end && start <= kstToday && kstToday <= end
-    })
-    .map((e) => ({
-      title: (e.TITLE ?? "").trim(),
-      place: (e.PLACE ?? "").trim(),
-      period: e.DATE ?? "",
-      free: e.isFree === "무료",
-      category: e.CODENAME ?? "",
-      url: e.HMPG_ADDR || e.orgLink || "",
-    }))
-    .filter((e) => e.title)
-    .sort((a, b) => Number(b.free) - Number(a.free))
-    .slice(0, 12)
+  const events = parseEventRows(eventRaw)
 
   // row[0]가 핫스팟 전체 요약(지수·평균속도·안내문)을 담고 있음
   const roadRows = (roadRaw as { row?: unknown[] } | null)?.row
@@ -351,6 +331,37 @@ export function supportsNativeHls(): boolean {
   if (typeof document === "undefined") return false
   const video = document.createElement("video")
   return video.canPlayType("application/vnd.apple.mpegurl") !== ""
+}
+
+/** RTD event 응답 → 오늘 진행 중 행사 (기간 겹침 필터, 무료 우선) — fetchSpotExtra·광진 행사 카드 공용 */
+function parseEventRows(eventRaw: unknown): CrowdEvent[] {
+  const kstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+  const groups = (eventRaw as { row?: Record<string, unknown[]> } | null)?.row ?? {}
+  return Object.values(groups)
+    .flat()
+    .map((e) => e as Record<string, string>)
+    .filter((e) => {
+      const start = (e.strtDate ?? "").slice(0, 10)
+      const end = (e.endDate ?? "").slice(0, 10)
+      return start && end && start <= kstToday && kstToday <= end
+    })
+    .map((e) => ({
+      title: (e.TITLE ?? "").trim(),
+      place: (e.PLACE ?? "").trim(),
+      period: e.DATE ?? "",
+      free: e.isFree === "무료",
+      category: e.CODENAME ?? "",
+      url: e.HMPG_ADDR || e.orgLink || "",
+    }))
+    .filter((e) => e.title)
+    .sort((a, b) => Number(b.free) - Number(a.free))
+    .slice(0, 12)
+}
+
+/** 지점 근처 진행 중 행사만 단독 조회 (무키) — 광진 생활보드가 6개 스팟 합산에 쓴다 */
+export async function fetchSpotEvents(name: string): Promise<CrowdEvent[]> {
+  const eventRaw = await rtdFetch("event", { hotspotNm: name }).catch(() => null)
+  return parseEventRows(eventRaw)
 }
 
 async function rtdFetch(path: string, params: Record<string, string>): Promise<unknown> {

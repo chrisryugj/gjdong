@@ -13,7 +13,7 @@ import { Card, Empty, NeedKeyNote } from "@/components/gwangjin/cards-live"
 // ── 문화행사 ────────────────────────────────────────────────────────────
 export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
   return (
-    <Card icon={<CalendarDays className="h-3.5 w-3.5" />} title="오늘 광진 행사" badge="서울시 문화행사">
+    <Card icon={<CalendarDays className="h-3.5 w-3.5" />} title="진행 중 행사" badge="광진 명소 주변 · 오늘">
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : events === null ? (
@@ -33,7 +33,9 @@ export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loade
                 <span>{e.title}</span>
               )}
               <div className="text-[10px] text-[var(--cp-text-dim)]">
-                {e.place} · {e.fee || "요금 정보 없음"}
+                {e.place}
+                {e.fee && <span className="gj-ok"> · {e.fee}</span>}
+                {e.date && <span> · {e.date}</span>}
               </div>
             </li>
           ))}
