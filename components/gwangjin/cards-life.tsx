@@ -4,7 +4,7 @@
 // null = 키 미설정(NeedKeyNote), 빈 배열 = 원천 응답 없음/해당 없음
 
 import { useEffect, useState } from "react"
-import { ExternalLink } from "lucide-react"
+import { CalendarDays, CreditCard, ExternalLink, SquareParking, Users } from "lucide-react"
 import { DONG_CODES, KEY_GUIDES } from "@/lib/gwangjin/constants"
 import type { CmrclInfo, ParkingLot } from "@/lib/gwangjin/env-safety"
 import type { DongPattern, GjEvent } from "@/lib/gwangjin/life"
@@ -13,7 +13,7 @@ import { Card, Empty, NeedKeyNote } from "@/components/gwangjin/cards-live"
 // ── 문화행사 ────────────────────────────────────────────────────────────
 export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
   return (
-    <Card title="오늘 광진 행사" badge="서울시 문화행사">
+    <Card icon={<CalendarDays className="h-3.5 w-3.5" />} title="오늘 광진 행사" badge="서울시 문화행사">
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : events === null ? (
@@ -71,7 +71,7 @@ export function PopCard() {
   const date = pattern?.date ? `${pattern.date.slice(4, 6)}/${pattern.date.slice(6, 8)} 기준` : ""
 
   return (
-    <Card title="우리 동네 시간대 패턴" badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}>
+    <Card icon={<Users className="h-3.5 w-3.5" />} title="우리 동네 시간대 패턴" badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}>
       <select
         value={dong}
         onChange={(e) => setDong(e.target.value)}
@@ -120,7 +120,7 @@ export function PopCard() {
 // ── 공영주차 ────────────────────────────────────────────────────────────
 export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null; loaded: boolean }) {
   return (
-    <Card title="공영주차" badge="실시간 연계분">
+    <Card icon={<SquareParking className="h-3.5 w-3.5" />} title="공영주차" badge="실시간 연계분">
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : parking === null ? (
@@ -134,7 +134,7 @@ export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null;
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums">
-                  <b className={p.available === 0 ? "text-red-400" : "text-emerald-400"}>{p.available}</b> / {p.total}면
+                  <b className={p.available === 0 ? "gj-bad" : "gj-ok"}>{p.available}</b> / {p.total}면
                 </span>
               </div>
               <div className="text-[10px] text-[var(--cp-text-dim)]">{p.addr}</div>
@@ -152,7 +152,7 @@ export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null;
 // ── 건대 상권 ───────────────────────────────────────────────────────────
 export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo | null; loaded: boolean }) {
   return (
-    <Card title="건대 상권 소비" badge="신한카드 · 최근 30분">
+    <Card icon={<CreditCard className="h-3.5 w-3.5" />} title="건대 상권 소비" badge="신한카드 · 최근 30분">
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : cmrcl === null ? (

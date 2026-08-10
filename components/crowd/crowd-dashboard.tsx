@@ -322,10 +322,13 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             {timeLens.available && !selectedName && (
               <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
             )}
-            {city === "gwangjin" && !selectedName && (
-              <LifeLayerChips layers={life.layers} onToggle={life.toggleLayer} />
-            )}
           </div>
+          {/* 광진 생활 레이어 칩 — 좌상단 가로 스크롤 바 (우측 세로 스택과 분리, 모바일 지도 시야 확보) */}
+          {city === "gwangjin" && !selectedName && (
+            <div className="absolute left-2 right-24 top-2 z-[1000]">
+              <LifeLayerChips layers={life.layers} counts={life.counts} onToggle={life.toggleLayer} />
+            </div>
+          )}
           {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
           <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden">
             {LEVEL_ORDER.map((level) => (

@@ -6,6 +6,7 @@ import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type C
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
 import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
+import { LIFE_ICON_SVG, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
 
 interface CrowdMapProps {
@@ -389,12 +390,24 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     if (!ready || !L || !layer) return
     layer.clearLayers()
     for (const poi of lifePois ?? []) {
+      // 지하철 = 노선 정식색 동그라미(환승역은 겹친 두 개), 나머지 = 아이콘 원 + 우상단 숫자 배지
+      let html: string
+      let w = 24
+      if (poi.kind === "station" && poi.lines?.length) {
+        w = 18 + (poi.lines.length - 1) * 14
+        html = `<span class="crowd-life-lines">${poi.lines
+          .map((l) => `<b style="background:${LINE_COLOR_BY_NUM[l] ?? "#475569"}">${escapeHtml(l)}</b>`)
+          .join("")}</span>`
+      } else {
+        const countBadge = poi.count != null ? `<i class="crowd-life-count">${poi.count}</i>` : ""
+        html = `<span class="crowd-life-icon" style="background:${poi.color}">${LIFE_ICON_SVG[poi.kind as Exclude<LifePoi["kind"], "station">]}${countBadge}</span>`
+      }
       const marker = L.marker([poi.lat, poi.lng], {
         icon: L.divIcon({
           className: "crowd-life-marker",
-          html: `<span class="crowd-life-badge" style="background:${poi.color}">${escapeHtml(poi.badge)}</span>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
+          html,
+          iconSize: [w, poi.kind === "station" ? 18 : 24],
+          iconAnchor: [w / 2, poi.kind === "station" ? 9 : 12],
         }),
         // 명소 마커(z=400대)보다 아래 — 혼잡도가 주인공, 생활 POI는 보조
         zIndexOffset: -100,

@@ -345,22 +345,71 @@
 .crowd-page .crowd-tip b {
   font-weight: 600;
 }
-/* 광진 생활 POI 배지 마커 — 명소 원형 점과 구분되는 소형 pill (숫자·기호) */
-.crowd-page .crowd-life-badge {
+/* ── 광진 생활 POI 마커 — 아이콘이 주인공, 숫자는 우상단 꼬마 배지 */
+.crowd-page .crowd-life-icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid #ffffff;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.crowd-page .crowd-life-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.crowd-page .crowd-life-count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  border: 1px solid #ffffff;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 13px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* 지하철역 — 서울 노선 정식색 동그라미, 환승역은 살짝 겹친 두 개 */
+.crowd-page .crowd-life-lines {
+  display: flex;
+}
+.crowd-page .crowd-life-lines b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: 1.5px solid #ffffff;
   color: #ffffff;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-  white-space: nowrap;
 }
+.crowd-page .crowd-life-lines b + b {
+  margin-left: -4px;
+}
+
+/* ── 광진 카드 상태색 — 다크 기본 400계열이 라이트에서 씻겨 보여 테마별로 나눈다 */
+.crowd-page .gj-ok { color: #34d399; }
+.crowd-page.crowd-light .gj-ok { color: #047857; }
+.crowd-page .gj-warn { color: #fbbf24; }
+.crowd-page.crowd-light .gj-warn { color: #b45309; }
+.crowd-page .gj-bad { color: #f87171; }
+.crowd-page.crowd-light .gj-bad { color: #b91c1c; }
+.crowd-page .gj-info { color: #38bdf8; }
+.crowd-page.crowd-light .gj-info { color: #0369a1; }
 /* 역 팝업 도착 행 — 노선 배지 + 행선 + 남은 시간 */
 .crowd-page .crowd-subway-pop {
   display: flex;
