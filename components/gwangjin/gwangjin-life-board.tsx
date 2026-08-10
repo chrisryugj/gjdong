@@ -60,7 +60,7 @@ export default function GwangjinLifeBoard({ live, care, events, dailyLoaded }: G
           </span>
         )}
         {raining && (
-          <span className="normal-case tracking-normal text-sky-400">
+          <span className="gj-info normal-case tracking-normal">
             ☔ 1시간 {live?.rain?.mm60.toFixed(1)}mm
           </span>
         )}

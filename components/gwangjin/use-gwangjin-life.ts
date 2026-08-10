@@ -15,11 +15,14 @@ export interface LifePoi {
   name: string
   lat: number
   lng: number
-  /** 마커 안 짧은 표기 (숫자·글자 1~3자) */
-  badge: string
   /** 툴팁 부제 */
   sub: string
+  /** 마커 원 배경색 — station은 무시(노선색 동그라미가 대신한다) */
   color: string
+  /** 우상단 꼬마 숫자 배지 (따릉이 대수·EV 가능대수·응급병상) — 없으면 생략 */
+  count?: number
+  /** kind=station — 노선 번호들("2","7"), 정식 노선색 동그라미로 렌더 */
+  lines?: string[]
   /** kind=station — 도착 팝업 조회 키 */
   station?: string
 }
@@ -104,9 +107,9 @@ export function useGwangjinLife(enabled: boolean) {
           name: `${s.base}역`,
           lat: s.lat,
           lng: s.lng,
-          badge: s.lines.join("·"),
           sub: `${s.lines.map((l) => `${l}호선`).join("·")} — 탭하면 실시간 도착`,
-          color: "#3d5afe",
+          color: "",
+          lines: s.lines,
           station: s.base,
         })
       }
@@ -120,9 +123,9 @@ export function useGwangjinLife(enabled: boolean) {
           name: h.name,
           lat,
           lng,
-          badge: "+",
           sub: `응급병상 ${h.beds == null ? "?" : h.beds <= 0 ? "포화" : h.beds}${h.pediatric ? " · 소아 가능" : ""} · ${h.tel}`,
-          color: h.beds != null && h.beds <= 0 ? "#ff3939" : "#e11d48",
+          color: h.beds != null && h.beds <= 0 ? "#991b1b" : "#e11d48",
+          count: h.beds != null && h.beds > 0 ? h.beds : undefined,
         })
       }
     }
@@ -133,9 +136,9 @@ export function useGwangjinLife(enabled: boolean) {
           name: b.name,
           lat: b.lat,
           lng: b.lng,
-          badge: String(b.bikes),
           sub: `따릉이 ${b.bikes}대 / 거치대 ${b.racks}`,
-          color: b.bikes === 0 ? "#94a3b8" : b.bikes <= 2 ? "#ffb100" : "#00a84d",
+          color: b.bikes === 0 ? "#64748b" : b.bikes <= 2 ? "#d97706" : "#00a84d",
+          count: b.bikes,
         })
       }
     }
@@ -147,9 +150,9 @@ export function useGwangjinLife(enabled: boolean) {
           name: s.name,
           lat: s.lat,
           lng: s.lng,
-          badge: String(s.available),
           sub: `충전 가능 ${s.available} / ${s.total}`,
-          color: s.available === 0 ? "#94a3b8" : "#0ea5e9",
+          color: s.available === 0 ? "#64748b" : "#0284c7",
+          count: s.available,
         })
       }
     }
@@ -161,7 +164,6 @@ export function useGwangjinLife(enabled: boolean) {
           name: s.name,
           lat: s.lat,
           lng: s.lng,
-          badge: "❄",
           sub: `무더위쉼터 · 수용 ${s.capacity}명`,
           color: "#0891b2",
         })
@@ -170,5 +172,17 @@ export function useGwangjinLife(enabled: boolean) {
     return out
   }, [enabled, layers, live, care, daily])
 
-  return { live, care, daily, layers, toggleLayer, pois }
+  // 칩에 병기할 개수 — 꺼진 레이어도 "무엇이 몇 개 있는지"는 보여야 켤 이유가 생긴다
+  const counts = useMemo<Record<LifeLayerKind, number | null>>(
+    () => ({
+      station: daily?.stations?.length ?? null,
+      er: care?.er?.length ?? null,
+      bike: live?.bikes?.length ?? null,
+      ev: daily?.ev?.stations?.length ?? null,
+      shelter: daily?.shelters?.length ?? null,
+    }),
+    [live, care, daily],
+  )
+
+  return { live, care, daily, layers, toggleLayer, pois, counts }
 }

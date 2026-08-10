@@ -4,16 +4,28 @@
 // 데이터가 null이면 해당 원천의 키 미설정 — 발급 주소 카드로 강등 (KEY_GUIDES)
 
 import { useState } from "react"
-import { ExternalLink, KeyRound } from "lucide-react"
+import { CloudRain, Cross, ExternalLink, KeyRound, TrainFront } from "lucide-react"
 import { KEY_GUIDES, STATIONS, type NeedKey } from "@/lib/gwangjin/constants"
+import { LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
 import type { SubwayBoard } from "@/lib/gwangjin/subway"
 import type { CareBundle } from "@/components/gwangjin/use-gwangjin-life"
 
-export function Card({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+export function Card({
+  icon,
+  title,
+  badge,
+  children,
+}: {
+  icon?: React.ReactNode
+  title: string
+  badge?: string
+  children: React.ReactNode
+}) {
   return (
     <section className="rounded-xl border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] p-3">
-      <h2 className="mb-2 flex items-baseline gap-1.5 text-[13px] font-bold text-[var(--cp-text-strong)]">
+      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-[var(--cp-text-strong)]">
+        {icon && <span className="flex h-4 w-4 items-center justify-center text-[var(--cp-text-muted)]">{icon}</span>}
         {title}
         {badge && <span className="text-[10px] font-normal text-[var(--cp-text-dim)]">{badge}</span>}
       </h2>
@@ -34,7 +46,7 @@ export function NeedKeyNote({ guide }: { guide: NeedKey }) {
         href={guide.url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1 text-sky-400 hover:underline"
+        className="gj-info inline-flex items-center gap-1 hover:underline"
       >
         {guide.label} <ExternalLink className="h-3 w-3" />
       </a>
@@ -60,19 +72,29 @@ export function SubwayCard({
   onStation: (s: string) => void
 }) {
   return (
-    <Card title="지하철 도착" badge="30초 갱신">
+    <Card icon={<TrainFront className="h-3.5 w-3.5" />} title="지하철 도착" badge="30초 갱신">
       <div className="scrollbar-thin mb-2 flex gap-1 overflow-x-auto pb-1">
         {STATIONS.map((s) => (
           <button
             key={s.base}
             type="button"
             onClick={() => onStation(s.base)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
               station === s.base
-                ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] text-[var(--cp-text-strong)]"
+                ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] font-medium text-[var(--cp-text-strong)]"
                 : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
             }`}
           >
+            {/* 역 칩에도 노선색 점 — 지도 마커와 같은 시각 언어 */}
+            <span className="flex">
+              {s.lines.map((l) => (
+                <span
+                  key={l}
+                  className="-ml-0.5 h-2 w-2 rounded-full border border-[var(--cp-bg)] first:ml-0"
+                  style={{ background: LINE_COLOR_BY_NUM[l] ?? "#475569" }}
+                />
+              ))}
+            </span>
             {s.base}
           </button>
         ))}
@@ -84,22 +106,34 @@ export function SubwayCard({
       ) : board.arrivals.length === 0 ? (
         <Empty text="도착 예정 열차가 없습니다" />
       ) : (
-        <ul className="space-y-1">
-          {board.arrivals.slice(0, 6).map((a, i) => (
-            <li key={i} className="flex items-center gap-2 text-[12px]">
-              <span
-                className="w-9 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-bold text-white"
-                style={{ backgroundColor: a.lineColor }}
-              >
-                {a.line.replace("호선", "")}호선
-              </span>
-              <span className="min-w-0 flex-1 truncate">{a.dest}</span>
-              {a.last && <span className="shrink-0 text-[10px] text-amber-400">막차</span>}
-              <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-muted)]">
-                {a.sec > 0 ? `${Math.floor(a.sec / 60)}분 ${a.sec % 60}초` : a.msg}
-              </span>
-            </li>
-          ))}
+        <ul className="space-y-1.5">
+          {board.arrivals.slice(0, 6).map((a, i) => {
+            // "장암행 - 어린이대공원(세종대)방면" → 방면이 승강장 선택 기준이라 주인공, 행선은 보조
+            const [terminus, direction] = a.dest.split(" - ")
+            const soon = a.sec > 0 && a.sec <= 180
+            return (
+              <li key={i} className="flex items-center gap-2 text-[12px]">
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
+                  style={{ backgroundColor: a.lineColor }}
+                >
+                  {a.line.replace("호선", "")}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-[var(--cp-text-strong)]">{direction ?? terminus}</span>
+                  <span className="ml-1.5 text-[10px] text-[var(--cp-text-dim)]">{direction ? terminus : ""}</span>
+                </span>
+                {a.last && <span className="gj-warn shrink-0 text-[10px] font-medium">막차</span>}
+                <span
+                  className={`shrink-0 font-mono text-[11px] tabular-nums ${
+                    a.sec === 0 ? "gj-ok font-bold" : soon ? "gj-warn font-medium" : "text-[var(--cp-text-muted)]"
+                  }`}
+                >
+                  {a.sec > 0 ? `${Math.floor(a.sec / 60)}분 ${a.sec % 60}초` : a.msg}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </Card>
@@ -113,13 +147,13 @@ export function CareCard({ care }: { care: CareBundle | null }) {
   const pharmacies = care?.pharmacies
   const openCount = (pharmacies ?? []).filter((p) => p.openNow).length
   return (
-    <Card title="응급·약국" badge="응급실 실시간 병상">
+    <Card icon={<Cross className="h-3.5 w-3.5" />} title="응급·약국" badge="응급실 실시간 병상">
       <div className="mb-2 flex gap-1">
         <TabBtn active={tab === "er"} onClick={() => setTab("er")}>
           응급실
         </TabBtn>
         <TabBtn active={tab === "pharm"} onClick={() => setTab("pharm")}>
-          약국 {openCount > 0 && <b className="text-emerald-400">{openCount} 영업중</b>}
+          약국 {openCount > 0 && <b className="gj-ok">{openCount} 영업중</b>}
         </TabBtn>
       </div>
       {tab === "er" ? (
@@ -133,7 +167,7 @@ export function CareCard({ care }: { care: CareBundle | null }) {
               <li key={h.name} className="text-[12px]">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate font-medium text-[var(--cp-text-strong)]">{h.name}</span>
-                  <a href={`tel:${h.tel}`} className="shrink-0 text-[11px] text-sky-400">
+                  <a href={`tel:${h.tel}`} className="gj-info shrink-0 text-[11px]">
                     {h.tel}
                   </a>
                 </div>
@@ -142,7 +176,11 @@ export function CareCard({ care }: { care: CareBundle | null }) {
                   <BedStat label="수술" v={h.surgery} />
                   <BedStat label="중환자" v={h.icu} />
                   <BedStat label="입원" v={h.ward} />
-                  {h.pediatric && <span className="text-emerald-400">소아 가능</span>}
+                  {h.pediatric && (
+                    <span className="gj-ok rounded-full border border-current px-1.5 text-[10px] leading-4">
+                      소아 가능
+                    </span>
+                  )}
                 </div>
               </li>
             ))}
@@ -156,11 +194,11 @@ export function CareCard({ care }: { care: CareBundle | null }) {
             {(pharmacies ?? []).slice(0, 6).map((p) => (
               <li key={p.name + p.addr} className="flex items-center gap-2 text-[12px]">
                 <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.openNow ? "bg-emerald-400" : "bg-[var(--cp-text-faint)]"}`}
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${p.openNow ? "bg-emerald-500" : "bg-[var(--cp-text-faint)]"}`}
                 />
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
                 <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--cp-text-dim)]">{p.hours}</span>
-                <a href={`tel:${p.tel}`} className="shrink-0 text-[11px] text-sky-400">
+                <a href={`tel:${p.tel}`} className="gj-info shrink-0 text-[11px]">
                   전화
                 </a>
               </li>
@@ -193,10 +231,7 @@ function BedStat({ label, v }: { label: string; v: number | null }) {
   if (v === null) return null
   return (
     <span>
-      {label}{" "}
-      <b className={v <= 0 ? "text-red-400" : v <= 3 ? "text-amber-400" : "text-emerald-400"}>
-        {v <= 0 ? "포화" : v}
-      </b>
+      {label} <b className={v <= 0 ? "gj-bad" : v <= 3 ? "gj-warn" : "gj-ok"}>{v <= 0 ? "포화" : v}</b>
     </span>
   )
 }
@@ -205,7 +240,7 @@ function BedStat({ label, v }: { label: string; v: number | null }) {
 export function RainCard({ rain, river, loaded }: { rain: RainInfo | null; river: RiverInfo | null; loaded: boolean }) {
   if (loaded && rain === null && river === null) {
     return (
-      <Card title="비·하천">
+      <Card icon={<CloudRain className="h-3.5 w-3.5" />} title="비·하천">
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       </Card>
     )
@@ -213,7 +248,11 @@ export function RainCard({ rain, river, loaded }: { rain: RainInfo | null; river
   const ratio = river ? Math.min(Math.max(river.ratio, 0), 1) : 0
   const riverColor = ratio >= 0.9 ? "#ff3939" : ratio >= 0.7 ? "#ff8040" : ratio >= 0.5 ? "#ffb100" : "#00d369"
   return (
-    <Card title="비·하천" badge={rain?.station ? `${rain.station} 관측소 · 10분` : undefined}>
+    <Card
+      icon={<CloudRain className="h-3.5 w-3.5" />}
+      title="비·하천"
+      badge={rain?.station ? `${rain.station} 관측소 · 10분` : undefined}
+    >
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : (
