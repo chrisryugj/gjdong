@@ -21,6 +21,7 @@
 
 import { krgovJson } from "@/lib/crowd/krgov-fetch"
 import { seoulRows, kstNow } from "@/lib/gwangjin/seoul-open"
+import { DONG_CODES } from "@/lib/gwangjin/constants"
 
 const DATA_KEY = () => process.env.DATA_GO_KR_KEY ?? ""
 
@@ -28,28 +29,38 @@ const DATA_KEY = () => process.env.DATA_GO_KR_KEY ?? ""
 export interface BikeStation {
   id: string
   name: string
+  /** 도로명 주소 (마스터 STA_ADD1) — 팝업 표기·길찾기 참고용 */
+  addr: string
   racks: number
   bikes: number
   lat: number
   lng: number
 }
 
+interface BikeMasterEntry {
+  name: string
+  addr: string
+  lat: number
+  lng: number
+}
+
 // 마스터(광진 대여소 ID 집합)는 배포 인스턴스 수명 동안 사실상 불변 — 24h 모듈 캐시
-let bikeMasterCache: Map<string, { name: string; lat: number; lng: number }> | null = null
+let bikeMasterCache: Map<string, BikeMasterEntry> | null = null
 let bikeMasterAt = 0
 
-async function gwangjinBikeMaster(): Promise<Map<string, { name: string; lat: number; lng: number }> | null> {
+async function gwangjinBikeMaster(): Promise<Map<string, BikeMasterEntry> | null> {
   if (bikeMasterCache && Date.now() - bikeMasterAt < 86_400_000) return bikeMasterCache
   const pages = await Promise.all(
     [1, 1001, 2001, 3001].map((s) => seoulRows("tbCycleStationInfo", `${s}/${s + 999}/`, 86_400)),
   )
   if (pages.every((p) => p === null)) return null
-  const map = new Map<string, { name: string; lat: number; lng: number }>()
+  const map = new Map<string, BikeMasterEntry>()
   for (const rows of pages) {
     for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
       if (String(r.STA_LOC ?? "") !== "광진구") continue
       map.set(String(r.RENT_ID ?? ""), {
         name: String(r.RENT_ID_NM ?? r.RENT_NM ?? "").replace(/^\d+\.\s*/, ""),
+        addr: String(r.STA_ADD1 ?? ""),
         lat: Number.parseFloat(String(r.STA_LAT ?? "0")) || 0,
         lng: Number.parseFloat(String(r.STA_LONG ?? "0")) || 0,
       })
@@ -75,6 +86,7 @@ export async function fetchBikes(): Promise<BikeStation[] | null> {
       out.push({
         id,
         name: m.name,
+        addr: m.addr,
         racks: Number.parseInt(String(r.rackTotCnt ?? "0"), 10) || 0,
         bikes: Number.parseInt(String(r.parkingBikeTotCnt ?? "0"), 10) || 0,
         lat: m.lat,
@@ -245,6 +257,8 @@ export interface Shelter {
   capacity: number
   lat: number
   lng: number
+  /** 행정동명 — AREA_CD(8자리 행정동코드)를 DONG_CODES로 역매핑, 미매핑은 "" */
+  dong: string
 }
 
 // 쉼터 목록은 연 단위 관리 데이터 — 24h 모듈 캐시로 5페이징 부담을 상쇄
@@ -259,13 +273,15 @@ export async function fetchShelters(): Promise<Shelter[] | null> {
   const out: Shelter[] = []
   for (const rows of pages) {
     for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
-      if (!String(r.AREA_CD ?? "").startsWith("11215")) continue
+      const areaCd = String(r.AREA_CD ?? "")
+      if (!areaCd.startsWith("11215")) continue
       out.push({
         name: String(r.R_AREA_NM ?? ""),
         addr: String(r.R_DETL_ADD ?? r.LOTNO_ADDR ?? ""),
         capacity: Number.parseInt(String(r.USE_PRNB ?? "0"), 10) || 0,
         lat: Number.parseFloat(String(r.LAT ?? "0")) || 0,
         lng: Number.parseFloat(String(r.LON ?? "0")) || 0,
+        dong: DONG_CODES.find((d) => d.code === areaCd.slice(0, 8))?.name ?? "",
       })
     }
   }

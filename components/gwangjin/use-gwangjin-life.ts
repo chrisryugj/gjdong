@@ -10,12 +10,19 @@ import type { BikeStation, EvSummary, GjEvent, Shelter, StationPoi } from "@/lib
 import type { ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
+export interface LifePoiStat {
+  label: string
+  value: string
+  /** gj-* 상태색 클래스 접미 — 생략 시 기본 텍스트색 */
+  tone?: "ok" | "warn" | "bad" | "info"
+}
+
 export interface LifePoi {
   kind: "bike" | "ev" | "shelter" | "station" | "er"
   name: string
   lat: number
   lng: number
-  /** 툴팁 부제 */
+  /** 툴팁 부제 (hover 한 줄) */
   sub: string
   /** 마커 원 배경색 — station은 무시(노선색 동그라미가 대신한다) */
   color: string
@@ -25,6 +32,11 @@ export interface LifePoi {
   lines?: string[]
   /** kind=station — 도착 팝업 조회 키 */
   station?: string
+  /** 클릭 팝업 — 주소·행정동·상태 상세·전화. 길찾기는 좌표로 항상 제공 */
+  addr?: string
+  dong?: string
+  tel?: string
+  stats?: LifePoiStat[]
 }
 
 export type LifeLayerKind = LifePoi["kind"]
@@ -118,14 +130,24 @@ export function useGwangjinLife(enabled: boolean) {
       for (const h of care?.er ?? []) {
         const [lat, lng] = HOSPITAL_COORDS[h.name] ?? [0, 0]
         if (lat === 0) continue
+        const bed = (label: string, v: number | null): LifePoiStat | null =>
+          v == null ? null : { label, value: v <= 0 ? "포화" : String(v), tone: v <= 0 ? "bad" : v <= 3 ? "warn" : "ok" }
         out.push({
           kind: "er",
           name: h.name,
           lat,
           lng,
-          sub: `응급병상 ${h.beds == null ? "?" : h.beds <= 0 ? "포화" : h.beds}${h.pediatric ? " · 소아 가능" : ""} · ${h.tel}`,
+          sub: `응급병상 ${h.beds == null ? "?" : h.beds <= 0 ? "포화" : h.beds}${h.pediatric ? " · 소아 가능" : ""}`,
           color: h.beds != null && h.beds <= 0 ? "#991b1b" : "#e11d48",
           count: h.beds != null && h.beds > 0 ? h.beds : undefined,
+          tel: h.tel,
+          stats: [
+            bed("응급", h.beds),
+            bed("수술", h.surgery),
+            bed("중환자", h.icu),
+            bed("입원", h.ward),
+            h.pediatric ? { label: "소아", value: "가능", tone: "ok" as const } : null,
+          ].filter((s): s is LifePoiStat => s != null),
         })
       }
     }
@@ -139,6 +161,11 @@ export function useGwangjinLife(enabled: boolean) {
           sub: `따릉이 ${b.bikes}대 / 거치대 ${b.racks}`,
           color: b.bikes === 0 ? "#64748b" : b.bikes <= 2 ? "#d97706" : "#00a84d",
           count: b.bikes,
+          addr: b.addr,
+          stats: [
+            { label: "지금 대여 가능", value: `${b.bikes}대`, tone: b.bikes === 0 ? "bad" : b.bikes <= 2 ? "warn" : "ok" },
+            { label: "거치대", value: String(b.racks) },
+          ],
         })
       }
     }
@@ -153,6 +180,11 @@ export function useGwangjinLife(enabled: boolean) {
           sub: `충전 가능 ${s.available} / ${s.total}`,
           color: s.available === 0 ? "#64748b" : "#0284c7",
           count: s.available,
+          addr: s.addr,
+          stats: [
+            { label: "충전 가능", value: `${s.available}기`, tone: s.available === 0 ? "bad" : "ok" },
+            { label: "전체", value: `${s.total}기` },
+          ],
         })
       }
     }
@@ -165,7 +197,10 @@ export function useGwangjinLife(enabled: boolean) {
           lat: s.lat,
           lng: s.lng,
           sub: `무더위쉼터 · 수용 ${s.capacity}명`,
-          color: "#0891b2",
+          color: "#0e7490",
+          addr: s.addr,
+          dong: s.dong,
+          stats: [{ label: "수용 인원", value: `${s.capacity}명` }],
         })
       }
     }

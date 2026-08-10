@@ -44,6 +44,30 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
+/** 생활 POI 클릭 팝업 — 이름·행정동·주소·상태 상세·전화 + 카카오/네이버/T맵 길찾기(좌표 기반).
+ *  길찾기 URL 3종은 DirectionsBar(명소 상세)와 동일 패턴 — 앱 관성 유지 */
+function lifePopupHtml(poi: LifePoi): string {
+  const name = encodeURIComponent(poi.name)
+  const dong = poi.dong ? `<em>${escapeHtml(poi.dong)}</em>` : ""
+  const addr = poi.addr ? `<p class="a">${escapeHtml(poi.addr)}</p>` : ""
+  const stats = poi.stats?.length
+    ? `<div class="s">${poi.stats
+        .map((s) => `<span><i>${escapeHtml(s.label)}</i><b class="${s.tone ? `gj-${s.tone}` : ""}">${escapeHtml(s.value)}</b></span>`)
+        .join("")}</div>`
+    : ""
+  const arrivals = poi.kind === "station" ? `<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station ?? "")}">…</div>` : ""
+  const tel = poi.tel ? `<a href="tel:${escapeHtml(poi.tel)}">전화</a>` : ""
+  return `<div class="crowd-life-pop">
+    <p class="t">${escapeHtml(poi.name)}${dong}</p>
+    ${addr}${stats}${arrivals}
+    <div class="acts">${tel}
+      <a href="https://map.kakao.com/link/to/${name},${poi.lat},${poi.lng}" target="_blank" rel="noopener noreferrer"><i style="background:#ffb100"></i>카카오맵</a>
+      <a href="https://map.naver.com/p/directions/-/${poi.lng},${poi.lat},${name}/-/transit" target="_blank" rel="noopener noreferrer"><i style="background:#03c75a"></i>네이버</a>
+      <a href="tmap://route?goalname=${name}&goaly=${poi.lat}&goalx=${poi.lng}" title="T맵 앱 필요"><i style="background:#4b2ea8"></i>T맵</a>
+    </div>
+  </div>`
+}
+
 export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
@@ -382,8 +406,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     }
   }, [ready, cctvItems, lang])
 
-  // 광진 생활 POI — 명소 마커와 독립 레이어. 배지형 divIcon(숫자·기호)로 명소 점과 시각 구분.
-  // 역 마커는 탭 시 /api/gwangjin/subway를 그때 조회해 팝업에 채운다 (열기 전 0콜)
+  // 광진 생활 POI — 명소 마커와 독립 레이어. 클릭 = 상세 팝업(주소·행정동·상태·전화·길찾기 3종).
+  // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜)
   useEffect(() => {
     const L = leafletRef.current
     const layer = lifeLayerRef.current
@@ -416,11 +440,8 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         `<div class="crowd-tip"><b>${escapeHtml(poi.name)}</b><span>${escapeHtml(poi.sub)}</span></div>`,
         { direction: "top", offset: [0, -10], opacity: 1 },
       )
+      marker.bindPopup(lifePopupHtml(poi), { minWidth: 230, maxWidth: 290 })
       if (poi.kind === "station" && poi.station) {
-        marker.bindPopup(`<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station)}">…</div>`, {
-          minWidth: 220,
-          maxWidth: 280,
-        })
         marker.on("popupopen", (e) => {
           const el = e.popup.getElement()?.querySelector<HTMLElement>("[data-station]")
           if (!el) return

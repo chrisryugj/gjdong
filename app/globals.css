@@ -410,6 +410,88 @@
 .crowd-page.crowd-light .gj-bad { color: #b91c1c; }
 .crowd-page .gj-info { color: #38bdf8; }
 .crowd-page.crowd-light .gj-info { color: #0369a1; }
+/* ── 생활 POI 클릭 팝업 — 이름·행정동·주소·상태·전화·길찾기 */
+.crowd-page .crowd-life-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 210px;
+}
+.crowd-page .crowd-life-pop .t {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cp-text-strong);
+}
+.crowd-page .crowd-life-pop .t em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cp-text-muted);
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 15px;
+}
+.crowd-page .crowd-life-pop .a {
+  font-size: 11px;
+  color: var(--cp-text-muted);
+  line-height: 1.4;
+}
+.crowd-page .crowd-life-pop .s {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--cp-panel2);
+  font-size: 11px;
+}
+.crowd-page .crowd-life-pop .s span {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.crowd-page .crowd-life-pop .s i {
+  font-style: normal;
+  color: var(--cp-text-dim);
+}
+.crowd-page .crowd-life-pop .s b {
+  font-variant-numeric: tabular-nums;
+}
+.crowd-page .crowd-life-pop .acts {
+  display: flex;
+  gap: 4px;
+  padding-top: 2px;
+}
+.crowd-page .crowd-life-pop .acts a {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 0;
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 7px;
+  background: var(--cp-panel);
+  color: var(--cp-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+.crowd-page .crowd-life-pop .acts a:hover {
+  background: var(--cp-hover2);
+}
+.crowd-page .crowd-life-pop .acts a i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
 /* 역 팝업 도착 행 — 노선 배지 + 행선 + 남은 시간 */
 .crowd-page .crowd-subway-pop {
   display: flex;
