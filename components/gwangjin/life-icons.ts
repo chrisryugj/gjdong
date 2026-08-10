@@ -16,7 +16,7 @@ export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
   er: "#e11d48",
   bike: "#00a84d",
   ev: "#0284c7",
-  shelter: "#0891b2",
+  shelter: "#0e7490",
 }
 
 // divIcon용 스트로크 SVG (lucide 도형과 동일한 시각 언어, 13px로 렌더)
