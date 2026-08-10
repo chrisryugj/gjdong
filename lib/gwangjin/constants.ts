@@ -65,6 +65,12 @@ export const DONG_CODES: Array<{ code: string; name: string }> = [
   { code: "11215870", name: "구의3동" },
 ]
 
+/** 광진구 응급의료기관 좌표 — E-Gen 응답엔 좌표가 없어 고정값 (OSM Nominatim 실측 2026-08-10) */
+export const HOSPITAL_COORDS: Record<string, [number, number]> = {
+  건국대학교병원: [37.5406, 127.0723],
+  혜민병원: [37.5353, 127.0837],
+}
+
 /** 키 미설정 시 카드에 노출할 발급 안내 — url은 실제 신청 페이지 */
 export interface NeedKey {
   key: string

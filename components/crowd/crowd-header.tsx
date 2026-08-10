@@ -5,7 +5,7 @@ import { flushSync } from "react-dom"
 import Link from "next/link"
 import { LayoutDashboard, Moon, RefreshCw, Sun, TriangleAlert } from "lucide-react"
 import { LEVEL_COLORS, type CrowdDisaster } from "@/lib/crowd/seoul-rtd"
-import { CITY_IDS, type CityId } from "@/lib/crowd/cities"
+import { SWITCH_CITY_IDS, type CityId } from "@/lib/crowd/cities"
 import { AutoMarquee, formatClock, LEVEL_ORDER } from "@/components/crowd/shared"
 import { LangSwitcher, useLang } from "@/components/crowd/lang-context"
 import { trDisaster } from "@/lib/crowd/i18n"
@@ -24,6 +24,8 @@ interface CrowdHeaderProps {
   onToggleDisaster: () => void
   /** 상황실 모드 진입 (행사·축제 안전 담당자용 다지점 모니터링) */
   onEnterOps: () => void
+  /** 도시 고정 서피스(/gwangjin) — 도시 스위처를 숨긴다 */
+  lockCity?: boolean
 }
 
 export default function CrowdHeader({
@@ -39,6 +41,7 @@ export default function CrowdHeader({
   onToggleTheme,
   onToggleDisaster,
   onEnterOps,
+  lockCity,
 }: CrowdHeaderProps) {
   const { lang, t, level } = useLang()
 
@@ -89,19 +92,20 @@ export default function CrowdHeader({
     gangwon: [t.subtitleGangwon, 18],
     incheon: [t.subtitleIncheon, 8],
     seoul: [t.subtitle, 121],
+    gwangjin: [t.subtitle, 6],
   }
   const [subtitleFn, fallbackCount] = SUBTITLE[city] ?? SUBTITLE.seoul
   const subtitle = subtitleFn(spotCount > 0 ? spotCount : fallbackCount)
   // 도시 스위처 — 헤더 안(md↑)과 헤더 아래 독립 행(모바일) 두 곳에서 같은 것을 쓴다.
   // 선택 도시는 반전 대비(라이트=먹색 pill·다크=백색 pill)로 한눈에 — 배경색 은은한 구분은
   // 5개 pill 사이에서 잘 안 읽혔다.
-  const citySwitcher = (
+  const citySwitcher = lockCity ? null : (
     <div
       role="group"
       aria-label={t.citySwitchLabel}
       className="flex items-center gap-0.5 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] p-0.5"
     >
-      {CITY_IDS.map((id) => (
+      {SWITCH_CITY_IDS.map((id) => (
         <button
           key={id}
           onClick={() => onCityChange(id)}

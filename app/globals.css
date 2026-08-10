@@ -345,6 +345,56 @@
 .crowd-page .crowd-tip b {
   font-weight: 600;
 }
+/* 광진 생활 POI 배지 마커 — 명소 원형 점과 구분되는 소형 pill (숫자·기호) */
+.crowd-page .crowd-life-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid #ffffff;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+/* 역 팝업 도착 행 — 노선 배지 + 행선 + 남은 시간 */
+.crowd-page .crowd-subway-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 200px;
+}
+.crowd-page .crowd-subway-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.crowd-page .crowd-subway-row b {
+  flex: none;
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+.crowd-page .crowd-subway-row span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crowd-page .crowd-subway-row em {
+  flex: none;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--cp-text-muted);
+  font-size: 11px;
+}
 .crowd-page .leaflet-bar a {
   background: var(--cp-tip-bg);
   border-color: var(--cp-border-strong);

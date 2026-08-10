@@ -170,8 +170,8 @@ export async function fetchDongPattern(dongCode: string): Promise<DongPattern | 
 
 // ── EV 충전소 ───────────────────────────────────────────────────────────
 export interface EvSummary {
-  /** 충전소 단위 집계 */
-  stations: Array<{ name: string; addr: string; total: number; available: number }>
+  /** 충전소 단위 집계 — 좌표는 첫 충전기의 lat/lng (지도 마커용) */
+  stations: Array<{ name: string; addr: string; total: number; available: number; lat: number; lng: number }>
   updatedAt: string
 }
 
@@ -184,13 +184,20 @@ export async function fetchEv(): Promise<EvSummary | null> {
   } | null
   const items = raw?.items?.item ?? []
   if (items.length === 0) return { stations: [], updatedAt: "" }
-  const byStation = new Map<string, { name: string; addr: string; total: number; available: number }>()
+  const byStation = new Map<string, EvSummary["stations"][number]>()
   let latest = ""
   for (const it of items) {
     // zscode 필터가 무시되는 원천 대비 — 주소로 한 번 더 거른다
     if (!String(it.addr ?? "").includes("광진구")) continue
     const sid = String(it.statId ?? "")
-    const entry = byStation.get(sid) ?? { name: String(it.statNm ?? ""), addr: String(it.addr ?? ""), total: 0, available: 0 }
+    const entry = byStation.get(sid) ?? {
+      name: String(it.statNm ?? ""),
+      addr: String(it.addr ?? ""),
+      total: 0,
+      available: 0,
+      lat: Number.parseFloat(String(it.lat ?? "0")) || 0,
+      lng: Number.parseFloat(String(it.lng ?? "0")) || 0,
+    }
     entry.total += 1
     if (String(it.stat ?? "") === "2") entry.available += 1 // 2 = 충전대기(사용가능)
     byStation.set(sid, entry)
@@ -198,6 +205,37 @@ export async function fetchEv(): Promise<EvSummary | null> {
     if (upd > latest) latest = upd
   }
   return { stations: [...byStation.values()].sort((a, b) => b.available - a.available), updatedAt: latest }
+}
+
+// ── 지하철역 좌표 ────────────────────────────────────────────────────────
+// subwayStationMaster (2026-08-10 실측: 총 784행, BLDN_NM 부역명 포함, LAT/LOT) —
+// 광진 8역만 걸러 base명으로 dedupe(환승역은 노선별 행 — 첫 행 좌표 채택). 24h 캐시.
+export interface StationPoi {
+  base: string
+  lat: number
+  lng: number
+  lines: string[]
+}
+
+let stationCache: { at: number; data: StationPoi[] } | null = null
+
+export async function fetchStationPois(bases: Array<{ base: string; lines: string[] }>): Promise<StationPoi[] | null> {
+  if (stationCache && Date.now() - stationCache.at < 86_400_000) return stationCache.data
+  const rows = await seoulRows("subwayStationMaster", "1/784/", 86_400)
+  if (rows === null) return null
+  const byBase = new Map<string, StationPoi>()
+  for (const r of rows as Array<Record<string, unknown>>) {
+    const base = String(r.BLDN_NM ?? "").replace(/\(.*\)$/, "")
+    const def = bases.find((b) => b.base === base)
+    if (!def || byBase.has(base)) continue
+    const lat = Number.parseFloat(String(r.LAT ?? "0")) || 0
+    const lng = Number.parseFloat(String(r.LOT ?? "0")) || 0
+    if (lat === 0) continue
+    byBase.set(base, { base, lat, lng, lines: def.lines })
+  }
+  const data = bases.map((b) => byBase.get(b.base)).filter((s): s is StationPoi => s != null)
+  if (data.length > 0) stationCache = { at: Date.now(), data }
+  return data
 }
 
 // ── 무더위쉼터 ──────────────────────────────────────────────────────────

@@ -1,0 +1,174 @@
+"use client"
+
+// 광진 생활 데이터 훅 — crowd 대시보드(city=gwangjin)에서만 마운트.
+// 5분 축(/api/gwangjin: 따릉이·대기·강우·수위·주차·상권) + 의료(/care) + 하루 축(/daily).
+// 지도 POI 배열과 목록 하단 생활보드 데이터를 함께 내놓는다.
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { AirNow, CmrclInfo, ParkingLot, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
+import type { BikeStation, EvSummary, GjEvent, Shelter, StationPoi } from "@/lib/gwangjin/life"
+import type { ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
+import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
+
+export interface LifePoi {
+  kind: "bike" | "ev" | "shelter" | "station" | "er"
+  name: string
+  lat: number
+  lng: number
+  /** 마커 안 짧은 표기 (숫자·글자 1~3자) */
+  badge: string
+  /** 툴팁 부제 */
+  sub: string
+  color: string
+  /** kind=station — 도착 팝업 조회 키 */
+  station?: string
+}
+
+export type LifeLayerKind = LifePoi["kind"]
+
+export interface LiveBundle {
+  air: AirNow | null
+  rain: RainInfo | null
+  river: RiverInfo | null
+  parking: ParkingLot[] | null
+  cmrcl: CmrclInfo | null
+  bikes: BikeStation[] | null
+}
+export interface CareBundle {
+  er: ErRoom[] | null
+  pharmacies: Pharmacy[] | null
+}
+interface DailyBundle {
+  events: GjEvent[] | null
+  ev: EvSummary | null
+  shelters: Shelter[] | null
+  stations: StationPoi[] | null
+}
+
+// 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 따릉이 89·EV 328·쉼터 96은 옵트인
+const DEFAULT_LAYERS: LifeLayerKind[] = ["station", "er"]
+
+export function useGwangjinLife(enabled: boolean) {
+  const [live, setLive] = useState<LiveBundle | null>(null)
+  const [care, setCare] = useState<CareBundle | null>(null)
+  const [daily, setDaily] = useState<DailyBundle | null>(null)
+  const [layers, setLayers] = useState<Set<LifeLayerKind>>(new Set(DEFAULT_LAYERS))
+
+  const toggleLayer = useCallback((kind: LifeLayerKind) => {
+    setLayers((prev) => {
+      const next = new Set(prev)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    const loadLive = () =>
+      fetch("/api/gwangjin")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => alive && d && setLive(d))
+        .catch(() => {})
+    const loadCare = () =>
+      fetch("/api/gwangjin/care")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => alive && d && setCare(d))
+        .catch(() => {})
+    void loadLive()
+    void loadCare()
+    fetch("/api/gwangjin/daily")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => alive && d && setDaily(d))
+      .catch(() => {})
+    const t = setInterval(() => {
+      if (document.hidden) return
+      void loadLive()
+      void loadCare()
+    }, 300_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [enabled])
+
+  // 켜진 레이어의 POI만 지도로 — Leaflet 마커 재생성 비용이 있어 켠 것만 넘긴다
+  const pois = useMemo<LifePoi[]>(() => {
+    if (!enabled) return []
+    const out: LifePoi[] = []
+    if (layers.has("station")) {
+      for (const s of daily?.stations ?? []) {
+        out.push({
+          kind: "station",
+          name: `${s.base}역`,
+          lat: s.lat,
+          lng: s.lng,
+          badge: s.lines.join("·"),
+          sub: `${s.lines.map((l) => `${l}호선`).join("·")} — 탭하면 실시간 도착`,
+          color: "#3d5afe",
+          station: s.base,
+        })
+      }
+    }
+    if (layers.has("er")) {
+      for (const h of care?.er ?? []) {
+        const [lat, lng] = HOSPITAL_COORDS[h.name] ?? [0, 0]
+        if (lat === 0) continue
+        out.push({
+          kind: "er",
+          name: h.name,
+          lat,
+          lng,
+          badge: "+",
+          sub: `응급병상 ${h.beds == null ? "?" : h.beds <= 0 ? "포화" : h.beds}${h.pediatric ? " · 소아 가능" : ""} · ${h.tel}`,
+          color: h.beds != null && h.beds <= 0 ? "#ff3939" : "#e11d48",
+        })
+      }
+    }
+    if (layers.has("bike")) {
+      for (const b of live?.bikes ?? []) {
+        out.push({
+          kind: "bike",
+          name: b.name,
+          lat: b.lat,
+          lng: b.lng,
+          badge: String(b.bikes),
+          sub: `따릉이 ${b.bikes}대 / 거치대 ${b.racks}`,
+          color: b.bikes === 0 ? "#94a3b8" : b.bikes <= 2 ? "#ffb100" : "#00a84d",
+        })
+      }
+    }
+    if (layers.has("ev")) {
+      for (const s of daily?.ev?.stations ?? []) {
+        if (s.lat === 0) continue
+        out.push({
+          kind: "ev",
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          badge: String(s.available),
+          sub: `충전 가능 ${s.available} / ${s.total}`,
+          color: s.available === 0 ? "#94a3b8" : "#0ea5e9",
+        })
+      }
+    }
+    if (layers.has("shelter")) {
+      for (const s of daily?.shelters ?? []) {
+        if (s.lat === 0) continue
+        out.push({
+          kind: "shelter",
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          badge: "❄",
+          sub: `무더위쉼터 · 수용 ${s.capacity}명`,
+          color: "#0891b2",
+        })
+      }
+    }
+    return out
+  }, [enabled, layers, live, care, daily])
+
+  return { live, care, daily, layers, toggleLayer, pois }
+}

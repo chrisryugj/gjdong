@@ -151,7 +151,7 @@ export const JA: UIStrings = {
   footerData: "ソウル市リアルタイム都市データ（5分間隔、KT通信基盤の推定値）· ",
   footerSource: "ソウルオープンデータ広場",
   visitStats: "訪問統計を見る",
-  cityNames: { seoul: "ソウル", jeju: "済州", busan: "釜山", gangwon: "江原", incheon: "仁川空港" },
+  cityNames: { seoul: "ソウル", jeju: "済州", busan: "釜山", gangwon: "江原", incheon: "仁川空港", gwangjin: "広津区" },
   citySwitchLabel: "都市を選択",
   subtitleJeju: (n) => `済州の主要${n}スポットの混雑状況をリアルタイムで`,
   subtitleBusan: (n) => `釜山${n}スポットのアクセス・駐車混雑状況`,

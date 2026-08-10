@@ -1,84 +1,14 @@
 "use client"
 
-// 생활 축 카드 — 따릉이·EV·행사·생활인구·주차·상권·쉼터
+// 생활 축 카드 — 행사·생활인구·주차·상권 (따릉이·EV·쉼터는 지도 레이어로 이동, 2026-08-10)
 // null = 키 미설정(NeedKeyNote), 빈 배열 = 원천 응답 없음/해당 없음
 
 import { useEffect, useState } from "react"
 import { ExternalLink } from "lucide-react"
 import { DONG_CODES, KEY_GUIDES } from "@/lib/gwangjin/constants"
 import type { CmrclInfo, ParkingLot } from "@/lib/gwangjin/env-safety"
-import type { BikeStation, DongPattern, EvSummary, GjEvent, Shelter } from "@/lib/gwangjin/life"
+import type { DongPattern, GjEvent } from "@/lib/gwangjin/life"
 import { Card, Empty, NeedKeyNote } from "@/components/gwangjin/cards-live"
-
-// ── 따릉이 ──────────────────────────────────────────────────────────────
-export function BikeCard({ bikes, loaded }: { bikes: BikeStation[] | null; loaded: boolean }) {
-  const [showAll, setShowAll] = useState(false)
-  return (
-    <Card title="따릉이" badge={bikes ? `광진 ${bikes.length}개소 · 실시간` : undefined}>
-      {!loaded ? (
-        <Empty text="불러오는 중…" />
-      ) : bikes === null ? (
-        <NeedKeyNote guide={KEY_GUIDES.seoul} />
-      ) : bikes.length === 0 ? (
-        <Empty text="대여소 정보 없음" />
-      ) : (
-        <>
-          <ul className="space-y-1">
-            {(showAll ? bikes : bikes.slice(0, 6)).map((b) => (
-              <li key={b.id} className="flex items-center gap-2 text-[12px]">
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.bikes === 0 ? "bg-red-400" : b.bikes <= 2 ? "bg-amber-400" : "bg-emerald-400"}`}
-                />
-                <span className="min-w-0 flex-1 truncate">{b.name}</span>
-                <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-muted)]">
-                  <b className="text-[var(--cp-text-strong)]">{b.bikes}</b>대 / 거치대 {b.racks}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {bikes.length > 6 && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
-            >
-              {showAll ? "접기" : `전체 ${bikes.length}개소 보기`}
-            </button>
-          )}
-        </>
-      )}
-    </Card>
-  )
-}
-
-// ── EV 충전 ─────────────────────────────────────────────────────────────
-export function EvCard({ ev, loaded }: { ev: EvSummary | null; loaded: boolean }) {
-  return (
-    <Card title="전기차 충전" badge={ev?.updatedAt ? "준실시간" : undefined}>
-      {!loaded ? (
-        <Empty text="불러오는 중…" />
-      ) : ev === null ? (
-        <NeedKeyNote guide={KEY_GUIDES.ev} />
-      ) : ev.stations.length === 0 ? (
-        <Empty text="응답 없음 — 활용신청 승인 대기 중일 수 있어요" />
-      ) : (
-        <ul className="space-y-1">
-          {ev.stations.slice(0, 6).map((s) => (
-            <li key={s.name + s.addr} className="flex items-center gap-2 text-[12px]">
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.available === 0 ? "bg-red-400" : "bg-emerald-400"}`}
-              />
-              <span className="min-w-0 flex-1 truncate">{s.name}</span>
-              <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--cp-text-muted)]">
-                <b className={s.available > 0 ? "text-emerald-400" : "text-red-400"}>{s.available}</b> / {s.total} 가능
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  )
-}
 
 // ── 문화행사 ────────────────────────────────────────────────────────────
 export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
@@ -251,41 +181,3 @@ export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo | null; loaded: 
   )
 }
 
-// ── 무더위쉼터 ──────────────────────────────────────────────────────────
-export function ShelterCard({ shelters, loaded }: { shelters: Shelter[] | null; loaded: boolean }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Card title="무더위쉼터" badge="행안부 표준데이터">
-      {!loaded ? (
-        <Empty text="불러오는 중…" />
-      ) : shelters === null ? (
-        <NeedKeyNote guide={KEY_GUIDES.shelter} />
-      ) : shelters.length === 0 ? (
-        <Empty text="응답 없음 — 활용신청 승인 대기 중일 수 있어요" />
-      ) : (
-        <>
-          <p className="text-[12px]">
-            광진구 내 <b className="text-[var(--cp-text-strong)]">{shelters.length}</b>곳
-          </p>
-          {open && (
-            <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto">
-              {shelters.map((s) => (
-                <li key={s.name + s.addr} className="text-[11px]">
-                  <span className="text-[var(--cp-text)]">{s.name}</span>
-                  <span className="ml-1.5 text-[10px] text-[var(--cp-text-dim)]">{s.addr}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
-          >
-            {open ? "접기" : "목록 보기"}
-          </button>
-        </>
-      )}
-    </Card>
-  )
-}

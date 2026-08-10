@@ -2,6 +2,8 @@
 // 서울 RTD가 지점을 개편하면 재생성한다. 미매핑 지점은 UI에서 "기타" 버킷으로 노출된다.
 import type { CityId } from "@/lib/crowd/cities"
 export const DISTRICTS: Record<CityId, Record<string, string>> = {
+  // 광진은 단일 구 서피스 — 자치구 필터 없음 (CITY_CAPS.gwangjin.districts=false)
+  "gwangjin": {},
   "seoul": {
     "DDP(동대문디자인플라자)": "중구",
     "DMC(디지털미디어시티)": "마포구",

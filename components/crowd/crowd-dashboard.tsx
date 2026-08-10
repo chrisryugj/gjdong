@@ -26,6 +26,7 @@ import { useCrowdAlerts } from "@/components/crowd/hooks/use-crowd-alerts"
 import { useOpsLog } from "@/components/crowd/hooks/use-ops-log"
 import { useSpotSelection } from "@/components/crowd/hooks/use-spot-selection"
 import { useWatchlist } from "@/components/crowd/hooks/use-watchlist"
+import { useGwangjinLife } from "@/components/gwangjin/use-gwangjin-life"
 
 // recharts가 무거워서 상세 패널은 선택 시점에 로드
 const SpotDetail = dynamic(() => import("@/components/crowd/spot-detail"), {
@@ -50,10 +51,14 @@ const OpsBoard = dynamic(() => import("@/components/crowd/ops/ops-board"), {
   ),
 })
 
-export default function CrowdDashboard() {
+// 광진 생활보드·레이어 토글 — /gwangjin에서만 쓰므로 타 도시 번들에 0바이트
+const GwangjinLifeBoard = dynamic(() => import("@/components/gwangjin/gwangjin-life-board"), { ssr: false })
+const LifeLayerChips = dynamic(() => import("@/components/gwangjin/life-layer-chips"), { ssr: false })
+
+export default function CrowdDashboard({ fixedCity }: { fixedCity?: CityId } = {}) {
   return (
     <LangProvider>
-      <CrowdDashboardInner />
+      <CrowdDashboardInner fixedCity={fixedCity} />
     </LangProvider>
   )
 }
@@ -61,7 +66,7 @@ export default function CrowdDashboard() {
 // 주소 검색 오류는 사전 키로 저장 — 언어 전환 시에도 올바른 언어로 렌더
 type AddressErrorKey = "errAddress" | "errGeoUnsupported" | "errGeoDenied"
 
-function CrowdDashboardInner() {
+function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
   const { lang, t, spot: trSpotName, cat } = useLang()
   // 푸터 출처 — 도시마다 원천과 갱신 주기가 달라 문구를 통째로 갈아끼운다 [본문, 링크문구]
   const FOOTER_T: Record<string, [string, string]> = {
@@ -70,14 +75,15 @@ function CrowdDashboardInner() {
     busan: [t.footerDataBusan, t.footerSourceBusan],
     gangwon: [t.footerDataGangwon, t.footerSourceGangwon],
     incheon: [t.footerDataIncheon, t.footerSourceIncheon],
+    gwangjin: [t.footerData, t.footerSource], // 원천이 서울 RTD 동일
   }
 
   // 도시 참조는 여기서 만들어 데이터·선택 훅 양쪽에 주입 (훅 간 순환 의존 방지)
-  const cityRef = useRef<CityId>("seoul")
+  const cityRef = useRef<CityId>(fixedCity ?? "seoul")
   // 알림 무장 여부도 ref 주입 — 데이터 훅(폴링)과 알림 훅(spots 소비) 사이 순환을 끊는다
   const alertsArmedRef = useRef(false)
   const selection = useSpotSelection(cityRef)
-  const data = useCrowdData(cityRef, selection.silentRefresh, alertsArmedRef)
+  const data = useCrowdData(cityRef, selection.silentRefresh, alertsArmedRef, fixedCity)
   const { city, spots, updatedAt, loading, error, disaster, disasterOpen } = data
   const { selectedName, detail, detailLoading, fetchDetail, selectSpot } = selection
 
@@ -104,6 +110,8 @@ function CrowdDashboardInner() {
 
   // 시간대 패턴 렌즈 — 켜진 동안 지도 마커만 평균 패턴 색으로, 목록·헤더는 실시간 유지
   const timeLens = useTimeLens(city, mapSpots)
+  // 광진 생활 데이터(따릉이·EV·쉼터·역·응급실 POI + 생활보드) — 광진에서만 페치
+  const life = useGwangjinLife(city === "gwangjin")
   // 지금 vs 평소 — 누적 히트맵 대비 상대 배지 (서울·제주, 파일 1회 로드)
   const baseline = useBaseline(city, spots)
   // 목록 hover ↔ 지도 마커 연동 (PC) — 상세로 들어가면 잔상이 남지 않게 해제
@@ -244,6 +252,7 @@ function CrowdDashboardInner() {
           selection.reset()
           enterOps()
         }}
+        lockCity={fixedCity != null}
       />
 
       {/* ── 상황실 모드: 본문(지도+패널)을 통째로 카드 보드로 교체. 카드 클릭은 기존 상세로 */}
@@ -293,6 +302,7 @@ function CrowdDashboardInner() {
             hoveredName={hoverName}
             showLabels={labels}
             declutterLabels
+            lifePois={city === "gwangjin" ? life.pois : undefined}
           />
           {/* 지도 우상단 컨트롤 스택 — 이름표 토글(전 도시) + 시간대 렌즈(서울·제주, 상세 중 숨김) */}
           <div className="absolute right-2 top-2 z-[1000] flex flex-col items-end gap-1.5">
@@ -311,6 +321,9 @@ function CrowdDashboardInner() {
             </button>
             {timeLens.available && !selectedName && (
               <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
+            )}
+            {city === "gwangjin" && !selectedName && (
+              <LifeLayerChips layers={life.layers} onToggle={life.toggleLayer} />
             )}
           </div>
           {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
@@ -522,7 +535,18 @@ function CrowdDashboardInner() {
                 data.setLoading(true)
                 void data.loadSpots()
               }}
-              extra={city === "incheon" ? <AirportBoard light={light} updatedAt={updatedAt} /> : undefined}
+              extra={
+                city === "incheon" ? (
+                  <AirportBoard light={light} updatedAt={updatedAt} />
+                ) : city === "gwangjin" ? (
+                  <GwangjinLifeBoard
+                    live={life.live}
+                    care={life.care}
+                    events={life.daily?.events ?? null}
+                    dailyLoaded={life.daily !== null}
+                  />
+                ) : undefined
+              }
             />
           )}
 

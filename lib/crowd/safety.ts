@@ -35,6 +35,7 @@ const WARN_REGION: Record<CityId, WarnMatcher> = {
   busan: { prefix: "부산" },
   gangwon: { prefix: "강원", inner: ["강릉", "속초", "동해", "삼척", "양양", "고성", "평창"] },
   jeju: { prefix: "제주" },
+  gwangjin: { prefix: "서울" },
 }
 
 // 전 도시가 같은 전국 통보문을 쓰므로 원천 호출도 stnId 108(전국) 하나로 합친다
@@ -48,6 +49,7 @@ const MSG_RGN: Record<CityId, { sdn: string; rgnNm: string; keywords: string[] }
   gangwon: { sdn: "강원", rgnNm: "강원특별자치도", keywords: ["강원특별자치도"] },
   // 공항 소재지는 영종도(2026 개편으로 영종구, 구 중구) — 시 전체 발송분과 영종권만
   incheon: { sdn: "인천", rgnNm: "인천광역시", keywords: ["인천광역시 전체", "중구", "영종"] },
+  gwangjin: { sdn: "서울", rgnNm: "서울특별시", keywords: ["서울특별시"] },
 }
 
 // 인천 SSR 결과에서 공항(영종도)과 무관한 발신 구 — [발신기관] 꼬리와 정확 일치로 거른다

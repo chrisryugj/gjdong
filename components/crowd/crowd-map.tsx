@@ -5,6 +5,8 @@ import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMark
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
+import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
+import type { SubwayArrival } from "@/lib/gwangjin/subway"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -27,6 +29,8 @@ interface CrowdMapProps {
   declutterLabels?: boolean
   /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
   opsLabels?: Map<string, string>
+  /** 광진 생활 POI(따릉이·EV·쉼터·역·응급실) — 명소 마커와 별개 레이어. station은 탭 시 도착 팝업 */
+  lifePois?: LifePoi[]
 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
@@ -39,7 +43,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -48,6 +52,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const glowRendererRef = useRef<Renderer | null>(null)
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
+  const lifeLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
   const [ready, setReady] = useState(false)
   const onSelectRef = useRef(onSelect)
@@ -155,6 +160,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
       cctvLayerRef.current = L.layerGroup().addTo(map)
+      lifeLayerRef.current = L.layerGroup().addTo(map)
       // 줌·팬마다 이름표 겹침 재계산 (declutter 미사용 호출부에선 즉시 반환)
       map.on("zoomend moveend", () => cullLabelsRef.current())
       mapInstanceRef.current = map
@@ -177,6 +183,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       glowRendererRef.current = null
       pinLayerRef.current = null
       cctvLayerRef.current = null
+      lifeLayerRef.current = null
       markersRef.current.clear()
     }
   }, [])
@@ -373,6 +380,61 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       marker.addTo(layer)
     }
   }, [ready, cctvItems, lang])
+
+  // 광진 생활 POI — 명소 마커와 독립 레이어. 배지형 divIcon(숫자·기호)로 명소 점과 시각 구분.
+  // 역 마커는 탭 시 /api/gwangjin/subway를 그때 조회해 팝업에 채운다 (열기 전 0콜)
+  useEffect(() => {
+    const L = leafletRef.current
+    const layer = lifeLayerRef.current
+    if (!ready || !L || !layer) return
+    layer.clearLayers()
+    for (const poi of lifePois ?? []) {
+      const marker = L.marker([poi.lat, poi.lng], {
+        icon: L.divIcon({
+          className: "crowd-life-marker",
+          html: `<span class="crowd-life-badge" style="background:${poi.color}">${escapeHtml(poi.badge)}</span>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+        // 명소 마커(z=400대)보다 아래 — 혼잡도가 주인공, 생활 POI는 보조
+        zIndexOffset: -100,
+      })
+      marker.bindTooltip(
+        `<div class="crowd-tip"><b>${escapeHtml(poi.name)}</b><span>${escapeHtml(poi.sub)}</span></div>`,
+        { direction: "top", offset: [0, -10], opacity: 1 },
+      )
+      if (poi.kind === "station" && poi.station) {
+        marker.bindPopup(`<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station)}">…</div>`, {
+          minWidth: 220,
+          maxWidth: 280,
+        })
+        marker.on("popupopen", (e) => {
+          const el = e.popup.getElement()?.querySelector<HTMLElement>("[data-station]")
+          if (!el) return
+          el.textContent = "도착 정보 불러오는 중…"
+          fetch(`/api/gwangjin/subway?st=${encodeURIComponent(poi.station ?? "")}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d: { arrivals?: SubwayArrival[] } | null) => {
+              const rows = (d?.arrivals ?? []).slice(0, 6)
+              if (rows.length === 0) {
+                el.textContent = "도착 예정 열차가 없습니다"
+                return
+              }
+              el.innerHTML = rows
+                .map(
+                  (a) =>
+                    `<div class="crowd-subway-row"><b style="background:${a.lineColor}">${escapeHtml(a.line.replace("호선", ""))}</b><span>${escapeHtml(a.dest.replace(/ - .*$/, ""))}</span><em>${a.sec > 0 ? `${Math.floor(a.sec / 60)}분 ${a.sec % 60}초` : escapeHtml(a.msg)}</em></div>`,
+                )
+                .join("")
+            })
+            .catch(() => {
+              el.textContent = "도착 정보를 불러오지 못했습니다"
+            })
+        })
+      }
+      marker.addTo(layer)
+    }
+  }, [ready, lifePois])
 
   // 주소 핀 + 근처 명소 연결선
   useEffect(() => {

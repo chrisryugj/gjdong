@@ -150,7 +150,7 @@ export const ZH: UIStrings = {
   footerData: "首尔市实时城市数据（每5分钟更新，基于KT通信信号估算）· ",
   footerSource: "首尔开放数据广场",
   visitStats: "查看访问统计",
-  cityNames: { seoul: "首尔", jeju: "济州", busan: "釜山", gangwon: "江原", incheon: "仁川机场" },
+  cityNames: { seoul: "首尔", jeju: "济州", busan: "釜山", gangwon: "江原", incheon: "仁川机场", gwangjin: "广津区" },
   citySwitchLabel: "选择城市",
   subtitleJeju: (n) => `实时掌握济州${n}个热门地点的拥挤程度`,
   subtitleBusan: (n) => `釜山${n}个地点的交通与停车拥堵状况`,

@@ -5,6 +5,8 @@
 const HEATMAP_URLS: Record<string, string> = {
   seoul: "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json",
   jeju: "https://raw.githubusercontent.com/chrisryugj/gjdong/data-jeju/jeju-heatmap.json",
+  // 광진 스팟은 서울 RTD 지점 그대로라 서울 누적 파일을 별칭으로 쓴다 (지점명 키 일치)
+  gwangjin: "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json",
 }
 
 export interface HeatEntry {
