@@ -6,7 +6,7 @@ import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type C
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
 import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
-import { LIFE_ICON_SVG, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
+import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
 
 interface CrowdMapProps {
@@ -480,24 +480,30 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     // 내용이 같으면 이전 배열 유지 — 전 도시 공용 zoomend 틱마다 헛리렌더 방지
     setGatedLabels((prev) => (prev.length === hidden.size && prev.every((l) => hidden.has(l)) ? prev : [...hidden]))
     for (const poi of visible) {
-      // 지하철 = 노선 정식색 동그라미(환승역은 겹친 두 개), 나머지 = 아이콘 원 + 우상단 숫자 배지
+      // 형태 = 정보의 특성: 지하철 노선색 동그라미 · 시설은 사각 간판(is-sign) · 쉼터는 집(is-house) ·
+      // 탈것은 원. 응급실만 26px(2곳뿐 + 위급 시 눈에 먼저 들어와야 한다). 숫자 배지는 라이브 수치.
       let html: string
       let w = 24
+      let h = 24
       if (poi.kind === "station" && poi.lines?.length) {
         w = 18 + (poi.lines.length - 1) * 14
+        h = 18
         html = `<span class="crowd-life-lines">${poi.lines
           .map((l) => `<b style="background:${LINE_COLOR_BY_NUM[l] ?? "#475569"}">${escapeHtml(l)}</b>`)
           .join("")}</span>`
       } else {
+        const kind = poi.kind as Exclude<LifePoi["kind"], "station">
+        const shape = LIFE_MARKER_SHAPE[kind]
+        w = h = shape === "sign" ? (kind === "er" ? 26 : 22) : 24
         const countBadge = poi.count != null ? `<i class="crowd-life-count">${poi.count}</i>` : ""
-        html = `<span class="crowd-life-icon" style="background:${poi.color}">${LIFE_ICON_SVG[poi.kind as Exclude<LifePoi["kind"], "station">]}${countBadge}</span>`
+        html = `<span class="crowd-life-icon${shape === "sign" ? " is-sign" : shape === "house" ? " is-house" : ""}" style="background:${poi.color};width:${w}px;height:${h}px">${LIFE_ICON_SVG[kind]}${countBadge}</span>`
       }
       const marker = L.marker([poi.lat, poi.lng], {
         icon: L.divIcon({
           className: "crowd-life-marker",
           html,
-          iconSize: [w, poi.kind === "station" ? 18 : 24],
-          iconAnchor: [w / 2, poi.kind === "station" ? 9 : 12],
+          iconSize: [w, h],
+          iconAnchor: [w / 2, h / 2],
         }),
         // 명소 마커(z=400대)보다 아래 — 혼잡도가 주인공, 생활 POI는 보조
         zIndexOffset: -100,

@@ -1,6 +1,7 @@
 // 생활 레이어 공용 시각 언어 — 지도 마커(divIcon HTML 문자열)와 칩(lucide)이 같은 도상을 쓴다.
 // 지하철은 아이콘 대신 서울 지하철 정식 노선색 동그라미(환승역=겹친 두 개)가 시민의 멘탈모델.
-// 색은 테마 그룹으로 계열화: 이동(블루·그린 계열) / 안전·의료(레드·오렌지·시안) / 생활(바이올렛).
+// 마커 형태는 실제 도시 기호 문법을 따른다(2026-08-11): 시설 = 사각 간판(병원 십자·주차 P 표지판),
+// 쉼터 = 집 실루엣, 탈것(따릉이·EV) = 원형. 형태가 곧 "무엇인지"를 말하게.
 
 import type { LifeLayerKind } from "@/components/gwangjin/use-gwangjin-life"
 
@@ -11,17 +12,29 @@ export const LINE_COLOR_BY_NUM: Record<string, string> = {
   "7": "#747f00",
 }
 
-/** 레이어 대표색 — 칩 활성 배경·마커 원 배경 공용 */
+/** 레이어 대표색 — 칩 활성 배경·마커 배경 공용. 따릉이는 2호선 초록·약국 초록과 톤 분리(라임) */
 export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
   station: "#1d4ed8",
-  bike: "#00a84d",
+  bike: "#65a30d",
   ev: "#0284c7",
-  parking: "#4f46e5",
-  er: "#e11d48",
-  pharm: "#10b981",
-  aed: "#ea580c",
+  parking: "#2563eb",
+  er: "#dc2626",
+  pharm: "#0ea371",
+  aed: "#059669",
   shelter: "#0e7490",
   library: "#7c3aed",
+}
+
+/** 마커 형태 — sign=사각 간판(시설), house=집 실루엣(쉼터), circle=원형(탈것) */
+export const LIFE_MARKER_SHAPE: Record<Exclude<LifeLayerKind, "station">, "sign" | "house" | "circle"> = {
+  er: "sign",
+  pharm: "sign",
+  aed: "sign",
+  parking: "sign",
+  library: "sign",
+  shelter: "house",
+  bike: "circle",
+  ev: "circle",
 }
 
 // divIcon용 스트로크 SVG (lucide 도형과 동일한 시각 언어, 13px로 렌더)

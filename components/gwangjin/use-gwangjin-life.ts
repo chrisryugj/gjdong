@@ -146,7 +146,7 @@ export function useGwangjinLife(enabled: boolean) {
           lat,
           lng,
           sub: `응급병상 ${h.beds == null ? "?" : h.beds <= 0 ? "포화" : h.beds}${h.pediatric ? " · 소아 가능" : ""}`,
-          color: h.beds != null && h.beds <= 0 ? "#991b1b" : "#e11d48",
+          color: h.beds != null && h.beds <= 0 ? "#7f1d1d" : "#dc2626",
           count: h.beds != null && h.beds > 0 ? h.beds : undefined,
           tel: h.tel,
           stats: [
@@ -167,7 +167,7 @@ export function useGwangjinLife(enabled: boolean) {
           lat: b.lat,
           lng: b.lng,
           sub: `따릉이 ${b.bikes}대 / 거치대 ${b.racks}`,
-          color: b.bikes === 0 ? "#64748b" : b.bikes <= 2 ? "#d97706" : "#00a84d",
+          color: b.bikes === 0 ? "#64748b" : b.bikes <= 2 ? "#d97706" : "#65a30d",
           count: b.bikes,
           addr: b.addr,
           stats: [
@@ -222,7 +222,7 @@ export function useGwangjinLife(enabled: boolean) {
           lat: p.lat,
           lng: p.lng,
           sub: `영업 중 · ${p.hours}${p.lateNight ? " · 심야" : ""}`,
-          color: p.lateNight ? "#047857" : "#10b981",
+          color: p.lateNight ? "#065f46" : "#0ea371",
           addr: p.addr,
           tel: p.tel,
           stats: (
@@ -242,7 +242,7 @@ export function useGwangjinLife(enabled: boolean) {
           lat: a.lat,
           lng: a.lng,
           sub: a.place ? `AED · ${a.place}` : "자동심장충격기",
-          color: "#ea580c",
+          color: "#059669",
           addr: a.addr,
           tel: a.tel,
           stats: a.place ? [{ label: "설치 위치", value: a.place }] : undefined,
@@ -277,7 +277,7 @@ export function useGwangjinLife(enabled: boolean) {
           lat: p.lat,
           lng: p.lng,
           sub: `${p.type || "공영주차"} · ${p.fee}${p.spaces > 0 ? ` · ${p.spaces}면` : ""}`,
-          color: "#4f46e5",
+          color: "#2563eb",
           addr: p.addr,
           tel: p.tel,
           stats: (
