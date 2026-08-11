@@ -1,25 +1,65 @@
 "use client"
 
-// 광진 생활보드 — crowd 목록 패널 하단 extra 슬롯 (인천공항 보드와 같은 자리).
-// 지도에 못 얹는 정보(지하철 전광판·응급/약국·생활인구·상권·비/수위·행사·주차)를 카드로.
-// 데이터는 대시보드의 useGwangjinLife가 내려준다 — 보드 자체 fetch는 지하철(30초, 선택 역)뿐.
+// 광진 생활 패널 — /gwangjin의 메인 패널(검색·주소핀·상세가 없을 때).
+// 2026-08-11 개편: 목록 하단 extra 슬롯 → 생활 우선 풀패널. 121곳용 필터·프리셋 대신
+// "3초 요약 스트립 → 지하철 → 명소 혼잡 컴팩트 → 의료 → 상권 → 예약 → 행사 …" 순서.
+// 데이터는 대시보드의 useGwangjinLife가 내려준다 — 패널 자체 fetch는 지하철(30초, 선택 역)뿐.
 
 import { useCallback, useEffect, useState } from "react"
+import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
+import type { BaselineDelta } from "@/lib/crowd/heatmap-client"
 import type { SubwayBoard } from "@/lib/gwangjin/subway"
 import { CareCard, RainCard, SubwayCard } from "@/components/gwangjin/cards-live"
-import { CmrclCard, EventsCard, ParkingCard, PopCard } from "@/components/gwangjin/cards-life"
-import type { CareBundle, LiveBundle } from "@/components/gwangjin/use-gwangjin-life"
-import type { GjEvent } from "@/lib/gwangjin/life"
+import { CmrclCard, EventsCard, ParkingCard, PopCard, ReserveCard } from "@/components/gwangjin/cards-life"
+import { NowStrip, SpotsCompactCard } from "@/components/gwangjin/cards-now"
+import type { CareBundle, DailyBundle, LiveBundle } from "@/components/gwangjin/use-gwangjin-life"
+
+const STATION_STORE = "gwangjinStation"
 
 interface GwangjinLifeBoardProps {
   live: LiveBundle | null
   care: CareBundle | null
-  events: GjEvent[] | null
-  dailyLoaded: boolean
+  daily: DailyBundle | null
+  spots: CrowdSpot[]
+  spotsLoading: boolean
+  spotsError: boolean
+  light: boolean
+  baseline?: Record<string, BaselineDelta> | null
+  onSelectSpot: (name: string) => void
+  onHoverSpot?: (name: string | null) => void
+  onRetrySpots: () => void
 }
 
-export default function GwangjinLifeBoard({ live, care, events, dailyLoaded }: GwangjinLifeBoardProps) {
-  const [station, setStation] = useState("건대입구")
+export default function GwangjinLifeBoard({
+  live,
+  care,
+  daily,
+  spots,
+  spotsLoading,
+  spotsError,
+  light,
+  baseline,
+  onSelectSpot,
+  onHoverSpot,
+  onRetrySpots,
+}: GwangjinLifeBoardProps) {
+  // 내 역 기억 — 매 방문 건대입구로 리셋되면 "내 앱" 감각이 안 생긴다 (ssr:false라 초기화에서 바로 읽기 안전)
+  const [station, setStation] = useState(() => {
+    try {
+      return localStorage.getItem(STATION_STORE) ?? "건대입구"
+    } catch {
+      return "건대입구"
+    }
+  })
+  const pickStation = useCallback((s: string) => {
+    setStation(s)
+    try {
+      localStorage.setItem(STATION_STORE, s)
+    } catch {
+      // 시크릿 모드 등 — 세션 내 상태만 유지
+    }
+  }, [])
+
   const [board, setBoard] = useState<SubwayBoard | null>(null)
   const [subwayNeedsKey, setSubwayNeedsKey] = useState(false)
 
@@ -49,35 +89,35 @@ export default function GwangjinLifeBoard({ live, care, events, dailyLoaded }: G
   }, [station, loadBoard])
 
   const raining = (live?.rain?.mm60 ?? 0) > 0
+  const riverUp = (live?.river?.ratio ?? 0) >= 0.5
 
   return (
-    <div className="border-t border-[var(--cp-border)] px-3 pb-4 pt-3">
-      <h3 className="mb-2 flex items-baseline gap-2 text-[12px] font-medium uppercase tracking-wider text-[var(--cp-text-dim)]">
-        광진 생활
-        {live?.air?.grade && (
-          <span className="normal-case tracking-normal">
-            대기 <b className="text-[var(--cp-text)]">{live.air.grade}</b>
-          </span>
-        )}
-        {raining && (
-          <span className="gj-info normal-case tracking-normal">
-            ☔ 1시간 {live?.rain?.mm60.toFixed(1)}mm
-          </span>
-        )}
-      </h3>
-      <div className="space-y-3">
-        <SubwayCard station={station} board={board} needsKey={subwayNeedsKey} onStation={setStation} />
-        <CareCard care={care} />
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="space-y-3 px-3 pb-4 pt-3">
+        <NowStrip live={live} care={care} />
         {/* 비가 오거나 수위가 오르면 안전 카드 승격 — 평시엔 접힌 정보라 아래쪽 */}
-        {(raining || (live?.river?.ratio ?? 0) >= 0.5) && (
+        {(raining || riverUp) && (
+          <RainCard rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} />
+        )}
+        <SubwayCard station={station} board={board} needsKey={subwayNeedsKey} onStation={pickStation} />
+        <SpotsCompactCard
+          spots={spots}
+          loading={spotsLoading}
+          error={spotsError}
+          light={light}
+          baseline={baseline}
+          onSelect={onSelectSpot}
+          onHover={onHoverSpot}
+          onRetry={onRetrySpots}
+        />
+        <CareCard care={care} />
+        <CmrclCard cmrcl={live?.cmrcl ?? null} loaded={live !== null} />
+        <ReserveCard items={daily?.reservations ?? null} loaded={daily !== null} />
+        <EventsCard events={daily?.events ?? null} loaded={daily !== null} />
+        {!raining && !riverUp && (
           <RainCard rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} />
         )}
         <PopCard />
-        <CmrclCard cmrcl={live?.cmrcl ?? null} loaded={live !== null} />
-        <EventsCard events={events} loaded={dailyLoaded} />
-        {!raining && (live?.river?.ratio ?? 0) < 0.5 && (
-          <RainCard rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} />
-        )}
         <ParkingCard parking={live?.parking ?? null} loaded={live !== null} />
       </div>
     </div>

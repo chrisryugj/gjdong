@@ -134,6 +134,11 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
   // 도시·언어 전환 시 브라우저 탭 제목 동기화 (클라이언트 전환은 generateMetadata가 다시 안 돌므로)
   useEffect(() => {
     if (!city) return
+    if (city === "gwangjin") {
+      // 생활상황판 서피스 — 도시명 치환("광진구 인파레이더")이 page 메타 제목을 덮지 않게 브랜드 고정
+      document.title = UI[lang].gwangjinTitle
+      return
+    }
     const base = META[lang].title
     document.title =
       city === "seoul" ? base : base.replaceAll(UI[lang].cityNames.seoul, UI[lang].cityNames[city])
@@ -431,7 +436,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             )}
           </div>
 
-          {/* 패널 내용 */}
+          {/* 패널 내용 — 광진은 생활 패널이 기본, 검색어를 치면 명소·주소 검색 목록으로 전환 */}
           {selectedName ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <button
@@ -506,6 +511,23 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
               onClear={() => setAddressPin(null)}
               onSelect={selectSpot}
             />
+          ) : city === "gwangjin" && !query.trim() ? (
+            <GwangjinLifeBoard
+              live={life.live}
+              care={life.care}
+              daily={life.daily}
+              spots={spots}
+              spotsLoading={loading}
+              spotsError={error}
+              light={light}
+              baseline={baseline}
+              onSelectSpot={selectSpot}
+              onHoverSpot={setHoverName}
+              onRetrySpots={() => {
+                data.setLoading(true)
+                void data.loadSpots()
+              }}
+            />
           ) : (
             <SpotListPanel
               filtered={filtered}
@@ -538,18 +560,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
                 data.setLoading(true)
                 void data.loadSpots()
               }}
-              extra={
-                city === "incheon" ? (
-                  <AirportBoard light={light} updatedAt={updatedAt} />
-                ) : city === "gwangjin" ? (
-                  <GwangjinLifeBoard
-                    live={life.live}
-                    care={life.care}
-                    events={life.daily?.events ?? null}
-                    dailyLoaded={life.daily !== null}
-                  />
-                ) : undefined
-              }
+              extra={city === "incheon" ? <AirportBoard light={light} updatedAt={updatedAt} /> : undefined}
             />
           )}
 
@@ -601,16 +612,16 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
                 {t.methodologyLink}
               </a>
             </AutoMarquee>
-            {/* 인파레이더 전용 카운터 — 루트(/)와 별도 키로 집계 */}
+            {/* 서피스별 카운터 — 루트(/)·/crowd·/gwangjin 각각 별도 키로 집계 */}
             <a
-              href="https://hitscounter.dev/history?url=https://gjdong.vercel.app/crowd"
+              href={`https://hitscounter.dev/history?url=https://gjdong.vercel.app/${city === "gwangjin" ? "gwangjin" : "crowd"}`}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={t.visitStats}
               className="inline-flex shrink-0 items-center hover:opacity-80"
             >
               <img
-                src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgjdong.vercel.app%2Fcrowd&label=visits&icon=people-fill&color=%23adb5bd&message=&style=flat&tz=Asia%2FSeoul"
+                src={`https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgjdong.vercel.app%2F${city === "gwangjin" ? "gwangjin" : "crowd"}&label=visits&icon=people-fill&color=%23adb5bd&message=&style=flat&tz=Asia%2FSeoul`}
                 alt="visits"
                 className="h-4"
               />

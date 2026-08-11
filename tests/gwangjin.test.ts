@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { DONG_CODES, GWANGJIN_SPOTS, NEARBY_SPOTS, STATIONS, SUBWAY_LINE, SUBWAY_LINE_COLOR } from "../lib/gwangjin/constants"
+import { CMRCL_AREAS, DONG_CODES, GWANGJIN_SPOTS, NEARBY_SPOTS, STATIONS, SUBWAY_LINE, SUBWAY_LINE_COLOR } from "../lib/gwangjin/constants"
 import { DISTRICTS } from "../lib/crowd/districts"
 
 // 광진 생활상황판 상수 무결성 — 실측 확정값(2026-08-10)이 흐트러지면 잡는다.
@@ -9,6 +9,12 @@ test("광진 스팟 5곳 전부가 districts 매핑에서 광진구다 (아차�
   for (const name of GWANGJIN_SPOTS) {
     assert.equal(DISTRICTS.seoul[name], "광진구", `${name} 매핑 어긋남`)
   }
+})
+
+test("상권(cmrcl) 지점은 실키 실측 확정 2곳 — 역세권만, 스팟 목록의 부분집합", () => {
+  // 2026-08-11 실키 실측: 건대입구역·군자역만 응답, 공원·산 지역명은 RESULT 에러
+  assert.deepEqual([...CMRCL_AREAS], ["건대입구역", "군자역"])
+  for (const a of CMRCL_AREAS) assert.ok((GWANGJIN_SPOTS as readonly string[]).includes(a), `${a}는 스팟 아님`)
 })
 
 test("생활권 스팟은 광진구 밖 실소재지를 유지한다 (광나루한강공원=강동구)", () => {

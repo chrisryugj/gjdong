@@ -164,6 +164,8 @@ export const ZH: UIStrings = {
   footerSourceGangwon: "公共数据门户",
   footerDataIncheon: "仁川国际机场公社 出境大厅等候时间（每分钟更新）· ",
   footerSourceIncheon: "仁川国际机场",
+  gwangjinTitle: "广津生活",
+  gwangjinSubtitle: (n) => `广津区实时生活信息板 · 地铁·急诊·药店·${n}个热门地点`,
   jejuLocals: "岛民",
   jejuTourists: "游客",
   beachTitle: "海水浴场状况",
