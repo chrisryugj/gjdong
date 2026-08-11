@@ -385,6 +385,50 @@ export async function fetchPublicParkings(): Promise<PublicParking[] | null> {
   return data
 }
 
+// ── 경로당 ──────────────────────────────────────────────────────────────
+// 전국마을회관및경로당표준데이터(15114136, 활용신청 자동승인) — 주차와 같은 tn_ 계약:
+// top-level {header, body.items.item[]}, 구 필터 insttCode=3040000. 서울 열린데이터 경로당
+// (OA-15052)은 xlsx 파일 배포뿐이라 이 표준 API가 유일한 조회 경로.
+// ⚠️필드명은 활용신청 전 미실측 — 이름 후보를 관대하게 매핑, 신청 후 실측 보정 필요.
+export interface SeniorCenter {
+  name: string
+  addr: string
+  tel: string
+  lat: number
+  lng: number
+}
+
+let seniorCache: { at: number; data: SeniorCenter[] } | null = null
+
+export async function fetchSeniorCenters(): Promise<SeniorCenter[] | null> {
+  const key = DATA_KEY()
+  if (!key) return null
+  if (seniorCache && Date.now() - seniorCache.at < 86_400_000) return seniorCache.data
+  const url = `https://api.data.go.kr/openapi/tn_pubr_public_vill_hall_sen_cent_api?serviceKey=${key}&pageNo=1&numOfRows=500&type=json&insttCode=3040000`
+  const raw = (await krgovJson(url, { timeoutMs: 15000 }).catch(() => null)) as {
+    body?: { items?: { item?: Array<Record<string, unknown>> } }
+  } | null
+  const items = raw?.body?.items?.item
+  if (!Array.isArray(items)) return null
+  const out: SeniorCenter[] = []
+  for (const it of items) {
+    const addr = String(it.rdnmadr ?? "") || String(it.lnmadr ?? "")
+    if (addr && !addr.includes("광진구")) continue
+    const lat = Number.parseFloat(String(it.latitude ?? "0")) || 0
+    if (lat === 0) continue
+    out.push({
+      name: String(it.fcltyNm ?? it.vilhallNm ?? it.senCentNm ?? it.mtnghallNm ?? ""),
+      addr,
+      tel: String(it.phoneNumber ?? ""),
+      lat,
+      lng: Number.parseFloat(String(it.longitude ?? "0")) || 0,
+    })
+  }
+  const data = out.filter((s) => s.name).sort((a, b) => a.name.localeCompare(b.name, "ko"))
+  if (data.length > 0) seniorCache = { at: Date.now(), data }
+  return data
+}
+
 // ── 무더위쉼터 ──────────────────────────────────────────────────────────
 export interface Shelter {
   name: string

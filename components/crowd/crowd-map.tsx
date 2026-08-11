@@ -8,6 +8,8 @@ import { romanizeAddress } from "@/lib/crowd/romanize"
 import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
 import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
+import { BUS_TYPE_COLOR, type BusArrival } from "@/lib/gwangjin/bus"
+import { KEY_GUIDES } from "@/lib/gwangjin/constants"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -34,13 +36,30 @@ interface CrowdMapProps {
   lifePois?: LifePoi[]
   /** 구 경계 오버레이 키 — 지정 시 해당 경계 모듈을 동적 로드해 경계선+바깥 딤을 그린다 (고정 서피스 전용) */
   boundaryKey?: "gwangjin"
+  /** 다크 테마 타일(CARTO dark_all) — 대시보드가 테마와 함께 전환. 미지정=voyager 고정(보고서·미니맵) */
+  darkTiles?: boolean
 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
 
-// 개수 많은 생활 레이어는 동네 줌부터 — 도시 줌에서 마커 수백 개는 신호가 아니라 소음이다
-const LIFE_MIN_ZOOM: Partial<Record<LifePoi["kind"], number>> = { bike: 14, ev: 14, aed: 14, pharm: 14 }
-const LIFE_KIND_LABEL: Partial<Record<LifePoi["kind"], string>> = { bike: "따릉이", ev: "충전소", aed: "AED", pharm: "약국" }
+const TILE_ATTR =
+  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+const TILE_URL = {
+  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+}
+
+// 개수 많은 생활 레이어는 동네 줌부터 — 도시 줌에서 마커 수백 개는 신호가 아니라 소음이다.
+// 정류소는 최다(광진 ~300)라 한 단계 더 늦게(15).
+const LIFE_MIN_ZOOM: Partial<Record<LifePoi["kind"], number>> = { bike: 14, ev: 14, aed: 14, pharm: 14, bus: 15, senior: 14 }
+const LIFE_KIND_LABEL: Partial<Record<LifePoi["kind"], string>> = {
+  bike: "따릉이",
+  ev: "충전소",
+  aed: "AED",
+  pharm: "약국",
+  bus: "버스",
+  senior: "경로당",
+}
 
 // 터치 기기는 지름 ~13px 점이 탭 표적으로 너무 작다 — 마커 반지름 가산 (모듈 로드 시 1회 판정)
 const TOUCH_PAD =
@@ -71,7 +90,12 @@ function lifePopupHtml(poi: LifePoi): string {
         .map((s) => `<span><i>${escapeHtml(s.label)}</i><b class="${s.tone ? `gj-${s.tone}` : ""}">${escapeHtml(s.value)}</b></span>`)
         .join("")}</div>`
     : ""
-  const arrivals = poi.kind === "station" ? `<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station ?? "")}">…</div>` : ""
+  const arrivals =
+    poi.kind === "station"
+      ? `<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station ?? "")}">…</div>`
+      : poi.kind === "bus"
+        ? `<div class="crowd-subway-pop" data-ars="${escapeHtml(poi.arsId ?? "")}">…</div>`
+        : ""
   const tel = poi.tel ? `<a class="tel" href="tel:${escapeHtml(poi.tel)}">${PHONE_SVG}${escapeHtml(poi.tel)}</a>` : ""
   return `<div class="crowd-life-pop">
     <p class="t">${badge}<span class="tx">${escapeHtml(poi.name)}</span>${dong}</p>
@@ -84,10 +108,13 @@ function lifePopupHtml(poi: LifePoi): string {
   </div>`
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, boundaryKey }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, boundaryKey, darkTiles }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
+  const tileLayerRef = useRef<ReturnType<typeof import("leaflet")["tileLayer"]> | null>(null)
+  const darkTilesRef = useRef(darkTiles)
+  darkTilesRef.current = darkTiles
   const spotLayerRef = useRef<LayerGroup | null>(null)
   const glowLayerRef = useRef<LayerGroup | null>(null)
   const glowRendererRef = useRef<Renderer | null>(null)
@@ -188,9 +215,9 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       })
       L.control.zoom({ position: "bottomright" }).addTo(map)
 
-      // 밝은 타일 (CARTO voyager — OSM 한글 라벨)
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+      // 타일 (CARTO — OSM 한글 라벨). 테마 전환은 아래 darkTiles 이펙트가 레이어를 갈아끼운다
+      tileLayerRef.current = L.tileLayer(darkTilesRef.current ? TILE_URL.dark : TILE_URL.light, {
+        attribution: TILE_ATTR,
         subdomains: "abcd",
         maxZoom: 19,
       }).addTo(map)
@@ -231,6 +258,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       observer.disconnect()
       mapInstanceRef.current?.remove()
       mapInstanceRef.current = null
+      tileLayerRef.current = null
       spotLayerRef.current = null
       glowLayerRef.current = null
       glowRendererRef.current = null
@@ -435,6 +463,19 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     }
   }, [ready, cctvItems, lang])
 
+  // 테마 타일 스왑 — 대시보드 다크/라이트 전환 시 dark_all ↔ voyager (미지정 호출부는 불변)
+  useEffect(() => {
+    const L = leafletRef.current
+    const map = mapInstanceRef.current
+    if (!ready || !L || !map || darkTiles === undefined) return
+    tileLayerRef.current?.remove()
+    tileLayerRef.current = L.tileLayer(darkTiles ? TILE_URL.dark : TILE_URL.light, {
+      attribution: TILE_ATTR,
+      subdomains: "abcd",
+      maxZoom: 19,
+    }).addTo(map)
+  }, [ready, darkTiles])
+
   // 구 경계 오버레이 — 경계 모듈 동적 로드(타 도시 번들 0바이트): 바깥 딤 + 이중선(할로+점선)
   useEffect(() => {
     const L = leafletRef.current
@@ -452,23 +493,25 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         [-85, 180],
         [-85, -180],
       ]
+      // 다크 타일에선 진청 경계선이 묻힌다 — 밝은 스카이로 반전
+      const line = darkTiles ? "#38bdf8" : "#0369a1"
       // 구 바깥을 은은하게 가라앉혀 "여기부터가 광진" — 링에 구멍(ring)을 낸 폴리곤
       L.polygon([world, ring], {
         pane: "gjBoundary",
         stroke: false,
-        fillColor: "#0f172a",
-        fillOpacity: 0.08,
+        fillColor: darkTiles ? "#000000" : "#0f172a",
+        fillOpacity: darkTiles ? 0.25 : 0.08,
         interactive: false,
       }).addTo(layer)
       const closed = [...ring, ring[0]]
       // 할로(넓고 옅게) 위에 점선(가늘고 또렷하게) — 지도 위 어떤 배경에서도 경계가 읽힌다
-      L.polyline(closed, { pane: "gjBoundary", color: "#0369a1", weight: 5, opacity: 0.12, lineCap: "round", interactive: false }).addTo(layer)
-      L.polyline(closed, { pane: "gjBoundary", color: "#0369a1", weight: 1.8, opacity: 0.6, dashArray: "1 6", lineCap: "round", interactive: false }).addTo(layer)
+      L.polyline(closed, { pane: "gjBoundary", color: line, weight: 5, opacity: 0.14, lineCap: "round", interactive: false }).addTo(layer)
+      L.polyline(closed, { pane: "gjBoundary", color: line, weight: 1.8, opacity: 0.65, dashArray: "1 6", lineCap: "round", interactive: false }).addTo(layer)
     })
     return () => {
       cancelled = true
     }
-  }, [ready, boundaryKey])
+  }, [ready, boundaryKey, darkTiles])
 
   // 광진 생활 POI — 명소 마커와 독립 레이어. 클릭 = 상세 팝업(주소·행정동·상태·전화·길찾기 3종).
   // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜).
@@ -523,6 +566,36 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         { direction: "top", offset: [0, -10], opacity: 1 },
       )
       marker.bindPopup(lifePopupHtml(poi), { minWidth: 230, maxWidth: 290 })
+      if (poi.kind === "bus" && poi.arsId) {
+        // 정류소 도착 — 열 때만 조회. 미신청(needKey)이면 팝업 안에서 신청 링크 안내
+        marker.on("popupopen", (e) => {
+          const el = e.popup.getElement()?.querySelector<HTMLElement>("[data-ars]")
+          if (!el) return
+          el.textContent = "도착 정보 불러오는 중…"
+          fetch(`/api/gwangjin/bus?ars=${poi.arsId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d: { needKey?: boolean; arrivals?: BusArrival[] } | null) => {
+              if (d?.needKey) {
+                el.innerHTML = `<a href="${KEY_GUIDES.bus.url}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline">실시간 도착은 활용신청(자동승인) 후 표시돼요 ↗</a>`
+                return
+              }
+              const rows = (d?.arrivals ?? []).slice(0, 8)
+              if (rows.length === 0) {
+                el.textContent = "도착 예정 버스가 없습니다"
+                return
+              }
+              el.innerHTML = rows
+                .map(
+                  (a) =>
+                    `<div class="crowd-subway-row"><b style="background:${BUS_TYPE_COLOR[a.routeType] ?? "#64748b"}">${escapeHtml(a.route)}</b><span>${escapeHtml(a.direction)} 방면</span><em>${escapeHtml(a.msg1.replace("[", " · ").replace("]", ""))}</em></div>`,
+                )
+                .join("")
+            })
+            .catch(() => {
+              el.textContent = "도착 정보를 불러오지 못했습니다"
+            })
+        })
+      }
       if (poi.kind === "station" && poi.station) {
         marker.on("popupopen", (e) => {
           const el = e.popup.getElement()?.querySelector<HTMLElement>("[data-station]")
