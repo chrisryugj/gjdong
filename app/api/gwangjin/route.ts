@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { fetchAirNow, fetchKondaeCmrcl, fetchParking, fetchRain, fetchRiver } from "@/lib/gwangjin/env-safety"
+import { fetchAirNow, fetchCmrcl, fetchParking, fetchRain, fetchRiver } from "@/lib/gwangjin/env-safety"
 import { fetchBikes } from "@/lib/gwangjin/life"
+import { CMRCL_AREAS } from "@/lib/gwangjin/constants"
 
 export const dynamic = "force-dynamic"
 
@@ -14,7 +15,7 @@ export async function GET() {
     fetchRain(),
     fetchRiver(),
     fetchParking(),
-    fetchKondaeCmrcl(),
+    fetchCmrcl(CMRCL_AREAS),
     fetchBikes(),
   ])
   return NextResponse.json({ air, rain, river, parking, cmrcl, bikes }, { headers: CACHE_HEADERS })

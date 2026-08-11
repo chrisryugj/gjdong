@@ -165,6 +165,8 @@ export const JA: UIStrings = {
   footerSourceGangwon: "公共データポータル",
   footerDataIncheon: "仁川国際空港公社 出国場待ち時間（1分間隔）· ",
   footerSourceIncheon: "仁川国際空港",
+  gwangjinTitle: "広津ライフ",
+  gwangjinSubtitle: (n: number) => `広津区リアルタイム生活ボード · 地下鉄・救急・薬局・スポット${n}カ所`,
   jejuLocals: "島民",
   jejuTourists: "観光客",
   beachTitle: "ビーチコンディション",

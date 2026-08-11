@@ -4,11 +4,12 @@
 // null = 키 미설정(NeedKeyNote), 빈 배열 = 원천 응답 없음/해당 없음
 
 import { useEffect, useState } from "react"
-import { CalendarDays, CreditCard, ExternalLink, SquareParking, Users } from "lucide-react"
+import { CalendarDays, CreditCard, ExternalLink, SquareParking, Ticket, Users } from "lucide-react"
 import { DONG_CODES, KEY_GUIDES } from "@/lib/gwangjin/constants"
 import type { CmrclInfo, ParkingLot } from "@/lib/gwangjin/env-safety"
 import type { DongPattern, GjEvent } from "@/lib/gwangjin/life"
-import { Card, Empty, NeedKeyNote } from "@/components/gwangjin/cards-live"
+import type { ReserveItem } from "@/lib/gwangjin/reserve"
+import { Card, Empty, NeedKeyNote, TabBtn } from "@/components/gwangjin/cards-live"
 
 // ── 문화행사 ────────────────────────────────────────────────────────────
 export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
@@ -151,23 +152,125 @@ export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null;
   )
 }
 
-// ── 건대 상권 ───────────────────────────────────────────────────────────
-export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo | null; loaded: boolean }) {
+// ── 공공시설 예약 ───────────────────────────────────────────────────────
+// 서울시 공공서비스예약 중 광진 접수중분 — 뚝섬 코트·아차산 숲 프로그램·어대공 동물학교 등
+const RESERVE_KINDS = ["전체", "체육", "문화", "교육"] as const
+
+/** "2026-08-18" → D-7 (7일 이내만 임박 표시, 지났거나 멀면 ~MM/DD) */
+function dday(rcptEnd: string): { text: string; soon: boolean } {
+  if (!rcptEnd) return { text: "", soon: false }
+  const end = new Date(`${rcptEnd}T23:59:59+09:00`).getTime()
+  const days = Math.ceil((end - Date.now()) / 86_400_000)
+  if (days >= 0 && days <= 7) return { text: days === 0 ? "오늘 마감" : `D-${days}`, soon: true }
+  return { text: `~${rcptEnd.slice(5).replace("-", "/")}`, soon: false }
+}
+
+export function ReserveCard({ items, loaded }: { items: ReserveItem[] | null; loaded: boolean }) {
+  const [kind, setKind] = useState<(typeof RESERVE_KINDS)[number]>("전체")
+  const [showAll, setShowAll] = useState(false)
+  const filtered = (items ?? []).filter((r) => kind === "전체" || r.kind === kind)
+  const visible = showAll ? filtered : filtered.slice(0, 5)
   return (
-    <Card icon={<CreditCard className="h-3.5 w-3.5" />} title="건대 상권 소비" badge="신한카드 · 최근 30분">
+    <Card
+      icon={<Ticket className="h-3.5 w-3.5" />}
+      title="공공시설 예약"
+      badge={items?.length ? `접수중 ${items.length}건 · 서울시 통합예약` : "서울시 통합예약"}
+    >
+      {!loaded ? (
+        <Empty text="불러오는 중…" />
+      ) : items === null ? (
+        <NeedKeyNote guide={KEY_GUIDES.seoul} />
+      ) : items.length === 0 ? (
+        <Empty text="지금 접수중인 광진 시설이 없어요" />
+      ) : (
+        <>
+          <div className="mb-2 flex gap-1">
+            {RESERVE_KINDS.map((k) => {
+              const n = k === "전체" ? items.length : items.filter((r) => r.kind === k).length
+              if (k !== "전체" && n === 0) return null
+              return (
+                <TabBtn key={k} active={kind === k} onClick={() => setKind(k)}>
+                  {k} <span className="font-mono text-[10px] tabular-nums opacity-70">{n}</span>
+                </TabBtn>
+              )
+            })}
+          </div>
+          <ul className={`space-y-1.5 ${showAll ? "max-h-64 overflow-y-auto pr-1" : ""}`}>
+            {visible.map((r) => {
+              const d = dday(r.rcptEnd)
+              return (
+                <li key={r.kind + r.name} className="text-[12px]">
+                  <a
+                    href={r.url || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center gap-1.5"
+                  >
+                    <span className="shrink-0 rounded border border-[var(--cp-border)] px-1 text-[9px] leading-4 text-[var(--cp-text-dim)]">
+                      {r.cls || r.kind}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate group-hover:underline">{r.name}</span>
+                    {d.text && (
+                      <span className={`shrink-0 font-mono text-[10px] tabular-nums ${d.soon ? "gj-warn font-medium" : "text-[var(--cp-text-dim)]"}`}>
+                        {d.text}
+                      </span>
+                    )}
+                    <ExternalLink className="h-3 w-3 shrink-0 text-[var(--cp-text-dim)]" />
+                  </a>
+                  <div className="truncate text-[10px] text-[var(--cp-text-dim)]">
+                    {r.place}
+                    {r.payAt && <span className={r.payAt === "무료" ? "gj-ok" : ""}> · {r.payAt}</span>}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          {filtered.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
+            >
+              {showAll ? "접기" : `전체 ${filtered.length}건 보기`}
+            </button>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
+
+// ── 역세권 상권 ─────────────────────────────────────────────────────────
+// cmrcl 지원 지점은 건대입구역·군자역 2곳 (공원·산은 원천 미지원 — constants.CMRCL_AREAS 실측 주석)
+export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo[] | null; loaded: boolean }) {
+  const [areaIdx, setAreaIdx] = useState(0)
+  const cur = cmrcl?.[Math.min(areaIdx, (cmrcl?.length ?? 1) - 1)]
+  return (
+    <Card icon={<CreditCard className="h-3.5 w-3.5" />} title="역세권 상권 소비" badge="신한카드 · 최근 30분">
       {!loaded ? (
         <Empty text="불러오는 중…" />
       ) : cmrcl === null ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
+      ) : cmrcl.length === 0 || !cur ? (
+        <Empty text="상권 응답 없음" />
       ) : (
         <>
+          {cmrcl.length > 1 && (
+            <div className="mb-2 flex gap-1">
+              {cmrcl.map((c, i) => (
+                <TabBtn key={c.area} active={i === Math.min(areaIdx, cmrcl.length - 1)} onClick={() => setAreaIdx(i)}>
+                  {c.area}
+                </TabBtn>
+              ))}
+            </div>
+          )}
           <p className="text-[12px]">
-            지금 건대입구역 상권은 <b className="text-[var(--cp-text-strong)]">{cmrcl.level}</b> — 30분 결제{" "}
-            <b className="font-mono tabular-nums">{cmrcl.payments.toLocaleString()}</b>건
+            지금 {cur.area} 상권은 <b className="text-[var(--cp-text-strong)]">{cur.level}</b> — 30분 결제{" "}
+            <b className="font-mono tabular-nums">{cur.payments.toLocaleString()}</b>건
           </p>
-          {cmrcl.categories.length > 0 && (
+          {cur.categories.length > 0 && (
             <ul className="mt-1.5 flex flex-wrap gap-1">
-              {cmrcl.categories.slice(0, 6).map((c) => (
+              {cur.categories.slice(0, 6).map((c) => (
                 <li
                   key={c.name}
                   className="rounded-full border border-[var(--cp-border)] px-2 py-0.5 text-[10px] text-[var(--cp-text-muted)]"

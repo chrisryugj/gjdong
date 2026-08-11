@@ -6,6 +6,12 @@ export const GWANGJIN_SPOTS = ["건대입구역", "군자역", "뚝섬한강공�
 export const NEARBY_SPOTS = ["광나루한강공원"] as const
 
 /**
+ * citydata_cmrcl 지원 지점 — 2026-08-11 실키 실측: 광진 스팟 6곳 중 역세권 2곳만 응답
+ * (공원·산 지역명은 RESULT 에러). ⚠️샘플키는 지역 인자를 무시하고 전 지점 동일 응답 — 실키로만 검증.
+ */
+export const CMRCL_AREAS = ["건대입구역", "군자역"] as const
+
+/**
  * 광진구 지하철역 8곳 — swopenapi 실측(2026-08-10): 부역명 포함 정식 역명이어야 조회된다
  * ("아차산" 단독은 INFO-200, "아차산(어린이대공원후문)"은 정상). 표기는 base로, 조회는 api로.
  */

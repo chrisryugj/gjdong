@@ -10,9 +10,11 @@
 //   필드: PM 미세먼지, FPM 초미세, OZON, CAI_GRD 등급문자, CAI_IDX 지수.
 // 주차: GetParkingInfo/1/10/광진구 — 실시간 연계는 광진구 1곳뿐(중곡1동 공영주차장(시), 130면).
 //   NOW_PRK_VHCL_UPDT_TM 실측 1분 이내. TPKCT 총면수, NOW_PRK_VHCL_CNT 현재 주차대수.
-// 상권: citydata_cmrcl/1/5/건대입구역 — 예외 구조({LIVE_CMRCL_STTS:{...}} — row 아님).
+// 상권: citydata_cmrcl/1/5/{지역명} — 예외 구조({LIVE_CMRCL_STTS:{...}} — row 아님).
 //   AREA_CMRCL_LVL 수준("한산한"~), AREA_SH_PAYMENT_CNT 최근 30분 결제건수(신한카드),
-//   CMRCL_RSB 업종별 배열. 광진구 POI 중 상권 데이터는 건대입구역만 유의미.
+//   CMRCL_RSB 업종별 배열. 2026-08-11 실키 실측: 광진 스팟 중 건대입구역(10업종)·군자역(5업종)만
+//   응답, 공원·산(어린이대공원·뚝섬·아차산·광나루)은 RESULT 에러 — 역세권 상권만 지원.
+//   ⚠️샘플키는 지역 인자를 무시하고 전 지점에 동일 응답을 준다(실측) — 지점별 검증은 실키로만.
 
 import { seoulKey, seoulRows } from "@/lib/gwangjin/seoul-open"
 
@@ -142,16 +144,18 @@ export async function fetchParking(): Promise<ParkingLot[] | null> {
 }
 
 export interface CmrclInfo {
+  /** 조회 지점명 (건대입구역·군자역) */
+  area: string
   level: string
   /** 최근 30분 결제 건수 */
   payments: number
   categories: Array<{ name: string; level: string }>
 }
 
-export async function fetchKondaeCmrcl(): Promise<CmrclInfo | null> {
+async function fetchCmrclArea(area: string): Promise<CmrclInfo | null> {
   const key = seoulKey()
   if (!key) return null
-  const url = `http://openapi.seoul.go.kr:8088/${key}/json/citydata_cmrcl/1/5/${encodeURIComponent("건대입구역")}`
+  const url = `http://openapi.seoul.go.kr:8088/${key}/json/citydata_cmrcl/1/5/${encodeURIComponent(area)}`
   const raw = await fetch(url, { next: { revalidate: 600 } })
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null)
@@ -159,6 +163,7 @@ export async function fetchKondaeCmrcl(): Promise<CmrclInfo | null> {
   if (!stts) return null
   const rsb = Array.isArray(stts.CMRCL_RSB) ? (stts.CMRCL_RSB as Array<Record<string, unknown>>) : []
   return {
+    area,
     level: String(stts.AREA_CMRCL_LVL ?? ""),
     payments: Number.parseFloat(String(stts.AREA_SH_PAYMENT_CNT ?? "0")) || 0,
     categories: rsb.map((c) => ({
@@ -166,4 +171,11 @@ export async function fetchKondaeCmrcl(): Promise<CmrclInfo | null> {
       level: String(c.RSB_PAYMENT_LVL ?? ""),
     })),
   }
+}
+
+/** 역세권 상권 일괄 — 키 없으면 null, 있으면 응답한 지점만 (전멸 시 빈 배열) */
+export async function fetchCmrcl(areas: readonly string[]): Promise<CmrclInfo[] | null> {
+  if (!seoulKey()) return null
+  const per = await Promise.all(areas.map((a) => fetchCmrclArea(a)))
+  return per.filter((c): c is CmrclInfo => c !== null)
 }

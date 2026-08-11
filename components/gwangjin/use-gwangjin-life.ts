@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { AirNow, CmrclInfo, ParkingLot, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
 import type { BikeStation, EvSummary, GjEvent, Shelter, StationPoi } from "@/lib/gwangjin/life"
 import type { ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
+import type { ReserveItem } from "@/lib/gwangjin/reserve"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
 export interface LifePoiStat {
@@ -46,18 +47,19 @@ export interface LiveBundle {
   rain: RainInfo | null
   river: RiverInfo | null
   parking: ParkingLot[] | null
-  cmrcl: CmrclInfo | null
+  cmrcl: CmrclInfo[] | null
   bikes: BikeStation[] | null
 }
 export interface CareBundle {
   er: ErRoom[] | null
   pharmacies: Pharmacy[] | null
 }
-interface DailyBundle {
+export interface DailyBundle {
   events: GjEvent[] | null
   ev: EvSummary | null
   shelters: Shelter[] | null
   stations: StationPoi[] | null
+  reservations: ReserveItem[] | null
 }
 
 // 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 따릉이 89·EV 328·쉼터 96은 옵트인
