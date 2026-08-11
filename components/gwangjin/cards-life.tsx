@@ -121,7 +121,17 @@ export function PopCard() {
 }
 
 // ── 공영주차 ────────────────────────────────────────────────────────────
-export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null; loaded: boolean }) {
+// 실시간 연계(서울시 API)는 광진 시영 1곳뿐 — 구영 전체 위치·요금은 표준데이터 레이어가 담당
+export function ParkingCard({
+  parking,
+  loaded,
+  stdCount,
+}: {
+  parking: ParkingLot[] | null
+  loaded: boolean
+  /** 표준데이터 공영주차장 수 — null=활용신청 전(안내 노출) */
+  stdCount: number | null
+}) {
   return (
     <Card icon={<SquareParking className="h-3.5 w-3.5" />} title="공영주차" badge="실시간 연계분">
       {!loaded ? (
@@ -145,9 +155,17 @@ export function ParkingCard({ parking, loaded }: { parking: ParkingLot[] | null;
           ))}
         </ul>
       )}
-      <p className="mt-1.5 text-[10px] text-[var(--cp-text-faint)]">
-        서울시 실시간 연계는 광진구 내 시영 1곳뿐 — 구영 주차장은 미연계
-      </p>
+      {loaded && stdCount === null ? (
+        <div className="mt-2">
+          <NeedKeyNote guide={KEY_GUIDES.parkingStd} />
+        </div>
+      ) : (
+        <p className="mt-1.5 text-[10px] text-[var(--cp-text-faint)]">
+          {stdCount
+            ? `실시간은 시영 1곳뿐 — 구영 포함 ${stdCount}곳 위치·요금은 지도 '주차장' 레이어에서`
+            : "서울시 실시간 연계는 광진구 내 시영 1곳뿐 — 구영 주차장은 미연계"}
+        </p>
+      )}
     </Card>
   )
 }

@@ -121,4 +121,16 @@ export const KEY_GUIDES = {
     url: "https://data.seoul.go.kr/dataList/OA-21065/A/1/datasetView.do",
     note: "일반 인증키로 동작 — 행안부 data.go.kr 무더위쉼터 API는 2026년 현재 폐기됨",
   },
+  aed: {
+    key: "DATA_GO_KR_KEY",
+    label: "공공데이터포털 — 자동심장충격기 위치(15000652) 활용신청",
+    url: "https://www.data.go.kr/data/15000652/openapi.do",
+    note: "자동승인 — 신청하면 지도 AED 레이어가 자동으로 켜져요",
+  },
+  parkingStd: {
+    key: "DATA_GO_KR_KEY",
+    label: "공공데이터포털 — 전국주차장정보 표준데이터(15012896) 활용신청",
+    url: "https://www.data.go.kr/data/15012896/standard.do",
+    note: "자동승인 — 구영 주차장 위치·요금이 지도 주차 레이어로 켜져요 (서울시 API엔 광진 시영 1곳뿐)",
+  },
 } satisfies Record<string, NeedKey>

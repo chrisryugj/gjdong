@@ -19,6 +19,15 @@
 //   없음 → 1000행×5페이징 후 클라이언트 필터, 24h 모듈 캐시.
 //   ⚠️행안부 data.go.kr API(HeatWaveShelter3·4·5)와 safemap은 전부 폐기 실측(2026-08-10) —
 //   공유플랫폼(safetydata.go.kr DSSP-IF-10942, 별도 가입)이 유일한 전국 대안이나 서울은 이걸로 충분.
+// 도서관: SeoulLibraryTimeInfo(1,535행 — 작은도서관 포함, XCNTS 위도/YDNTS 경도·FDRM_CLOSE_DATE
+//   휴관일) + SeoulPublicLibraryInfo(215행 — 공공도서관만, OP_TIME 운영시간·HMPG_URL) 실키 실측
+//   2026-08-11: 광진 44행(폐관 2 포함 — 이름 "[폐관]" 프리픽스 제외), 공공도서관 8곳.
+//   LBRRY_SEQ_NO로 조인해 운영시간을 얹는다. 구 필터 파라미터 없음 → 전량 후 CODE_VALUE 필터.
+//   ⚠️구 화장실 서비스(SearchPublicToiletPOIService 등)는 전부 ERROR-500 폐기 — 부활 금지.
+// 공영주차 전체: api.data.go.kr/openapi/tn_pubr_prkplce_info_api (전국주차장정보표준데이터
+//   15012896, 활용신청 자동승인). 서울시 GetParkingInfo는 광진구 전체가 1행뿐(실키 실측 —
+//   구영 주차장은 자치구 관리라 시 API에 없다) → 표준데이터가 유일한 구영 커버.
+//   ⚠️미검증(활용신청 전): 컬럼 like 필터(lnmadr)로 요청하되 응답을 주소로 재필터한다.
 
 import { krgovJson } from "@/lib/crowd/krgov-fetch"
 import { fetchSpotEvents } from "@/lib/crowd/seoul-rtd"
@@ -254,6 +263,110 @@ export async function fetchStationPois(bases: Array<{ base: string; lines: strin
   }
   const data = bases.map((b) => byBase.get(b.base)).filter((s): s is StationPoi => s != null)
   if (data.length > 0) stationCache = { at: Date.now(), data }
+  return data
+}
+
+// ── 도서관 ──────────────────────────────────────────────────────────────
+export interface Library {
+  name: string
+  addr: string
+  tel: string
+  url: string
+  /** 운영시간 (공공도서관 8곳만 — 작은도서관은 "") */
+  opTime: string
+  /** 정기 휴관일 ("휴관중" 포함) */
+  closeDay: string
+  lat: number
+  lng: number
+}
+
+// 도서관 목록은 연 단위 관리 — 24h 모듈 캐시
+let libraryCache: { at: number; data: Library[] } | null = null
+
+export async function fetchLibraries(): Promise<Library[] | null> {
+  if (libraryCache && Date.now() - libraryCache.at < 86_400_000) return libraryCache.data
+  const [t1, t2, pub] = await Promise.all([
+    seoulRows("SeoulLibraryTimeInfo", "1/1000/", 86_400),
+    seoulRows("SeoulLibraryTimeInfo", "1001/2000/", 86_400),
+    seoulRows("SeoulPublicLibraryInfo", "1/1000/", 86_400),
+  ])
+  if (t1 === null && t2 === null) return null
+  const opBySeq = new Map<string, string>()
+  for (const r of (pub ?? []) as Array<Record<string, unknown>>) {
+    if (String(r.CODE_VALUE ?? "") === "광진구") opBySeq.set(String(r.LBRRY_SEQ_NO ?? ""), String(r.OP_TIME ?? ""))
+  }
+  const out: Library[] = []
+  for (const r of [...(t1 ?? []), ...(t2 ?? [])] as Array<Record<string, unknown>>) {
+    if (String(r.CODE_VALUE ?? "") !== "광진구") continue
+    const name = String(r.LBRRY_NAME ?? "")
+    if (!name || name.startsWith("[폐관]")) continue
+    const lat = Number.parseFloat(String(r.XCNTS ?? "0")) || 0
+    if (lat === 0) continue
+    out.push({
+      name,
+      addr: String(r.ADRES ?? ""),
+      tel: String(r.TEL_NO ?? ""),
+      url: String(r.HMPG_URL ?? ""),
+      opTime: opBySeq.get(String(r.LBRRY_SEQ_NO ?? "")) ?? "",
+      closeDay: String(r.FDRM_CLOSE_DATE ?? ""),
+      lat,
+      lng: Number.parseFloat(String(r.YDNTS ?? "0")) || 0,
+    })
+  }
+  const data = out.sort((a, b) => Number(Boolean(b.opTime)) - Number(Boolean(a.opTime)) || a.name.localeCompare(b.name, "ko"))
+  if (data.length > 0) libraryCache = { at: Date.now(), data }
+  return data
+}
+
+// ── 공영주차장 전체 (표준데이터) ─────────────────────────────────────────
+export interface PublicParking {
+  name: string
+  addr: string
+  /** 노상/노외 등 */
+  type: string
+  /** 요금 정보 요약 — "무료" | "30분 1,000원" 형태 */
+  fee: string
+  spaces: number
+  tel: string
+  lat: number
+  lng: number
+}
+
+let pubParkCache: { at: number; data: PublicParking[] } | null = null
+
+export async function fetchPublicParkings(): Promise<PublicParking[] | null> {
+  const key = DATA_KEY()
+  if (!key) return null
+  if (pubParkCache && Date.now() - pubParkCache.at < 86_400_000) return pubParkCache.data
+  const url = `https://api.data.go.kr/openapi/tn_pubr_prkplce_info_api?serviceKey=${key}&pageNo=1&numOfRows=900&type=json&lnmadr=${encodeURIComponent("서울특별시 광진구")}`
+  const raw = (await krgovJson(url, { timeoutMs: 15000 }).catch(() => null)) as {
+    response?: { body?: { items?: Array<Record<string, unknown>> } }
+  } | null
+  const items = raw?.response?.body?.items
+  if (!Array.isArray(items)) return null
+  const out: PublicParking[] = []
+  for (const it of items) {
+    // 필터 미지원/무시 원천 대비 — 지번·도로명 어느 쪽이든 광진구가 들어간 행만
+    const addr = String(it.lnmadr ?? "") || String(it.rdnmadr ?? "")
+    if (!addr.includes("광진구")) continue
+    const lat = Number.parseFloat(String(it.latitude ?? "0")) || 0
+    if (lat === 0) continue
+    const basic = Number.parseFloat(String(it.basicCharge ?? "")) || 0
+    const basicMin = Number.parseFloat(String(it.basicTime ?? "")) || 0
+    const free = String(it.parkingchrgeInfo ?? "").includes("무료") || basic === 0
+    out.push({
+      name: String(it.prkplceNm ?? ""),
+      addr,
+      type: String(it.prkplceType ?? ""),
+      fee: free ? "무료" : basicMin > 0 ? `${basicMin}분 ${basic.toLocaleString()}원` : `기본 ${basic.toLocaleString()}원`,
+      spaces: Number.parseInt(String(it.prkcmprt ?? "0"), 10) || 0,
+      tel: String(it.phoneNumber ?? ""),
+      lat,
+      lng: Number.parseFloat(String(it.longitude ?? "0")) || 0,
+    })
+  }
+  const data = out.filter((p) => p.name).sort((a, b) => a.name.localeCompare(b.name, "ko"))
+  if (data.length > 0) pubParkCache = { at: Date.now(), data }
   return data
 }
 

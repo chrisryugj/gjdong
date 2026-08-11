@@ -6,8 +6,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { AirNow, CmrclInfo, ParkingLot, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
-import type { BikeStation, EvSummary, GjEvent, Shelter, StationPoi } from "@/lib/gwangjin/life"
-import type { ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
+import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, Shelter, StationPoi } from "@/lib/gwangjin/life"
+import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
@@ -19,7 +19,7 @@ export interface LifePoiStat {
 }
 
 export interface LifePoi {
-  kind: "bike" | "ev" | "shelter" | "station" | "er"
+  kind: "bike" | "ev" | "shelter" | "station" | "er" | "aed" | "library" | "parking"
   name: string
   lat: number
   lng: number
@@ -49,6 +49,8 @@ export interface LiveBundle {
   parking: ParkingLot[] | null
   cmrcl: CmrclInfo[] | null
   bikes: BikeStation[] | null
+  /** 12시간 내 최대 강수확률 (Open-Meteo) — 원천 실패 시 null */
+  forecast: { maxRainProb: number } | null
 }
 export interface CareBundle {
   er: ErRoom[] | null
@@ -60,6 +62,9 @@ export interface DailyBundle {
   shelters: Shelter[] | null
   stations: StationPoi[] | null
   reservations: ReserveItem[] | null
+  libraries: Library[] | null
+  aeds: Aed[] | null
+  publicParkings: PublicParking[] | null
 }
 
 // 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 따릉이 89·EV 328·쉼터 96은 옵트인
@@ -206,6 +211,61 @@ export function useGwangjinLife(enabled: boolean) {
         })
       }
     }
+    if (layers.has("aed")) {
+      for (const a of daily?.aeds ?? []) {
+        out.push({
+          kind: "aed",
+          name: a.org,
+          lat: a.lat,
+          lng: a.lng,
+          sub: a.place ? `AED · ${a.place}` : "자동심장충격기",
+          color: "#ea580c",
+          addr: a.addr,
+          tel: a.tel,
+          stats: a.place ? [{ label: "설치 위치", value: a.place }] : undefined,
+        })
+      }
+    }
+    if (layers.has("library")) {
+      for (const l of daily?.libraries ?? []) {
+        out.push({
+          kind: "library",
+          name: l.name,
+          lat: l.lat,
+          lng: l.lng,
+          sub: l.opTime ? l.opTime.replace(/평일 : /, "평일 ") : l.closeDay ? `휴관 ${l.closeDay}` : "도서관",
+          color: "#7c3aed",
+          addr: l.addr,
+          tel: l.tel,
+          stats: (
+            [
+              l.opTime ? { label: "운영", value: l.opTime } : null,
+              l.closeDay ? { label: "휴관", value: l.closeDay } : null,
+            ] as Array<LifePoiStat | null>
+          ).filter((s): s is LifePoiStat => s != null),
+        })
+      }
+    }
+    if (layers.has("parking")) {
+      for (const p of daily?.publicParkings ?? []) {
+        out.push({
+          kind: "parking",
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          sub: `${p.type || "공영주차"} · ${p.fee}${p.spaces > 0 ? ` · ${p.spaces}면` : ""}`,
+          color: "#4f46e5",
+          addr: p.addr,
+          tel: p.tel,
+          stats: (
+            [
+              { label: "요금", value: p.fee, tone: p.fee === "무료" ? ("ok" as const) : undefined },
+              p.spaces > 0 ? { label: "구획", value: `${p.spaces}면` } : null,
+            ] as Array<LifePoiStat | null>
+          ).filter((s): s is LifePoiStat => s != null),
+        })
+      }
+    }
     return out
   }, [enabled, layers, live, care, daily])
 
@@ -217,6 +277,9 @@ export function useGwangjinLife(enabled: boolean) {
       bike: live?.bikes?.length ?? null,
       ev: daily?.ev?.stations?.length ?? null,
       shelter: daily?.shelters?.length ?? null,
+      aed: daily?.aeds?.length ?? null,
+      library: daily?.libraries?.length ?? null,
+      parking: daily?.publicParkings?.length ?? null,
     }),
     [live, care, daily],
   )

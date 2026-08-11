@@ -30,11 +30,17 @@ interface CrowdMapProps {
   declutterLabels?: boolean
   /** 상황실 미니맵용 지점별 상시 레이블(HTML, 호출부가 이스케이프 책임) — 있으면 hover 툴팁 대신 permanent */
   opsLabels?: Map<string, string>
-  /** 광진 생활 POI(따릉이·EV·쉼터·역·응급실) — 명소 마커와 별개 레이어. station은 탭 시 도착 팝업 */
+  /** 광진 생활 POI(따릉이·EV·쉼터·역·응급실·AED·도서관·주차) — 명소 마커와 별개 레이어. station은 탭 시 도착 팝업 */
   lifePois?: LifePoi[]
+  /** 구 경계 오버레이 키 — 지정 시 해당 경계 모듈을 동적 로드해 경계선+바깥 딤을 그린다 (고정 서피스 전용) */
+  boundaryKey?: "gwangjin"
 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
+
+// 개수 많은 생활 레이어는 동네 줌부터 — 도시 줌에서 마커 수백 개는 신호가 아니라 소음이다
+const LIFE_MIN_ZOOM: Partial<Record<LifePoi["kind"], number>> = { bike: 14, ev: 14, aed: 14 }
+const LIFE_KIND_LABEL: Partial<Record<LifePoi["kind"], string>> = { bike: "따릉이", ev: "충전소", aed: "AED" }
 
 // 터치 기기는 지름 ~13px 점이 탭 표적으로 너무 작다 — 마커 반지름 가산 (모듈 로드 시 1회 판정)
 const TOUCH_PAD =
@@ -68,7 +74,7 @@ function lifePopupHtml(poi: LifePoi): string {
   </div>`
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, boundaryKey }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -78,8 +84,12 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
   const lifeLayerRef = useRef<LayerGroup | null>(null)
+  const boundaryLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
   const [ready, setReady] = useState(false)
+  // 줌 게이트 재계산 트리거 + 현재 줌에서 숨겨진 레이어 라벨(힌트 pill)
+  const [zoomTick, setZoomTick] = useState(0)
+  const [gatedLabels, setGatedLabels] = useState<string[]>([])
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const selectedNameRef = useRef(selectedName)
@@ -182,12 +192,20 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       glowRendererRef.current = L.canvas({ pane: "crowdGlow" })
       glowLayerRef.current = L.layerGroup().addTo(map)
 
+      // 구 경계 전용 pane — 글로우(350)보다 아래, 타일 위. 클릭 통과
+      const boundaryPane = map.createPane("gjBoundary")
+      boundaryPane.style.zIndex = "330"
+      boundaryPane.style.pointerEvents = "none"
+      boundaryLayerRef.current = L.layerGroup().addTo(map)
+
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
       cctvLayerRef.current = L.layerGroup().addTo(map)
       lifeLayerRef.current = L.layerGroup().addTo(map)
       // 줌·팬마다 이름표 겹침 재계산 (declutter 미사용 호출부에선 즉시 반환)
       map.on("zoomend moveend", () => cullLabelsRef.current())
+      // 생활 레이어 줌 게이트 재계산 (광진 전용 — lifePois 없는 호출부에선 상태 변화 무해)
+      map.on("zoomend", () => setZoomTick((t) => t + 1))
       mapInstanceRef.current = map
       setReady(true)
     }
@@ -209,6 +227,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       pinLayerRef.current = null
       cctvLayerRef.current = null
       lifeLayerRef.current = null
+      boundaryLayerRef.current = null
       markersRef.current.clear()
     }
   }, [])
@@ -406,14 +425,61 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     }
   }, [ready, cctvItems, lang])
 
+  // 구 경계 오버레이 — 경계 모듈 동적 로드(타 도시 번들 0바이트): 바깥 딤 + 이중선(할로+점선)
+  useEffect(() => {
+    const L = leafletRef.current
+    const layer = boundaryLayerRef.current
+    if (!ready || !L || !layer) return
+    layer.clearLayers()
+    if (!boundaryKey) return
+    let cancelled = false
+    void import("@/lib/gwangjin/boundary").then(({ GWANGJIN_BOUNDARY }) => {
+      if (cancelled || !boundaryLayerRef.current) return
+      const ring = GWANGJIN_BOUNDARY
+      const world: Array<[number, number]> = [
+        [85, -180],
+        [85, 180],
+        [-85, 180],
+        [-85, -180],
+      ]
+      // 구 바깥을 은은하게 가라앉혀 "여기부터가 광진" — 링에 구멍(ring)을 낸 폴리곤
+      L.polygon([world, ring], {
+        pane: "gjBoundary",
+        stroke: false,
+        fillColor: "#0f172a",
+        fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(layer)
+      const closed = [...ring, ring[0]]
+      // 할로(넓고 옅게) 위에 점선(가늘고 또렷하게) — 지도 위 어떤 배경에서도 경계가 읽힌다
+      L.polyline(closed, { pane: "gjBoundary", color: "#0369a1", weight: 5, opacity: 0.12, lineCap: "round", interactive: false }).addTo(layer)
+      L.polyline(closed, { pane: "gjBoundary", color: "#0369a1", weight: 1.8, opacity: 0.6, dashArray: "1 6", lineCap: "round", interactive: false }).addTo(layer)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [ready, boundaryKey])
+
   // 광진 생활 POI — 명소 마커와 독립 레이어. 클릭 = 상세 팝업(주소·행정동·상태·전화·길찾기 3종).
-  // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜)
+  // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜).
+  // 개수 많은 종류(LIFE_MIN_ZOOM)는 동네 줌부터 그리고, 숨긴 동안은 하단 힌트 pill이 알린다.
   useEffect(() => {
     const L = leafletRef.current
     const layer = lifeLayerRef.current
-    if (!ready || !L || !layer) return
+    const map = mapInstanceRef.current
+    if (!ready || !L || !layer || !map) return
     layer.clearLayers()
+    const z = map.getZoom()
+    const hidden = new Set<string>()
+    const visible: LifePoi[] = []
     for (const poi of lifePois ?? []) {
+      const min = LIFE_MIN_ZOOM[poi.kind] ?? 0
+      if (z < min) hidden.add(LIFE_KIND_LABEL[poi.kind] ?? poi.kind)
+      else visible.push(poi)
+    }
+    // 내용이 같으면 이전 배열 유지 — 전 도시 공용 zoomend 틱마다 헛리렌더 방지
+    setGatedLabels((prev) => (prev.length === hidden.size && prev.every((l) => hidden.has(l)) ? prev : [...hidden]))
+    for (const poi of visible) {
       // 지하철 = 노선 정식색 동그라미(환승역은 겹친 두 개), 나머지 = 아이콘 원 + 우상단 숫자 배지
       let html: string
       let w = 24
@@ -468,7 +534,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       }
       marker.addTo(layer)
     }
-  }, [ready, lifePois])
+  }, [ready, lifePois, zoomTick])
 
   // 주소 핀 + 근처 명소 연결선
   useEffect(() => {
@@ -512,5 +578,16 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     map.flyToBounds(bounds, { padding: [60, 60], duration: 0.8, maxZoom: 15 })
   }, [ready, addressPin, nearestNames, spots, lang])
 
-  return <div ref={mapRef} className="crowd-map h-full w-full" />
+  return (
+    <>
+      <div ref={mapRef} className="crowd-map h-full w-full" />
+      {/* 줌 게이트 힌트 — 켜둔 레이어가 현재 줌에서 숨겨져 있을 때만. 부모 relative 컨테이너 기준,
+          bottom-9 = 모바일 좌하 범례·우하 줌 버튼과 겹치지 않는 높이 */}
+      {gatedLabels.length > 0 && (
+        <div className="pointer-events-none absolute bottom-9 left-1/2 z-[1000] -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-3 py-1 text-[11px] text-[var(--cp-text-muted)] backdrop-blur-sm">
+          {gatedLabels.join("·")}는 지도를 확대하면 표시돼요
+        </div>
+      )}
+    </>
+  )
 }
