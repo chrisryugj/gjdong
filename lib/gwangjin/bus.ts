@@ -10,8 +10,9 @@
 //   ⚠️미신청 실측(2026-08-12): ws.bus.go.kr는 data.go.kr 게이트웨이와 달리 HTTP 200 +
 //   <headerCd>7</headerCd> + "SERVICE KEY IS NOT REGISTERED"(공백 구분!)로 답한다 —
 //   문자열 매칭이 아니라 headerCd로 판정해야 미신청이 "도착 없음"으로 위장하지 않는다.
+//   ⚠️이 호스트는 http 전용(443 미개방 실측) — krgovFetch(node:https 전용)가 아니라
+//   plain fetch로 부른다. http라 TLS 체인 문제도 없다.
 
-import { krgovFetch } from "@/lib/crowd/krgov-fetch"
 import { seoulRows } from "@/lib/gwangjin/seoul-open"
 
 const KEY = () => process.env.DATA_GO_KR_KEY ?? ""
@@ -69,10 +70,12 @@ export async function fetchBusArrivals(arsId: string): Promise<BusArrival[] | nu
   const key = KEY()
   if (!key || !/^\d{5}$/.test(arsId)) return null
   const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${key}&arsId=${arsId}`
-  const xml = await krgovFetch(url, { timeoutMs: 10000 }).catch((e: Error) => `__ERR__ ${e.message}`)
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) }).catch(() => null)
+  if (res && res.status === 403) return null
+  const xml = res?.ok ? await res.text().catch(() => "") : ""
   // headerCd 7 = 인증(미신청) — 신청 안내로 구분. 그 외 에러 코드는 빈 도착으로 수렴
   const headerCd = xml.match(/<headerCd>(\d+)<\/headerCd>/)?.[1]
-  if (headerCd === "7" || xml.includes("krgov 403")) return null
+  if (headerCd === "7") return null
   const items: BusArrival[] = []
   for (const m of xml.matchAll(/<itemList>([\s\S]*?)<\/itemList>/g)) {
     const tag = (name: string) => m[1].match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? ""
