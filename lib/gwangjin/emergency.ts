@@ -44,7 +44,7 @@ export interface Pharmacy {
   name: string
   addr: string
   tel: string
-  /** 오늘 운영시간 "0900~1930" — 데이터 없으면 "" */
+  /** 오늘 운영시간 "09:00~19:30" (자정 넘김은 "09:00~익일 01:30") — 데이터 없으면 "" */
   hours: string
   /** 지금 영업 중 (KST 기준 서버 계산) */
   openNow: boolean
@@ -133,6 +133,12 @@ function dutyDayIndex(kstDay: number): number {
   return kstDay === 0 ? 7 : kstDay
 }
 
+/** "0900"→"09:00" — 원천 HHmm을 그대로 노출하지 않는다 (3자리 "930" 방어 패딩 포함) */
+function fmtHm(v: string): string {
+  const p = v.padStart(4, "0")
+  return `${p.slice(0, 2)}:${p.slice(2)}`
+}
+
 export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
   const key = KEY()
   if (!key) return null
@@ -149,13 +155,14 @@ export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
       const s = Number.parseInt(start, 10)
       // 자정 넘김(예: 0130 마감)은 2400+로 보정해 당일 심야까지 open 판정
       const cRaw = Number.parseInt(close, 10)
-      const c = Number.isFinite(cRaw) && Number.isFinite(s) && cRaw < s ? cRaw + 2400 : cRaw
+      const overnight = Number.isFinite(cRaw) && Number.isFinite(s) && cRaw < s
+      const c = overnight ? cRaw + 2400 : cRaw
       const valid = Number.isFinite(s) && Number.isFinite(c)
       return {
         name: it.dutyName ?? "",
         addr: it.dutyAddr ?? "",
         tel: it.dutyTel1 ?? "",
-        hours: valid ? `${start}~${close}` : "",
+        hours: valid ? `${fmtHm(start)}~${overnight ? "익일 " : ""}${fmtHm(close)}` : "",
         openNow: valid && hhmm >= s && hhmm < c,
         lateNight: valid && c >= 2200,
         lat: Number.parseFloat(it.wgs84Lat ?? "0") || 0,

@@ -50,11 +50,21 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
-/** 생활 POI 클릭 팝업 — 이름·행정동·주소·상태 상세·전화 + 카카오/네이버/T맵 길찾기(좌표 기반).
+/** 생활 POI 클릭 팝업 — kind 도상 뱃지 헤더 + stat 타일 그리드 + 전화·길찾기 액션.
+ *  마커와 같은 아이콘·색·형태(간판/원)를 헤더에 되풀이해 "무엇의 상세인지"가 먼저 읽힌다.
  *  길찾기 URL 3종은 DirectionsBar(명소 상세)와 동일 패턴 — 앱 관성 유지 */
+const PHONE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`
+
 function lifePopupHtml(poi: LifePoi): string {
   const name = encodeURIComponent(poi.name)
   const dong = poi.dong ? `<em>${escapeHtml(poi.dong)}</em>` : ""
+  // 헤더 도상 — station은 노선색 동그라미, 나머지는 마커와 같은 간판/원 뱃지 (집은 뱃지에선 원형)
+  const badge =
+    poi.kind === "station" && poi.lines?.length
+      ? `<span class="crowd-life-lines klines">${poi.lines
+          .map((l) => `<b style="background:${LINE_COLOR_BY_NUM[l] ?? "#475569"}">${escapeHtml(l)}</b>`)
+          .join("")}</span>`
+      : `<span class="k${LIFE_MARKER_SHAPE[poi.kind as Exclude<LifePoi["kind"], "station">] === "sign" ? " is-sign" : ""}" style="background:${poi.color}">${LIFE_ICON_SVG[poi.kind as Exclude<LifePoi["kind"], "station">]}</span>`
   const addr = poi.addr ? `<p class="a">${escapeHtml(poi.addr)}</p>` : ""
   const stats = poi.stats?.length
     ? `<div class="s">${poi.stats
@@ -62,9 +72,9 @@ function lifePopupHtml(poi: LifePoi): string {
         .join("")}</div>`
     : ""
   const arrivals = poi.kind === "station" ? `<div class="crowd-subway-pop" data-station="${escapeHtml(poi.station ?? "")}">…</div>` : ""
-  const tel = poi.tel ? `<a href="tel:${escapeHtml(poi.tel)}">전화</a>` : ""
+  const tel = poi.tel ? `<a class="tel" href="tel:${escapeHtml(poi.tel)}">${PHONE_SVG}${escapeHtml(poi.tel)}</a>` : ""
   return `<div class="crowd-life-pop">
-    <p class="t">${escapeHtml(poi.name)}${dong}</p>
+    <p class="t">${badge}<span class="tx">${escapeHtml(poi.name)}</span>${dong}</p>
     ${addr}${stats}${arrivals}
     <div class="acts">${tel}
       <a href="https://map.kakao.com/link/to/${name},${poi.lat},${poi.lng}" target="_blank" rel="noopener noreferrer"><i style="background:#ffb100"></i>카카오맵</a>
