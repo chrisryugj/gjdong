@@ -153,16 +153,18 @@ export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
       const start = it[`dutyTime${idx}s`] ?? ""
       const close = it[`dutyTime${idx}c`] ?? ""
       const s = Number.parseInt(start, 10)
-      // 자정 넘김(예: 0130 마감)은 2400+로 보정해 당일 심야까지 open 판정
+      // 자정 넘김 표기 2종 실측: "0130"(start보다 작음)과 "2500"(24h 초과) — open 판정은 2400+ 축으로
       const cRaw = Number.parseInt(close, 10)
       const overnight = Number.isFinite(cRaw) && Number.isFinite(s) && cRaw < s
+      const past24 = Number.isFinite(cRaw) && cRaw > 2400
       const c = overnight ? cRaw + 2400 : cRaw
       const valid = Number.isFinite(s) && Number.isFinite(c)
+      const closeText = past24 ? `익일 ${fmtHm(String(cRaw - 2400))}` : `${overnight ? "익일 " : ""}${fmtHm(close)}`
       return {
         name: it.dutyName ?? "",
         addr: it.dutyAddr ?? "",
         tel: it.dutyTel1 ?? "",
-        hours: valid ? `${fmtHm(start)}~${overnight ? "익일 " : ""}${fmtHm(close)}` : "",
+        hours: valid ? `${fmtHm(start)}~${closeText}` : "",
         openNow: valid && hhmm >= s && hhmm < c,
         lateNight: valid && c >= 2200,
         lat: Number.parseFloat(it.wgs84Lat ?? "0") || 0,
