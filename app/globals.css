@@ -427,23 +427,54 @@
 .crowd-page.crowd-light .gj-bad { color: #b91c1c; }
 .crowd-page .gj-info { color: #38bdf8; }
 .crowd-page.crowd-light .gj-info { color: #0369a1; }
-/* ── 생활 POI 클릭 팝업 — 이름·행정동·주소·상태·전화·길찾기 */
+/* ── 생활 POI 클릭 팝업 — kind 도상 헤더 · stat 타일 그리드 · 전화 우선 액션 (2026-08-11 개편) */
 .crowd-page .crowd-life-pop {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 210px;
+  gap: 7px;
+  min-width: 228px;
 }
 .crowd-page .crowd-life-pop .t {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 7px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--cp-text-strong);
 }
+/* 헤더 도상 뱃지 — 마커와 같은 색·형태의 미니 간판/원 */
+.crowd-page .crowd-life-pop .t .k {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.crowd-page .crowd-life-pop .t .k.is-sign {
+  border-radius: 5px;
+}
+.crowd-page .crowd-life-pop .t .k svg {
+  width: 12px;
+  height: 12px;
+}
+.crowd-page .crowd-life-pop .t .klines {
+  transform: scale(0.9);
+  transform-origin: left center;
+}
+.crowd-page .crowd-life-pop .t .tx {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .crowd-page .crowd-life-pop .t em {
   font-style: normal;
+  flex: none;
   font-size: 10px;
   font-weight: 600;
   color: var(--cp-text-muted);
@@ -455,43 +486,53 @@
 .crowd-page .crowd-life-pop .a {
   font-size: 11px;
   color: var(--cp-text-muted);
-  line-height: 1.4;
+  line-height: 1.45;
+  margin-top: -2px;
 }
+/* 상태 상세 — 라벨 위·값 아래 2열 타일. 훑는 눈이 값(볼드)만 스캔해도 읽힌다 */
 .crowd-page .crowd-life-pop .s {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: var(--cp-panel2);
-  font-size: 11px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
 }
 .crowd-page .crowd-life-pop .s span {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--cp-panel2);
+  border: 1px solid var(--cp-border-faint);
 }
 .crowd-page .crowd-life-pop .s i {
   font-style: normal;
-  color: var(--cp-text-dim);
+  font-size: 10px;
+  color: var(--cp-text-muted);
 }
 .crowd-page .crowd-life-pop .s b {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--cp-text-strong);
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* 액션 — 전화(있으면)가 첫 줄 전체, 길찾기 3종이 아랫줄. 모바일 탭 표적 32px+ */
 .crowd-page .crowd-life-pop .acts {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  padding-top: 2px;
+  padding-top: 1px;
 }
 .crowd-page .crowd-life-pop .acts a {
   display: flex;
-  flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 5px 0;
+  gap: 5px;
+  padding: 7px 0;
   border: 1px solid var(--cp-border-strong);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--cp-panel);
   color: var(--cp-text);
   font-size: 11px;
@@ -502,6 +543,16 @@
 }
 .crowd-page .crowd-life-pop .acts a:hover {
   background: var(--cp-hover2);
+}
+.crowd-page .crowd-life-pop .acts a.tel {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-color: var(--cp-border-active);
+}
+.crowd-page .crowd-life-pop .acts a.tel svg {
+  width: 12px;
+  height: 12px;
 }
 .crowd-page .crowd-life-pop .acts a i {
   width: 7px;
