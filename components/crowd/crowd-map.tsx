@@ -39,8 +39,8 @@ interface CrowdMapProps {
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
 
 // 개수 많은 생활 레이어는 동네 줌부터 — 도시 줌에서 마커 수백 개는 신호가 아니라 소음이다
-const LIFE_MIN_ZOOM: Partial<Record<LifePoi["kind"], number>> = { bike: 14, ev: 14, aed: 14 }
-const LIFE_KIND_LABEL: Partial<Record<LifePoi["kind"], string>> = { bike: "따릉이", ev: "충전소", aed: "AED" }
+const LIFE_MIN_ZOOM: Partial<Record<LifePoi["kind"], number>> = { bike: 14, ev: 14, aed: 14, pharm: 14 }
+const LIFE_KIND_LABEL: Partial<Record<LifePoi["kind"], string>> = { bike: "따릉이", ev: "충전소", aed: "AED", pharm: "약국" }
 
 // 터치 기기는 지름 ~13px 점이 탭 표적으로 너무 작다 — 마커 반지름 가산 (모듈 로드 시 1회 판정)
 const TOUCH_PAD =

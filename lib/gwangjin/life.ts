@@ -27,10 +27,14 @@
 // 공영주차 전체: api.data.go.kr/openapi/tn_pubr_prkplce_info_api (전국주차장정보표준데이터
 //   15012896, 활용신청 자동승인). 서울시 GetParkingInfo는 광진구 전체가 1행뿐(실키 실측 —
 //   구영 주차장은 자치구 관리라 시 API에 없다) → 표준데이터가 유일한 구영 커버.
-//   ⚠️미검증(활용신청 전): 컬럼 like 필터(lnmadr)로 요청하되 응답을 주소로 재필터한다.
+//   실키 실측(2026-08-11): ①봉투는 top-level {header, body:{items:{item:[...]}, totalCount}} —
+//   response 래핑 없음 ②구 필터는 insttCode=3040000(광진구청)만 동작(17건) — lnmadr는
+//   NODATA(exact 매칭), insttNm은 SERVICE_ERROR(SQL 예외) ③17곳 중 7곳이 좌표 공백 —
+//   지번 주소를 카카오 지오코딩으로 보충한다(24h 캐시라 하루 7콜).
 
 import { krgovJson } from "@/lib/crowd/krgov-fetch"
 import { fetchSpotEvents } from "@/lib/crowd/seoul-rtd"
+import { kakaoSearchAddress } from "@/lib/utils/kakao-api"
 import { seoulRows } from "@/lib/gwangjin/seoul-open"
 import { DONG_CODES, GWANGJIN_SPOTS, NEARBY_SPOTS } from "@/lib/gwangjin/constants"
 
@@ -338,19 +342,18 @@ export async function fetchPublicParkings(): Promise<PublicParking[] | null> {
   const key = DATA_KEY()
   if (!key) return null
   if (pubParkCache && Date.now() - pubParkCache.at < 86_400_000) return pubParkCache.data
-  const url = `https://api.data.go.kr/openapi/tn_pubr_prkplce_info_api?serviceKey=${key}&pageNo=1&numOfRows=900&type=json&lnmadr=${encodeURIComponent("서울특별시 광진구")}`
+  // insttCode=3040000(광진구청) — 유일하게 동작하는 구 단위 필터 (헤더 계약 주석 실측)
+  const url = `https://api.data.go.kr/openapi/tn_pubr_prkplce_info_api?serviceKey=${key}&pageNo=1&numOfRows=200&type=json&insttCode=3040000`
   const raw = (await krgovJson(url, { timeoutMs: 15000 }).catch(() => null)) as {
-    response?: { body?: { items?: Array<Record<string, unknown>> } }
+    body?: { items?: { item?: Array<Record<string, unknown>> } }
   } | null
-  const items = raw?.response?.body?.items
+  const items = raw?.body?.items?.item
   if (!Array.isArray(items)) return null
   const out: PublicParking[] = []
   for (const it of items) {
-    // 필터 미지원/무시 원천 대비 — 지번·도로명 어느 쪽이든 광진구가 들어간 행만
+    // 기관 필터 오작동 대비 — 지번·도로명 어느 쪽이든 광진구가 들어간 행만
     const addr = String(it.lnmadr ?? "") || String(it.rdnmadr ?? "")
     if (!addr.includes("광진구")) continue
-    const lat = Number.parseFloat(String(it.latitude ?? "0")) || 0
-    if (lat === 0) continue
     const basic = Number.parseFloat(String(it.basicCharge ?? "")) || 0
     const basicMin = Number.parseFloat(String(it.basicTime ?? "")) || 0
     const free = String(it.parkingchrgeInfo ?? "").includes("무료") || basic === 0
@@ -361,11 +364,23 @@ export async function fetchPublicParkings(): Promise<PublicParking[] | null> {
       fee: free ? "무료" : basicMin > 0 ? `${basicMin}분 ${basic.toLocaleString()}원` : `기본 ${basic.toLocaleString()}원`,
       spaces: Number.parseInt(String(it.prkcmprt ?? "0"), 10) || 0,
       tel: String(it.phoneNumber ?? ""),
-      lat,
+      lat: Number.parseFloat(String(it.latitude ?? "0")) || 0,
       lng: Number.parseFloat(String(it.longitude ?? "0")) || 0,
     })
   }
-  const data = out.filter((p) => p.name).sort((a, b) => a.name.localeCompare(b.name, "ko"))
+  // 좌표 공백 행(실측 7/17)은 지번 주소로 카카오 지오코딩 — 실패 행만 지도에서 빠진다
+  await Promise.all(
+    out
+      .filter((p) => p.lat === 0 && p.addr)
+      .map(async (p) => {
+        const doc = await kakaoSearchAddress(p.addr).catch(() => null)
+        if (doc) {
+          p.lat = Number.parseFloat(doc.y) || 0
+          p.lng = Number.parseFloat(doc.x) || 0
+        }
+      }),
+  )
+  const data = out.filter((p) => p.name && p.lat !== 0).sort((a, b) => a.name.localeCompare(b.name, "ko"))
   if (data.length > 0) pubParkCache = { at: Date.now(), data }
   return data
 }
