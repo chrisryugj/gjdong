@@ -137,7 +137,7 @@ export const KEY_GUIDES = {
     key: "DATA_GO_KR_KEY",
     label: "공공데이터포털 — 전국마을회관및경로당 표준데이터(15114136) 활용신청",
     url: "https://www.data.go.kr/data/15114136/standard.do",
-    note: "자동승인 — 광진 경로당이 지도 레이어로 켜져요 (서울시 경로당 자료는 파일 배포뿐)",
+    note: "자동승인. 단 광진구는 2026-08 현재 이 표준데이터 미제출(실측) — 구가 제출하면 자동 표시돼요",
   },
   bus: {
     key: "DATA_GO_KR_KEY",
