@@ -7,7 +7,9 @@
 //   "서울특별시_정류소정보조회 서비스"(15000303) 활용신청 필요(자동승인, DATA_GO_KR_KEY 공용).
 //   응답 <msgBody><itemList> 반복 — rtNm 노선명, adirection 방면, arrmsg1/2 도착문구
 //   ("3분38초후[2번째 전]"·"곧 도착"·"운행종료"), routeType 노선유형(3간선 4지선…).
-//   ⚠️미신청이면 data.go.kr 게이트웨이가 403/NOT_REGISTERED — null로 구분해 신청 안내.
+//   ⚠️미신청 실측(2026-08-12): ws.bus.go.kr는 data.go.kr 게이트웨이와 달리 HTTP 200 +
+//   <headerCd>7</headerCd> + "SERVICE KEY IS NOT REGISTERED"(공백 구분!)로 답한다 —
+//   문자열 매칭이 아니라 headerCd로 판정해야 미신청이 "도착 없음"으로 위장하지 않는다.
 
 import { krgovFetch } from "@/lib/crowd/krgov-fetch"
 import { seoulRows } from "@/lib/gwangjin/seoul-open"
@@ -68,7 +70,9 @@ export async function fetchBusArrivals(arsId: string): Promise<BusArrival[] | nu
   if (!key || !/^\d{5}$/.test(arsId)) return null
   const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${key}&arsId=${arsId}`
   const xml = await krgovFetch(url, { timeoutMs: 10000 }).catch((e: Error) => `__ERR__ ${e.message}`)
-  if (xml.includes("NOT_REGISTERED") || xml.includes("krgov 403")) return null
+  // headerCd 7 = 인증(미신청) — 신청 안내로 구분. 그 외 에러 코드는 빈 도착으로 수렴
+  const headerCd = xml.match(/<headerCd>(\d+)<\/headerCd>/)?.[1]
+  if (headerCd === "7" || xml.includes("krgov 403")) return null
   const items: BusArrival[] = []
   for (const m of xml.matchAll(/<itemList>([\s\S]*?)<\/itemList>/g)) {
     const tag = (name: string) => m[1].match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? ""
