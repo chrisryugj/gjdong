@@ -112,8 +112,9 @@ export default function GwangjinLifeBoard({
           onRetry={onRetrySpots}
         />
         <CareCard care={care} />
-        {/* AED는 지도 레이어 전용 — 활용신청 전(null)일 때만 여기서 안내 (신청 즉시 레이어가 켜진다) */}
+        {/* 지도 레이어 전용 원천들 — 활용신청 전(null)일 때만 여기서 안내 (신청 즉시 레이어가 켜진다) */}
         {daily !== null && daily.aeds === null && <NeedKeyNote guide={KEY_GUIDES.aed} />}
+        {daily !== null && daily.seniors === null && <NeedKeyNote guide={KEY_GUIDES.senior} />}
         <CmrclCard cmrcl={live?.cmrcl ?? null} loaded={live !== null} />
         <ReserveCard items={daily?.reservations ?? null} loaded={daily !== null} />
         <EventsCard events={daily?.events ?? null} loaded={daily !== null} />

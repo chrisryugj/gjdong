@@ -15,6 +15,7 @@ export const LINE_COLOR_BY_NUM: Record<string, string> = {
 /** 레이어 대표색 — 칩 활성 배경·마커 배경 공용. 따릉이는 2호선 초록·약국 초록과 톤 분리(라임) */
 export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
   station: "#1d4ed8",
+  bus: "#0d9488",
   bike: "#65a30d",
   ev: "#0284c7",
   parking: "#2563eb",
@@ -23,16 +24,19 @@ export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
   aed: "#059669",
   shelter: "#0e7490",
   library: "#7c3aed",
+  senior: "#b45309",
 }
 
-/** 마커 형태 — sign=사각 간판(시설), house=집 실루엣(쉼터), circle=원형(탈것) */
+/** 마커 형태 — sign=사각 간판(시설·정류소 표지판), house=집 실루엣(쉼터·경로당), circle=원형(탈것) */
 export const LIFE_MARKER_SHAPE: Record<Exclude<LifeLayerKind, "station">, "sign" | "house" | "circle"> = {
+  bus: "sign",
   er: "sign",
   pharm: "sign",
   aed: "sign",
   parking: "sign",
   library: "sign",
   shelter: "house",
+  senior: "house",
   bike: "circle",
   ev: "circle",
 }
@@ -64,5 +68,11 @@ export const LIFE_ICON_SVG: Record<Exclude<LifeLayerKind, "station">, string> = 
   ),
   library: svg(
     `<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>`,
+  ),
+  bus: svg(
+    `<path d="M4 6 2 7"/><path d="M10 6h4"/><path d="m22 7-2-1"/><rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M8 15h.01"/><path d="M16 15h.01"/><path d="M6 19v2"/><path d="M18 21v-2"/>`,
+  ),
+  senior: svg(
+    `<circle cx="12" cy="5" r="1.8" fill="currentColor" stroke="none"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/>`,
   ),
 }

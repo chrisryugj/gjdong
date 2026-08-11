@@ -6,8 +6,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { AirNow, CmrclInfo, ParkingLot, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
-import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, Shelter, StationPoi } from "@/lib/gwangjin/life"
+import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCenter, Shelter, StationPoi } from "@/lib/gwangjin/life"
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
+import type { BusStop } from "@/lib/gwangjin/bus"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
@@ -19,7 +20,7 @@ export interface LifePoiStat {
 }
 
 export interface LifePoi {
-  kind: "bike" | "ev" | "shelter" | "station" | "er" | "aed" | "library" | "parking" | "pharm"
+  kind: "bike" | "ev" | "shelter" | "station" | "er" | "aed" | "library" | "parking" | "pharm" | "bus" | "senior"
   name: string
   lat: number
   lng: number
@@ -33,6 +34,8 @@ export interface LifePoi {
   lines?: string[]
   /** kind=station — 도착 팝업 조회 키 */
   station?: string
+  /** kind=bus — 도착 팝업 조회 키 (5자리 ARS) */
+  arsId?: string
   /** 클릭 팝업 — 주소·행정동·상태 상세·전화. 길찾기는 좌표로 항상 제공 */
   addr?: string
   dong?: string
@@ -65,6 +68,8 @@ export interface DailyBundle {
   libraries: Library[] | null
   aeds: Aed[] | null
   publicParkings: PublicParking[] | null
+  seniors: SeniorCenter[] | null
+  busStops: BusStop[] | null
 }
 
 // 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 약국은 영업 중만 마커라 기본 켜도
@@ -234,6 +239,34 @@ export function useGwangjinLife(enabled: boolean) {
         })
       }
     }
+    if (layers.has("bus")) {
+      for (const b of daily?.busStops ?? []) {
+        out.push({
+          kind: "bus",
+          name: b.name,
+          lat: b.lat,
+          lng: b.lng,
+          sub: `${b.type || "정류소"} · ${b.arsId} — 탭하면 실시간 도착`,
+          color: "#0d9488",
+          arsId: b.arsId,
+          stats: [{ label: "정류소 번호", value: b.arsId }],
+        })
+      }
+    }
+    if (layers.has("senior")) {
+      for (const s of daily?.seniors ?? []) {
+        out.push({
+          kind: "senior",
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          sub: "경로당",
+          color: "#b45309",
+          addr: s.addr,
+          tel: s.tel,
+        })
+      }
+    }
     if (layers.has("aed")) {
       for (const a of daily?.aeds ?? []) {
         out.push({
@@ -305,6 +338,8 @@ export function useGwangjinLife(enabled: boolean) {
       aed: daily?.aeds?.length ?? null,
       library: daily?.libraries?.length ?? null,
       parking: daily?.publicParkings?.length ?? null,
+      bus: daily?.busStops?.length ?? null,
+      senior: daily?.seniors?.length ?? null,
     }),
     [live, care, daily],
   )

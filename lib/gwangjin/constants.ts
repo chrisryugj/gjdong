@@ -133,4 +133,16 @@ export const KEY_GUIDES = {
     url: "https://www.data.go.kr/data/15012896/standard.do",
     note: "자동승인 — 구영 주차장 위치·요금이 지도 주차 레이어로 켜져요 (서울시 API엔 광진 시영 1곳뿐)",
   },
+  senior: {
+    key: "DATA_GO_KR_KEY",
+    label: "공공데이터포털 — 전국마을회관및경로당 표준데이터(15114136) 활용신청",
+    url: "https://www.data.go.kr/data/15114136/standard.do",
+    note: "자동승인 — 광진 경로당이 지도 레이어로 켜져요 (서울시 경로당 자료는 파일 배포뿐)",
+  },
+  bus: {
+    key: "DATA_GO_KR_KEY",
+    label: "공공데이터포털 — 서울 정류소정보조회 서비스(15000303) 활용신청",
+    url: "https://www.data.go.kr/data/15000303/openapi.do",
+    note: "자동승인 — 정류소 탭 시 실시간 버스 도착이 떠요 (정류소 위치는 신청 없이 표시)",
+  },
 } satisfies Record<string, NeedKey>
