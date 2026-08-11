@@ -19,7 +19,7 @@ export interface LifePoiStat {
 }
 
 export interface LifePoi {
-  kind: "bike" | "ev" | "shelter" | "station" | "er" | "aed" | "library" | "parking"
+  kind: "bike" | "ev" | "shelter" | "station" | "er" | "aed" | "library" | "parking" | "pharm"
   name: string
   lat: number
   lng: number
@@ -67,8 +67,9 @@ export interface DailyBundle {
   publicParkings: PublicParking[] | null
 }
 
-// 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 따릉이 89·EV 328·쉼터 96은 옵트인
-const DEFAULT_LAYERS: LifeLayerKind[] = ["station", "er"]
+// 기본 켜는 레이어 — 역·응급실은 개수가 적고 상시 유용. 약국은 영업 중만 마커라 기본 켜도
+// 소음이 없고(줌 게이트 14+) 생활 니즈 최상위. 따릉이 89·EV 328·쉼터 96은 옵트인
+const DEFAULT_LAYERS: LifeLayerKind[] = ["station", "er", "pharm"]
 
 export function useGwangjinLife(enabled: boolean) {
   const [live, setLive] = useState<LiveBundle | null>(null)
@@ -211,6 +212,28 @@ export function useGwangjinLife(enabled: boolean) {
         })
       }
     }
+    if (layers.has("pharm")) {
+      // 영업 중인 약국만 — 밤에 닫힌 180개 마커는 소음이고, "지금 문 연 곳"이 이 레이어의 존재 이유
+      for (const p of care?.pharmacies ?? []) {
+        if (!p.openNow || p.lat === 0) continue
+        out.push({
+          kind: "pharm",
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          sub: `영업 중 · ${p.hours}${p.lateNight ? " · 심야" : ""}`,
+          color: p.lateNight ? "#047857" : "#10b981",
+          addr: p.addr,
+          tel: p.tel,
+          stats: (
+            [
+              { label: "오늘", value: p.hours || "시간 미제공", tone: "ok" as const },
+              p.lateNight ? { label: "심야", value: "22시 이후도 영업", tone: "info" as const } : null,
+            ] as Array<LifePoiStat | null>
+          ).filter((s): s is LifePoiStat => s != null),
+        })
+      }
+    }
     if (layers.has("aed")) {
       for (const a of daily?.aeds ?? []) {
         out.push({
@@ -274,6 +297,8 @@ export function useGwangjinLife(enabled: boolean) {
     () => ({
       station: daily?.stations?.length ?? null,
       er: care?.er?.length ?? null,
+      // 약국 칩 숫자 = 지금 영업 중 수 (마커와 같은 기준 — 전체 186은 카드 목록이 담당)
+      pharm: care?.pharmacies ? care.pharmacies.filter((p) => p.openNow).length : null,
       bike: live?.bikes?.length ?? null,
       ev: daily?.ev?.stations?.length ?? null,
       shelter: daily?.shelters?.length ?? null,

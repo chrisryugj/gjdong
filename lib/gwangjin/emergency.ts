@@ -14,6 +14,7 @@
 //   요청: Q0=서울특별시 & Q1=광진구 & numOfRows=200 — QT(요일) 필터는 신뢰하지 않고
 //   전 목록을 받아 dutyTime{1..8}s/c(월~일·공휴일 HHmm)를 서버에서 계산한다.
 //   실시간 아님(신고 기반) — UI에 "전화 확인 후 방문" 문구 필수.
+//   wgs84Lat/wgs84Lon 좌표 포함(2026-08-11 실측) — 지도 약국 레이어는 이 좌표를 쓴다.
 // AED: apis.data.go.kr/B552657/AEDInfoInqireService/getAedLcinfoInqire
 //   (15000652 별도 활용신청(자동승인) · XML · 같은 키) — Q0/Q1 주소 문자열, 응답
 //   org 설치기관·buildAddress 주소·buildPlace 상세위치·wgs84Lat/Lon·clerkTel.
@@ -49,6 +50,9 @@ export interface Pharmacy {
   openNow: boolean
   /** 심야(22시 이후 마감) 약국 */
   lateNight: boolean
+  /** 좌표 없는 행은 0 — 지도 레이어에서 제외 */
+  lat: number
+  lng: number
 }
 
 /** XML <item> 블록의 태그를 평면 객체로 — E-Gen 응답은 중첩 없는 단층 구조라 정규식으로 충분 */
@@ -154,6 +158,8 @@ export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
         hours: valid ? `${start}~${close}` : "",
         openNow: valid && hhmm >= s && hhmm < c,
         lateNight: valid && c >= 2200,
+        lat: Number.parseFloat(it.wgs84Lat ?? "0") || 0,
+        lng: Number.parseFloat(it.wgs84Lon ?? "0") || 0,
       }
     })
     .filter((p) => p.name)
