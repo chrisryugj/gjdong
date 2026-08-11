@@ -9,7 +9,8 @@ import { useCallback, useEffect, useState } from "react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import type { BaselineDelta } from "@/lib/crowd/heatmap-client"
 import type { SubwayBoard } from "@/lib/gwangjin/subway"
-import { CareCard, RainCard, SubwayCard } from "@/components/gwangjin/cards-live"
+import { KEY_GUIDES } from "@/lib/gwangjin/constants"
+import { CareCard, NeedKeyNote, RainCard, SubwayCard } from "@/components/gwangjin/cards-live"
 import { CmrclCard, EventsCard, ParkingCard, PopCard, ReserveCard } from "@/components/gwangjin/cards-life"
 import { NowStrip, SpotsCompactCard } from "@/components/gwangjin/cards-now"
 import type { CareBundle, DailyBundle, LiveBundle } from "@/components/gwangjin/use-gwangjin-life"
@@ -111,6 +112,8 @@ export default function GwangjinLifeBoard({
           onRetry={onRetrySpots}
         />
         <CareCard care={care} />
+        {/* AED는 지도 레이어 전용 — 활용신청 전(null)일 때만 여기서 안내 (신청 즉시 레이어가 켜진다) */}
+        {daily !== null && daily.aeds === null && <NeedKeyNote guide={KEY_GUIDES.aed} />}
         <CmrclCard cmrcl={live?.cmrcl ?? null} loaded={live !== null} />
         <ReserveCard items={daily?.reservations ?? null} loaded={daily !== null} />
         <EventsCard events={daily?.events ?? null} loaded={daily !== null} />
@@ -118,7 +121,11 @@ export default function GwangjinLifeBoard({
           <RainCard rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} />
         )}
         <PopCard />
-        <ParkingCard parking={live?.parking ?? null} loaded={live !== null} />
+        <ParkingCard
+          parking={live?.parking ?? null}
+          loaded={live !== null}
+          stdCount={daily?.publicParkings?.length ?? null}
+        />
       </div>
     </div>
   )

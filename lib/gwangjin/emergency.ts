@@ -14,6 +14,11 @@
 //   요청: Q0=서울특별시 & Q1=광진구 & numOfRows=200 — QT(요일) 필터는 신뢰하지 않고
 //   전 목록을 받아 dutyTime{1..8}s/c(월~일·공휴일 HHmm)를 서버에서 계산한다.
 //   실시간 아님(신고 기반) — UI에 "전화 확인 후 방문" 문구 필수.
+// AED: apis.data.go.kr/B552657/AEDInfoInqireService/getAedLcinfoInqire
+//   (15000652 별도 활용신청(자동승인) · XML · 같은 키) — Q0/Q1 주소 문자열, 응답
+//   org 설치기관·buildAddress 주소·buildPlace 상세위치·wgs84Lat/Lon·clerkTel.
+//   ⚠️미검증(2026-08-11 활용신청 전 — SERVICE_KEY_IS_NOT_REGISTERED 실측): 신청 후
+//   프로드에서 필드 실측 확인 필요. 미등록 응답은 <item> 없음 → 빈 배열로 수렴.
 
 import { krgovFetch } from "@/lib/crowd/krgov-fetch"
 import { kstNow } from "@/lib/gwangjin/seoul-open"
@@ -79,6 +84,44 @@ export async function fetchErRooms(): Promise<ErRoom[] | null> {
     pediatric: it.hv10 === "Y" || it.hv11 === "Y",
     updatedAt: it.hvidate ?? "",
   }))
+}
+
+export interface Aed {
+  /** 설치 기관/건물명 */
+  org: string
+  /** 건물 내 상세 위치 ("1층 로비" 등) */
+  place: string
+  addr: string
+  tel: string
+  lat: number
+  lng: number
+}
+
+// AED 설치 위치는 사실상 정적 — 24h 모듈 캐시. 미등록 키는 빈 배열이라 캐시하지 않는다
+let aedCache: { at: number; data: Aed[] } | null = null
+
+export async function fetchAeds(): Promise<Aed[] | null> {
+  const key = KEY()
+  if (!key) return null
+  if (aedCache && Date.now() - aedCache.at < 86_400_000) return aedCache.data
+  const url = `${BASE}/AEDInfoInqireService/getAedLcinfoInqire?serviceKey=${key}&Q0=${encodeURIComponent("서울특별시")}&Q1=${encodeURIComponent("광진구")}&numOfRows=500`
+  // 활용신청 전이면 HTTP 403(krgovFetch reject) — 에러 메시지를 보존해 null(신청 안내)로 구분한다.
+  // 200 + NOT_REGISTERED XML 변형도 실측된 적 있어 둘 다 본다 (2026-08-11: 403 실측)
+  const xml = await krgovFetch(url, { timeoutMs: 15000 }).catch((e: Error) => `__ERR__ ${e.message}`)
+  if (xml.includes("NOT_REGISTERED") || xml.includes("krgov 403")) return null
+  if (!xml.includes("<item>")) return []
+  const data = parseItems(xml)
+    .map((it) => ({
+      org: it.org ?? "",
+      place: it.buildPlace ?? "",
+      addr: it.buildAddress ?? "",
+      tel: it.clerkTel ?? "",
+      lat: Number.parseFloat(it.wgs84Lat ?? "0") || 0,
+      lng: Number.parseFloat(it.wgs84Lon ?? "0") || 0,
+    }))
+    .filter((a) => a.org && a.lat !== 0)
+  if (data.length > 0) aedCache = { at: Date.now(), data }
+  return data
 }
 
 /** dutyTime 요일 인덱스: 1월 2화 3수 4목 5금 6토 7일 8공휴일 — kstNow().day(0=일)를 변환 */

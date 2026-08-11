@@ -1,22 +1,30 @@
 import { NextResponse } from "next/server"
 import { fetchAirNow, fetchCmrcl, fetchParking, fetchRain, fetchRiver } from "@/lib/gwangjin/env-safety"
 import { fetchBikes } from "@/lib/gwangjin/life"
+import { fetchMeteo12h } from "@/lib/crowd/adapter-kit"
 import { CMRCL_AREAS } from "@/lib/gwangjin/constants"
 
 export const dynamic = "force-dynamic"
 
-// 5분 축 묶음 — 대기·강우·수위·주차·상권·따릉이. 혼잡도 스팟은 /api/crowd?city=gwangjin 담당.
+// 5분 축 묶음 — 대기·강우·수위·주차·상권·따릉이·강수예보. 혼잡도 스팟은 /api/crowd?city=gwangjin 담당.
 // 키 없는 블록은 null — 클라이언트가 KEY_GUIDES로 발급 안내 카드를 그린다.
 const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=180" }
 
+// 광진구청 좌표 — 강우 관측소와 같은 기준점 (Open-Meteo 무키, 30분 revalidate)
+const GWANGJIN_LATLNG: [number, number] = [37.5385, 127.0823]
+
 export async function GET() {
-  const [air, rain, river, parking, cmrcl, bikes] = await Promise.all([
+  const [air, rain, river, parking, cmrcl, bikes, meteo] = await Promise.all([
     fetchAirNow(),
     fetchRain(),
     fetchRiver(),
     fetchParking(),
     fetchCmrcl(CMRCL_AREAS),
     fetchBikes(),
+    fetchMeteo12h(...GWANGJIN_LATLNG).catch(() => []),
   ])
-  return NextResponse.json({ air, rain, river, parking, cmrcl, bikes }, { headers: CACHE_HEADERS })
+  // 12시간 내 최대 강수확률 — NowStrip 비 타일의 "우산 챙길까" 답
+  const probs = meteo.map((h) => h.rainProb).filter((p): p is number => p != null)
+  const forecast = probs.length > 0 ? { maxRainProb: Math.max(...probs) } : null
+  return NextResponse.json({ air, rain, river, parking, cmrcl, bikes, forecast }, { headers: CACHE_HEADERS })
 }

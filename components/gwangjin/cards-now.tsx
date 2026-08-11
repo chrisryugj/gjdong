@@ -49,8 +49,16 @@ export function NowStrip({ live, care }: { live: LiveBundle | null; care: CareBu
       <Tile
         label="비"
         value={live === null ? "—" : mm60 > 0 ? `${mm60.toFixed(1)}mm` : "안 옴"}
-        tone={mm60 > 0 ? "gj-info" : undefined}
-        sub={mm60 > 0 ? "최근 1시간" : undefined}
+        tone={mm60 > 0 ? "gj-info" : (live?.forecast?.maxRainProb ?? 0) >= 60 ? "gj-warn" : undefined}
+        sub={
+          mm60 > 0
+            ? "최근 1시간"
+            : live?.forecast
+              ? live.forecast.maxRainProb >= 30
+                ? `12시간 내 ${live.forecast.maxRainProb}%`
+                : "예보 맑음"
+              : undefined
+        }
       />
       <Tile
         label="문연 약국"
