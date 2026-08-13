@@ -3,7 +3,7 @@
 // 실시간 축 카드 — 지하철·의료·혼잡도·강우/수위 + 공용 Card/NeedKey
 // 데이터가 null이면 해당 원천의 키 미설정 — 발급 주소 카드로 강등 (KEY_GUIDES)
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { CloudRain, Cross, ExternalLink, KeyRound, TrainFront } from "lucide-react"
 import { KEY_GUIDES, STATIONS, type NeedKey } from "@/lib/gwangjin/constants"
 import { LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
@@ -16,22 +16,41 @@ export function Card({
   icon,
   title,
   badge,
+  id,
   children,
 }: {
   icon?: React.ReactNode
   title: string
   badge?: string
+  /** 섹션 네비·NowStrip 점프용 앵커 — 스크롤 컨테이너 상단 여백 포함 */
+  id?: string
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] p-3">
+    <section
+      id={id}
+      className="scroll-mt-12 rounded-2xl border border-[var(--cp-border-faint)] bg-[var(--cp-panel)] p-3 [box-shadow:var(--cp-card-shadow)]"
+    >
       <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-[var(--cp-text-strong)]">
         {icon && <span className="flex h-4 w-4 items-center justify-center text-[var(--cp-text-muted)]">{icon}</span>}
         {title}
-        {badge && <span className="text-[10px] font-normal text-[var(--cp-text-dim)]">{badge}</span>}
+        {badge && (
+          <span className="ml-auto shrink-0 pl-2 text-[10px] font-normal text-[var(--cp-text-dim)]">{badge}</span>
+        )}
       </h2>
       {children}
     </section>
+  )
+}
+
+/** 스켈레톤 로더 — 로딩 텍스트 대신 콘텐츠 모양의 자리를 잡아 레이아웃 점프를 줄인다 */
+export function Skeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-2 py-0.5" aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="gj-skel h-3.5" style={{ width: `${100 - (i % 3) * 22}%` }} />
+      ))}
+    </div>
   )
 }
 
@@ -64,23 +83,37 @@ export function Empty({ text }: { text: string }) {
 export function SubwayCard({
   station,
   board,
+  fetchedAt,
   needsKey,
   onStation,
 }: {
   station: string
   board: SubwayBoard | null
+  /** 전광판 수신 시각(ms) — 30초 폴링 사이를 1초 카운트다운으로 메운다 */
+  fetchedAt: number | null
   needsKey: boolean
   onStation: (s: string) => void
 }) {
+  // 실제 전광판처럼 초가 흘러야 "실시간" — 도착 목록이 있을 때만 1초 틱
+  const [now, setNow] = useState(() => Date.now())
+  const hasArrivals = (board?.arrivals.length ?? 0) > 0
+  useEffect(() => {
+    if (!hasArrivals) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [hasArrivals, fetchedAt])
+  const elapsed = fetchedAt ? Math.max(Math.floor((now - fetchedAt) / 1000), 0) : 0
+
   return (
-    <Card icon={<TrainFront className="h-3.5 w-3.5" />} title="지하철 도착" badge="30초 갱신">
+    <Card id="gj-subway" icon={<TrainFront className="h-3.5 w-3.5" />} title="지하철 도착" badge="실시간">
       <div className="scrollbar-thin mb-2 flex gap-1 overflow-x-auto pb-1">
         {STATIONS.map((s) => (
           <button
             key={s.base}
             type="button"
             onClick={() => onStation(s.base)}
-            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+            aria-pressed={station === s.base}
+            className={`gj-press gj-focus flex min-h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${
               station === s.base
                 ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] font-medium text-[var(--cp-text-strong)]"
                 : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
@@ -103,7 +136,7 @@ export function SubwayCard({
       {needsKey ? (
         <NeedKeyNote guide={KEY_GUIDES.subway} />
       ) : !board ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={4} />
       ) : board.arrivals.length === 0 ? (
         <Empty text="도착 예정 열차가 없습니다" />
       ) : (
@@ -111,7 +144,10 @@ export function SubwayCard({
           {board.arrivals.slice(0, 6).map((a, i) => {
             // "장암행 - 어린이대공원(세종대)방면" → 방면이 승강장 선택 기준이라 주인공, 행선은 보조
             const [terminus, direction] = a.dest.split(" - ")
-            const soon = a.sec > 0 && a.sec <= 180
+            // 수신 후 흐른 시간을 빼서 표시 — 0이 되면 "곧 도착" (다음 폴링이 실제 상태로 보정)
+            const remain = a.sec > 0 ? Math.max(a.sec - elapsed, 0) : 0
+            const arriving = a.sec === 0 || remain === 0
+            const soon = !arriving && remain <= 180
             return (
               <li key={i} className="flex items-center gap-2 text-[12px]">
                 <span
@@ -127,10 +163,10 @@ export function SubwayCard({
                 {a.last && <span className="gj-warn shrink-0 text-[10px] font-medium">막차</span>}
                 <span
                   className={`shrink-0 font-mono text-[11px] tabular-nums ${
-                    a.sec === 0 ? "gj-ok font-bold" : soon ? "gj-warn font-medium" : "text-[var(--cp-text-muted)]"
+                    arriving ? "gj-ok gj-pulse font-bold" : soon ? "gj-warn font-medium" : "text-[var(--cp-text-muted)]"
                   }`}
                 >
-                  {a.sec > 0 ? `${Math.floor(a.sec / 60)}분 ${a.sec % 60}초` : a.msg}
+                  {a.sec > 0 ? (remain > 0 ? `${Math.floor(remain / 60)}분 ${remain % 60}초` : "곧 도착") : a.msg}
                 </span>
               </li>
             )
@@ -142,26 +178,28 @@ export function SubwayCard({
 }
 
 // ── 응급실 + 약국 ───────────────────────────────────────────────────────
-export function CareCard({ care }: { care: CareBundle | null }) {
-  const [tab, setTab] = useState<"er" | "pharm">("er")
+export type CareTab = "er" | "pharm"
+
+// 탭은 보드가 소유(컨트롤드) — NowStrip 타일 탭(약국→pharm)과 심야 기본 탭이 같은 상태를 쓴다
+export function CareCard({ care, tab, onTab }: { care: CareBundle | null; tab: CareTab; onTab: (t: CareTab) => void }) {
   const [showAllPharm, setShowAllPharm] = useState(false)
   const [pharmQuery, setPharmQuery] = useState("")
   const er = care?.er
   const pharmacies = care?.pharmacies
   const openCount = (pharmacies ?? []).filter((p) => p.openNow).length
   return (
-    <Card icon={<Cross className="h-3.5 w-3.5" />} title="응급·약국" badge="응급실 실시간 병상">
+    <Card id="gj-care" icon={<Cross className="h-3.5 w-3.5" />} title="응급·약국" badge="응급실 실시간 병상">
       <div className="mb-2 flex gap-1">
-        <TabBtn active={tab === "er"} onClick={() => setTab("er")}>
+        <TabBtn active={tab === "er"} onClick={() => onTab("er")}>
           응급실
         </TabBtn>
-        <TabBtn active={tab === "pharm"} onClick={() => setTab("pharm")}>
+        <TabBtn active={tab === "pharm"} onClick={() => onTab("pharm")}>
           약국 {openCount > 0 && <b className="gj-ok">{openCount} 영업중</b>}
         </TabBtn>
       </div>
       {tab === "er" ? (
         er === null || er === undefined ? (
-          care === null ? <Empty text="불러오는 중…" /> : <NeedKeyNote guide={KEY_GUIDES.egen} />
+          care === null ? <Skeleton rows={4} /> : <NeedKeyNote guide={KEY_GUIDES.egen} />
         ) : er.length === 0 ? (
           <Empty text="응답 없음 — 활용신청 승인 대기 중일 수 있어요" />
         ) : (
@@ -190,7 +228,7 @@ export function CareCard({ care }: { care: CareBundle | null }) {
           </ul>
         )
       ) : pharmacies === null || pharmacies === undefined ? (
-        care === null ? <Empty text="불러오는 중…" /> : <NeedKeyNote guide={KEY_GUIDES.pharmacy} />
+        care === null ? <Skeleton rows={4} /> : <NeedKeyNote guide={KEY_GUIDES.pharmacy} />
       ) : (
         <PharmacyList
           pharmacies={pharmacies}
@@ -258,7 +296,7 @@ function PharmacyList({
       <button
         type="button"
         onClick={onToggleAll}
-        className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
+        className="gj-press gj-focus mt-1.5 min-h-8 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
       >
         {showAll ? "접기" : `전체 ${pharmacies.length}곳 보기·검색`}
       </button>
@@ -272,7 +310,8 @@ export function TabBtn({ active, onClick, children }: { active: boolean; onClick
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+      aria-pressed={active}
+      className={`gj-press gj-focus min-h-7 rounded-full border px-2.5 py-1 text-[11px] ${
         active
           ? "border-[var(--cp-border-active)] bg-[var(--cp-panel2)] text-[var(--cp-text-strong)]"
           : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
@@ -296,7 +335,7 @@ function BedStat({ label, v }: { label: string; v: number | null }) {
 export function RainCard({ rain, river, loaded }: { rain: RainInfo | null; river: RiverInfo | null; loaded: boolean }) {
   if (loaded && rain === null && river === null) {
     return (
-      <Card icon={<CloudRain className="h-3.5 w-3.5" />} title="비·하천">
+      <Card id="gj-rain" icon={<CloudRain className="h-3.5 w-3.5" />} title="비·하천">
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       </Card>
     )
@@ -305,12 +344,13 @@ export function RainCard({ rain, river, loaded }: { rain: RainInfo | null; river
   const riverColor = ratio >= 0.9 ? "#ff3939" : ratio >= 0.7 ? "#ff8040" : ratio >= 0.5 ? "#ffb100" : "#00d369"
   return (
     <Card
+      id="gj-rain"
       icon={<CloudRain className="h-3.5 w-3.5" />}
       title="비·하천"
       badge={rain?.station ? `${rain.station} 관측소 · 10분` : undefined}
     >
       {!loaded ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={2} />
       ) : (
         <div className="space-y-2.5 text-[12px]">
           <div className="flex items-center gap-3">

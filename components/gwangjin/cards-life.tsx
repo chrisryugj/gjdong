@@ -9,14 +9,14 @@ import { DONG_CODES, KEY_GUIDES } from "@/lib/gwangjin/constants"
 import type { CmrclInfo, ParkingLot } from "@/lib/gwangjin/env-safety"
 import type { DongPattern, GjEvent } from "@/lib/gwangjin/life"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
-import { Card, Empty, NeedKeyNote, TabBtn } from "@/components/gwangjin/cards-live"
+import { Card, Empty, NeedKeyNote, Skeleton, TabBtn } from "@/components/gwangjin/cards-live"
 
 // ── 문화행사 ────────────────────────────────────────────────────────────
 export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
   return (
-    <Card icon={<CalendarDays className="h-3.5 w-3.5" />} title="진행 중 행사" badge="광진 명소 주변 · 오늘">
+    <Card id="gj-events" icon={<CalendarDays className="h-3.5 w-3.5" />} title="진행 중 행사" badge="광진 명소 주변 · 오늘">
       {!loaded ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={3} />
       ) : events === null ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       ) : events.length === 0 ? (
@@ -72,13 +72,14 @@ export function PopCard() {
 
   const max = Math.max(...(pattern?.hours ?? [1]), 1)
   const date = pattern?.date ? `${pattern.date.slice(4, 6)}/${pattern.date.slice(6, 8)} 기준` : ""
+  const nowHour = new Date().getHours()
 
   return (
-    <Card icon={<Users className="h-3.5 w-3.5" />} title="우리 동네 시간대 패턴" badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}>
+    <Card id="gj-pop" icon={<Users className="h-3.5 w-3.5" />} title="우리 동네 시간대 패턴" badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}>
       <select
         value={dong}
         onChange={(e) => setDong(e.target.value)}
-        className="mb-2 w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-bg)] px-2 py-1.5 text-[12px] text-[var(--cp-text)]"
+        className="gj-focus mb-2 w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-bg)] px-2 py-1.5 text-[12px] text-[var(--cp-text)]"
       >
         {DONG_CODES.map((d) => (
           <option key={d.code} value={d.code}>
@@ -89,7 +90,7 @@ export function PopCard() {
       {needsKey ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       ) : loading || !pattern ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={3} />
       ) : pattern.hours.length === 0 ? (
         <Empty text="최근 적재분을 찾지 못했어요" />
       ) : (
@@ -98,8 +99,8 @@ export function PopCard() {
             {pattern.hours.map((v, h) => (
               <div
                 key={h}
-                title={`${h}시 ${Math.round(v).toLocaleString()}명`}
-                className="flex-1 rounded-t-sm bg-sky-500/70"
+                title={`${h}시 ${Math.round(v).toLocaleString()}명${h === nowHour ? " (지금)" : ""}`}
+                className={`flex-1 rounded-t-sm ${h === nowHour ? "bg-sky-400" : "bg-sky-500/45"}`}
                 style={{ height: `${Math.max((v / max) * 100, 3)}%` }}
               />
             ))}
@@ -112,7 +113,8 @@ export function PopCard() {
             <span>23시</span>
           </div>
           <p className="mt-1 text-[10px] text-[var(--cp-text-faint)]">
-            피크 {pattern.hours.indexOf(max)}시 · 약 {Math.round(max / 1000).toLocaleString()}천 명
+            피크 {pattern.hours.indexOf(max)}시 · 약 {Math.round(max / 1000).toLocaleString()}천 명 ·{" "}
+            <span className="text-sky-400">■</span> 지금 {nowHour}시
           </p>
         </>
       )}
@@ -133,9 +135,9 @@ export function ParkingCard({
   stdCount: number | null
 }) {
   return (
-    <Card icon={<SquareParking className="h-3.5 w-3.5" />} title="공영주차" badge="실시간 연계분">
+    <Card id="gj-parking" icon={<SquareParking className="h-3.5 w-3.5" />} title="공영주차" badge="실시간 연계분">
       {!loaded ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={2} />
       ) : parking === null ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       ) : parking.length === 0 ? (
@@ -190,12 +192,13 @@ export function ReserveCard({ items, loaded }: { items: ReserveItem[] | null; lo
   const visible = showAll ? filtered : filtered.slice(0, 5)
   return (
     <Card
+      id="gj-reserve"
       icon={<Ticket className="h-3.5 w-3.5" />}
       title="공공시설 예약"
       badge={items?.length ? `접수중 ${items.length}건 · 서울시 통합예약` : "서울시 통합예약"}
     >
       {!loaded ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={3} />
       ) : items === null ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       ) : items.length === 0 ? (
@@ -247,7 +250,7 @@ export function ReserveCard({ items, loaded }: { items: ReserveItem[] | null; lo
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="mt-1.5 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)]"
+              className="gj-press gj-focus mt-1.5 min-h-8 w-full rounded-lg border border-[var(--cp-border)] py-1 text-[11px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
             >
               {showAll ? "접기" : `전체 ${filtered.length}건 보기`}
             </button>
@@ -264,9 +267,9 @@ export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo[] | null; loaded
   const [areaIdx, setAreaIdx] = useState(0)
   const cur = cmrcl?.[Math.min(areaIdx, (cmrcl?.length ?? 1) - 1)]
   return (
-    <Card icon={<CreditCard className="h-3.5 w-3.5" />} title="역세권 상권 소비" badge="신한카드 · 최근 30분">
+    <Card id="gj-cmrcl" icon={<CreditCard className="h-3.5 w-3.5" />} title="역세권 상권 소비" badge="신한카드 · 최근 30분">
       {!loaded ? (
-        <Empty text="불러오는 중…" />
+        <Skeleton rows={2} />
       ) : cmrcl === null ? (
         <NeedKeyNote guide={KEY_GUIDES.seoul} />
       ) : cmrcl.length === 0 || !cur ? (
