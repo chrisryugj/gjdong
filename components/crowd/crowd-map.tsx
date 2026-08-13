@@ -6,6 +6,7 @@ import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type C
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
 import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
+import type { TrafficLink } from "@/lib/gwangjin/traffic"
 import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
 import { BUS_TYPE_COLOR, type BusArrival } from "@/lib/gwangjin/bus"
@@ -34,6 +35,8 @@ interface CrowdMapProps {
   opsLabels?: Map<string, string>
   /** 광진 생활 POI(따릉이·EV·쉼터·역·응급실·AED·도서관·주차) — 명소 마커와 별개 레이어. station은 탭 시 도착 팝업 */
   lifePois?: LifePoi[]
+  /** 광진 도로 소통 폴리라인(원활/서행/정체 색) — 교통 칩 켠 동안만 내려온다 */
+  trafficLinks?: TrafficLink[]
   /** 구 경계 오버레이 키 — 지정 시 해당 경계 모듈을 동적 로드해 경계선+바깥 딤을 그린다 (고정 서피스 전용) */
   boundaryKey?: "gwangjin"
   /** 다크 테마 타일(CARTO dark_all) — 대시보드가 테마와 함께 전환. 미지정=voyager 고정(보고서·미니맵) */
@@ -97,10 +100,14 @@ function lifePopupHtml(poi: LifePoi): string {
         ? `<div class="crowd-subway-pop" data-ars="${escapeHtml(poi.arsId ?? "")}">…</div>`
         : ""
   const tel = poi.tel ? `<a class="tel" href="tel:${escapeHtml(poi.tel)}">${PHONE_SVG}${escapeHtml(poi.tel)}</a>` : ""
+  // 공식 홈페이지(도서관 등) — 길찾기보다 앞, 마커색 점으로 소속을 표시
+  const home = poi.url
+    ? `<a href="${escapeHtml(poi.url)}" target="_blank" rel="noopener noreferrer"><i style="background:${poi.color || "#64748b"}"></i>홈페이지</a>`
+    : ""
   return `<div class="crowd-life-pop">
     <p class="t">${badge}<span class="tx">${escapeHtml(poi.name)}</span>${dong}</p>
     ${addr}${stats}${arrivals}
-    <div class="acts">${tel}
+    <div class="acts">${tel}${home}
       <a href="https://map.kakao.com/link/to/${name},${poi.lat},${poi.lng}" target="_blank" rel="noopener noreferrer"><i style="background:#ffb100"></i>카카오맵</a>
       <a href="https://map.naver.com/p/directions/-/${poi.lng},${poi.lat},${name}/-/transit" target="_blank" rel="noopener noreferrer"><i style="background:#03c75a"></i>네이버</a>
       <a href="tmap://route?goalname=${name}&goaly=${poi.lat}&goalx=${poi.lng}" title="T맵 앱 필요"><i style="background:#4b2ea8"></i>T맵</a>
@@ -108,7 +115,7 @@ function lifePopupHtml(poi: LifePoi): string {
   </div>`
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, boundaryKey, darkTiles }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, trafficLinks, boundaryKey, darkTiles }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -121,6 +128,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
   const lifeLayerRef = useRef<LayerGroup | null>(null)
+  const trafficLayerRef = useRef<LayerGroup | null>(null)
   const boundaryLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
   const [ready, setReady] = useState(false)
@@ -235,6 +243,11 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       boundaryPane.style.pointerEvents = "none"
       boundaryLayerRef.current = L.layerGroup().addTo(map)
 
+      // 도로 소통 전용 pane — 경계(330)와 글로우(350) 사이. 선은 배경, 마커가 주인공
+      const trafficPane = map.createPane("gjTraffic")
+      trafficPane.style.zIndex = "340"
+      trafficLayerRef.current = L.layerGroup().addTo(map)
+
       spotLayerRef.current = L.layerGroup().addTo(map)
       pinLayerRef.current = L.layerGroup().addTo(map)
       cctvLayerRef.current = L.layerGroup().addTo(map)
@@ -265,6 +278,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       pinLayerRef.current = null
       cctvLayerRef.current = null
       lifeLayerRef.current = null
+      trafficLayerRef.current = null
       boundaryLayerRef.current = null
       markersRef.current.clear()
     }
@@ -512,6 +526,37 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       cancelled = true
     }
   }, [ready, boundaryKey, darkTiles])
+
+  // 광진 도로 소통 — 링크별 폴리라인, 원활/서행/정체 색. 할로(어두운 밑선) 위에 상태색을 얹어
+  // 라이트·다크 타일 어디서든 선이 뜨지 않고 도로 위에 앉아 보인다. 탭하면 도로명·속도 툴팁.
+  useEffect(() => {
+    const L = leafletRef.current
+    const layer = trafficLayerRef.current
+    if (!ready || !L || !layer) return
+    layer.clearLayers()
+    for (const link of trafficLinks ?? []) {
+      L.polyline(link.path, {
+        pane: "gjTraffic",
+        color: darkTiles ? "#000000" : "#ffffff",
+        weight: 7,
+        opacity: 0.5,
+        lineCap: "round",
+        interactive: false,
+      }).addTo(layer)
+      const line = L.polyline(link.path, {
+        pane: "gjTraffic",
+        color: link.color,
+        weight: 4,
+        opacity: 0.9,
+        lineCap: "round",
+      })
+      line.bindTooltip(
+        `<div class="crowd-tip"><b>${escapeHtml(link.road || "도로")}</b><span>${escapeHtml(link.idx)} · ${link.spd}km/h</span></div>`,
+        { sticky: true, direction: "top", opacity: 1 },
+      )
+      line.addTo(layer)
+    }
+  }, [ready, trafficLinks, darkTiles])
 
   // 광진 생활 POI — 명소 마커와 독립 레이어. 클릭 = 상세 팝업(주소·행정동·상태·전화·길찾기 3종).
   // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜).

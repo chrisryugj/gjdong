@@ -255,6 +255,9 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
         onToggleDisaster={() => data.setDisasterOpen((v) => !v)}
         onEnterOps={() => {
           selection.reset()
+          // 광진 고정 서피스는 6곳뿐 — 빈 관제판에 손수 채우는 마찰 없이 기본 전체 편성
+          if (city === "gwangjin" && watchlist.names.length === 0 && spots.length > 0)
+            watchlist.addMany(spots.map((s) => s.name))
           enterOps()
         }}
         lockCity={fixedCity != null}
@@ -308,6 +311,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             showLabels={labels}
             declutterLabels
             lifePois={city === "gwangjin" ? life.pois : undefined}
+            trafficLinks={city === "gwangjin" ? life.trafficLinks : undefined}
             boundaryKey={city === "gwangjin" ? "gwangjin" : undefined}
             darkTiles={!light}
           />
