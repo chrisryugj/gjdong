@@ -532,6 +532,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
               station={life.station}
               onStation={life.setStation}
               onFocusPoi={life.focusOnMap}
+              trafficNeedsKey={life.trafficNeedsKey}
               onSelectSpot={selectSpot}
               onHoverSpot={setHoverName}
               onRetrySpots={() => {

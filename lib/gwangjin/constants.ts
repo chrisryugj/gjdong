@@ -109,6 +109,12 @@ export const KEY_GUIDES = {
     url: "https://www.data.go.kr/data/15000576/openapi.do",
     note: "자동승인",
   },
+  its: {
+    key: "DATA_GO_KR_KEY",
+    label: "공공데이터포털 — 국토부 교통소통정보(15040463) 활용신청",
+    url: "https://www.data.go.kr/data/15040463/openapi.do",
+    note: "자동승인 — 신청만 하면 교통 레이어가 명소 주변에서 광진 전체 도로 소통으로 자동 전환",
+  },
   ev: {
     key: "DATA_GO_KR_KEY",
     label: "공공데이터포털 — 전기차 충전소 정보(15076352) 활용신청",

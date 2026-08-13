@@ -1,12 +1,21 @@
-// 광진 도로 소통 (서버 전용) — 서울 RTD 공개 road 엔드포인트를 6개 보스팟으로 합산
-// ── 데이터 계약 실측 (2026-08-13)
-// GET data.seoul.go.kr/SeoulRtd/api/road?hotspotNm= — 인증키 불필요, Referer 필수(없으면 빈 응답).
-// 응답 {row:[…]} — 링크별: XYLIST "경도_위도|경도_위도|…" 폴리라인, IDX 원활/서행/정체,
-// SPD 링크속도(km/h), ROAD_NM 도로명, LINK_ID(보스팟 간 중복 — 뎁둥 필수), DATEPUBLISHED.
-// 행 COLOR(#E34B63식)는 원천 팔레트 — 앱 혼잡도 색과 통일하려고 IDX 기준으로 다시 칠한다.
-// 커버리지는 보스팟 반경 도로만 — 광진 6곳(건대·군자·어대공·아차산·뚝섬·광나루)이 구 주요축을 대체로 덮는다.
+// 광진 도로 소통 — 전체 도로(ITS) 우선, 명소 반경(RTD) 폴백
+// ── 데이터 계약 실측 (2026-08-14 개편)
+// [주 원천] 국토부 국가교통정보센터 trafficInfo — openapi.its.go.kr:9443/trafficInfo
+//   ?apiKey=&type=all&minX=&maxX=&minY=&maxY=&getType=json — bbox 벌크 한 방, 5분 주기.
+//   키 = DATA_GO_KR_KEY (data.go.kr 15040463 활용신청·자동승인 — 신청만 하면 자동 점등).
+//   응답 item: linkId(표준노드링크)·speed·travelTime·createdDate·roadName.
+//   ⚠️apiKey=test는 bbox를 무시한 고정 샘플 20행(남문로 등)을 반환 — 유효성은 "우리 링크셋과
+//   교집합 존재"로 판정한다(무효 키가 샘플로 위장해도 광진 링크와 0교집합이라 걸러짐).
+//   지오메트리는 응답에 없다 → road-links.json(표준노드링크 2026-08-12 전국 SHP에서 광진
+//   경계+250m 클리핑, 1,561링크·66도로, EPSG:5186→WGS84, scripts/clip-gwangjin-roadlinks.mjs)
+//   을 클라이언트가 동적 임포트해 조인. 서버는 [linkId, speed]만 내려 5분 폴링을 가볍게.
+// [폴백] 서울 RTD road?hotspotNm= — 인증키 불필요, Referer 필수. 보스팟 반경 도로 조각만
+//   커버(부분부분 — 이 한계가 ITS 전환의 이유). 응답 행: XYLIST "경도_위도|…", IDX, SPD,
+//   ROAD_NM, LINK_ID(보스팟 간 중복 — 뎁둥 필수), DATEPUBLISHED.
+// 등급: ITS 지도 범례와 동일 — 제한속도(MAX_SPD) 대비 80%↑ 원활, 40~80% 서행, 40%↓ 정체.
 
 import { GWANGJIN_SPOTS, NEARBY_SPOTS } from "@/lib/gwangjin/constants"
+import roadLinks from "@/lib/gwangjin/road-links.json"
 
 const RTD_HEADERS: Record<string, string> = {
   "User-Agent":
@@ -14,6 +23,9 @@ const RTD_HEADERS: Record<string, string> = {
   Referer: "https://data.seoul.go.kr/SeoulRtd/map",
   Accept: "application/json, text/plain, */*",
 }
+
+// 광진 경계 bbox + 여유 (boundary.ts 실측 lat 37.5208~37.5708 / lng 127.0587~127.1160)
+const BBOX = { minX: 127.055, maxX: 127.12, minY: 37.517, maxY: 37.575 }
 
 export interface TrafficLink {
   id: string
@@ -28,17 +40,31 @@ export interface TrafficLink {
 }
 
 export interface TrafficBundle {
+  /** its = 전체 도로(클라가 정적 지오메트리와 조인) · rtd = 명소 반경 폴백(links에 완성형) */
+  mode: "its" | "rtd"
   links: TrafficLink[]
-  /** 원천 발행 시각 "2026-08-13 11:20" — 최신 링크 기준 */
+  /** its 모드 — [표준링크ID, 속도km/h] (지오메트리·등급은 클라 조인 시) */
+  speeds?: Array<[string, number]>
+  /** 원천 발행 시각 — 최신 링크 기준 */
   at: string
 }
 
 // 혼잡도 명소 마커와 같은 시각 언어 — 원활=여유색, 서행=보통색, 정체=붐빔색
-const IDX_COLOR: Record<string, string> = {
+export const IDX_COLOR: Record<string, string> = {
   원활: "#00d369",
   서행: "#ffb100",
   정체: "#ff3939",
 }
+
+/** 제한속도 대비 등급 (ITS 범례: 80% / 40%) — 제한속도 미상은 도시부 50 가정 */
+export function gradeBySpeed(spd: number, maxSpd: number): string {
+  const max = maxSpd > 0 ? maxSpd : 50
+  const ratio = spd / max
+  return ratio >= 0.8 ? "원활" : ratio >= 0.4 ? "서행" : "정체"
+}
+
+// 정적 링크셋 — ITS 응답 유효성 판정 + 페이로드 슬리밍 (광진 밖 링크 제거)
+const LINK_IDS = new Set((roadLinks as { links: Array<{ i: string }> }).links.map((l) => l.i))
 
 function parseXyList(xy: string): Array<[number, number]> {
   const out: Array<[number, number]> = []
@@ -49,7 +75,54 @@ function parseXyList(xy: string): Array<[number, number]> {
   return out
 }
 
-export async function fetchTraffic(): Promise<TrafficBundle | null> {
+/** ITS 응답에서 item 배열 추출 — {response:{body:{items:{item:[]}}}} | {body:{items:[]}} 방어 */
+function extractItsItems(raw: unknown): Array<Record<string, unknown>> | null {
+  if (!raw || typeof raw !== "object") return null
+  const resp = ((raw as Record<string, unknown>).response ?? raw) as Record<string, unknown>
+  const body = resp.body as Record<string, unknown> | undefined
+  if (!body) return null
+  const items = body.items as unknown
+  if (Array.isArray(items)) return items as Array<Record<string, unknown>>
+  const inner = (items as Record<string, unknown> | undefined)?.item
+  if (Array.isArray(inner)) return inner as Array<Record<string, unknown>>
+  if (inner && typeof inner === "object") return [inner as Record<string, unknown>]
+  return null
+}
+
+/** "20260814143501" → "2026-08-14 14:35" */
+function fmtItsDate(d: string): string {
+  if (d.length < 12) return d
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)} ${d.slice(8, 10)}:${d.slice(10, 12)}`
+}
+
+async function fetchItsSpeeds(): Promise<TrafficBundle | null> {
+  // 기본은 data.go.kr 키(15040463 활용신청) — ITS 전용키가 필요한 것으로 판명되면 ITS_API_KEY로 오버라이드
+  const key = process.env.ITS_API_KEY ?? process.env.DATA_GO_KR_KEY
+  if (!key) return null
+  const url =
+    `https://openapi.its.go.kr:9443/trafficInfo?apiKey=${encodeURIComponent(key)}` +
+    `&type=all&minX=${BBOX.minX}&maxX=${BBOX.maxX}&minY=${BBOX.minY}&maxY=${BBOX.maxY}&getType=json`
+  const raw = await fetch(url, { next: { revalidate: 240 } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null)
+  const items = extractItsItems(raw)
+  if (!items) return null
+  const speeds: Array<[string, number]> = []
+  let at = ""
+  for (const it of items) {
+    const id = String(it.linkId ?? "")
+    const spd = Number(it.speed)
+    // 우리 링크셋 교집합만 — 미신청 키의 위장 샘플(타지역 20행)도 여기서 0건으로 걸러진다
+    if (!LINK_IDS.has(id) || !Number.isFinite(spd)) continue
+    speeds.push([id, spd])
+    const d = String(it.createdDate ?? "")
+    if (d > at) at = d
+  }
+  if (speeds.length === 0) return null
+  return { mode: "its", links: [], speeds, at: fmtItsDate(at) }
+}
+
+async function fetchRtdRadius(): Promise<TrafficBundle | null> {
   const spots = [...GWANGJIN_SPOTS, ...NEARBY_SPOTS]
   const results = await Promise.all(
     spots.map((name) =>
@@ -85,5 +158,11 @@ export async function fetchTraffic(): Promise<TrafficBundle | null> {
       if (pub > at) at = pub
     }
   }
-  return { links: [...byId.values()], at }
+  return { mode: "rtd", links: [...byId.values()], at }
+}
+
+export async function fetchTraffic(): Promise<TrafficBundle | null> {
+  const its = await fetchItsSpeeds()
+  if (its) return its
+  return fetchRtdRadius()
 }
