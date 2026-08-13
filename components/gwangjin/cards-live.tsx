@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react"
 import { ChevronDown, CloudRain, Cross, ExternalLink, KeyRound, MapPin, TrainFront } from "lucide-react"
 import { HOSPITAL_COORDS, KEY_GUIDES, STATIONS, type NeedKey } from "@/lib/gwangjin/constants"
 import { LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
-import type { RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
-import type { SubwayBoard } from "@/lib/gwangjin/subway"
+import type { AirNow, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
+import type { SubwayArrival, SubwayBoard } from "@/lib/gwangjin/subway"
 import type { Pharmacy } from "@/lib/gwangjin/emergency"
 import type { CareBundle } from "@/components/gwangjin/use-gwangjin-life"
 
@@ -208,7 +208,7 @@ export function SubwayCard({
         <Empty text="도착 예정 열차가 없습니다" />
       ) : (
         <ul className="space-y-1.5">
-          {board.arrivals.slice(0, 6).map((a, i) => {
+          {groupByDirection(board.arrivals).map(({ a, isNext }, i) => {
             // "장암행 - 어린이대공원(세종대)방면" → 방면이 승강장 선택 기준이라 주인공, 행선은 보조
             const [terminus, direction] = a.dest.split(" - ")
             // 수신 후 흐른 시간을 빼서 표시 — 0이 되면 "곧 도착" (다음 폴링이 실제 상태로 보정)
@@ -216,16 +216,27 @@ export function SubwayCard({
             const arriving = a.sec === 0 || remain === 0
             const soon = !arriving && remain <= 180
             return (
-              <li key={i} className="flex items-center gap-2 text-[12px]">
-                <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
-                  style={{ backgroundColor: a.lineColor }}
-                >
-                  {a.line.replace("호선", "")}
-                </span>
+              <li key={i} className={`flex items-center gap-2 text-[12px] ${isNext ? "-mt-1" : ""}`}>
+                {isNext ? (
+                  <span className="h-5 w-5 shrink-0" aria-hidden />
+                ) : (
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
+                    style={{ backgroundColor: a.lineColor }}
+                  >
+                    {a.line.replace("호선", "")}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate">
-                  <span className="text-[var(--cp-text-strong)]">{direction ?? terminus}</span>
-                  <span className="ml-1.5 text-[10px] text-[var(--cp-text-dim)]">{direction ? terminus : ""}</span>
+                  {isNext ? (
+                    // 같은 방면의 다음 차 — 방면 반복 대신 "다음"으로 눈이 쉬게, 행선(상일동/마천 분기)은 유지
+                    <span className="text-[10px] text-[var(--cp-text-dim)]">다음 {terminus}</span>
+                  ) : (
+                    <>
+                      <span className="text-[var(--cp-text-strong)]">{direction ?? terminus}</span>
+                      <span className="ml-1.5 text-[10px] text-[var(--cp-text-dim)]">{direction ? terminus : ""}</span>
+                    </>
+                  )}
                 </span>
                 {a.last && <span className="gj-warn shrink-0 text-[10px] font-medium">막차</span>}
                 <span
@@ -242,6 +253,25 @@ export function SubwayCard({
       )}
     </Card>
   )
+}
+
+/** 방면(노선:방면)별 그룹핑 — 방면당 최대 2대(첫 차 + "다음"), 전체 8행.
+ *  플랫 시간순은 한 방면 열차가 목록을 독식해 다른 방면이 밀렸다 — 방면 대표성이 우선.
+ *  입력은 어댑터가 노선→도착순으로 정렬해줘서 그룹 순서가 폴링 간 안정적이다. */
+function groupByDirection(arrivals: SubwayArrival[]): Array<{ a: SubwayArrival; isNext: boolean }> {
+  const groups: Array<SubwayArrival[]> = []
+  const byKey = new Map<string, SubwayArrival[]>()
+  for (const a of arrivals) {
+    const key = `${a.line}:${a.dest.split(" - ")[1] ?? a.dest}`
+    let g = byKey.get(key)
+    if (!g) {
+      g = []
+      byKey.set(key, g)
+      groups.push(g)
+    }
+    if (g.length < 2) g.push(a)
+  }
+  return groups.flatMap((g) => g.map((a, i) => ({ a, isNext: i > 0 }))).slice(0, 8)
 }
 
 // ── 응급실 + 약국 ───────────────────────────────────────────────────────
@@ -458,21 +488,24 @@ function BedStat({ label, v }: { label: string; v: number | null }) {
   )
 }
 
-// ── 강우 + 하천 수위 ────────────────────────────────────────────────────
+// ── 강우 + 하천 수위 + 대기질 ───────────────────────────────────────────
 // 승격(비·수위 경보) 렌더는 collapse props 없이 — 항상 펼침·토글 없음
+const AIR_GRADE_TONE: Record<string, string> = { 좋음: "gj-ok", 나쁨: "gj-warn", 매우나쁨: "gj-bad" }
+
 export function RainCard({
   rain,
   river,
+  air,
   loaded,
   collapsed,
   onToggle,
-}: { rain: RainInfo | null; river: RiverInfo | null; loaded: boolean } & Collapse) {
-  if (loaded && rain === null && river === null) {
+}: { rain: RainInfo | null; river: RiverInfo | null; air: AirNow | null; loaded: boolean } & Collapse) {
+  if (loaded && rain === null && river === null && air === null) {
     return (
       <Card
         id="gj-rain"
         icon={<CloudRain className="h-3.5 w-3.5" />}
-        title="비·하천"
+        title="비·하천·대기"
         summary="키 설정 필요"
         collapsed={collapsed}
         onToggle={onToggle}
@@ -488,6 +521,7 @@ export function RainCard({
     : [
         (rain?.mm60 ?? 0) > 0 ? `1시간 ${rain!.mm60.toFixed(1)}mm` : "비 안 옴",
         river ? `수위 ${Math.round(ratio * 100)}%` : null,
+        air?.grade ? `대기 ${air.grade}` : null,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -495,7 +529,7 @@ export function RainCard({
     <Card
       id="gj-rain"
       icon={<CloudRain className="h-3.5 w-3.5" />}
-      title="비·하천"
+      title="비·하천·대기"
       badge={rain?.station ? `${rain.station} 관측소 · 10분` : undefined}
       summary={summary}
       collapsed={collapsed}
@@ -531,6 +565,28 @@ export function RainCard({
                   style={{ width: `${Math.max(ratio * 100, 2)}%`, backgroundColor: riverColor }}
                 />
               </div>
+            </div>
+          )}
+          {air && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-[var(--cp-text-muted)]">대기</span>
+              {air.grade && <b className={AIR_GRADE_TONE[air.grade] ?? "text-[var(--cp-text-strong)]"}>{air.grade}</b>}
+              {air.pm25 != null && (
+                <span>
+                  초미세 <b className="font-mono tabular-nums">{air.pm25}</b>
+                </span>
+              )}
+              {air.pm10 != null && (
+                <span>
+                  미세 <b className="font-mono tabular-nums">{air.pm10}</b>
+                </span>
+              )}
+              {air.o3 != null && (
+                <span>
+                  오존 <b className="font-mono tabular-nums">{air.o3}</b>
+                </span>
+              )}
+              {air.measuredAt && <span className="text-[10px] text-[var(--cp-text-dim)]">{air.measuredAt} 측정</span>}
             </div>
           )}
         </div>

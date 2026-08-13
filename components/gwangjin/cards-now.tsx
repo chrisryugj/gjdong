@@ -94,8 +94,8 @@ export function NowStrip({
   live: LiveBundle | null
   care: CareBundle | null
   spots: CrowdSpot[]
-  /** 앵커 점프 — pharm/er은 CareCard 탭 전환까지 겸한다 (보드가 구현) */
-  onJump?: (target: "rain" | "pharm" | "er") => void
+  /** 앵커 점프 — pharm/er은 CareCard 탭 전환까지 겸한다 (보드가 구현). air는 환경 카드로 */
+  onJump?: (target: "rain" | "pharm" | "er" | "air") => void
 }) {
   const air = live?.air
   const rain = live?.rain
@@ -121,6 +121,7 @@ export function NowStrip({
           tone={AIR_TONE[air?.grade ?? ""]}
           sub={air?.pm25 != null ? `초미세 ${air.pm25}` : undefined}
           loading={live === null}
+          onTap={onJump ? () => onJump("air") : undefined}
         />
         <Tile
           label="비"

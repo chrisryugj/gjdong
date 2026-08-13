@@ -12,6 +12,24 @@ import type { ReserveItem } from "@/lib/gwangjin/reserve"
 import { Card, Empty, NeedKeyNote, Skeleton, TabBtn, type Collapse } from "@/components/gwangjin/cards-live"
 
 // ── 문화행사 ────────────────────────────────────────────────────────────
+/** "[광진문화재단] 제목" → 주최는 칩으로 분리 — 대괄호 프리픽스가 제목 스캔을 막는다 */
+function splitHost(title: string): { host: string; name: string } {
+  const m = title.match(/^\[([^\]]+)\]\s*(.+)$/)
+  return m ? { host: m[1], name: m[2] } : { host: "", name: title }
+}
+
+/** "2026-08-01~2026-11-01" → "8.1~11.1" (올해 아니면 26.8.1 꼴) — 좁은 행에서 기간이 한눈에 */
+function shortRange(range: string): string {
+  const year = new Date().getFullYear()
+  const one = (iso: string) => {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return iso
+    const [, y, mo, d] = m
+    return `${Number(y) === year ? "" : `${y.slice(2)}.`}${Number(mo)}.${Number(d)}`
+  }
+  return range.split("~").map(one).join("~")
+}
+
 export function EventsCard({ events, loaded, collapsed, onToggle }: { events: GjEvent[] | null; loaded: boolean } & Collapse) {
   const summary = !loaded
     ? undefined
@@ -38,23 +56,36 @@ export function EventsCard({ events, loaded, collapsed, onToggle }: { events: Gj
         <Empty text="오늘 진행 중인 행사가 없어요" />
       ) : (
         <ul className="space-y-1.5">
-          {events.slice(0, 5).map((e) => (
-            <li key={e.title} className="text-[12px]">
-              {e.link ? (
-                <a href={e.link} target="_blank" rel="noreferrer" className="group flex items-start gap-1">
-                  <span className="min-w-0 flex-1 group-hover:underline">{e.title}</span>
-                  <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-[var(--cp-text-dim)]" />
-                </a>
-              ) : (
-                <span>{e.title}</span>
-              )}
-              <div className="text-[10px] text-[var(--cp-text-dim)]">
-                {e.place}
-                {e.fee && <span className="gj-ok"> · {e.fee}</span>}
-                {e.date && <span> · {e.date}</span>}
-              </div>
-            </li>
-          ))}
+          {events.slice(0, 5).map((e) => {
+            const { host, name } = splitHost(e.title)
+            const title = (
+              <>
+                {host && (
+                  <span className="mr-1 inline-block max-w-[45%] shrink-0 truncate rounded border border-[var(--cp-border)] px-1 align-[1px] text-[9px] leading-4 text-[var(--cp-text-dim)]">
+                    {host}
+                  </span>
+                )}
+                {name}
+              </>
+            )
+            return (
+              <li key={e.title} className="text-[12px]">
+                {e.link ? (
+                  <a href={e.link} target="_blank" rel="noreferrer" className="group flex items-start gap-1">
+                    <span className="min-w-0 flex-1 group-hover:underline">{title}</span>
+                    <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-[var(--cp-text-dim)]" />
+                  </a>
+                ) : (
+                  <span>{title}</span>
+                )}
+                <div className="text-[10px] text-[var(--cp-text-dim)]">
+                  {e.place}
+                  {e.fee && <span className="gj-ok"> · {e.fee}</span>}
+                  {e.date && <span> · {shortRange(e.date)}</span>}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </Card>
