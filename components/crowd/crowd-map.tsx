@@ -140,6 +140,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const onLifePoiTapRef = useRef(onLifePoiTap)
   onLifePoiTapRef.current = onLifePoiTap
   const trafficLayerRef = useRef<LayerGroup | null>(null)
+  const trafficRendererRef = useRef<Renderer | null>(null)
   const boundaryLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
   const [ready, setReady] = useState(false)
@@ -254,9 +255,11 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       boundaryPane.style.pointerEvents = "none"
       boundaryLayerRef.current = L.layerGroup().addTo(map)
 
-      // 도로 소통 전용 pane — 경계(330)와 글로우(350) 사이. 선은 배경, 마커가 주인공
+      // 도로 소통 전용 pane — 경계(330)와 글로우(350) 사이. 선은 배경, 마커가 주인공.
+      // 전체도로 모드(ITS)는 폴리라인 ~3천 개 — SVG 노드 폭발을 피해 캔버스로 그린다
       const trafficPane = map.createPane("gjTraffic")
       trafficPane.style.zIndex = "340"
+      trafficRendererRef.current = L.canvas({ pane: "gjTraffic" })
       trafficLayerRef.current = L.layerGroup().addTo(map)
 
       spotLayerRef.current = L.layerGroup().addTo(map)
@@ -545,9 +548,11 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     const layer = trafficLayerRef.current
     if (!ready || !L || !layer) return
     layer.clearLayers()
+    const renderer = trafficRendererRef.current ?? undefined
     for (const link of trafficLinks ?? []) {
       L.polyline(link.path, {
         pane: "gjTraffic",
+        renderer,
         color: darkTiles ? "#000000" : "#ffffff",
         weight: 7,
         opacity: 0.5,
@@ -556,6 +561,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       }).addTo(layer)
       const line = L.polyline(link.path, {
         pane: "gjTraffic",
+        renderer,
         color: link.color,
         weight: 4,
         opacity: 0.9,

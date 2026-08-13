@@ -72,6 +72,8 @@ interface GwangjinLifeBoardProps {
   onStation: (s: string) => void
   /** 카드 행 → 지도 포커스 (레이어 자동 켬 + flyTo + 팝업) */
   onFocusPoi: (kind: LifePoi["kind"], name: string, lat: number, lng: number) => void
+  /** 교통 레이어가 폴백(명소 반경) 동작 중 — ITS 활용신청 안내 노출 */
+  trafficNeedsKey?: boolean
   onSelectSpot: (name: string) => void
   onHoverSpot?: (name: string | null) => void
   onRetrySpots: () => void
@@ -89,6 +91,7 @@ export default function GwangjinLifeBoard({
   station,
   onStation,
   onFocusPoi,
+  trafficNeedsKey,
   onSelectSpot,
   onHoverSpot,
   onRetrySpots,
@@ -304,6 +307,7 @@ export default function GwangjinLifeBoard({
         {/* 지도 레이어 전용 원천들 — 활용신청 전(null)일 때만 여기서 안내 (신청 즉시 레이어가 켜진다) */}
         {daily !== null && daily.aeds === null && <NeedKeyNote guide={KEY_GUIDES.aed} />}
         {daily !== null && daily.seniors === null && <NeedKeyNote guide={KEY_GUIDES.senior} />}
+        {trafficNeedsKey && <NeedKeyNote guide={KEY_GUIDES.its} />}
       </div>
     </div>
   )

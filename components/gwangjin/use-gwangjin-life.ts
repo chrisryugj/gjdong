@@ -10,8 +10,17 @@ import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCen
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import type { BusStop } from "@/lib/gwangjin/bus"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
-import type { TrafficBundle } from "@/lib/gwangjin/traffic"
+import { gradeBySpeed, IDX_COLOR, type TrafficBundle, type TrafficLink } from "@/lib/gwangjin/traffic"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
+
+// road-links.json 형태 (scripts/clip-gwangjin-roadlinks.mjs 산출)
+interface RoadGeoLink {
+  i: string
+  n: string
+  r: string
+  m: number
+  p: Array<[number, number]>
+}
 
 export interface LifePoiStat {
   label: string
@@ -171,15 +180,25 @@ export function useGwangjinLife(enabled: boolean) {
     }
   }, [enabled])
 
-  // 교통 소통 — 켠 동안만 5분 폴링 (업스트림 6콜이라 옵트인 시점에 지연 페치)
+  // 교통 소통 — 켠 동안만 5분 폴링 (옵트인 시점에 지연 페치). its 모드면 정적 지오메트리를
+  // 코드 스플릿 청크로 1회 로드해 클라에서 조인 — 5분 폴링엔 [링크ID, 속도]만 흐른다
   const trafficOn = layers.has("traffic")
+  const [roadGeo, setRoadGeo] = useState<RoadGeoLink[] | null>(null)
   useEffect(() => {
     if (!enabled || !trafficOn) return
     let alive = true
     const load = () =>
       fetch("/api/gwangjin/traffic")
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => alive && d && setTraffic(d))
+        .then(async (d: TrafficBundle | null) => {
+          if (!alive || !d) return
+          setTraffic(d)
+          if (d.mode === "its") {
+            const mod = await import("@/lib/gwangjin/road-links.json")
+            // JSON 임포트는 튜플이 number[][]로 넓혀진다 — 형태는 클립 스크립트가 보장
+            if (alive) setRoadGeo((prev) => prev ?? (mod.default as unknown as { links: RoadGeoLink[] }).links)
+          }
+        })
         .catch(() => {})
     void load()
     const t = setInterval(() => {
@@ -190,6 +209,22 @@ export function useGwangjinLife(enabled: boolean) {
       clearInterval(t)
     }
   }, [enabled, trafficOn])
+
+  // 전체도로(its) 조인 — 속도 온 링크만 그린다 (무데이터 링크까지 깔면 소음)
+  const joinedTraffic = useMemo<TrafficLink[]>(() => {
+    if (!traffic) return []
+    if (traffic.mode === "rtd") return traffic.links
+    if (!roadGeo || !traffic.speeds) return []
+    const spd = new Map(traffic.speeds)
+    const out: TrafficLink[] = []
+    for (const l of roadGeo) {
+      const s = spd.get(l.i)
+      if (s == null) continue
+      const idx = gradeBySpeed(s, l.m)
+      out.push({ id: l.i, road: l.n, idx, spd: s, color: IDX_COLOR[idx] ?? "#94a3b8", path: l.p })
+    }
+    return out
+  }, [traffic, roadGeo])
 
   // 켜진 레이어의 POI만 지도로 — Leaflet 마커 재생성 비용이 있어 켠 것만 넘긴다
   const pois = useMemo<LifePoi[]>(() => {
@@ -412,9 +447,9 @@ export function useGwangjinLife(enabled: boolean) {
       bus: daily?.busStops?.length ?? null,
       senior: daily?.seniors?.length ?? null,
       // 켜기 전엔 개수 미상(지연 페치) — null이면 칩이 숫자 없이 뜬다
-      traffic: traffic?.links.length ?? null,
+      traffic: traffic === null ? null : joinedTraffic.length,
     }),
-    [live, care, daily, traffic],
+    [live, care, daily, traffic, joinedTraffic],
   )
 
   return {
@@ -425,7 +460,9 @@ export function useGwangjinLife(enabled: boolean) {
     toggleLayer,
     pois,
     counts,
-    trafficLinks: trafficOn ? (traffic?.links ?? []) : [],
+    trafficLinks: trafficOn ? joinedTraffic : [],
+    // 폴백(rtd) 동작 중 — 보드가 ITS 활용신청 안내를 띄울 근거
+    trafficNeedsKey: trafficOn && traffic?.mode === "rtd",
     station,
     setStation,
     mapFocus,
