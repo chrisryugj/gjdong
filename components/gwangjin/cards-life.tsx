@@ -9,12 +9,27 @@ import { DONG_CODES, KEY_GUIDES } from "@/lib/gwangjin/constants"
 import type { CmrclInfo, ParkingLot } from "@/lib/gwangjin/env-safety"
 import type { DongPattern, GjEvent } from "@/lib/gwangjin/life"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
-import { Card, Empty, NeedKeyNote, Skeleton, TabBtn } from "@/components/gwangjin/cards-live"
+import { Card, Empty, NeedKeyNote, Skeleton, TabBtn, type Collapse } from "@/components/gwangjin/cards-live"
 
 // ── 문화행사 ────────────────────────────────────────────────────────────
-export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loaded: boolean }) {
+export function EventsCard({ events, loaded, collapsed, onToggle }: { events: GjEvent[] | null; loaded: boolean } & Collapse) {
+  const summary = !loaded
+    ? undefined
+    : events === null
+      ? "키 설정 필요"
+      : events.length === 0
+        ? "오늘 없음"
+        : `진행 중 ${events.length}건`
   return (
-    <Card id="gj-events" icon={<CalendarDays className="h-3.5 w-3.5" />} title="진행 중 행사" badge="광진 명소 주변 · 오늘">
+    <Card
+      id="gj-events"
+      icon={<CalendarDays className="h-3.5 w-3.5" />}
+      title="진행 중 행사"
+      badge="광진 명소 주변 · 오늘"
+      summary={summary}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       {!loaded ? (
         <Skeleton rows={3} />
       ) : events === null ? (
@@ -47,13 +62,15 @@ export function EventsCard({ events, loaded }: { events: GjEvent[] | null; loade
 }
 
 // ── 동별 생활인구 패턴 ───────────────────────────────────────────────────
-export function PopCard() {
+export function PopCard({ collapsed, onToggle }: Collapse = {}) {
   const [dong, setDong] = useState(DONG_CODES[0].code)
   const [pattern, setPattern] = useState<DongPattern | null>(null)
   const [needsKey, setNeedsKey] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // 접힌 동안엔 조회하지 않는다 — 펼치는 순간 로드 (일배치 데이터라 서버 캐시가 받는다)
+    if (collapsed) return
     let alive = true
     setLoading(true)
     fetch(`/api/gwangjin/pop?dong=${dong}`)
@@ -68,14 +85,24 @@ export function PopCard() {
     return () => {
       alive = false
     }
-  }, [dong])
+  }, [dong, collapsed])
 
   const max = Math.max(...(pattern?.hours ?? [1]), 1)
   const date = pattern?.date ? `${pattern.date.slice(4, 6)}/${pattern.date.slice(6, 8)} 기준` : ""
   const nowHour = new Date().getHours()
+  const dongName = DONG_CODES.find((d) => d.code === dong)?.name ?? ""
+  const peak = pattern && pattern.hours.length > 0 ? pattern.hours.indexOf(max) : null
 
   return (
-    <Card id="gj-pop" icon={<Users className="h-3.5 w-3.5" />} title="우리 동네 시간대 패턴" badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}>
+    <Card
+      id="gj-pop"
+      icon={<Users className="h-3.5 w-3.5" />}
+      title="우리 동네 시간대 패턴"
+      badge={`생활인구 · 일배치${date ? ` · ${date}` : ""}`}
+      summary={peak !== null ? `${dongName} 피크 ${peak}시` : `${dongName} 24시간 리듬`}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       <select
         value={dong}
         onChange={(e) => setDong(e.target.value)}
@@ -128,14 +155,33 @@ export function ParkingCard({
   parking,
   loaded,
   stdCount,
+  collapsed,
+  onToggle,
 }: {
   parking: ParkingLot[] | null
   loaded: boolean
   /** 표준데이터 공영주차장 수 — null=활용신청 전(안내 노출) */
   stdCount: number | null
-}) {
+} & Collapse) {
+  const availSum = (parking ?? []).reduce((a, p) => a + p.available, 0)
+  const summary = !loaded
+    ? undefined
+    : [
+        parking === null ? "키 설정 필요" : parking.length === 0 ? "실시간 없음" : `실시간 ${availSum}면 여유`,
+        stdCount ? `구영 ${stdCount}곳 지도에` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
   return (
-    <Card id="gj-parking" icon={<SquareParking className="h-3.5 w-3.5" />} title="공영주차" badge="실시간 연계분">
+    <Card
+      id="gj-parking"
+      icon={<SquareParking className="h-3.5 w-3.5" />}
+      title="공영주차"
+      badge="실시간 연계분"
+      summary={summary}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       {!loaded ? (
         <Skeleton rows={2} />
       ) : parking === null ? (
@@ -185,17 +231,29 @@ function dday(rcptEnd: string): { text: string; soon: boolean } {
   return { text: `~${rcptEnd.slice(5).replace("-", "/")}`, soon: false }
 }
 
-export function ReserveCard({ items, loaded }: { items: ReserveItem[] | null; loaded: boolean }) {
+export function ReserveCard({ items, loaded, collapsed, onToggle }: { items: ReserveItem[] | null; loaded: boolean } & Collapse) {
   const [kind, setKind] = useState<(typeof RESERVE_KINDS)[number]>("전체")
   const [showAll, setShowAll] = useState(false)
   const filtered = (items ?? []).filter((r) => kind === "전체" || r.kind === kind)
   const visible = showAll ? filtered : filtered.slice(0, 5)
+  // 접힘 요약 — 마감임박(D-7 이내)이 있으면 그게 펼칠 이유
+  const soonCount = (items ?? []).filter((r) => dday(r.rcptEnd).soon).length
+  const summary = !loaded
+    ? undefined
+    : items === null
+      ? "키 설정 필요"
+      : items.length === 0
+        ? "접수중 없음"
+        : `접수중 ${items.length}건${soonCount ? ` · 임박 ${soonCount}` : ""}`
   return (
     <Card
       id="gj-reserve"
       icon={<Ticket className="h-3.5 w-3.5" />}
       title="공공시설 예약"
       badge={items?.length ? `접수중 ${items.length}건 · 서울시 통합예약` : "서울시 통합예약"}
+      summary={summary}
+      collapsed={collapsed}
+      onToggle={onToggle}
     >
       {!loaded ? (
         <Skeleton rows={3} />
@@ -263,11 +321,26 @@ export function ReserveCard({ items, loaded }: { items: ReserveItem[] | null; lo
 
 // ── 역세권 상권 ─────────────────────────────────────────────────────────
 // cmrcl 지원 지점은 건대입구역·군자역 2곳 (공원·산은 원천 미지원 — constants.CMRCL_AREAS 실측 주석)
-export function CmrclCard({ cmrcl, loaded }: { cmrcl: CmrclInfo[] | null; loaded: boolean }) {
+export function CmrclCard({ cmrcl, loaded, collapsed, onToggle }: { cmrcl: CmrclInfo[] | null; loaded: boolean } & Collapse) {
   const [areaIdx, setAreaIdx] = useState(0)
   const cur = cmrcl?.[Math.min(areaIdx, (cmrcl?.length ?? 1) - 1)]
+  const summary = !loaded
+    ? undefined
+    : cmrcl === null
+      ? "키 설정 필요"
+      : cur
+        ? `${cur.area} ${cur.level} · ${cur.payments.toLocaleString()}건`
+        : "응답 없음"
   return (
-    <Card id="gj-cmrcl" icon={<CreditCard className="h-3.5 w-3.5" />} title="역세권 상권 소비" badge="신한카드 · 최근 30분">
+    <Card
+      id="gj-cmrcl"
+      icon={<CreditCard className="h-3.5 w-3.5" />}
+      title="역세권 상권 소비"
+      badge="신한카드 · 최근 30분"
+      summary={summary}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       {!loaded ? (
         <Skeleton rows={2} />
       ) : cmrcl === null ? (

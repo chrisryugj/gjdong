@@ -4,7 +4,7 @@
 // 5분 축(/api/gwangjin: 따릉이·대기·강우·수위·주차·상권) + 의료(/care) + 하루 축(/daily).
 // 지도 POI 배열과 목록 하단 생활보드 데이터를 함께 내놓는다.
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { AirNow, CmrclInfo, ParkingLot, RainInfo, RiverInfo } from "@/lib/gwangjin/env-safety"
 import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCenter, Shelter, StationPoi } from "@/lib/gwangjin/life"
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
@@ -49,6 +49,15 @@ export interface LifePoi {
 // traffic은 마커가 아니라 폴리라인 레이어 — pois에는 안 실리고 trafficLinks로 따로 내려간다
 export type LifeLayerKind = LifePoi["kind"] | "traffic"
 
+/** 카드 → 지도 포커스 요청 — seq로 같은 대상 연속 탭도 재발동 */
+export interface MapFocus {
+  kind: LifePoi["kind"]
+  name: string
+  lat: number
+  lng: number
+  seq: number
+}
+
 export interface LiveBundle {
   air: AirNow | null
   rain: RainInfo | null
@@ -80,6 +89,8 @@ export interface DailyBundle {
 // 소음이 없고(줌 게이트 14+) 생활 니즈 최상위. 따릉이 89·EV 328·쉼터 96은 옵트인
 const DEFAULT_LAYERS: LifeLayerKind[] = ["station", "er", "pharm"]
 
+const STATION_STORE = "gwangjinStation"
+
 export function useGwangjinLife(enabled: boolean) {
   const [live, setLive] = useState<LiveBundle | null>(null)
   const [care, setCare] = useState<CareBundle | null>(null)
@@ -95,6 +106,40 @@ export function useGwangjinLife(enabled: boolean) {
       return next
     })
   }, [])
+
+  // 내 역 — 보드 전광판과 지도 역 마커가 같은 선택을 공유한다 (SSR엔 이 값이 안 실려 초기화 안전)
+  const [station, setStationState] = useState(() => {
+    try {
+      return localStorage.getItem(STATION_STORE) ?? "건대입구"
+    } catch {
+      return "건대입구"
+    }
+  })
+  const setStation = useCallback((s: string) => {
+    setStationState(s)
+    try {
+      localStorage.setItem(STATION_STORE, s)
+    } catch {
+      // 시크릿 모드 등 — 세션 내 상태만 유지
+    }
+  }, [])
+
+  // 카드 → 지도: 대상 레이어를 켜고(꺼져 있으면 마커가 없다) 지도에 포커스 요청을 흘린다
+  const [mapFocus, setMapFocus] = useState<MapFocus | null>(null)
+  const focusSeqRef = useRef(0)
+  const focusOnMap = useCallback((kind: LifePoi["kind"], name: string, lat: number, lng: number) => {
+    if (lat === 0) return
+    setLayers((prev) => (prev.has(kind) ? prev : new Set(prev).add(kind)))
+    setMapFocus({ kind, name, lat, lng, seq: ++focusSeqRef.current })
+  }, [])
+
+  // 지도 → 카드: 역 마커 탭이 보드 전광판의 선택 역도 바꾼다 (반대 방향 연동)
+  const onPoiTap = useCallback(
+    (poi: LifePoi) => {
+      if (poi.kind === "station" && poi.station) setStation(poi.station)
+    },
+    [setStation],
+  )
 
   useEffect(() => {
     if (!enabled) return
@@ -372,5 +417,19 @@ export function useGwangjinLife(enabled: boolean) {
     [live, care, daily, traffic],
   )
 
-  return { live, care, daily, layers, toggleLayer, pois, counts, trafficLinks: trafficOn ? (traffic?.links ?? []) : [] }
+  return {
+    live,
+    care,
+    daily,
+    layers,
+    toggleLayer,
+    pois,
+    counts,
+    trafficLinks: trafficOn ? (traffic?.links ?? []) : [],
+    station,
+    setStation,
+    mapFocus,
+    focusOnMap,
+    onPoiTap,
+  }
 }
