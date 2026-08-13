@@ -311,6 +311,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             showLabels={labels}
             declutterLabels
             lifePois={city === "gwangjin" ? life.pois : undefined}
+            focusPoi={city === "gwangjin" ? life.mapFocus : undefined}
+            onLifePoiTap={city === "gwangjin" ? life.onPoiTap : undefined}
             trafficLinks={city === "gwangjin" ? life.trafficLinks : undefined}
             boundaryKey={city === "gwangjin" ? "gwangjin" : undefined}
             darkTiles={!light}
@@ -527,6 +529,9 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
               spotsError={error}
               light={light}
               baseline={baseline}
+              station={life.station}
+              onStation={life.setStation}
+              onFocusPoi={life.focusOnMap}
               onSelectSpot={selectSpot}
               onHoverSpot={setHoverName}
               onRetrySpots={() => {

@@ -5,7 +5,7 @@ import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMark
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
-import type { LifePoi } from "@/components/gwangjin/use-gwangjin-life"
+import type { LifePoi, MapFocus } from "@/components/gwangjin/use-gwangjin-life"
 import type { TrafficLink } from "@/lib/gwangjin/traffic"
 import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
@@ -35,6 +35,10 @@ interface CrowdMapProps {
   opsLabels?: Map<string, string>
   /** 광진 생활 POI(따릉이·EV·쉼터·역·응급실·AED·도서관·주차) — 명소 마커와 별개 레이어. station은 탭 시 도착 팝업 */
   lifePois?: LifePoi[]
+  /** 카드 → 지도 포커스: 해당 POI로 flyTo + 팝업. seq가 바뀔 때마다 재발동 (광진 전용) */
+  focusPoi?: MapFocus | null
+  /** 생활 POI 마커 탭 콜백 — 지도 → 카드 방향 연동 (역 탭 = 보드 전광판 역 전환) */
+  onLifePoiTap?: (poi: LifePoi) => void
   /** 광진 도로 소통 폴리라인(원활/서행/정체 색) — 교통 칩 켠 동안만 내려온다 */
   trafficLinks?: TrafficLink[]
   /** 구 경계 오버레이 키 — 지정 시 해당 경계 모듈을 동적 로드해 경계선+바깥 딤을 그린다 (고정 서피스 전용) */
@@ -115,7 +119,7 @@ function lifePopupHtml(poi: LifePoi): string {
   </div>`
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, trafficLinks, boundaryKey, darkTiles }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, focusPoi, onLifePoiTap, trafficLinks, boundaryKey, darkTiles }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -128,6 +132,13 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const pinLayerRef = useRef<LayerGroup | null>(null)
   const cctvLayerRef = useRef<LayerGroup | null>(null)
   const lifeLayerRef = useRef<LayerGroup | null>(null)
+  // 생활 POI 마커 색인(kind:name) — 카드 포커스가 팝업을 열 대상. 재렌더마다 새로 채운다
+  const lifeMarkersRef = useRef<Map<string, LeafletMarker>>(new Map())
+  // 열 팝업의 포커스 대상 + 유효시한 — flyTo의 zoomend가 마커를 전부 재생성(clearLayers)하며
+  // 방금 연 팝업을 부수므로, 시한 내 재렌더마다 다시 연다 (성공 시점에 지우면 레이스로 증발)
+  const pendingFocusRef = useRef<{ focus: MapFocus; until: number } | null>(null)
+  const onLifePoiTapRef = useRef(onLifePoiTap)
+  onLifePoiTapRef.current = onLifePoiTap
   const trafficLayerRef = useRef<LayerGroup | null>(null)
   const boundaryLayerRef = useRef<LayerGroup | null>(null)
   const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
@@ -561,12 +572,25 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   // 광진 생활 POI — 명소 마커와 독립 레이어. 클릭 = 상세 팝업(주소·행정동·상태·전화·길찾기 3종).
   // 역 팝업의 도착 정보는 popupopen 때 /api/gwangjin/subway를 조회 (열기 전 0콜).
   // 개수 많은 종류(LIFE_MIN_ZOOM)는 동네 줌부터 그리고, 숨긴 동안은 하단 힌트 pill이 알린다.
+  // 대기 중인 카드 포커스의 팝업 열기 — 마커가 없거나(줌 게이트) 재생성으로 닫혔으면
+  // 시한 내 재렌더에서 다시 연다. 이미 열려 있으면 openPopup은 무해.
+  const openPendingFocus = useCallback(() => {
+    const pending = pendingFocusRef.current
+    if (!pending) return
+    if (Date.now() > pending.until) {
+      pendingFocusRef.current = null
+      return
+    }
+    lifeMarkersRef.current.get(`${pending.focus.kind}:${pending.focus.name}`)?.openPopup()
+  }, [])
+
   useEffect(() => {
     const L = leafletRef.current
     const layer = lifeLayerRef.current
     const map = mapInstanceRef.current
     if (!ready || !L || !layer || !map) return
     layer.clearLayers()
+    lifeMarkersRef.current.clear()
     const z = map.getZoom()
     const hidden = new Set<string>()
     const visible: LifePoi[] = []
@@ -666,9 +690,27 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
             })
         })
       }
+      marker.on("click", () => onLifePoiTapRef.current?.(poi))
       marker.addTo(layer)
+      lifeMarkersRef.current.set(`${poi.kind}:${poi.name}`, marker)
     }
-  }, [ready, lifePois, zoomTick])
+    // 방금 켠 레이어·줌 게이트 통과로 마커가 이제 생겼을 수 있다 — 대기 포커스 재시도
+    openPendingFocus()
+  }, [ready, lifePois, zoomTick, openPendingFocus])
+
+  // 카드 → 지도 포커스: 대상으로 날아가고 팝업을 연다. 줌 게이트 레이어(약국 14+ 등)는
+  // flyTo가 끝나 zoomend → 마커 재렌더가 돈 뒤에야 마커가 생기므로 pending으로 이어받는다.
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!ready || !map || !focusPoi) return
+    // 2.5초 = flyTo 0.6s + zoomend 마커 재생성 + 팝업 autoPan까지 덮는 재개방 시한
+    pendingFocusRef.current = { focus: focusPoi, until: Date.now() + 2500 }
+    map.once("moveend", openPendingFocus)
+    map.flyTo([focusPoi.lat, focusPoi.lng], Math.max(map.getZoom(), 16), { duration: 0.6 })
+    return () => {
+      map.off("moveend", openPendingFocus)
+    }
+  }, [ready, focusPoi, openPendingFocus])
 
   // 주소 핀 + 근처 명소 연결선
   useEffect(() => {

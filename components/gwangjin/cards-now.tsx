@@ -7,8 +7,8 @@
 import { LoaderCircle, Activity } from "lucide-react"
 import type { CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import type { BaselineDelta } from "@/lib/crowd/heatmap-client"
-import { LevelBadge } from "@/components/crowd/shared"
-import { Card } from "@/components/gwangjin/cards-live"
+import { LevelBadge, LEVEL_ORDER } from "@/components/crowd/shared"
+import { Card, type Collapse } from "@/components/gwangjin/cards-live"
 import type { CareBundle, LiveBundle } from "@/components/gwangjin/use-gwangjin-life"
 
 /** 대기질 등급 → 상태 톤 (서울시 CAI_GRD 문자 그대로) */
@@ -179,6 +179,8 @@ export function SpotsCompactCard({
   onSelect,
   onHover,
   onRetry,
+  collapsed,
+  onToggle,
 }: {
   spots: CrowdSpot[]
   loading: boolean
@@ -188,9 +190,25 @@ export function SpotsCompactCard({
   onSelect: (name: string) => void
   onHover?: (name: string | null) => void
   onRetry: () => void
-}) {
+} & Collapse) {
+  // 접힘 요약 — 등급별 개수 (붐빔부터). "붐빔 1 · 여유 4"면 펼치지 않아도 오늘의 그림이 잡힌다
+  const levelCounts = new Map<string, number>()
+  for (const s of spots) if (s.levelNum > 0) levelCounts.set(s.level, (levelCounts.get(s.level) ?? 0) + 1)
+  const summary =
+    spots.length === 0
+      ? undefined
+      : LEVEL_ORDER.filter((lv) => levelCounts.has(lv))
+          .map((lv) => `${lv} ${levelCounts.get(lv)}`)
+          .join(" · ") || "정보 없음"
   return (
-    <Card id="gj-spots" title="명소 혼잡" badge="실시간 · 5분 갱신">
+    <Card
+      id="gj-spots"
+      title="명소 혼잡"
+      badge="실시간 · 5분 갱신"
+      summary={summary}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       {error ? (
         <div className="py-2 text-center">
           <p className={`text-[12px] ${light ? "text-red-600" : "text-red-400"}`}>불러오지 못했어요</p>

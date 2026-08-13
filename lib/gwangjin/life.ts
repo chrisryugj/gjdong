@@ -295,9 +295,11 @@ export async function fetchLibraries(): Promise<Library[] | null> {
     seoulRows("SeoulPublicLibraryInfo", "1/1000/", 86_400),
   ])
   if (t1 === null && t2 === null) return null
-  const opBySeq = new Map<string, string>()
+  // ⚠️HMPG_URL·OP_TIME은 SeoulPublicLibraryInfo에만 있다(TimeInfo 필드 실측: SEQ/NAME/GU/ADRES/휴관/TEL/좌표뿐)
+  const pubBySeq = new Map<string, { op: string; url: string }>()
   for (const r of (pub ?? []) as Array<Record<string, unknown>>) {
-    if (String(r.CODE_VALUE ?? "") === "광진구") opBySeq.set(String(r.LBRRY_SEQ_NO ?? ""), String(r.OP_TIME ?? ""))
+    if (String(r.CODE_VALUE ?? "") === "광진구")
+      pubBySeq.set(String(r.LBRRY_SEQ_NO ?? ""), { op: String(r.OP_TIME ?? ""), url: String(r.HMPG_URL ?? "") })
   }
   const out: Library[] = []
   for (const r of [...(t1 ?? []), ...(t2 ?? [])] as Array<Record<string, unknown>>) {
@@ -306,12 +308,13 @@ export async function fetchLibraries(): Promise<Library[] | null> {
     if (!name || name.startsWith("[폐관]")) continue
     const lat = Number.parseFloat(String(r.XCNTS ?? "0")) || 0
     if (lat === 0) continue
+    const joined = pubBySeq.get(String(r.LBRRY_SEQ_NO ?? ""))
     out.push({
       name,
       addr: String(r.ADRES ?? ""),
       tel: String(r.TEL_NO ?? ""),
-      url: String(r.HMPG_URL ?? ""),
-      opTime: opBySeq.get(String(r.LBRRY_SEQ_NO ?? "")) ?? "",
+      url: joined?.url ?? "",
+      opTime: joined?.op ?? "",
       closeDay: String(r.FDRM_CLOSE_DATE ?? ""),
       lat,
       lng: Number.parseFloat(String(r.YDNTS ?? "0")) || 0,
