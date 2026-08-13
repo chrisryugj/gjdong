@@ -197,6 +197,7 @@
   --cp-text-muted: #94a3b8;
   --cp-text-dim: #64748b;
   --cp-text-faint: #475569;
+  --cp-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 .crowd-page.crowd-light {
   --cp-bg: #f7f6f3;
@@ -216,6 +217,7 @@
   --cp-text-muted: #475569;
   --cp-text-dim: #64748b;
   --cp-text-faint: #94a3b8;
+  --cp-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 .crowd-page .leaflet-container {
   background: #d4dadc;
@@ -427,6 +429,46 @@
 .crowd-page.crowd-light .gj-bad { color: #b91c1c; }
 .crowd-page .gj-info { color: #38bdf8; }
 .crowd-page.crowd-light .gj-info { color: #0369a1; }
+
+/* ── 광진 생활보드 UI 유틸 (2026-08-13 상용앱 폴리시) ─────────────────
+   gj-press: 모든 탭 가능한 것의 눌림 피드백 — 물리 버튼 감각의 최소 단위
+   gj-focus: 키보드 포커스 링 — 광진 컴포넌트에만 클래스로 부착 (crowd 공용 오염 방지)
+   gj-skel : 스켈레톤 쉬머 — "불러오는 중…" 텍스트 대체 */
+.crowd-page .gj-press {
+  transition: transform 120ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.crowd-page .gj-press:active { transform: scale(0.97); }
+.crowd-page .gj-focus:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+}
+.crowd-page.crowd-light .gj-focus:focus-visible { outline-color: #0369a1; }
+.crowd-page .gj-skel {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--cp-panel2) 25%, var(--cp-hover2) 50%, var(--cp-panel2) 75%);
+  background-size: 200% 100%;
+  animation: gj-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes gj-shimmer {
+  to { background-position: -200% 0; }
+}
+.crowd-page .gj-pulse { animation: gj-pulse 1.2s ease-in-out infinite; }
+@keyframes gj-pulse {
+  50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crowd-page .gj-skel, .crowd-page .gj-pulse { animation: none; }
+  .crowd-page .gj-press:active { transform: none; }
+}
+/* NowStrip 상태 타일 틴트 — 텍스트색(gj-ok 등)과 같은 계열의 옅은 배경으로 "상태가 면으로" 읽히게 */
+.crowd-page .gj-bg-ok { background: rgba(52, 211, 153, 0.09); border-color: rgba(52, 211, 153, 0.28); }
+.crowd-page.crowd-light .gj-bg-ok { background: rgba(4, 120, 87, 0.07); border-color: rgba(4, 120, 87, 0.25); }
+.crowd-page .gj-bg-warn { background: rgba(251, 191, 36, 0.09); border-color: rgba(251, 191, 36, 0.3); }
+.crowd-page.crowd-light .gj-bg-warn { background: rgba(180, 83, 9, 0.07); border-color: rgba(180, 83, 9, 0.25); }
+.crowd-page .gj-bg-bad { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); }
+.crowd-page.crowd-light .gj-bg-bad { background: rgba(185, 28, 28, 0.07); border-color: rgba(185, 28, 28, 0.28); }
+.crowd-page .gj-bg-info { background: rgba(56, 189, 248, 0.09); border-color: rgba(56, 189, 248, 0.28); }
+.crowd-page.crowd-light .gj-bg-info { background: rgba(3, 105, 161, 0.06); border-color: rgba(3, 105, 161, 0.25); }
 /* ── 생활 POI 클릭 팝업 — kind 도상 헤더 · stat 타일 그리드 · 전화 우선 액션 (2026-08-11 개편) */
 .crowd-page .crowd-life-pop {
   display: flex;
