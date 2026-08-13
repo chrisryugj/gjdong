@@ -52,7 +52,7 @@ const NAV: Array<{ key: SectionKey; id: string; label: string }> = [
   { key: "cmrcl", id: "gj-cmrcl", label: "상권" },
   { key: "reserve", id: "gj-reserve", label: "예약" },
   { key: "events", id: "gj-events", label: "행사" },
-  { key: "rain", id: "gj-rain", label: "비·하천" },
+  { key: "rain", id: "gj-rain", label: "환경" },
   { key: "pop", id: "gj-pop", label: "생활인구" },
   { key: "parking", id: "gj-parking", label: "주차" },
 ]
@@ -169,10 +169,10 @@ export default function GwangjinLifeBoard({
   )
 
   const onStripJump = useCallback(
-    (target: "rain" | "pharm" | "er") => {
+    (target: "rain" | "pharm" | "er" | "air") => {
       if (target === "pharm") setCareTab("pharm")
       if (target === "er") setCareTab("er")
-      expandAndJump(target === "rain" ? "rain" : "care")
+      expandAndJump(target === "rain" || target === "air" ? "rain" : "care")
     },
     [expandAndJump],
   )
@@ -250,7 +250,14 @@ export default function GwangjinLifeBoard({
     reserve: <ReserveCard key="reserve" items={daily?.reservations ?? null} loaded={daily !== null} {...collapse("reserve")} />,
     events: <EventsCard key="events" events={daily?.events ?? null} loaded={daily !== null} {...collapse("events")} />,
     rain: rainPromoted ? null : (
-      <RainCard key="rain" rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} {...collapse("rain")} />
+      <RainCard
+        key="rain"
+        rain={live?.rain ?? null}
+        river={live?.river ?? null}
+        air={live?.air ?? null}
+        loaded={live !== null}
+        {...collapse("rain")}
+      />
     ),
     pop: <PopCard key="pop" {...collapse("pop")} />,
     parking: (
@@ -291,7 +298,7 @@ export default function GwangjinLifeBoard({
         </nav>
         {/* 비가 오거나 수위가 오르면 안전 카드 최상단 승격 — 아코디언 밖, 항상 펼침 */}
         {rainPromoted && (
-          <RainCard rain={live?.rain ?? null} river={live?.river ?? null} loaded={live !== null} />
+          <RainCard rain={live?.rain ?? null} river={live?.river ?? null} air={live?.air ?? null} loaded={live !== null} />
         )}
         {order.map((k) => sections[k])}
         {/* 지도 레이어 전용 원천들 — 활용신청 전(null)일 때만 여기서 안내 (신청 즉시 레이어가 켜진다) */}
