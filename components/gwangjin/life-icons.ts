@@ -3,7 +3,10 @@
 // 마커 형태는 실제 도시 기호 문법을 따른다(2026-08-11): 시설 = 사각 간판(병원 십자·주차 P 표지판),
 // 쉼터 = 집 실루엣, 탈것(따릉이·EV) = 원형. 형태가 곧 "무엇인지"를 말하게.
 
-import type { LifeLayerKind } from "@/components/gwangjin/use-gwangjin-life"
+import type { LifeLayerKind, LifePoi } from "@/components/gwangjin/use-gwangjin-life"
+
+/** 마커를 그리는 POI 종류 — traffic(폴리라인)·station(노선색 동그라미)은 제외 */
+type MarkerKind = Exclude<LifePoi["kind"], "station">
 
 /** 노선 번호 → 서울 지하철 정식 노선색 (광진 관내 2·5·7호선) */
 export const LINE_COLOR_BY_NUM: Record<string, string> = {
@@ -14,6 +17,7 @@ export const LINE_COLOR_BY_NUM: Record<string, string> = {
 
 /** 레이어 대표색 — 칩 활성 배경·마커 배경 공용. 따릉이는 2호선 초록·약국 초록과 톤 분리(라임) */
 export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
+  traffic: "#475569",
   station: "#1d4ed8",
   bus: "#0d9488",
   bike: "#65a30d",
@@ -28,7 +32,7 @@ export const LIFE_KIND_COLOR: Record<LifeLayerKind, string> = {
 }
 
 /** 마커 형태 — sign=사각 간판(시설·정류소 표지판), house=집 실루엣(쉼터·경로당), circle=원형(탈것) */
-export const LIFE_MARKER_SHAPE: Record<Exclude<LifeLayerKind, "station">, "sign" | "house" | "circle"> = {
+export const LIFE_MARKER_SHAPE: Record<MarkerKind, "sign" | "house" | "circle"> = {
   bus: "sign",
   er: "sign",
   pharm: "sign",
@@ -45,7 +49,7 @@ export const LIFE_MARKER_SHAPE: Record<Exclude<LifeLayerKind, "station">, "sign"
 const svg = (inner: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
 
-export const LIFE_ICON_SVG: Record<Exclude<LifeLayerKind, "station">, string> = {
+export const LIFE_ICON_SVG: Record<MarkerKind, string> = {
   er: svg(
     `<path d="M11 3a1 1 0 0 0-1 1v5H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h5v5a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-5h5a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-5V4a1 1 0 0 0-1-1h-2z" fill="currentColor" stroke="none"/>`,
   ),

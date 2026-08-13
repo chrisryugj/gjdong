@@ -391,9 +391,10 @@ export async function fetchPublicParkings(): Promise<PublicParking[] | null> {
 // (OA-15052)은 xlsx 파일 배포뿐이라 이 표준 API가 유일한 조회 경로.
 // 실키 실측(2026-08-12): 총 46,386행, 필드는 표준 공통명이 아니라 flctNm(시설명)·flctTyp
 // (경로당/마을회관)·lat/lot·lctnRoadNmAddr/lctnLotnoAddr·telno·insttCode/insttNm.
-// ⚠️광진구(3040000)는 미제출 — NODATA(성북 3070000=183건으로 필터 정상 교차검증됨).
-// 제출되면 자동 점등되도록 어댑터는 유지하되, NODATA는 null(신청 안내)이 아니라 빈 배열
-// (신청됨·데이터 없음)로 수렴시킨다. insttNm 필터는 SQL 에러(주차와 동일 함정).
+// ⚠️광진구(3040000)는 미제출 — NODATA(2026-08-13 재실측: 주소 필터 2종까지 전부 NODATA).
+// 그래서 광진구 자체 파일데이터(15041530, 97곳)를 카카오 지오코딩해 정적으로 구웠다
+// (seniors-static.ts) — 표준데이터가 제출되기 시작하면 라이브가 우선, 그전엔 정적 폴백.
+// insttNm 필터는 SQL 에러(주차와 동일 함정).
 export interface SeniorCenter {
   name: string
   addr: string
@@ -404,20 +405,26 @@ export interface SeniorCenter {
 
 let seniorCache: { at: number; data: SeniorCenter[] } | null = null
 
+/** 정적 스냅숏 → SeniorCenter — 라이브(표준데이터)가 비었을 때의 폴백 */
+async function staticSeniors(): Promise<SeniorCenter[]> {
+  const { GWANGJIN_SENIORS } = await import("@/lib/gwangjin/seniors-static")
+  return GWANGJIN_SENIORS.map((s) => ({ name: s.name, addr: s.addr, tel: s.tel, lat: s.lat, lng: s.lng }))
+}
+
 export async function fetchSeniorCenters(): Promise<SeniorCenter[] | null> {
   const key = DATA_KEY()
-  if (!key) return null
+  if (!key) return staticSeniors()
   if (seniorCache && Date.now() - seniorCache.at < 86_400_000) return seniorCache.data
   const url = `https://api.data.go.kr/openapi/tn_pubr_public_vill_hall_sen_cent_api?serviceKey=${key}&pageNo=1&numOfRows=500&type=json&insttCode=3040000`
   const raw = (await krgovJson(url, { timeoutMs: 15000 }).catch(() => null)) as {
     header?: { resultCode?: string }
     body?: { items?: { item?: Array<Record<string, unknown>> } } | null
   } | null
-  if (!raw) return null
+  if (!raw) return staticSeniors()
   const items = raw.body?.items?.item
   if (!Array.isArray(items)) {
-    // 03 = NODATA — 인증은 통과했고 광진 제출분이 없는 상태. 안내 대신 정직한 0건
-    return raw.header?.resultCode === "03" ? [] : null
+    // NODATA(광진 미제출)·형식 이상 — 어느 쪽이든 정적 스냅숏 97곳이 빈 지도보다 낫다
+    return staticSeniors()
   }
   const out: SeniorCenter[] = []
   for (const it of items) {

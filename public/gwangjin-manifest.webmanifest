@@ -1,0 +1,14 @@
+{
+  "name": "광진 라이프",
+  "short_name": "광진 라이프",
+  "description": "광진구 실시간 생활상황판 — 지하철·응급실·약국·혼잡도·교통",
+  "start_url": "/gwangjin",
+  "scope": "/gwangjin",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    { "src": "/gj-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/gj-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

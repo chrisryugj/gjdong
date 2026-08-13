@@ -10,6 +10,7 @@ import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCen
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import type { BusStop } from "@/lib/gwangjin/bus"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
+import type { TrafficBundle } from "@/lib/gwangjin/traffic"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
 export interface LifePoiStat {
@@ -40,10 +41,13 @@ export interface LifePoi {
   addr?: string
   dong?: string
   tel?: string
+  /** 공식 홈페이지 — 있으면 팝업 액션에 링크 노출 (도서관 등) */
+  url?: string
   stats?: LifePoiStat[]
 }
 
-export type LifeLayerKind = LifePoi["kind"]
+// traffic은 마커가 아니라 폴리라인 레이어 — pois에는 안 실리고 trafficLinks로 따로 내려간다
+export type LifeLayerKind = LifePoi["kind"] | "traffic"
 
 export interface LiveBundle {
   air: AirNow | null
@@ -80,6 +84,7 @@ export function useGwangjinLife(enabled: boolean) {
   const [live, setLive] = useState<LiveBundle | null>(null)
   const [care, setCare] = useState<CareBundle | null>(null)
   const [daily, setDaily] = useState<DailyBundle | null>(null)
+  const [traffic, setTraffic] = useState<TrafficBundle | null>(null)
   const [layers, setLayers] = useState<Set<LifeLayerKind>>(new Set(DEFAULT_LAYERS))
 
   const toggleLayer = useCallback((kind: LifeLayerKind) => {
@@ -120,6 +125,26 @@ export function useGwangjinLife(enabled: boolean) {
       clearInterval(t)
     }
   }, [enabled])
+
+  // 교통 소통 — 켠 동안만 5분 폴링 (업스트림 6콜이라 옵트인 시점에 지연 페치)
+  const trafficOn = layers.has("traffic")
+  useEffect(() => {
+    if (!enabled || !trafficOn) return
+    let alive = true
+    const load = () =>
+      fetch("/api/gwangjin/traffic")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => alive && d && setTraffic(d))
+        .catch(() => {})
+    void load()
+    const t = setInterval(() => {
+      if (!document.hidden) void load()
+    }, 300_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [enabled, trafficOn])
 
   // 켜진 레이어의 POI만 지도로 — Leaflet 마커 재생성 비용이 있어 켠 것만 넘긴다
   const pois = useMemo<LifePoi[]>(() => {
@@ -293,6 +318,7 @@ export function useGwangjinLife(enabled: boolean) {
           color: "#7c3aed",
           addr: l.addr,
           tel: l.tel,
+          url: l.url || undefined,
           stats: (
             [
               l.opTime ? { label: "운영", value: l.opTime } : null,
@@ -340,9 +366,11 @@ export function useGwangjinLife(enabled: boolean) {
       parking: daily?.publicParkings?.length ?? null,
       bus: daily?.busStops?.length ?? null,
       senior: daily?.seniors?.length ?? null,
+      // 켜기 전엔 개수 미상(지연 페치) — null이면 칩이 숫자 없이 뜬다
+      traffic: traffic?.links.length ?? null,
     }),
-    [live, care, daily],
+    [live, care, daily, traffic],
   )
 
-  return { live, care, daily, layers, toggleLayer, pois, counts }
+  return { live, care, daily, layers, toggleLayer, pois, counts, trafficLinks: trafficOn ? (traffic?.links ?? []) : [] }
 }

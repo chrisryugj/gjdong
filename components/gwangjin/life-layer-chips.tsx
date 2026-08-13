@@ -3,12 +3,13 @@
 // 지도 좌상단 가로 스크롤 레이어 칩 바 (구글맵 카테고리 칩 패턴, 한국어 고정·광진 전용)
 // 마커와 같은 아이콘·색을 쓰고 개수를 병기 — 꺼진 레이어도 "몇 개가 있는지" 보여 켤 이유를 만든다.
 // 테마 그룹(이동 | 안전·의료 | 생활) 사이에 구분선 — 칩 8개를 훑는 눈의 리듬을 만든다.
-import { BookOpen, Bike, BusFront, Cross, HeartPulse, PersonStanding, Pill, Snowflake, SquareParking, TrainFront, Zap } from "lucide-react"
+import { BookOpen, Bike, BusFront, CarFront, Cross, HeartPulse, PersonStanding, Pill, Snowflake, SquareParking, TrainFront, Zap } from "lucide-react"
 import type { LifeLayerKind } from "@/components/gwangjin/use-gwangjin-life"
 import { LIFE_KIND_COLOR } from "@/components/gwangjin/life-icons"
 
 // null = 그룹 구분선
 const LAYER_DEFS: Array<{ kind: LifeLayerKind; label: string; Icon: typeof Bike } | null> = [
+  { kind: "traffic", label: "교통", Icon: CarFront },
   { kind: "station", label: "지하철", Icon: TrainFront },
   { kind: "bus", label: "버스", Icon: BusFront },
   { kind: "bike", label: "따릉이", Icon: Bike },
