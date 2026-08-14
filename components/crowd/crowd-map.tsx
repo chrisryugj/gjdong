@@ -563,12 +563,16 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         pane: "gjTraffic",
         renderer,
         color: link.color,
-        weight: 4,
-        opacity: 0.9,
+        // 정보없음 중립선은 가늘고 옅게 — 3색 실선이 주인공으로 남게
+        weight: link.idx === "정보없음" ? 3 : 4,
+        opacity: link.idx === "정보없음" ? 0.5 : 0.9,
         lineCap: "round",
       })
+      // 정보없음은 속도 없이, 추정치는 출처를 밝힌다 (실측 34%를 역방향·인근으로 채운 값)
+      const detail =
+        link.idx === "정보없음" ? "소통 정보 미제공" : `${escapeHtml(link.idx)} · ${link.spd}km/h${link.est ? " (인근 추정)" : ""}`
       line.bindTooltip(
-        `<div class="crowd-tip"><b>${escapeHtml(link.road || "도로")}</b><span>${escapeHtml(link.idx)} · ${link.spd}km/h</span></div>`,
+        `<div class="crowd-tip"><b>${escapeHtml(link.road || "도로")}</b><span>${detail}</span></div>`,
         { sticky: true, direction: "top", opacity: 1 },
       )
       line.addTo(layer)

@@ -10,17 +10,10 @@ import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCen
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import type { BusStop } from "@/lib/gwangjin/bus"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
-import { gradeBySpeed, IDX_COLOR, type TrafficBundle, type TrafficLink } from "@/lib/gwangjin/traffic"
+import { fillTrafficSpeeds, gradeBySpeed, IDX_COLOR, type TrafficBundle, type TrafficLink } from "@/lib/gwangjin/traffic"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
-// road-links.json 형태 (scripts/clip-gwangjin-roadlinks.mjs 산출)
-interface RoadGeoLink {
-  i: string
-  n: string
-  r: string
-  m: number
-  p: Array<[number, number]>
-}
+import type { RoadGeoLink } from "@/lib/gwangjin/traffic"
 
 export interface LifePoiStat {
   label: string
@@ -210,18 +203,26 @@ export function useGwangjinLife(enabled: boolean) {
     }
   }, [enabled, trafficOn])
 
-  // 전체도로(its) 조인 — 속도 온 링크만 그린다 (무데이터 링크까지 깔면 소음)
+  // 전체도로(its) 조인 — 실측(~34%)을 씨앗으로 역방향·인근을 채워 전 링크를 그린다.
+  // 실측 0인 도로도 선은 이어 그리되 "정보없음" 중립색 (드문드문 끊김 방지, 2026-08-14)
   const joinedTraffic = useMemo<TrafficLink[]>(() => {
     if (!traffic) return []
     if (traffic.mode === "rtd") return traffic.links
     if (!roadGeo || !traffic.speeds) return []
-    const spd = new Map(traffic.speeds)
+    const filled = fillTrafficSpeeds(roadGeo, new Map(traffic.speeds))
     const out: TrafficLink[] = []
     for (const l of roadGeo) {
-      const s = spd.get(l.i)
-      if (s == null) continue
-      const idx = gradeBySpeed(s, l.m)
-      out.push({ id: l.i, road: l.n, idx, spd: s, color: IDX_COLOR[idx] ?? "#94a3b8", path: l.p })
+      const f = filled.get(l.i)
+      const idx = f ? gradeBySpeed(f.spd, l.m) : "정보없음"
+      out.push({
+        id: l.i,
+        road: l.n,
+        idx,
+        spd: f?.spd ?? 0,
+        color: IDX_COLOR[idx] ?? "#94a3b8",
+        path: l.p,
+        est: f?.inferred || undefined,
+      })
     }
     return out
   }, [traffic, roadGeo])
