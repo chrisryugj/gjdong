@@ -9,14 +9,8 @@
 // 출력: out-data/heatmap.json — 클라이언트는 raw.githubusercontent.com로 읽는다.
 
 import { mkdir, writeFile } from "node:fs/promises"
+import { rtdJson } from "./rtd-fetch.mjs"
 
-const RTD_BASE = "https://data.seoul.go.kr/SeoulRtd/api"
-const RTD_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-  Referer: "https://data.seoul.go.kr/SeoulRtd/map",
-  Accept: "application/json, text/plain, */*",
-}
 const PREV_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data/heatmap.json"
 const LEVELS = { 여유: 1, 보통: 2, "약간 붐빔": 3, 붐빔: 4 }
 
@@ -32,23 +26,7 @@ function validEntry(ent) {
   )
 }
 
-// 서버가 간헐적으로 따옴표 없는 스키마 스텁을 돌려주는 flake가 있어 파싱 실패도 재시도 대상
-async function rtdJson(path, params, tries = 3) {
-  const qs = new URLSearchParams(params).toString()
-  for (let i = 1; ; i++) {
-    try {
-      const res = await fetch(`${RTD_BASE}/${path}?${qs}`, { headers: RTD_HEADERS })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const text = await res.text()
-      if (!text) throw new Error("empty response")
-      return JSON.parse(text)
-    } catch (err) {
-      if (i >= tries) throw new Error(`SeoulRtd ${path} failed: ${err.message}`)
-      await new Promise((r) => setTimeout(r, 1000 * i))
-    }
-  }
-}
-
+// 세 페이지 중 하나만 못 받아도 수집 전체가 죽는 자리 — 재시도 기본값(5회)을 그대로 쓴다.
 async function fetchSpotNames() {
   const pages = await Promise.all(
     [1, 2, 3].map((page) =>
@@ -139,7 +117,9 @@ let maxSlot = lastSlot
 await mapPool(names, 8, async (name) => {
   let rows
   try {
-    rows = await rtdJson("ppltn_congest", { hotspotNm: name })
+    // 한 곳쯤 못 받아도 아래 절반 가드가 흡수하고 다음 실행이 12시간 룩백으로 메운다.
+    // 전면 장애일 때 121곳 × 30초 백오프로 러너를 붙잡지 않도록 짧게 끊는다.
+    rows = await rtdJson("ppltn_congest", { hotspotNm: name }, { tries: 3 })
   } catch {
     failed++
     return
