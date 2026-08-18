@@ -12,6 +12,18 @@
 //   cross-site·none 값은 403이다. 자기 페이지의 XHR만 받겠다는 뜻이라 호출을 아끼는 게 전제다:
 //   목록 캐시 15분 + 클라이언트 숨김 탭 정지로 낮춰 두었다(2026-08 차단 사고 대응).
 //   80포트는 이제 301로 https로 넘긴다 — http 직결은 더 이상 통하지 않는다.
+//
+// ⚠️2026-08-18: jeju.mms.gislab.co.kr(27.96.146.37) 이 광역 403(맥미니·폰LTE·외국 전부).
+//   프로덕션(Vercel)은 원래부터 이 호스트에 직결 못 해(DC IP 차단이 스냅샷 구조의 존재 이유)
+//   전 지점 스냅샷 폴백으로 돈다 — geonetDirect/Proxy 는 국내 비-DC 회선용 잔존 경로.
+//   실데이터는 수집기(scripts/collect-jeju.ts)가 **다른 인스턴스** mms.gislab.co.kr:444
+//   (61.85.11.158, 제주관광공사 데이터맵 data.ijto.or.kr 백엔드)에서 떠 올린 스냅샷이다.
+//   ⚠️:444 는 응답이 JSON 아닌 `총합^시각|…` pipe 라 수집기가 이 파일 JSON 계약으로 변환한다
+//   — 그래서 이 파서는 무변경. :444 는 **성별(남/여)×연령·총합만** 주고 **도민/관광은 안 준다**
+//   (도민/관광은 jeju.mms 전용인데 그게 광역 차단이라 확보 불가). 그래서 NOW 의 도민/관광은
+//   8/9 마지막 실측의 **시각별 비율**(jeju-resident-profile.json)을 신선 total 에 곱해 추정한다
+//   — 절대 인원·등급·성별·연령·시계열은 신선, 도민/관광 비율만 지점 특성 기반 근사.
+//   산간 19곳+가파도 r 을 확대(최대 7000m)해 66곳 전건 커버 — 상세가 "반경 Nm 일대"로 표시.
 
 import {
   LEVEL_COLORS,
@@ -57,17 +69,17 @@ export const JEJU_SPOTS: JejuSpotDef[] = [
   { name: "함덕해수욕장·서우봉", category: "해변", lat: 33.5434, lng: 126.6694, r: 800 },
   { name: "김녕해수욕장", category: "해변", lat: 33.5578, lng: 126.7595, r: 600 },
   { name: "만장굴", category: "관광지", lat: 33.5283, lng: 126.7715, r: 500 },
-  { name: "비자림", category: "오름·자연", lat: 33.4907, lng: 126.8095, r: 600 },
+  { name: "비자림", category: "오름·자연", lat: 33.4907, lng: 126.8095, r: 1500 },
   { name: "월정리해변", category: "해변", lat: 33.5565, lng: 126.796, r: 600 },
   { name: "세화해변·세화시장", category: "해변", lat: 33.5253, lng: 126.8603, r: 600 },
-  { name: "다랑쉬오름", category: "오름·자연", lat: 33.4813, lng: 126.8253, r: 500 },
-  { name: "용눈이오름", category: "오름·자연", lat: 33.457, lng: 126.832, r: 500 },
-  { name: "아부오름", category: "오름·자연", lat: 33.4476, lng: 126.7797, r: 500 },
-  { name: "산굼부리", category: "오름·자연", lat: 33.434, lng: 126.6885, r: 500 },
-  { name: "에코랜드 테마파크", category: "관광지", lat: 33.4585, lng: 126.6673, r: 600 },
-  { name: "제주돌문화공원", category: "관광지", lat: 33.4405, lng: 126.6605, r: 600 },
-  { name: "절물자연휴양림", category: "오름·자연", lat: 33.4415, lng: 126.6325, r: 700 },
-  { name: "사려니숲길", category: "오름·자연", lat: 33.4235, lng: 126.6333, r: 900 },
+  { name: "다랑쉬오름", category: "오름·자연", lat: 33.4813, lng: 126.8253, r: 5000 },
+  { name: "용눈이오름", category: "오름·자연", lat: 33.457, lng: 126.832, r: 2000 },
+  { name: "아부오름", category: "오름·자연", lat: 33.4476, lng: 126.7797, r: 2000 },
+  { name: "산굼부리", category: "오름·자연", lat: 33.434, lng: 126.6885, r: 1000 },
+  { name: "에코랜드 테마파크", category: "관광지", lat: 33.4585, lng: 126.6673, r: 800 },
+  { name: "제주돌문화공원", category: "관광지", lat: 33.4405, lng: 126.6605, r: 1500 },
+  { name: "절물자연휴양림", category: "오름·자연", lat: 33.4415, lng: 126.6325, r: 1000 },
+  { name: "사려니숲길", category: "오름·자연", lat: 33.4235, lng: 126.6333, r: 2000 },
   { name: "거문오름", category: "오름·자연", lat: 33.456, lng: 126.7205, r: 600 },
   // ── 성산·표선 (동남)
   { name: "성산일출봉", category: "오름·자연", lat: 33.4587, lng: 126.9423, r: 1200 },
@@ -84,11 +96,11 @@ export const JEJU_SPOTS: JejuSpotDef[] = [
   { name: "서귀포매일올레시장", category: "시장·거리", lat: 33.25, lng: 126.563, r: 450 },
   { name: "천지연폭포", category: "폭포·계곡", lat: 33.2447, lng: 126.5545, r: 500 },
   { name: "외돌개·황우지해안", category: "오름·자연", lat: 33.239, lng: 126.542, r: 500 },
-  { name: "돈내코 원앙폭포", category: "폭포·계곡", lat: 33.2828, lng: 126.5838, r: 500 },
+  { name: "돈내코 원앙폭포", category: "폭포·계곡", lat: 33.2828, lng: 126.5838, r: 800 },
   // ── 중문·안덕·대정 (서남)
   { name: "중문관광단지", category: "관광지", lat: 33.248, lng: 126.412, r: 1000 },
   { name: "대포주상절리", category: "오름·자연", lat: 33.2377, lng: 126.4255, r: 500 },
-  { name: "박수기정·대평포구", category: "섬·포구", lat: 33.238, lng: 126.3945, r: 400 },
+  { name: "박수기정·대평포구", category: "섬·포구", lat: 33.238, lng: 126.3945, r: 800 },
   { name: "카멜리아힐", category: "관광지", lat: 33.2895, lng: 126.3685, r: 500 },
   { name: "제주신화월드", category: "관광지", lat: 33.3055, lng: 126.32, r: 900 },
   { name: "오설록 티뮤지엄", category: "관광지", lat: 33.3057, lng: 126.2895, r: 600 },
@@ -96,23 +108,23 @@ export const JEJU_SPOTS: JejuSpotDef[] = [
   { name: "사계해변", category: "해변", lat: 33.2258, lng: 126.2965, r: 600 },
   { name: "화순금모래해수욕장", category: "해변", lat: 33.2385, lng: 126.339, r: 500 },
   { name: "송악산", category: "오름·자연", lat: 33.2005, lng: 126.29, r: 700 },
-  { name: "가파도", category: "섬·포구", lat: 33.1735, lng: 126.2725, r: 1200 },
+  { name: "가파도", category: "섬·포구", lat: 33.1735, lng: 126.2725, r: 4000 },
   { name: "모슬포항(운진항)", category: "섬·포구", lat: 33.2145, lng: 126.251, r: 500 },
-  { name: "수월봉·차귀도포구", category: "섬·포구", lat: 33.302, lng: 126.165, r: 900 },
+  { name: "수월봉·차귀도포구", category: "섬·포구", lat: 33.302, lng: 126.165, r: 1500 },
   // ── 한림·애월 (서북)
   { name: "신창풍차해안도로", category: "해변", lat: 33.3445, lng: 126.178, r: 700 },
   { name: "협재·금능해수욕장", category: "해변", lat: 33.392, lng: 126.2375, r: 800 },
   { name: "한림매일시장", category: "시장·거리", lat: 33.4128, lng: 126.2622, r: 400 },
-  { name: "금오름", category: "오름·자연", lat: 33.352, lng: 126.306, r: 500 },
-  { name: "새별오름", category: "오름·자연", lat: 33.368, lng: 126.3595, r: 600 },
+  { name: "금오름", category: "오름·자연", lat: 33.352, lng: 126.306, r: 1000 },
+  { name: "새별오름", category: "오름·자연", lat: 33.368, lng: 126.3595, r: 800 },
   { name: "애월한담해안산책로", category: "해변", lat: 33.4642, lng: 126.312, r: 600 },
   { name: "곽지해수욕장", category: "해변", lat: 33.4508, lng: 126.305, r: 600 },
   // ── 한라산
-  { name: "1100고지 습지", category: "한라산", lat: 33.3565, lng: 126.462, r: 500 },
-  { name: "어리목 탐방로", category: "한라산", lat: 33.3925, lng: 126.4955, r: 500 },
-  { name: "영실 탐방로", category: "한라산", lat: 33.348, lng: 126.478, r: 500 },
-  { name: "성판악 탐방로", category: "한라산", lat: 33.3852, lng: 126.6195, r: 500 },
-  { name: "한라산 백록담", category: "한라산", lat: 33.3617, lng: 126.5292, r: 500 },
+  { name: "1100고지 습지", category: "한라산", lat: 33.3565, lng: 126.462, r: 7000 },
+  { name: "어리목 탐방로", category: "한라산", lat: 33.3925, lng: 126.4955, r: 5000 },
+  { name: "영실 탐방로", category: "한라산", lat: 33.348, lng: 126.478, r: 7000 },
+  { name: "성판악 탐방로", category: "한라산", lat: 33.3852, lng: 126.6195, r: 3000 },
+  { name: "한라산 백록담", category: "한라산", lat: 33.3617, lng: 126.5292, r: 5000 },
 ]
 
 interface GeonetRow {
