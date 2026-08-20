@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "표준주소실록 웹서비스와 크롬 확장 프로그램의 데이터 처리 방침",
 }
 
-const UPDATED = "2026-08-02"
+const UPDATED = "2026-08-20"
 
 export default function PrivacyPage() {
   return (
@@ -81,13 +81,20 @@ export default function PrivacyPage() {
                 주소 형태가 아니면 아무 일도 일어나지 않고 외부로 나가지 않는다.
               </li>
               <li>
-                주소 형태로 판정되면 <b>그 주소 문자열이</b>{" "}
+                주소 형태로 판정되면 <b>그 중 주소로 인식된 구간만</b>{" "}
                 <code className="rounded bg-slate-100 px-1">https://gjdong.vercel.app/api/resolve-address</code>{" "}
-                로 전송되어 변환된다. 페이지의 다른 내용, 열람 기록, 쿠키는 전송하지 않는다.
+                로 전송되어 변환된다. 표의 한 행처럼 여러 항목이 함께 복사된 경우 주소 이외의
+                칸은 잘라내고, 남은 문자열에 주민등록번호·전화번호·이메일 형태가 있으면 지운 뒤
+                보낸다. 페이지의 다른 내용, 열람 기록, 쿠키는 전송하지 않는다.
               </li>
               <li>
-                이 자동 감지는 <b>기본으로 켜져 있다.</b> 확장 설정 화면의 &ldquo;클립보드 자동 감지&rdquo;를
-                끄면 복사 후킹과 전송이 모두 중단된다.
+                이 자동 감지는 <b>기본으로 꺼져 있다.</b> 확장 설정 화면의 &ldquo;클립보드 자동 감지&rdquo;를
+                직접 켠 경우에만 동작하며, 다시 끄면 복사 후킹과 전송이 모두 중단된다.
+              </li>
+              <li>
+                <b>업무시스템에서는 사용하지 않기를 권한다.</b> 새올·업무포털 등 민원인 개인정보를
+                다루는 행정정보시스템 화면에서 이 확장을 쓰면 선택한 텍스트가 외부 서버로 나간다.
+                이 도구는 어떤 기관의 반출 승인도 받지 않았다.
               </li>
               <li>변환 이력·즐겨찾기·설정은 브라우저의 확장 저장소에만 보관된다.</li>
             </ul>
@@ -104,6 +111,18 @@ export default function PrivacyPage() {
               방문자 수 표시를 위해 외부 카운터(hitscounter.dev) 이미지를 불러온다. 이 요청에는
               브라우저가 통상 보내는 정보(IP·User-Agent)가 포함될 수 있다.
             </p>
+            <p className="mt-3">
+              <b>국외 이전 고지</b>: 이 서비스는 Vercel Inc.의 호스팅에서 동작하며, 주소 변환을
+              처리하는 서버리스 함수는 <b>미국(워싱턴 D.C., iad1)</b> 리전에서 실행된다. 따라서
+              입력한 주소 문자열은 변환을 위해 미국에 위치한 서버를 거친다. 이전 항목은 입력한
+              주소·시설명 문자열과 요청 처리에 수반되는 접속 정보(IP·User-Agent)이며, 이전 시점은
+              서비스 이용 시 수시, 이전 방법은 HTTPS 암호화 전송이다. 서버는 이 값을 저장하지
+              않으므로 별도 보유 기간이 없다. 주소 조회 자체는 국내 사업자인 카카오의 API로
+              이루어진다.
+            </p>
+            <p className="mt-2 text-slate-600">
+              브라우저를 닫거나 이 서비스를 이용하지 않으면 국외 이전은 발생하지 않는다.
+            </p>
             <p className="mt-2 text-slate-600">
               페이지별 이용 통계는{" "}
               <a className="underline" href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel Web Analytics</a>로
@@ -118,9 +137,8 @@ export default function PrivacyPage() {
             <p className="mt-2">
               처리방침에 대한 문의나 정정·삭제 요청은{" "}
               <a className="underline" href="mailto:ryuseungin@gmail.com">ryuseungin@gmail.com</a> 으로
-              보내면 된다. 소스코드는{" "}
-              <a className="underline" href="https://github.com/chrisryugj/gjdong" target="_blank" rel="noopener noreferrer">GitHub</a>
-              에 공개되어 있어 처리 방식을 직접 확인할 수 있다.
+              보내면 된다. 처리 방식에 대한 확인이 필요하면 같은 주소로 요청하면 관련 코드와
+              설정을 제공한다.
             </p>
           </section>
         </div>

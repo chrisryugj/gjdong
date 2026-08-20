@@ -84,7 +84,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   showMapLink: true,
   showMiniMap: true,
   mapProvider: "naver",
-  enableClipboardDetect: true,
+  // 복사한 텍스트가 외부 서버로 나가는 동작이라 기본은 꺼둔다 (opt-in).
+  // 설정 화면에서 이용자가 직접 켜야 동작한다.
+  enableClipboardDetect: false,
   clipboardAction: "popup",
   contextMenuAction: "inline",
   popupMode: "reuse",

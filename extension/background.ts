@@ -1,21 +1,17 @@
 import { Storage } from "@plasmohq/storage"
 import { type ExtensionSettings, DEFAULT_SETTINGS } from "~lib/types"
 import { getFieldValue } from "~lib/format"
+import { extractAddress } from "~lib/address-extract"
 
 export {}
 
 const storage = new Storage()
 const DEFAULT_API_URL = "https://gjdong.vercel.app"
 
-// 네이버 지도 등에서 복사 시 "복사", "지번", "도로명" UI 텍스트 제거
-function cleanAddress(raw: string): string {
-  return raw
-    .replace(/복사\s*$/gm, "")
-    .replace(/^(?:지번|도로명|우편번호)\s*/gm, "")
-    .split("\n")
-    .map(l => l.trim())
-    .filter(l => l.length >= 4)[0]
-    || raw.replace(/복사\s*$/g, "").trim()
+// 선택·클립보드 텍스트에서 주소 구간만 추출 (UI 잔여물 제거 + 개인정보 분리).
+// 주소로 보이는 구간이 없으면 null — 그 경우 변환을 시도하지 않는다.
+function cleanAddress(raw: string): string | null {
+  return extractAddress(raw)
 }
 
 function validateApiBaseUrl(url: string): string {
@@ -112,6 +108,10 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "convert-address" && info.selectionText) {
     const address = cleanAddress(info.selectionText.trim())
+    if (!address) {
+      showNotification("변환 실패", "선택한 내용에서 주소를 찾지 못했습니다.")
+      return
+    }
 
     const settings = await storage.get<ExtensionSettings>("settings")
     const action = settings?.contextMenuAction || "inline"
@@ -149,7 +149,9 @@ chrome.commands.onCommand.addListener(async (command) => {
       }
     })
     const raw = results?.[0]?.result?.trim()
-    if (raw) await convertAndNotify(cleanAddress(raw), tab.id)
+    const address = raw ? cleanAddress(raw) : null
+    if (address) await convertAndNotify(address, tab.id)
+    else showNotification("변환 실패", "클립보드에서 주소를 찾지 못했습니다.")
   } catch {
     // 단축키 실행 실패 - 무시
   }
@@ -175,7 +177,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "clipboard-address-detected" && message.text) {
     if (typeof message.text !== "string" || message.text.length > 200) return false
-    handleClipboardDetect(cleanAddress(message.text), sender.tab.id)
+    const address = cleanAddress(message.text)
+    if (address) handleClipboardDetect(address, sender.tab.id)
   }
   return false
 })
