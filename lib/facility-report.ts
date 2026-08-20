@@ -16,9 +16,12 @@ export function buildReportHtml(opts: {
   mapImage: string | null
   generatedAt: string
   title?: string
+  totalCount?: number // 필터 전 전체 시설 수 (부분 집합 보고서임을 표시)
+  filterSummary?: string // 적용된 필터/검색 조건 요약
 }): string {
-  const { facilities, styles, mapImage, generatedAt } = opts
+  const { facilities, styles, mapImage, generatedAt, totalCount, filterSummary } = opts
   const title = opts.title || "시설 현황 보고서"
+  const isFiltered = typeof totalCount === "number" && totalCount !== facilities.length
 
   // 분류별 집계
   const counts = new Map<string, number>()
@@ -83,11 +86,13 @@ export function buildReportHtml(opts: {
   <div class="toolbar"><button class="btn" onclick="window.print()">🖨 인쇄 / PDF 저장</button></div>
   <div class="sheet">
     <h1>${esc(title)}</h1>
-    <div class="meta">생성일: ${esc(generatedAt)}</div>
+    <div class="meta">생성일: ${esc(generatedAt)}${
+      filterSummary ? ` · 적용 조건: ${esc(filterSummary)}` : ""
+    }${isFiltered ? ` (전체 ${totalCount}개 중 ${facilities.length}개)` : ""}</div>
 
     <h2>총괄</h2>
     <div class="summary">
-      <div class="card"><div class="big">${facilities.length}</div><div class="lbl">전체 시설</div></div>
+      <div class="card"><div class="big">${facilities.length}</div><div class="lbl">${isFiltered ? "조회 시설" : "전체 시설"}</div></div>
       <div class="card"><div class="big">${counts.size}</div><div class="lbl">분류 수</div></div>
     </div>
     <table>
