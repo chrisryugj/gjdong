@@ -82,13 +82,13 @@ async function mapPool(items, size, fn) {
   return results
 }
 
-// 404(= data 브랜치·파일 없음)만 "최초 수집"으로 보고 빈 상태에서 시작한다.
-// 네트워크·5xx·파싱 실패는 기존 누적이 살아있는데 못 읽은 것이므로 중단한다.
+// 404도 중단 사유다 — 레포가 private이면 파일이 멀쩡해도 raw는 404를 준다.
+// 그때 404를 "최초 수집"으로 보면 force_orphan 발행이 누적을 히스토리째 지운다
+// (2026-08-20 실제로 서울·제주 누적 전량 유실). 진짜 최초 수집은 FRESH=1로 명시한다.
 async function loadPrev(tries = 3) {
   for (let i = 1; ; i++) {
     try {
       const res = await fetch(PREV_URL, { cache: "no-store" })
-      if (res.status === 404) return null
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
     } catch (err) {

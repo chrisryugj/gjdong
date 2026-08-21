@@ -26,12 +26,15 @@ interface HeatEntry {
 }
 const zeros = () => Array.from({ length: 7 }, () => new Array(24).fill(0))
 
-/** 이전 누적을 못 읽으면 발행하지 않는다 — 빈 결과로 덮으면 그동안 쌓은 게 복구 불가능하게 사라진다 */
+/**
+ * 이전 누적을 못 읽으면 발행하지 않는다 — 빈 결과로 덮으면 그동안 쌓은 게 복구 불가능하게 사라진다.
+ * 404도 마찬가지다: 레포가 private이면 파일이 멀쩡해도 raw는 404다(2026-08-20 누적 전량 유실).
+ * 진짜 최초 수집은 FRESH=1 로 명시한다.
+ */
 async function loadHeatmap(): Promise<{ lastSlot: number; spots: Record<string, HeatEntry> } | null> {
   for (let i = 1; ; i++) {
     try {
       const res = await fetch(HEATMAP_URL, { cache: "no-store" })
-      if (res.status === 404) return { lastSlot: 0, spots: {} } // 최초 수집
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const d = (await res.json()) as { lastSlot?: number; spots?: Record<string, HeatEntry> }
       return { lastSlot: Number.isFinite(d.lastSlot) ? (d.lastSlot as number) : 0, spots: d.spots ?? {} }
@@ -232,7 +235,10 @@ async function main() {
   )
 
   // ── 요일×시간 누적
-  const prev = await loadHeatmap()
+  const prev =
+    process.env.FRESH === "1"
+      ? { lastSlot: 0, spots: {} as Record<string, HeatEntry> }
+      : await loadHeatmap()
   if (!prev) throw new Error("이전 누적을 읽지 못했다")
   const spots = prev.spots
   let maxSlot = prev.lastSlot
