@@ -2,32 +2,10 @@
 
 import { useMemo, useState } from "react"
 import type { OntoGraph, OntoNode } from "@/lib/dumping/types"
+import { helpForKeys, propLabel, relLabel, typeLabel } from "@/lib/dumping/labels"
 import { SPACE_COLOR, SPACE_KO } from "./ontology-graph"
 
 // 온톨로지 탭 좌측: 검색·space 필터·노드 리스트 + 선택 노드 상세(속성·관계 따라가기)
-
-const PROP_KO: Record<string, string> = {
-  statement: "주장",
-  summary: "요약",
-  confidence: "신뢰도",
-  coefficient: "표준화 β",
-  p_value: "p값",
-  variable: "변수명",
-  definition: "정의",
-  unit: "단위",
-  rows: "행 수",
-  industry: "구분",
-  domain: "출처",
-  category: "분류",
-  severity: "심각도",
-  probability: "확률",
-  beta: "β",
-  note: "노트",
-}
-
-function propLabel(k: string): string {
-  return PROP_KO[k] ?? k
-}
 
 interface OntoPanelProps {
   graph: OntoGraph | null
@@ -66,7 +44,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
   }, [graph, selectedId])
 
   if (!graph) {
-    return <div className="p-4 text-sm text-[var(--cp-text-dim)]">온톨로지 로딩 중…</div>
+    return <div className="p-4 text-base text-[var(--cp-text-dim)]">온톨로지 로딩 중…</div>
   }
 
   return (
@@ -75,38 +53,90 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
         <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <div className="mb-1.5 flex items-start justify-between gap-2">
             <span
-              className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium"
+              className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-[12px] font-medium"
               style={{ background: `${SPACE_COLOR[selected.space]}22`, color: SPACE_COLOR[selected.space] }}
             >
               <i className="h-1.5 w-1.5 rounded-full" style={{ background: SPACE_COLOR[selected.space] }} />
-              {SPACE_KO[selected.space] ?? selected.space} · {selected.type}
+              {SPACE_KO[selected.space] ?? selected.space} · {typeLabel(selected.type)}
             </span>
             <button
               onClick={() => onSelect(null)}
-              className="text-[11px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+              className="text-[13px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
             >
               닫기
             </button>
           </div>
-          <h4 className="text-[14px] font-semibold leading-snug text-[var(--cp-text-strong)]">
+          <h4 className="text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">
             {selected.label}
           </h4>
+          {(() => {
+            // p값이 있으면 유의/비유의 판정 배지 — 숫자만 판정 (">0.5" 같은 문자열은 비유의로)
+            if (selected.props.retracted !== undefined) return null
+            const raw = selected.props.p_value ?? selected.props.p
+            if (raw === undefined) return null
+            const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/[^0-9.]/g, ""))
+            if (Number.isNaN(num)) return null
+            const sig = num < 0.05
+            return (
+              <span
+                className={`mt-1.5 inline-block rounded px-2 py-0.5 text-[12px] font-semibold ${
+                  sig ? "bg-[#0c6155]/12 text-[#0a4a41]" : "bg-[var(--cp-hover2)] text-[var(--cp-text-dim)]"
+                }`}
+              >
+                {sig ? "✓ 통계적으로 유의 (우연 아님)" : "유의하지 않음 (우연 가능성)"}
+              </span>
+            )
+          })()}
+          {selected.props["쉬운 설명"] !== undefined && (
+            <p className="mt-1.5 rounded-lg bg-[var(--cp-hover)] px-2.5 py-2 text-[14px] leading-relaxed text-[var(--cp-text)]">
+              {String(selected.props["쉬운 설명"])}
+            </p>
+          )}
+          {selected.props.retracted !== undefined && (
+            <p className="mt-1.5 rounded-lg border border-red-500/40 bg-red-500/5 px-2 py-1.5 text-[13px] leading-relaxed text-red-700">
+              <b>철회됨</b> · {String(selected.props.retracted)}
+            </p>
+          )}
           <dl className="mt-2 flex flex-col gap-1">
             {Object.entries(selected.props)
-              .filter(([k, v]) => !["name", "statement", "summary"].includes(k) && v !== "" && v !== 0)
+              .filter(
+                ([k, v]) =>
+                  !["name", "statement", "summary", "retracted", "쉬운 설명"].includes(k) &&
+                  v !== "" &&
+                  v !== 0,
+              )
               .map(([k, v]) => (
-                <div key={k} className="flex gap-2 text-[12px]">
-                  <dt className="w-20 shrink-0 text-[var(--cp-text-dim)]">{propLabel(k)}</dt>
+                <div key={k} className="flex gap-2 text-[14px]">
+                  <dt className="w-24 shrink-0 text-[var(--cp-text-dim)]">{propLabel(k)}</dt>
                   <dd className="font-mono text-[var(--cp-text)]">{String(v)}</dd>
                 </div>
               ))}
           </dl>
+          {(() => {
+            const keys = [
+              ...Object.keys(selected.props),
+              ...related.out.flatMap((e) => Object.keys(e.props ?? {})),
+              ...related.into.flatMap((e) => Object.keys(e.props ?? {})),
+            ]
+            const helps = helpForKeys(keys)
+            if (!helps.length) return null
+            return (
+              <div className="mt-2 rounded-lg border border-dashed border-[var(--cp-border)] px-2.5 py-2">
+                <p className="mb-1 text-[12px] font-semibold text-[var(--cp-text-dim)]">쉬운 풀이</p>
+                {helps.map((h) => (
+                  <p key={h} className="text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+                    {h}
+                  </p>
+                ))}
+              </div>
+            )
+          })()}
           {(["out", "into"] as const).map((dir) => {
             const edges = related[dir]
             if (!edges.length) return null
             return (
               <div key={dir} className="mt-3">
-                <h5 className="mb-1 text-[11px] font-medium text-[var(--cp-text-dim)]">
+                <h5 className="mb-1 text-[13px] font-medium text-[var(--cp-text-dim)]">
                   {dir === "out" ? "나가는 관계" : "들어오는 관계"} {edges.length}
                 </h5>
                 <div className="flex flex-col gap-1">
@@ -119,14 +149,14 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
                         onClick={() => onSelect(otherId)}
                         className="rounded-lg border border-[var(--cp-border-faint)] px-2 py-1.5 text-left hover:bg-[var(--cp-hover)]"
                       >
-                        <span className="font-mono text-[10px] text-[#39a189]">
-                          {dir === "out" ? `--${e.rel}-->` : `<--${e.rel}--`}
+                        <span className="rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[12px] font-medium text-[#0c6155]">
+                          {dir === "out" ? `${relLabel(e.rel)} →` : `← ${relLabel(e.rel)}`}
                         </span>{" "}
-                        <span className="text-[12px] text-[var(--cp-text)]">{other?.label ?? otherId}</span>
+                        <span className="text-[14px] text-[var(--cp-text)]">{other?.label ?? otherId}</span>
                         {e.props && (
-                          <span className="mt-0.5 block font-mono text-[10px] text-[var(--cp-text-faint)]">
+                          <span className="mt-0.5 block font-mono text-[12px] text-[var(--cp-text-faint)]">
                             {Object.entries(e.props)
-                              .map(([k, v]) => `${k}=${v}`)
+                              .map(([k, v]) => `${propLabel(k)} ${v}`)
                               .join(" · ")}
                           </span>
                         )}
@@ -139,9 +169,9 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
           })}
         </div>
       ) : (
-        <p className="rounded-lg border border-[var(--cp-border-faint)] px-3 py-2 text-[12px] leading-relaxed text-[var(--cp-text-dim)]">
-          오른쪽 그래프나 아래 목록에서 노드를 고르면 속성과 관계가 여기 나온다. β·p값 같은 검증
-          결과는 관계에 저장되어 있다.
+        <p className="rounded-lg border border-[var(--cp-border-faint)] px-3 py-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
+          오른쪽 그래프나 아래 목록에서 항목을 고르면 내용과 연결 관계가 여기 나온다. β·p값 같은
+          검증 수치에는 쉬운 풀이가 함께 붙는다.
         </p>
       )}
 
@@ -149,7 +179,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="노드 검색 (라벨·id)"
-        className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[13px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
+        className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[15px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
       />
       <div className="flex flex-wrap gap-1">
         {Object.entries(SPACE_KO).map(([space, ko]) => {
@@ -158,7 +188,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
             <button
               key={space}
               onClick={() => setSpaceFilter(on ? null : space)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] transition-colors ${
                 on
                   ? "border-[var(--cp-border-active)] bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
                   : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
@@ -181,12 +211,12 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
             }`}
           >
             <i className="h-2 w-2 shrink-0 rounded-full" style={{ background: SPACE_COLOR[n.space] }} />
-            <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--cp-text)]">{n.label}</span>
-            <span className="shrink-0 font-mono text-[10px] text-[var(--cp-text-faint)]">{n.type}</span>
+            <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{n.label}</span>
+            <span className="shrink-0 text-[12px] text-[var(--cp-text-faint)]">{typeLabel(n.type)}</span>
           </button>
         ))}
         {!filtered.length && (
-          <p className="px-2 py-3 text-center text-[12px] text-[var(--cp-text-dim)]">검색 결과 없음</p>
+          <p className="px-2 py-3 text-center text-[14px] text-[var(--cp-text-dim)]">검색 결과 없음</p>
         )}
       </div>
     </div>

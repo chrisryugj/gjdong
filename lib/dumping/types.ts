@@ -19,11 +19,39 @@ export interface DongRow {
   o: number // 표시 순서
 }
 
+// [lat, lng, 라벨, 행정동]
+export type InfraPoint = [number, number, string, string]
+
+export interface InfraLayers {
+  cctvFixed: InfraPoint[]
+  cctvMobile: InfraPoint[]
+  recycling: InfraPoint[]
+  bins: InfraPoint[]
+}
+
+export type InfraLayerId = keyof InfraLayers
+
+// [lat, lng, 민원, 과태료, 행정동, 대표주소] — 재배치 후보(자원배분 논리, 통계 효과 근거 아님)
+// 대표주소 = 해당 격자에 지오코딩된 민원 중 최빈 주소
+export type CctvCandidate = [number, number, number, number, string, string]
+
 export interface DumpingMapData {
   grid: GridCell[]
   ring: [number, number][]
   dong: DongRow[]
   ts: Record<string, (number | null)[]> // 청년비율 2015→2025
+  // 동별 실제 행정동 경계 링 목록 (vuski/admdongkor) — [ [lat,lng][], ... ]
+  dongOutlines: Record<string, [number, number][][]>
+  infra: InfraLayers
+  cctvCandidates: CctvCandidate[]
+}
+
+// 발견 카드·예시 질문이 지도에 거는 시각화 지시
+export interface VizAction {
+  mode?: MapMode
+  layers?: InfraLayerId[]
+  candidates?: boolean
+  dong?: string | null
 }
 
 export interface OntoNode {

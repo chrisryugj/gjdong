@@ -2,32 +2,51 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap, Renderer } from "leaflet"
-import type { DumpingMapData, GridCell, MapMode } from "@/lib/dumping/types"
+import type {
+  CctvCandidate,
+  DumpingMapData,
+  GridCell,
+  InfraLayerId,
+  MapMode,
+} from "@/lib/dumping/types"
 
-// 100m 격자 choropleth — 960셀이라 canvas 렌더러 필수 (SVG 노드 폭발 회피, crowd-map gjTraffic 규약)
-// 타일은 Esri 다크 캔버스 — CARTO basemaps는 2026-08 현재 무키 호출에 "API KEY REQUIRED" 워터마크
-const TILE_URL =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-const TILE_ATTR = "Esri, HERE, Garmin &copy; OpenStreetMap contributors"
+// 100m 격자 choropleth — 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
+// 타일: OSM 표준 + CSS grayscale 뮤트(globals.css .dumping-map) — CARTO는 무키 워터마크,
+// Esri Light Gray는 한국 z14+ 미제공("Map data not yet available") 실측
+const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
-// report.html 다크 팔레트 계승
-const PAL = ["#1b2422", "#1f3b35", "#265448", "#2f7566", "#39a189", "#57ceb0"]
-const DOT = "#e0776c"
+// 모드별 팔레트를 분리해 "지금 뭘 보고 있는지"가 색으로 구분되게 한다
+// 원인(무관리주거)=초록 · 민원=파랑 · 과태료=주황
+export const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
+export const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
+export const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
+const DOT = "#a8322a"
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 
-const MODE_DEF: Record<MapMode, { idx: 4 | 5 | 6; stops: number[]; unit: string }> = {
-  overlay: { idx: 6, stops: UNM_STOPS, unit: "세대" },
-  unm: { idx: 6, stops: UNM_STOPS, unit: "세대" },
-  comp: { idx: 4, stops: CNT_STOPS, unit: "건" },
-  enf: { idx: 5, stops: CNT_STOPS, unit: "건" },
+export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }> = {
+  cctvFixed: { color: "#b45309", label: "고정 CCTV" },
+  cctvMobile: { color: "#7c3aed", label: "이동식 CCTV" },
+  recycling: { color: "#059669", label: "재활용정거장" },
+  bins: { color: "#475569", label: "가로쓰레기통" },
 }
 
-function colorOf(v: number, stops: number[]): string {
+export const MODE_DEF: Record<
+  MapMode,
+  { idx: 4 | 5 | 6; stops: number[]; unit: string; pal: string[]; legend: string }
+> = {
+  overlay: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거(초록 바탕)" },
+  unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거" },
+  comp: { idx: 4, stops: CNT_STOPS, unit: "건", pal: PAL_BLUE, legend: "민원" },
+  enf: { idx: 5, stops: CNT_STOPS, unit: "건", pal: PAL_AMBER, legend: "과태료" },
+}
+
+function colorOf(v: number, stops: number[], pal: string[]): string {
   for (let i = stops.length - 1; i >= 0; i--) {
-    if (v > stops[i]) return PAL[Math.min(i + 1, 5)]
+    if (v > stops[i]) return pal[Math.min(i + 1, 5)]
   }
-  return PAL[0]
+  return pal[0]
 }
 
 function escapeHtml(s: string): string {
@@ -42,18 +61,48 @@ function cellTooltip(cell: GridCell, mode: MapMode): string {
   return `<b>${dong}</b><br/>${label} ${cell[MODE_DEF[mode].idx]}${MODE_DEF[mode].unit}`
 }
 
+function candidateTooltip(rank: number, c: CctvCandidate): string {
+  return (
+    `<b>재배치 후보 ${rank}위</b> · ${escapeHtml(c[4])}<br/>` +
+    `<b>${escapeHtml(c[5] || "주소 미상 (격자 중심)")}</b> 인근<br/>` +
+    `민원 ${c[2]}건 · 과태료 ${c[3]}건<br/>` +
+    `<span style="color:#a8322a">발생이력 기준 자원배분 논리. 통계 효과 근거 아님</span>`
+  )
+}
+
+export interface CandidateFocus {
+  seq: number // 같은 후보를 연속 클릭해도 flyTo가 다시 일어나게 하는 시퀀스
+  latlng: [number, number]
+}
+
 interface DumpingMapProps {
   data: DumpingMapData | null
   mode: MapMode
   selectedDong: string | null
+  layers: InfraLayerId[]
+  showCandidates: boolean
+  focusCandidate: CandidateFocus | null
+  resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
 }
 
-export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps) {
+export default function DumpingMap({
+  data,
+  mode,
+  selectedDong,
+  layers,
+  showCandidates,
+  focusCandidate,
+  resetSeq,
+}: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
+  const infraRendererRef = useRef<Renderer | null>(null)
   const gridLayerRef = useRef<LayerGroup | null>(null)
+  const dongLayerRef = useRef<LayerGroup | null>(null)
+  const infraLayerRef = useRef<LayerGroup | null>(null)
   const boundaryDrawn = useRef(false)
+  const prevDongRef = useRef<string | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
   const [ready, setReady] = useState(false)
 
@@ -69,16 +118,24 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
         center: [37.546, 127.085],
         zoom: 14,
         zoomSnap: 0.25,
-        wheelPxPerZoomLevel: 120,
+        wheelPxPerZoomLevel: 45,
         wheelDebounceTime: 20,
       })
-      L.tileLayer(TILE_URL, { maxZoom: 16, maxNativeZoom: 16, attribution: TILE_ATTR }).addTo(map)
+      L.tileLayer(TILE_URL, { maxZoom: 18, attribution: TILE_ATTR }).addTo(map)
       L.control.zoom({ position: "bottomright" }).addTo(map)
-      map.createPane("dumpGrid").style.zIndex = "340"
+      const gridPane = map.createPane("dumpGrid")
+      gridPane.style.zIndex = "340"
+      gridPane.style.transition = "opacity .35s ease" // 모드 전환 크로스페이드
       rendererRef.current = L.canvas({ pane: "dumpGrid" })
+      const infraPane = map.createPane("dumpInfra")
+      infraPane.style.zIndex = "360"
+      infraRendererRef.current = L.canvas({ pane: "dumpInfra" })
       const boundaryPane = map.createPane("dumpBoundary")
       boundaryPane.style.zIndex = "330"
       boundaryPane.style.pointerEvents = "none"
+      const dongPane = map.createPane("dumpDong")
+      dongPane.style.zIndex = "350"
+      dongPane.style.pointerEvents = "none"
       mapRef.current = map
       setReady(true)
     }
@@ -88,7 +145,10 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
       mapRef.current?.remove()
       mapRef.current = null
       rendererRef.current = null
+      infraRendererRef.current = null
       gridLayerRef.current = null
+      dongLayerRef.current = null
+      infraLayerRef.current = null
       boundaryDrawn.current = false
       setReady(false)
     }
@@ -110,15 +170,15 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
       L.polygon([world, data.ring], {
         pane: "dumpBoundary",
         stroke: false,
-        fillColor: "#05070a",
-        fillOpacity: 0.55,
+        fillColor: "#ffffff",
+        fillOpacity: 0.6,
         interactive: false,
       }).addTo(map)
       L.polyline([...data.ring, data.ring[0]], {
         pane: "dumpBoundary",
-        color: "#94a3b8",
+        color: "#64748b",
         weight: 1.8,
-        opacity: 0.7,
+        opacity: 0.8,
         dashArray: "2 6",
         interactive: false,
       }).addTo(map)
@@ -127,7 +187,7 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
     void draw()
   }, [data, ready])
 
-  // 격자 레이어 — 모드·선택동 변경마다 재구축 (960셀 canvas, 재구축 비용 낮음)
+  // 격자 레이어 — 모드·선택동 변경마다 재구축 (canvas라 재구축 비용 낮음)
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -137,10 +197,12 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
       gridLayerRef.current?.remove()
       const group = L.layerGroup()
       const def = MODE_DEF[mode]
+      // 인프라·후보 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
+      const muted = layers.length > 0 || showCandidates
 
       for (const cell of data.grid) {
         const v = cell[def.idx]
-        const dimmed = selectedDong !== null && cell[7] !== selectedDong
+        const dimmed = (selectedDong !== null && cell[7] !== selectedDong) || muted
         if (v > 0) {
           L.rectangle(
             [
@@ -151,8 +213,8 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
               pane: "dumpGrid",
               renderer,
               stroke: false,
-              fillColor: colorOf(v, def.stops),
-              fillOpacity: dimmed ? 0.15 : 0.75,
+              fillColor: colorOf(v, def.stops, def.pal),
+              fillOpacity: dimmed ? (muted ? 0.25 : 0.18) : 0.8,
             },
           )
             .bindTooltip(cellTooltip(cell, mode), { sticky: true, direction: "top", opacity: 1 })
@@ -161,19 +223,19 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
       }
 
       if (mode === "overlay") {
-        // 결과(민원)를 원으로 얹음 — 원인 바탕 위 결과, report.html 겹쳐보기 계승
+        // 결과(민원)를 원으로 얹음 — 원인 바탕 위 결과
         const busy = data.grid.filter((c) => c[4] > 0).sort((a, b) => b[4] - a[4])
         for (const cell of busy) {
-          const dimmed = selectedDong !== null && cell[7] !== selectedDong
+          const dimmed = (selectedDong !== null && cell[7] !== selectedDong) || muted
           L.circleMarker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
             radius: 2 + Math.pow(cell[4], 0.6) * 1.4,
             color: DOT,
             weight: 1.1,
-            opacity: dimmed ? 0.25 : 0.8,
+            opacity: dimmed ? 0.15 : 0.75,
             fillColor: DOT,
-            fillOpacity: dimmed ? 0.06 : 0.22,
+            fillOpacity: dimmed ? 0.04 : 0.2,
           })
             .bindTooltip(cellTooltip(cell, mode), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
@@ -182,18 +244,139 @@ export default function DumpingMap({ data, mode, selectedDong }: DumpingMapProps
 
       group.addTo(map)
       gridLayerRef.current = group
-
-      if (selectedDong) {
-        const cells = data.grid.filter((c) => c[7] === selectedDong)
-        if (cells.length) {
-          const bounds = L.latLngBounds(cells.map((c) => [c[0], c[1]] as [number, number]))
-          for (const c of cells) bounds.extend([c[2], c[3]])
-          map.flyToBounds(bounds, { padding: [30, 30], duration: 0.5 })
-        }
+      // 재구축 직후 페이드인으로 전환감을 준다
+      const pane = map.getPane("dumpGrid")
+      if (pane) {
+        pane.style.opacity = "0"
+        requestAnimationFrame(() => {
+          pane.style.opacity = "1"
+        })
       }
     }
     void draw()
-  }, [data, mode, selectedDong, ready])
+  }, [data, mode, selectedDong, ready, layers, showCandidates])
 
-  return <div ref={boxRef} className="h-full w-full" />
+  // 동 경계 레이어 — 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map || !data) return
+      const L = await import("leaflet")
+      dongLayerRef.current?.remove()
+      const group = L.layerGroup()
+      for (const [dong, rings] of Object.entries(data.dongOutlines)) {
+        if (!rings.length) continue
+        const on = dong === selectedDong
+        // 실제 행정동 폴리곤 링 — 선택 동은 은은한 채움까지
+        L.polyline(rings as [number, number][][], {
+          pane: "dumpDong",
+          color: on ? "#0c6155" : "#64748b",
+          weight: on ? 3.2 : 1,
+          opacity: on ? 0.95 : 0.4,
+          interactive: false,
+        }).addTo(group)
+        if (on) {
+          L.polygon(rings as [number, number][][], {
+            pane: "dumpDong",
+            stroke: false,
+            fillColor: "#0c6155",
+            fillOpacity: 0.06,
+            interactive: false,
+          }).addTo(group)
+        }
+      }
+      group.addTo(map)
+      dongLayerRef.current = group
+
+      if (selectedDong) {
+        const rings = data.dongOutlines[selectedDong]
+        if (rings?.length) {
+          const pts = rings.flat() as [number, number][]
+          // 과잉 줌 방지: maxZoom 캡 + 넉넉한 패딩으로 동 전체가 화면에 들어오게
+          map.flyToBounds(L.latLngBounds(pts), {
+            padding: [48, 48],
+            maxZoom: 14.75,
+            duration: 0.5,
+          })
+        }
+      } else if (prevDongRef.current) {
+        // 선택 해제 → 구 전체 뷰로 복귀 (viz 적용·해제 버튼 모두)
+        map.flyToBounds(L.latLngBounds(data.ring), { padding: [12, 12], duration: 0.5 })
+      }
+      prevDongRef.current = selectedDong
+    }
+    void draw()
+  }, [data, selectedDong, ready])
+
+  // 인프라 + 재배치 후보 레이어
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      const renderer = infraRendererRef.current ?? undefined
+      if (!map || !data) return
+      const L = await import("leaflet")
+      infraLayerRef.current?.remove()
+      const group = L.layerGroup()
+
+      for (const id of layers) {
+        const { color } = INFRA_STYLE[id]
+        for (const p of data.infra[id]) {
+          L.circleMarker([p[0], p[1]], {
+            pane: "dumpInfra",
+            renderer,
+            radius: 5,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 1,
+          })
+            .bindTooltip(
+              `<b>${INFRA_STYLE[id].label}</b><br/>${escapeHtml(p[2])}${p[3] ? ` · ${escapeHtml(p[3])}` : ""}`,
+              { sticky: true, direction: "top", opacity: 1 },
+            )
+            .addTo(group)
+        }
+      }
+
+      if (showCandidates) {
+        data.cctvCandidates.forEach((c, i) => {
+          // 순위 숫자 배지 (DOM 마커 20개뿐이라 canvas 불필요)
+          L.marker([c[0], c[1]], {
+            pane: "dumpInfra",
+            icon: L.divIcon({
+              className: "",
+              html: `<div class="dump-cand">${i + 1}</div>`,
+              iconSize: [26, 26],
+              iconAnchor: [13, 13],
+            }),
+          })
+            .bindTooltip(candidateTooltip(i + 1, c), { sticky: true, direction: "top", opacity: 1 })
+            .addTo(group)
+        })
+      }
+
+      group.addTo(map)
+      infraLayerRef.current = group
+    }
+    void draw()
+  }, [data, layers, showCandidates, ready])
+
+  // 후보 목록 클릭 → 해당 지점으로 당겨가기
+  useEffect(() => {
+    if (!focusCandidate || !mapRef.current) return
+    mapRef.current.flyTo(focusCandidate.latlng, 16, { duration: 0.6 })
+  }, [focusCandidate])
+
+  // 헤더 배너 리셋 → 구 전체 뷰
+  useEffect(() => {
+    const map = mapRef.current
+    if (!resetSeq || !map || !data) return
+    const run = async () => {
+      const L = await import("leaflet")
+      map.flyToBounds(L.latLngBounds(data.ring), { padding: [12, 12], duration: 0.5 })
+    }
+    void run()
+  }, [resetSeq])
+
+  return <div ref={boxRef} className="dumping-map h-full w-full bg-white" />
 }

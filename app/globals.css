@@ -750,3 +750,28 @@
     transform: translateX(var(--crowd-marquee-shift, 0px));
   }
 }
+
+/* ── 무단투기 상황판(/dumping) — OSM 타일을 라이트 미니멀로 뮤트 (이 지도에만 스코프) */
+.dumping-map .leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.06) contrast(0.92) opacity(0.5);
+}
+.dumping-map .leaflet-tooltip {
+  font-size: 15px;
+  line-height: 1.55;
+  padding: 8px 12px;
+}
+
+.dumping-map .dump-cand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
