@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { VizAction } from "@/lib/dumping/types"
+import type { DumpingMapData, VizAction } from "@/lib/dumping/types"
+import QaChart, { CHART_TITLE, type ChartKind } from "./qa-chart"
 
 // 온톨로지 기반 LLM 질의응답 — /api/dumping/ask 평문 스트리밍 소비.
 // 답변은 질문별로 캐싱: 같은 질문을 다시 누르면 API 호출 없이 해당 문답으로 점프한다.
@@ -11,32 +12,38 @@ interface Seed {
   q: string
   viz?: VizAction
   vizNote?: string
+  chart?: ChartKind
 }
 
 const SEEDS: Seed[] = [
   {
     q: "CCTV는 어디에 놓아야 하나?",
+    chart: "did",
     viz: { mode: "enf", layers: ["cctvMobile"], candidates: true },
     vizNote:
       "지도에 이동식 CCTV 현 위치(보라 점)와 재배치 후보 20곳(빨간 번호)을 표시했다. 지도 오른쪽 목록에서 후보지 주소를 볼 수 있다.",
   },
   {
     q: "작년보다 나빠졌나?",
+    chart: "yearly",
     viz: { mode: "comp" },
     vizNote: "지도를 민원 분포로 전환했다. 민원 수치는 신고 편향이 섞여 있음에 주의.",
   },
   {
     q: "빠뜨린 대책은 없나?",
+    chart: "beta",
     viz: { mode: "unm" },
     vizNote: "지도를 무관리주거 밀도로 전환했다. 사람 겨냥 대책의 공백이 드러난 요인 축이다.",
   },
   {
     q: "무단투기의 최강 예측변수는?",
+    chart: "beta",
     viz: { mode: "unm" },
     vizNote: "지도를 무관리주거 밀도(β +0.312)로 전환했다.",
   },
   {
     q: "으슥한 골목에 많이 버리지 않나?",
+    chart: "beta",
     viz: { mode: "overlay" },
     vizNote: "지도를 원인+결과 겹쳐보기로 전환했다. 발생이 생활동선 위에 있는지 직접 확인해보라.",
   },
@@ -50,8 +57,8 @@ const SEEDS: Seed[] = [
     viz: { routes: true },
     vizNote: "지도에 청소차 관리노선을 표시했다. 주황 굵은 선=집중관리도로(천호대로·아차산로), 회색 선=일반관리도로 14개. 도로명 기준 표시.",
   },
-  { q: "계절이나 날씨에 따라 달라지나?" },
-  { q: "작년과 올해 연도별 추이는?" },
+  { q: "계절이나 날씨에 따라 달라지나?", chart: "seasons" },
+  { q: "작년과 올해 연도별 추이는?", chart: "monthly" },
 ]
 
 // 답변은 두괄식(첫 문장 = 결론)이라 첫 문장만 굵게 강조한다
@@ -71,19 +78,22 @@ interface Exchange {
   q: string
   a: string
   vizNote?: string
+  chart?: ChartKind
   pending?: boolean
 }
 
 interface QaChatProps {
   onAuthExpired: () => void
   onViz: (viz: VizAction) => void
+  data: DumpingMapData | null
 }
 
-export default function QaChat({ onAuthExpired, onViz }: QaChatProps) {
+export default function QaChat({ onAuthExpired, onViz, data }: QaChatProps) {
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bigChart, setBigChart] = useState<ChartKind | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -120,7 +130,7 @@ export default function QaChat({ onAuthExpired, onViz }: QaChatProps) {
       { role: "user" as const, text: e.q },
       { role: "model" as const, text: e.a },
     ]).slice(-8)
-    setExchanges((xs) => [...xs, { q, a: "", vizNote: seed?.vizNote, pending: true }])
+    setExchanges((xs) => [...xs, { q, a: "", vizNote: seed?.vizNote, chart: seed?.chart, pending: true }])
     const controller = new AbortController()
     abortRef.current = controller
     try {
@@ -227,6 +237,20 @@ export default function QaChat({ onAuthExpired, onViz }: QaChatProps) {
                   {ex.vizNote}
                 </p>
               )}
+              {ex.chart && data && (
+                <button
+                  onClick={() => setBigChart(ex.chart!)}
+                  title="누르면 크게 볼 수 있습니다"
+                  className="self-start rounded-xl border border-[var(--cp-border)] bg-white p-2.5 text-left transition-shadow hover:shadow-md"
+                  style={{ width: "92%" }}
+                >
+                  <span className="mb-1 flex items-baseline justify-between">
+                    <b className="text-[13px] text-[var(--cp-text-strong)]">{CHART_TITLE[ex.chart]}</b>
+                    <span className="text-[12px] text-[#0c6155]">크게 보기 +</span>
+                  </span>
+                  <QaChart kind={ex.chart} data={data} />
+                </button>
+              )}
               <div
                 className="self-start whitespace-pre-wrap rounded-2xl rounded-bl-sm border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[15px] leading-relaxed text-[var(--cp-text)]"
                 style={{ maxWidth: "92%" }}
@@ -242,6 +266,30 @@ export default function QaChat({ onAuthExpired, onViz }: QaChatProps) {
           </p>
         )}
       </div>
+
+      {bigChart && data && (
+        <div
+          className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/35 p-4 animate-in fade-in duration-150"
+          onClick={() => setBigChart(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl border border-[var(--cp-border)] bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-[17px] font-bold text-[var(--cp-text-strong)]">{CHART_TITLE[bigChart]}</h3>
+              <button
+                onClick={() => setBigChart(null)}
+                aria-label="닫기"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--cp-border)] text-[16px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+              >
+                ✕
+              </button>
+            </div>
+            <QaChart kind={bigChart} data={data} />
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={(e) => {

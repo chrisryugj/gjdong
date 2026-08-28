@@ -402,7 +402,7 @@ export default function DumpingDashboard() {
               />
             )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
-            {tab === "qa" && <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyViz} />}
+            {tab === "qa" && <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyViz} data={mapData} />}
           </div>
         </aside>
       </div>
