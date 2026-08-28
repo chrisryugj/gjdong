@@ -59,6 +59,94 @@ export interface DumpingMapData {
     enfByHour: Record<string, number>
     enfByDow: Record<string, number>
   }
+  // 의사결정 레이어 (build_decision_layer.py) — 품목·퍼널·SLA·KPI·핫스팟·전망
+  decision: DecisionLayer
+}
+
+// [lat, lng, 점수, 민원180일, 과태료180일, 행정동, 대표주소, 이동식CCTV유무(0/1)]
+export type HotspotRow = [number, number, number, number, number, string, string, number]
+
+export interface DecisionLayer {
+  asof: string
+  fines: {
+    categories: { cat: string; n: number; amount: number }[]
+    categoryMonthly: Record<string, Record<string, number>>
+    funnel: Record<string, { n: number; amount: number }>
+    totalN: number
+    totalAmount: number
+    paidN: number
+    paidAmount: number
+    arrearsN: number
+    arrearsAmount: number
+    collectionRatePct: number | null
+    monthly: Record<string, number>
+  }
+  channels: {
+    yearly: Record<string, Record<string, number>>
+    monthly: Record<string, Record<string, number>>
+  }
+  sla: {
+    byYear: Record<string, { n: number; medianH: number; p90H: number; within3dPct: number }>
+    note: string
+  }
+  kpi: {
+    watchCellsNow: number
+    criticalCellsNow: number
+    persistentQuarterly: { asof: string; watch: number; critical: number }[]
+    definition: string
+  }
+  hotspots: {
+    top: HotspotRow[]
+    backtest: {
+      windows: { cutoff: string; precision20: number; capture20: number; randomCapture: number }[]
+      avgPrecision20: number | null
+      avgCapture20: number | null
+      avgRandomCapture: number | null
+    }
+    method: string
+  }
+  forecast: {
+    series: Record<string, number>
+    fc: { m: string; yhat: number; lo: number; hi: number }[]
+    backtest: { mapePct: number; rmse: number; window: string }
+    note: string
+  }
+  // 구조 전망 — 건축HUB 인허가 파이프라인 (fetch_permits.py, 없으면 null)
+  permits: {
+    asof: string
+    source: string
+    window: string
+    note: string
+    guTotal: {
+      inProgress: number
+      smallAptPermits12m: number
+      smallAptUnits12m: number
+      detachedPermits12m: number
+    }
+    byDong: {
+      dong: string
+      inProgress: number
+      smallAptPermits: number
+      smallAptUnits: number
+      detached: number
+    }[]
+  } | null
+}
+
+// 조치 대장 (public/dumping/interventions.json)
+export interface InterventionEntry {
+  id: string
+  lever: string
+  title: string
+  targetCells: string[]
+  targetDong: string
+  registeredAt: string
+  startAt: string
+  evalWindowDays: number
+  control: string
+  successMetric: string
+  status: "registered" | "active" | "evaluated" | "abandoned"
+  result: string | null
 }
 
 export interface EnvGroup {

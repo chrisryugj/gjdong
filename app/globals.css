@@ -775,3 +775,22 @@
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
+
+/* ── /dumping 동별 브리핑 인쇄 — 모달(#dump-brief)만 출력 */
+@media print {
+  body:has(#dump-brief) * {
+    visibility: hidden;
+  }
+  #dump-brief,
+  #dump-brief * {
+    visibility: visible;
+  }
+  #dump-brief {
+    position: absolute;
+    inset: 0;
+    max-height: none;
+    overflow: visible;
+    border: none;
+    box-shadow: none;
+  }
+}

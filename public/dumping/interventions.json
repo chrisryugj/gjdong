@@ -1,0 +1,38 @@
+{
+  "_readme": [
+    "조치 대장(개입 사전등록부). 새 개입은 실행 전에 여기 등록하고, 사후 평가는 등록된 설계로만 수행한다.",
+    "CCTV 효과 철회(평균회귀 오염)의 재발 방지 장치다. 사후 짜맞춤 분석 금지.",
+    "갱신 방법: 이 파일을 편집해 entries에 추가하고 재배포한다. status는 registered → active → evaluated 순.",
+    "control(대조군)은 처치군과 같은 조건으로 뽑는다(대칭 설계). 비워두면 평가 불가로 간주한다."
+  ],
+  "schema": {
+    "id": "고유번호 (INT-YYYY-NNN)",
+    "lever": "온톨로지 lever 노드 id (예: lev-cctv-mobile, lev-collection-time)",
+    "title": "조치 이름",
+    "targetCells": "대상 격자 cid 목록 또는 주소 목록",
+    "targetDong": "행정동",
+    "registeredAt": "등록일 (실행 전이어야 함)",
+    "startAt": "실행 시작일",
+    "evalWindowDays": "평가 기간(일)",
+    "control": "대조군 정의 (처치군과 동일 조건으로 선정한 격자·지점)",
+    "successMetric": "판정 지표 (예: 격자 과태료 건수, 채널고정 민원)",
+    "status": "registered | active | evaluated | abandoned",
+    "result": "평가 완료 후 기입 (효과 방향·크기·판정)"
+  },
+  "entries": [
+    {
+      "id": "INT-2026-001",
+      "lever": "lev-cctv-mobile",
+      "title": "이동식 CCTV 재배치 시범 (예시 항목 — 실제 등록 시 교체)",
+      "targetCells": [],
+      "targetDong": "",
+      "registeredAt": "",
+      "startAt": "",
+      "evalWindowDays": 90,
+      "control": "재배치 후보 상위 20 중 미배치 격자(발생이력 동일 조건)",
+      "successMetric": "격자 과태료 건수(위반일시 기준) + 채널고정 민원",
+      "status": "registered",
+      "result": null
+    }
+  ]
+}

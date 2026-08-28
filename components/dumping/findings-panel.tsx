@@ -8,6 +8,7 @@ interface FindingsPanelProps {
   selectedDong: string | null
   onSelectDong: (dong: string | null) => void
   onOpenFinding: (finding: Finding) => void
+  onOpenBriefing: (dong: string) => void // 동별 원페이저(인쇄용) 모달
   activeTitle: string | null // 지도에 반영 중인 발견
 }
 
@@ -16,6 +17,7 @@ export default function FindingsPanel({
   selectedDong,
   onSelectDong,
   onOpenFinding,
+  onOpenBriefing,
   activeTitle,
 }: FindingsPanelProps) {
   const dongs = data ? [...data.dong].sort((a, b) => b.cr - a.cr) : []
@@ -73,14 +75,22 @@ export default function FindingsPanel({
 
         {sel && (
           <div className="mt-2 rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
-            <div className="mb-2 flex items-baseline justify-between">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
               <h4 className="text-sm font-semibold text-[var(--cp-text-strong)]">{sel.d}</h4>
-              <button
-                onClick={() => onSelectDong(null)}
-                className="text-[13px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
-              >
-                선택 해제
-              </button>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => onOpenBriefing(sel.d)}
+                  className="rounded-md bg-[#0c6155] px-2 py-0.5 text-[13px] font-medium text-white"
+                >
+                  동 브리핑 인쇄
+                </button>
+                <button
+                  onClick={() => onSelectDong(null)}
+                  className="text-[13px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+                >
+                  선택 해제
+                </button>
+              </div>
             </div>
             <p className="mb-2 text-[13px] font-medium text-[var(--cp-text-muted)]">
               민원 발생률 15개 동 중{" "}
@@ -175,7 +185,7 @@ export default function FindingsPanel({
       {/* 핵심 발견 — 카드 클릭 시 모달 상세 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          핵심 발견 6 · 카드를 누르면 자세히 볼 수 있습니다
+          핵심 발견 {FINDINGS.length} · 카드를 누르면 자세히 볼 수 있습니다
         </h3>
         <div className="flex flex-col gap-2">
           {FINDINGS.map((f) => {

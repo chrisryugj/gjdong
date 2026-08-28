@@ -6,6 +6,7 @@ import type {
   CircleId,
   DumpingMapData,
   InfraLayerId,
+  InterventionEntry,
   MapMode,
   OntoGraph,
   VizAction,
@@ -16,10 +17,12 @@ import FindingsPanel from "./findings-panel"
 import FindingModal from "./finding-modal"
 import type { Finding } from "./findings-data"
 import OntoPanel from "./onto-panel"
+import OpsPanel from "./ops-panel"
+import BriefingModal from "./briefing-modal"
 import QaChat from "./qa-chat"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 
-type Tab = "findings" | "onto" | "qa"
+type Tab = "findings" | "ops" | "onto" | "qa"
 type AuthState = "checking" | "locked" | "open"
 
 const BASE_LABEL: Record<BaseMode, string> = {
@@ -45,6 +48,7 @@ const BASE_DESC: Record<BaseMode, string> = {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "findings", label: "발견" },
+  { id: "ops", label: "운영·전망" },
   { id: "onto", label: "온톨로지" },
   { id: "qa", label: "질의응답" },
 ]
@@ -60,6 +64,8 @@ export default function DumpingDashboard() {
   const [tab, setTab] = useState<Tab>("findings")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
+  const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
+  const [briefingDong, setBriefingDong] = useState<string | null>(null)
   const [baseMode, setBaseMode] = useState<BaseMode>("unm")
   const [circles, setCircles] = useState<CircleId[]>(["comp"]) // 기본 = 원인 바탕 + 민원 원
   const [layers, setLayers] = useState<InfraLayerId[]>([])
@@ -86,6 +92,7 @@ export default function DumpingDashboard() {
     setOpenFinding(null)
     setActiveFinding(null)
     setFocusCandidate(null)
+    setBriefingDong(null)
     setResetSeq((v) => v + 1)
   }
 
@@ -106,6 +113,11 @@ export default function DumpingDashboard() {
       .then((r) => r.json())
       .then(setGraph)
       .catch(() => {})
+    fetch("/dumping/interventions.json")
+      .then((r) => r.json())
+      // 예시 항목(registeredAt 빈값)은 목록에서 제외 — 스키마 안내용으로만 파일에 남는다
+      .then((d) => setInterventions((d?.entries ?? []).filter((e: InterventionEntry) => e.registeredAt)))
+      .catch(() => setInterventions(null))
   }, [auth])
 
   const applyViz = useCallback((viz: VizAction) => {
@@ -448,7 +460,15 @@ export default function DumpingDashboard() {
                 selectedDong={selectedDong}
                 onSelectDong={setSelectedDong}
                 onOpenFinding={setOpenFinding}
+                onOpenBriefing={setBriefingDong}
                 activeTitle={activeFinding?.title ?? null}
+              />
+            )}
+            {tab === "ops" && (
+              <OpsPanel
+                data={mapData}
+                interventions={interventions}
+                onFocus={(latlng) => setFocusCandidate({ seq: Date.now(), latlng })}
               />
             )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
@@ -462,6 +482,8 @@ export default function DumpingDashboard() {
         이 상황판은 확보된 행정데이터와 기본 변수로 수행한 초기 분석입니다. 실제 정책 적용 전에는
         현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을 권장합니다.
       </footer>
+
+      <BriefingModal dong={briefingDong} data={mapData} onClose={() => setBriefingDong(null)} />
 
       <FindingModal
         finding={openFinding}

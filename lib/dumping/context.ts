@@ -76,6 +76,12 @@ export function buildSystemPrompt(): string {
    최강 예측변수는 관리주체 없는 주거단위 밀도(표준화 β +0.312, p<0.001, n=1,062).
 7. 민원 접수 시각은 투기 시각이 아니라 발견 시각이다. 재활용정거장은 설치·철거 변이가 없어 효과 측정 불가.
 8. 확실하지 않으면 한계를 함께 말하라. 관측 독립성 위배(공간 자기상관) 등 진단 결과도 온톨로지에 있다.
+9. 대책 효과 시뮬레이션(what-if) 금지: "이 대책을 하면 몇 건 줄어든다"는 계산을 절대 하지 마라.
+   회귀계수는 관측 연관이라 개입 효과 예측에 쓸 수 없다. 효과는 조치 대장에 사전등록한 대조군 설계로만 판정한다.
+10. 과태료는 최소 두 현상의 묶음이다. 생활쓰레기 계열(음식물·봉투·이동·시간외)과 차량 담배꽁초(28%)는
+   원인 구조와 대책이 다르므로, 원인·대책 질문에는 어느 계열 이야기인지 구분해서 답하라.
+11. 아래 "수요 전망"은 행정수요(신고 접수량) 전망이지 발생 예측이 아니다. 항상 "운영 참고"임을 밝혀라.
+   성과 평가 지표는 민원 총건수가 아니라 채널고정 민원(120·직접)·집중관리 상습격자 수·징수율이다.
 
 ## 답변 형식 (독자는 통계를 모르는 일반 직원·어르신이다)
 - 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게.
@@ -101,6 +107,44 @@ ${serializeDong()}
 
 ## 월별 민원 건수 (YYYY-MM: 건수)
 ${Object.entries(mapData.yearly.complaintsMonthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
+
+## 월별 과태료 부과 건수 (위반일시 기준 — 신고편향 없는 단속 실측)
+${Object.entries(mapData.decision.fines.monthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
+
+## 과태료 품목 분해 (${mapData.decision.fines.totalN.toLocaleString()}건, 금액=과세금액 합)
+${mapData.decision.fines.categories.map((c) => `${c.cat}: ${c.n}건 ${Math.round(c.amount / 10000).toLocaleString()}만원`).join(" · ")}
+
+## 과태료 처분 퍼널 (부과 총액 ${Math.round(mapData.decision.fines.totalAmount / 10000).toLocaleString()}만원, 가산금 미포함)
+${Object.entries(mapData.decision.fines.funnel).map(([g, v]) => `${g}: ${v.n}건 ${Math.round(v.amount / 10000).toLocaleString()}만원`).join(" · ")}
+징수율(감면·진행 제외): ${mapData.decision.fines.collectionRatePct}%
+
+## 민원 채널별 연도 (앱=서울스마트불편신고, c120=120 계열, direct=직접·전화 등)
+${Object.entries(mapData.decision.channels.yearly).map(([ch, ys]) => `${ch}: ${Object.entries(ys).map(([y, n]) => `${y}년 ${n}`).join(" · ")}`).join("\n")}
+
+## 민원 처리 소요 (접수→행정 종결, ${mapData.decision.sla.note})
+${Object.entries(mapData.decision.sla.byYear).map(([y, s]) => `${y}년: 중앙값 ${s.medianH}시간 · 상위10% ${s.p90H}시간 · 3일내 처리 ${s.within3dPct}% (${s.n}건)`).join("\n")}
+
+## 운영 KPI (기준 ${mapData.decision.asof})
+- 집중관리 상습격자(12개월 10건 이상): ${mapData.decision.kpi.criticalCellsNow}곳 · 관리대상(5건 이상): ${mapData.decision.kpi.watchCellsNow}곳
+- 분기 추이: ${mapData.decision.kpi.persistentQuarterly.map((r) => `${r.asof.slice(0, 7)} 집중 ${r.critical}·관리 ${r.watch}`).join(" · ")}
+
+## 핫스팟 예측 (자원 배분용 — 인과 예측 아님)
+방식: ${mapData.decision.hotspots.method}. 백테스트 ${mapData.decision.hotspots.backtest.windows.length}개 분기 창:
+상위 20 격자 적중률 평균 ${mapData.decision.hotspots.backtest.avgPrecision20}%, 전체 발생 포착률 ${mapData.decision.hotspots.backtest.avgCapture20}%(무작위 기대 ${mapData.decision.hotspots.backtest.avgRandomCapture}%).
+현재 상위 20: ${mapData.decision.hotspots.top.slice(0, 10).map((h, i) => `${i + 1}위 ${h[6] || h[5]}(민원 ${h[3]}·과태료 ${h[4]})`).join(", ")} 외 10곳(운영·전망 탭)
+
+## 수요 전망 (★운영 참고 — 행정수요이지 발생 예측 아님)
+홀트윈터스 계절 모형, 직전 8개월 백테스트 오차 ${mapData.decision.forecast.backtest.mapePct}%.
+${mapData.decision.forecast.fc.map((p) => `${p.m}: ${p.yhat}건(80% 구간 ${p.lo}~${p.hi})`).join(" · ")}
+
+## 구조 전망 (건축HUB 인허가 파이프라인, 법정동 기준)
+${mapData.decision.permits ? `최근 12개월 소형 공동주택(150세대 미만, 의무관리 기준 미달=관리주체 취약) 신축 허가 ${mapData.decision.permits.guTotal.smallAptPermits12m}건 ${mapData.decision.permits.guTotal.smallAptUnits12m.toLocaleString()}세대 + 단독·다가구 ${mapData.decision.permits.guTotal.detachedPermits12m}건.
+동별: ${mapData.decision.permits.byDong.map((r) => `${r.dong} ${r.smallAptPermits}건 ${r.smallAptUnits}세대`).join(" · ")}
+해석: 인과 예측이 아니라 주거 스톡 변화의 방향. 준공 시점 선제 배출안내 후보 지역 판단용.` : "(미수집)"}
+
+## 조치 대장 원칙
+새 개입은 실행 전 대상 격자·기간·대칭 대조군·판정 지표를 등록하고, 평가는 등록된 설계로만 한다.
+CCTV 철회(평균회귀 오염) 재발 방지 장치. "무슨 대책이 효과 있었나"는 평가 완료된 대장 항목으로만 답하라.
 
 ## 도로청소 운영체계 (출처: 광진구 청소과 「2026년 도로청소 종합계획」)
 ★격자·시간 단위의 청소차 수거 노선(GPS)은 미확보 — 격자 분석에 미반영(분석 한계로 명시됨). 아래는 도로명 수준 운영 정보.
