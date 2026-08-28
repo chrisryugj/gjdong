@@ -103,6 +103,7 @@ export default function DumpingMap({
   const infraLayerRef = useRef<LayerGroup | null>(null)
   const boundaryDrawn = useRef(false)
   const prevDongRef = useRef<string | null>(null)
+  const resizeObsRef = useRef<ResizeObserver | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
   const [ready, setReady] = useState(false)
 
@@ -136,12 +137,18 @@ export default function DumpingMap({
       const dongPane = map.createPane("dumpDong")
       dongPane.style.zIndex = "350"
       dongPane.style.pointerEvents = "none"
+      // 모바일 분할 핸들 등으로 컨테이너 높이가 바뀌면 Leaflet에 알림
+      const observer = new ResizeObserver(() => mapRef.current?.invalidateSize())
+      observer.observe(boxRef.current)
+      resizeObsRef.current = observer
       mapRef.current = map
       setReady(true)
     }
     void init()
     return () => {
       cancelled = true
+      resizeObsRef.current?.disconnect()
+      resizeObsRef.current = null
       mapRef.current?.remove()
       mapRef.current = null
       rendererRef.current = null

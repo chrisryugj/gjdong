@@ -15,6 +15,7 @@ import FindingModal from "./finding-modal"
 import type { Finding } from "./findings-data"
 import OntoPanel from "./onto-panel"
 import QaChat from "./qa-chat"
+import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 
 type Tab = "findings" | "onto" | "qa"
 type AuthState = "checking" | "locked" | "open"
@@ -52,6 +53,7 @@ export default function DumpingDashboard() {
   const [activeFinding, setActiveFinding] = useState<Finding | null>(null) // 지도에 반영 중인 발견
   const [focusCandidate, setFocusCandidate] = useState<CandidateFocus | null>(null)
   const [resetSeq, setResetSeq] = useState(0)
+  const split = useSplitPane() // 모바일: 지도/패널 분할 핸들 (crowd 패턴 재사용)
 
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
@@ -185,7 +187,11 @@ export default function DumpingDashboard() {
 
       {/* 본문 스플릿 — 모바일: 위 지도/그래프 + 아래 패널, 데스크톱: 좌 패널 고정폭 + 우 지도 */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="relative h-[38dvh] shrink-0 md:order-last md:h-auto md:flex-1">
+        <div
+          ref={split.mapBoxRef}
+          style={split.mapH != null ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties) : undefined}
+          className="relative h-[var(--dump-map-h,38dvh)] shrink-0 md:order-last md:h-auto md:flex-1"
+        >
           {rightPane === "map" ? (
             <>
               <DumpingMap
@@ -328,6 +334,20 @@ export default function DumpingDashboard() {
         </div>
 
         <aside className="flex min-h-0 flex-1 flex-col border-t border-[var(--cp-border)] md:w-[420px] md:flex-none md:border-r md:border-t-0 xl:w-[480px]">
+          {/* 모바일 분할 핸들 — 드래그로 지도/패널 비율 조절, 더블탭 = 기본 복귀 */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="패널 크기 조절"
+            onPointerDown={split.onSplitDown}
+            onPointerMove={split.onSplitMove}
+            onPointerUp={split.onSplitUp}
+            onPointerCancel={split.onSplitUp}
+            onDoubleClick={split.resetSplit}
+            className="flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
+          >
+            <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
+          </div>
           <nav className="flex shrink-0 gap-1 border-b border-[var(--cp-border)] px-2 pt-2">
             {TABS.map((t) => (
               <button
