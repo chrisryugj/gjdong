@@ -97,3 +97,7 @@ export interface OntoGraph {
 }
 
 export type MapMode = "overlay" | "unm" | "comp" | "enf"
+
+// 지도 레이어 분해: 바탕(면)은 하나만, 원(점)은 자유 중첩
+export type BaseMode = "unm" | "comp" | "enf"
+export type CircleId = "comp" | "enf"

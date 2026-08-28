@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap, Renderer } from "leaflet"
 import type {
+  BaseMode,
   CctvCandidate,
+  CircleId,
   DumpingMapData,
   GridCell,
   InfraLayerId,
-  MapMode,
 } from "@/lib/dumping/types"
 
 // 100m 격자 choropleth — 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
@@ -21,7 +22,6 @@ const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">Open
 export const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
 export const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
 export const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
-const DOT = "#a8322a"
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 
@@ -32,14 +32,20 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
   bins: { color: "#475569", label: "가로쓰레기통" },
 }
 
-export const MODE_DEF: Record<
-  MapMode,
+// 바탕(면)은 하나만 — 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
+export const BASE_DEF: Record<
+  BaseMode,
   { idx: 4 | 5 | 6; stops: number[]; unit: string; pal: string[]; legend: string }
 > = {
-  overlay: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거(초록 바탕)" },
   unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거" },
   comp: { idx: 4, stops: CNT_STOPS, unit: "건", pal: PAL_BLUE, legend: "민원" },
   enf: { idx: 5, stops: CNT_STOPS, unit: "건", pal: PAL_AMBER, legend: "과태료" },
+}
+
+// 원(점) 오버레이는 바탕 위에 자유 중첩
+export const CIRCLE_DEF: Record<CircleId, { idx: 4 | 5; color: string; label: string }> = {
+  comp: { idx: 4, color: "#a8322a", label: "민원" },
+  enf: { idx: 5, color: "#5b21b6", label: "과태료" },
 }
 
 function colorOf(v: number, stops: number[], pal: string[]): string {
@@ -53,12 +59,9 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
-function cellTooltip(cell: GridCell, mode: MapMode): string {
+function cellTooltip(cell: GridCell): string {
   const dong = escapeHtml(cell[7] || "광진구")
-  if (mode === "overlay")
-    return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>무관리주거 ${cell[6]}세대`
-  const label = mode === "unm" ? "무관리주거" : mode === "comp" ? "민원" : "과태료"
-  return `<b>${dong}</b><br/>${label} ${cell[MODE_DEF[mode].idx]}${MODE_DEF[mode].unit}`
+  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>무관리주거 ${cell[6]}세대`
 }
 
 function candidateTooltip(rank: number, c: CctvCandidate): string {
@@ -77,7 +80,8 @@ export interface CandidateFocus {
 
 interface DumpingMapProps {
   data: DumpingMapData | null
-  mode: MapMode
+  base: BaseMode
+  circles: CircleId[]
   selectedDong: string | null
   layers: InfraLayerId[]
   showCandidates: boolean
@@ -95,7 +99,8 @@ const ROUTE_GENERAL = new Set([
 
 export default function DumpingMap({
   data,
-  mode,
+  base,
+  circles,
   selectedDong,
   layers,
   showCandidates,
@@ -204,7 +209,7 @@ export default function DumpingMap({
     void draw()
   }, [data, ready])
 
-  // 격자 레이어 — 모드·선택동 변경마다 재구축 (canvas라 재구축 비용 낮음)
+  // 격자 레이어 — 바탕·원·선택동 변경마다 재구축 (canvas라 재구축 비용 낮음)
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -213,7 +218,7 @@ export default function DumpingMap({
       const L = await import("leaflet")
       gridLayerRef.current?.remove()
       const group = L.layerGroup()
-      const def = MODE_DEF[mode]
+      const def = BASE_DEF[base]
       // 인프라·후보 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
       const muted = layers.length > 0 || showCandidates
 
@@ -234,27 +239,29 @@ export default function DumpingMap({
               fillOpacity: dimmed ? (muted ? 0.25 : 0.18) : 0.8,
             },
           )
-            .bindTooltip(cellTooltip(cell, mode), { sticky: true, direction: "top", opacity: 1 })
+            .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
         }
       }
 
-      if (mode === "overlay") {
-        // 결과(민원)를 원으로 얹음 — 원인 바탕 위 결과
-        const busy = data.grid.filter((c) => c[4] > 0).sort((a, b) => b[4] - a[4])
+      // 원 오버레이 — 선택된 지표들을 바탕 위에 중첩
+      for (const cid of circles) {
+        const cdef = CIRCLE_DEF[cid]
+        const busy = data.grid.filter((c) => c[cdef.idx] > 0).sort((a, b) => b[cdef.idx] - a[cdef.idx])
         for (const cell of busy) {
+          const v = cell[cdef.idx]
           const dimmed = (selectedDong !== null && cell[7] !== selectedDong) || muted
           L.circleMarker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
-            radius: 2 + Math.pow(cell[4], 0.6) * 1.4,
-            color: DOT,
+            radius: 2 + Math.pow(v, 0.6) * 1.4,
+            color: cdef.color,
             weight: 1.1,
             opacity: dimmed ? 0.15 : 0.75,
-            fillColor: DOT,
+            fillColor: cdef.color,
             fillOpacity: dimmed ? 0.04 : 0.2,
           })
-            .bindTooltip(cellTooltip(cell, mode), { sticky: true, direction: "top", opacity: 1 })
+            .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
         }
       }
@@ -271,7 +278,7 @@ export default function DumpingMap({
       }
     }
     void draw()
-  }, [data, mode, selectedDong, ready, layers, showCandidates])
+  }, [data, base, circles, selectedDong, ready, layers, showCandidates])
 
   // 동 경계 레이어 — 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
   useEffect(() => {

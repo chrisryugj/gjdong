@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react"
 import type {
+  BaseMode,
+  CircleId,
   DumpingMapData,
   InfraLayerId,
   MapMode,
   OntoGraph,
   VizAction,
 } from "@/lib/dumping/types"
-import DumpingMap, { INFRA_STYLE, MODE_DEF, type CandidateFocus } from "./dumping-map"
+import DumpingMap, { BASE_DEF, CIRCLE_DEF, INFRA_STYLE, type CandidateFocus } from "./dumping-map"
 import OntologyGraph from "./ontology-graph"
 import FindingsPanel from "./findings-panel"
 import FindingModal from "./finding-modal"
@@ -20,20 +22,25 @@ import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 type Tab = "findings" | "onto" | "qa"
 type AuthState = "checking" | "locked" | "open"
 
-const MODE_LABEL: Record<MapMode, string> = {
-  overlay: "원인+결과",
+const BASE_LABEL: Record<BaseMode, string> = {
   unm: "무관리주거",
   comp: "민원",
   enf: "과태료",
 }
 
-// 선택된 모드가 뭘 보여주는 설계인지 — 칩 아래 한 줄 설명
-const MODE_DESC: Record<MapMode, string> = {
-  overlay:
-    "바탕색 = 원인 후보(무관리주거 밀도), 빨간 원 = 결과(민원). 진한 바탕 위에 큰 원이 겹치면 원인이 있는 곳에서 결과가 났다는 뜻입니다.",
-  unm: "관리주체 없는 주거(다가구·단독) 밀도. 관리주체가 있는 아파트는 발생과 무관해(β −0.011) 별도 레이어가 없습니다. 색이 옅은 주거지가 사실상 유관리 지역입니다.",
-  comp: "주민이 신고한 민원 건수. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀 수 있습니다.",
-  enf: "단속으로 과태료가 부과된 지점. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
+// VizAction(발견 카드·예시 질문)의 기존 mode를 바탕+원 조합으로 해석
+const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> = {
+  overlay: { base: "unm", circles: ["comp"] },
+  unm: { base: "unm", circles: [] },
+  comp: { base: "comp", circles: [] },
+  enf: { base: "enf", circles: [] },
+}
+
+// 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음)
+const BASE_DESC: Record<BaseMode, string> = {
+  unm: "바탕색은 관리주체 없는 주거(다가구·단독) 밀도. 아파트는 발생과 무관해(β −0.011) 레이어가 없고, 색이 옅은 주거지가 사실상 유관리 지역입니다.",
+  comp: "바탕색은 주민 신고 민원 건수. 앱 보급에 따른 신고 편향이 섞여 실제 발생보다 부풀 수 있습니다.",
+  enf: "바탕색은 단속 과태료 부과 건수. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
 }
 
 const TABS: { id: Tab; label: string }[] = [
@@ -53,7 +60,8 @@ export default function DumpingDashboard() {
   const [tab, setTab] = useState<Tab>("findings")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
-  const [mode, setMode] = useState<MapMode>("overlay")
+  const [baseMode, setBaseMode] = useState<BaseMode>("unm")
+  const [circles, setCircles] = useState<CircleId[]>(["comp"]) // 기본 = 원인 바탕 + 민원 원
   const [layers, setLayers] = useState<InfraLayerId[]>([])
   const [showCandidates, setShowCandidates] = useState(false)
   const [showRoutes, setShowRoutes] = useState(false)
@@ -68,7 +76,8 @@ export default function DumpingDashboard() {
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
     setTab("findings")
-    setMode("overlay")
+    setBaseMode("unm")
+    setCircles(["comp"])
     setLayers([])
     setShowCandidates(false)
     setShowRoutes(false)
@@ -100,7 +109,10 @@ export default function DumpingDashboard() {
   }, [auth])
 
   const applyViz = useCallback((viz: VizAction) => {
-    if (viz.mode) setMode(viz.mode)
+    if (viz.mode) {
+      setBaseMode(MODE_MAP[viz.mode].base)
+      setCircles(MODE_MAP[viz.mode].circles)
+    }
     if (viz.layers) setLayers(viz.layers)
     if (viz.candidates !== undefined) setShowCandidates(viz.candidates)
     if (viz.routes !== undefined) setShowRoutes(viz.routes)
@@ -208,7 +220,8 @@ export default function DumpingDashboard() {
             <>
               <DumpingMap
                 data={mapData}
-                mode={mode}
+                base={baseMode}
+                circles={circles}
                 selectedDong={selectedDong}
                 layers={layers}
                 showCandidates={showCandidates}
@@ -233,20 +246,51 @@ export default function DumpingDashboard() {
               )}
               {/* 지도 모드 + 인프라 레이어 칩 */}
               <div className="absolute left-2 top-2 z-[1000] flex max-w-[calc(100%-1rem)] flex-col gap-1.5 md:max-w-[calc(100%-6rem)]">
-                <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
-                  {(Object.keys(MODE_LABEL) as MapMode[]).map((m) => (
+                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
+                  <span className="shrink-0 pl-1 text-[12px] font-medium text-[var(--cp-text-dim)]">바탕</span>
+                  {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => (
                     <button
                       key={m}
-                      onClick={() => setMode(m)}
+                      onClick={() => {
+                        setBaseMode(m)
+                        // 자기 자신을 원으로 또 겹치는 건 무의미 — 자동 해제
+                        setCircles((cs) => cs.filter((c) => c !== m))
+                      }}
                       className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                        mode === m
+                        baseMode === m
                           ? "border-[#0c6155] bg-[#0c6155]/15 font-medium text-[#0c6155]"
                           : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
                       }`}
                     >
-                      {MODE_LABEL[m]}
+                      {BASE_LABEL[m]}
                     </button>
                   ))}
+                  <span className="mx-1 h-4 w-px shrink-0 bg-[var(--cp-border)]" />
+                  <span className="shrink-0 text-[12px] font-medium text-[var(--cp-text-dim)]">원 겹치기</span>
+                  {(Object.keys(CIRCLE_DEF) as CircleId[]).map((c) => {
+                    const on = circles.includes(c)
+                    const sameAsBase = baseMode === c
+                    return (
+                      <button
+                        key={c}
+                        disabled={sameAsBase}
+                        title={sameAsBase ? "바탕과 같은 지표는 겹칠 필요가 없습니다" : undefined}
+                        onClick={() => setCircles((cs) => (on ? cs.filter((x) => x !== c) : [...cs, c]))}
+                        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors disabled:opacity-35 ${
+                          on
+                            ? "bg-[var(--cp-overlay)] font-medium"
+                            : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+                        }`}
+                        style={on ? { borderColor: CIRCLE_DEF[c].color, color: CIRCLE_DEF[c].color } : undefined}
+                      >
+                        <i
+                          className="h-2.5 w-2.5 rounded-full border-2"
+                          style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
+                        />
+                        {CIRCLE_DEF[c].label} 원
+                      </button>
+                    )
+                  })}
                 </div>
                 <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
                   {INFRA_IDS.map((id) => {
@@ -297,24 +341,30 @@ export default function DumpingDashboard() {
                 </div>
                 {/* 현재 모드 설명 */}
                 <p className="max-w-md rounded-lg bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] backdrop-blur">
-                  {MODE_DESC[mode]}
+                  {BASE_DESC[baseMode]}
+                  {circles.length > 0 &&
+                    ` 그 위의 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 겹쳐 보며 비교하는 결과 지표입니다.`}
                 </p>
               </div>
               {/* 범례 — 모드별 팔레트 반영 */}
               <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">
-                <span className="font-medium">{MODE_DEF[mode].legend}</span>
+                <span className="font-medium">{BASE_DEF[baseMode].legend}</span>
                 <span>적음</span>
                 <span className="flex">
-                  {MODE_DEF[mode].pal.map((c) => (
+                  {BASE_DEF[baseMode].pal.map((c) => (
                     <i key={c} className="h-3 w-4" style={{ background: c }} />
                   ))}
                 </span>
                 <span>많음</span>
-                {mode === "overlay" && (
-                  <span className="ml-1 inline-flex items-center gap-1">
-                    <i className="h-2.5 w-2.5 rounded-full border border-[#a8322a] bg-[#a8322a]/25" /> 민원(빨간 원)
+                {circles.map((c) => (
+                  <span key={c} className="ml-1 inline-flex items-center gap-1">
+                    <i
+                      className="h-2.5 w-2.5 rounded-full border"
+                      style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
+                    />
+                    {CIRCLE_DEF[c].label} 원
                   </span>
-                )}
+                ))}
                 <span className="ml-1">칸=100m</span>
               </div>
               {/* 재배치 후보 주소 목록 */}
