@@ -40,12 +40,13 @@ export function getClientIp(headers: Headers): string {
   return "unknown"
 }
 
-export type RateLimitType = "single" | "batch" | "geocode"
+export type RateLimitType = "single" | "batch" | "geocode" | "dumpingAsk"
 
 const LIMITS: Record<RateLimitType, number> = {
   single: 30,
   batch: 30,
   geocode: 300,
+  dumpingAsk: 10, // LLM 호출 — 과금 보호
 }
 
 export function checkRateLimit(
