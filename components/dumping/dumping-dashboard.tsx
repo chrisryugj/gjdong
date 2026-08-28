@@ -379,6 +379,12 @@ export default function DumpingDashboard() {
         </aside>
       </div>
 
+      {/* 초기 분석 고지 푸터 */}
+      <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-1.5 text-center text-[12px] leading-snug text-[var(--cp-text-dim)]">
+        이 상황판은 확보된 행정데이터와 기본 변수로 수행한 초기 분석입니다. 실제 정책 적용 전에는
+        현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을 권장합니다.
+      </footer>
+
       <FindingModal
         finding={openFinding}
         onClose={() => setOpenFinding(null)}
