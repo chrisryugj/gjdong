@@ -94,6 +94,32 @@ ${serializeOntology()}
 ## 동별 수치 (행정동 15개)
 ${serializeDong()}
 
+## 연도별 집계 (민원=접수시각 기준, 과태료=위반일시 기준. ★2026년은 1~8월까지만의 부분 연도 — 연간 환산·비교 시 반드시 명시하라)
+민원 건수: ${Object.entries(mapData.yearly.complaints).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
+그중 앱(서울스마트불편신고) 접수: ${Object.entries(mapData.yearly.complaintsApp).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
+과태료 부과: ${Object.entries(mapData.yearly.enforcement).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
+
+## 월별 민원 건수 (YYYY-MM: 건수)
+${Object.entries(mapData.yearly.complaintsMonthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
+
+## 도로청소 운영체계 (출처: 광진구 청소과 「2026년 도로청소 종합계획」)
+★격자·시간 단위의 청소차 수거 노선(GPS)은 미확보 — 격자 분석에 미반영(분석 한계로 명시됨). 아래는 도로명 수준 운영 정보.
+- 청소차 17대: 물청소차 5 · 노면청소차 7 · 분진흡입차 5 (2025.4 기준)
+- 집중관리도로 10.6km: 천호대로 3.6km(군자교교차로~광장사거리) · 아차산로 7km(성수사거리~서울광진우체국)
+- 일반관리도로 28.7km: 능동로·자양로·동일로·뚝섬로·구의로·용마산로·광나루로·긴고랑로·영화사로·구의강변로·워커힐로·아차산로70길·광나루로56길·아차산로58길
+- 청소 주기: 겨울(12~3월) 집중관리도로 4회/일·일반 1회/일, 평상시(4~11월) 간선 1회/일·일반 1회/2일, 폭염특보 시 물청소 2회+ 추가
+- 2025년 실적 97,228km(목표 대비 98.2%), 2026년 목표 99,038km
+- 광진 클린데이: 월 1회(4~11월, 총 8회), 15개 동 동시 — 이면도로 무단투기 집중구역 환경정비 포함
+
+## 환경요인 집계 (2024.1~2026.8 일평균, 날씨=Open-Meteo 광진 일별 관측 조인)
+★해석 주의: 전부 관찰된 상관이며 인과 아님. 민원은 "발견·신고 시각", 과태료 시간대·요일은
+"단속 적발 시각"이라 단속 인력의 근무 패턴(평일 오전 순찰)이 섞여 있다. 투기 행위 시각 자체는 관측 불가.
+계절별 일평균 (민원 / 과태료): ${Object.entries(mapData.env.seasons).map(([k, v]) => `${k} ${v.compPerDay}/${v.enfPerDay}건`).join(" · ")}
+날씨별 일평균 (민원 / 과태료): ${Object.entries(mapData.env.rain).map(([k, v]) => `${k} ${v.compPerDay}/${v.enfPerDay}건(${v.days}일)`).join(" · ")}
+기온별 일평균 (민원 / 과태료): ${Object.entries(mapData.env.temp).map(([k, v]) => `${k} ${v.compPerDay}/${v.enfPerDay}건`).join(" · ")}
+과태료 적발 요일 분포: ${Object.entries(mapData.env.enfByDow).map(([k, v]) => `${k} ${v}`).join(" · ")}
+과태료 적발 시간대(시: 건수): ${Object.entries(mapData.env.enfByHour).filter(([, v]) => v > 0).map(([k, v]) => `${k}시 ${v}`).join(", ")}
+
 ## 청년 20-34세 비율 추이 (2015→2025, 연도별 %)
 ${Object.entries(mapData.ts).map(([d, vs]) => `${d}: ${(vs as number[]).join(", ")}`).join("\n")}`
 }

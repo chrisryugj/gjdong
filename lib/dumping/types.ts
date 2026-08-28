@@ -44,6 +44,27 @@ export interface DumpingMapData {
   dongOutlines: Record<string, [number, number][][]>
   infra: InfraLayers
   cctvCandidates: CctvCandidate[]
+  // 연도별·월별 집계 (민원=접수시각, 과태료=위반일시, 2026년은 8월까지 부분)
+  yearly: {
+    complaints: Record<string, number>
+    complaintsApp: Record<string, number>
+    enforcement: Record<string, number>
+    complaintsMonthly: Record<string, number>
+  }
+  // 환경요인 일평균 (날씨=Open-Meteo 일별 조인, 과태료 시간대·요일은 단속 근무 패턴 포함 주의)
+  env: {
+    seasons: Record<string, EnvGroup>
+    rain: Record<string, EnvGroup>
+    temp: Record<string, EnvGroup>
+    enfByHour: Record<string, number>
+    enfByDow: Record<string, number>
+  }
+}
+
+export interface EnvGroup {
+  days: number
+  compPerDay: number
+  enfPerDay: number
 }
 
 // 발견 카드·예시 질문이 지도에 거는 시각화 지시

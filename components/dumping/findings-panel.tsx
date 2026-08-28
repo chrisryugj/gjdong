@@ -135,6 +135,43 @@ export default function FindingsPanel({
         )}
       </section>
 
+      {/* 환경요인 — 계절·날씨·기온 일평균 (export env 집계) */}
+      {data && (
+        <section>
+          <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+            계절·날씨 요인 (일평균, 2024.1~2026.8)
+          </h3>
+          <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              {Object.entries(data.env.seasons).map(([k, v]) => {
+                const max = Math.max(...Object.values(data.env.seasons).map((x) => x.compPerDay))
+                const hi = v.compPerDay === max
+                return (
+                  <div key={k} className={`rounded-lg py-1.5 ${hi ? "bg-[#a8322a]/8" : ""}`}>
+                    <p className="text-[12px] text-[var(--cp-text-dim)]">
+                      {k}
+                      {hi && <b className="ml-1 text-[11px] text-[#a8322a]">최다</b>}
+                    </p>
+                    <p className={`font-mono text-[16px] font-semibold ${hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
+                      {v.compPerDay}
+                    </p>
+                    <p className="text-[11px] text-[var(--cp-text-faint)]">민원/일</p>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
+              여름·더운 날(25도+)에 민원이 겨울의 2배. 비 오는 날엔 단속 적발이
+              {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어든다.
+            </p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+              관찰된 상관이며 인과 아님. 과태료 시간대·요일(평일 오전 집중)은 단속 근무 패턴이 섞여
+              있어 투기 시각으로 읽으면 안 된다. 자세한 수치는 질의응답에 물어볼 것.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* 핵심 발견 — 카드 클릭 시 모달 상세 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
