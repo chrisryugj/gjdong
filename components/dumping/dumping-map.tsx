@@ -8,6 +8,7 @@ import type {
   CircleId,
   DumpingMapData,
   GridCell,
+  HotspotRow,
   InfraLayerId,
 } from "@/lib/dumping/types"
 
@@ -73,9 +74,19 @@ function candidateTooltip(rank: number, c: CctvCandidate): string {
   )
 }
 
+function hotspotTooltip(rank: number, h: HotspotRow): string {
+  return (
+    `<b>예측 핫스팟 ${rank}위</b> · ${escapeHtml(h[5] || "광진구")}<br/>` +
+    `<b>${escapeHtml(h[6] || "주소 미상 (격자 중심)")}</b> 인근<br/>` +
+    `최근 180일 민원 ${h[3]}건 · 과태료 ${h[4]}건` +
+    (h[7] === 0 ? `<br/><span style="color:#b45309">이동식 CCTV 없음</span>` : "")
+  )
+}
+
 export interface CandidateFocus {
   seq: number // 같은 후보를 연속 클릭해도 flyTo가 다시 일어나게 하는 시퀀스
   latlng: [number, number]
+  label?: string // 하이라이트에 붙는 설명 (예: "예측 핫스팟 3위 · 화양동 45-7 인근")
 }
 
 interface DumpingMapProps {
@@ -85,6 +96,8 @@ interface DumpingMapProps {
   selectedDong: string | null
   layers: InfraLayerId[]
   showCandidates: boolean
+  showHotspots: boolean // 운영·전망 탭의 예측 핫스팟 20 순위 배지
+  showCritical: boolean // 집중관리 상습격자(12개월 10건+) 외곽선 강조
   focusCandidate: CandidateFocus | null
   showRoutes: boolean // 청소차 관리노선 (도로청소 종합계획의 도로명 × 표준노드링크 지오메트리)
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
@@ -104,6 +117,8 @@ export default function DumpingMap({
   selectedDong,
   layers,
   showCandidates,
+  showHotspots,
+  showCritical,
   focusCandidate,
   showRoutes,
   resetSeq,
@@ -119,6 +134,9 @@ export default function DumpingMap({
   const prevDongRef = useRef<string | null>(null)
   const resizeObsRef = useRef<ResizeObserver | null>(null)
   const routesLayerRef = useRef<LayerGroup | null>(null)
+  const hotspotLayerRef = useRef<LayerGroup | null>(null)
+  const criticalLayerRef = useRef<LayerGroup | null>(null)
+  const focusLayerRef = useRef<LayerGroup | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
   const [ready, setReady] = useState(false)
 
@@ -171,6 +189,9 @@ export default function DumpingMap({
       gridLayerRef.current = null
       dongLayerRef.current = null
       infraLayerRef.current = null
+      hotspotLayerRef.current = null
+      criticalLayerRef.current = null
+      focusLayerRef.current = null
       boundaryDrawn.current = false
       setReady(false)
     }
@@ -219,8 +240,8 @@ export default function DumpingMap({
       gridLayerRef.current?.remove()
       const group = L.layerGroup()
       const def = BASE_DEF[base]
-      // 인프라·후보 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
-      const muted = layers.length > 0 || showCandidates
+      // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
+      const muted = layers.length > 0 || showCandidates || showHotspots || showCritical
 
       for (const cell of data.grid) {
         const v = cell[def.idx]
@@ -278,7 +299,7 @@ export default function DumpingMap({
       }
     }
     void draw()
-  }, [data, base, circles, selectedDong, ready, layers, showCandidates])
+  }, [data, base, circles, selectedDong, ready, layers, showCandidates, showHotspots, showCritical])
 
   // 동 경계 레이어 — 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
   useEffect(() => {
@@ -423,10 +444,110 @@ export default function DumpingMap({
     void draw()
   }, [showRoutes, ready])
 
-  // 후보 목록 클릭 → 해당 지점으로 당겨가기
+  // 예측 핫스팟 20 순위 배지 (운영·전망 탭) — 재배치 후보와 구분되는 각진 배지
   useEffect(() => {
-    if (!focusCandidate || !mapRef.current) return
-    mapRef.current.flyTo(focusCandidate.latlng, 16, { duration: 0.6 })
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map) return
+      hotspotLayerRef.current?.remove()
+      hotspotLayerRef.current = null
+      if (!showHotspots || !data) return
+      const L = await import("leaflet")
+      const group = L.layerGroup()
+      data.decision.hotspots.top.forEach((h, i) => {
+        L.marker([h[0], h[1]], {
+          pane: "dumpInfra",
+          icon: L.divIcon({
+            className: "",
+            html: `<div class="dump-hot${i < 3 ? " dump-hot-top" : ""}">${i + 1}</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          }),
+        })
+          .bindTooltip(hotspotTooltip(i + 1, h), { sticky: true, direction: "top", opacity: 1 })
+          .addTo(group)
+      })
+      group.addTo(map)
+      hotspotLayerRef.current = group
+    }
+    void draw()
+  }, [data, showHotspots, ready])
+
+  // 집중관리 상습격자 (12개월 10건 이상) — 격자 외곽선 강조
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map) return
+      criticalLayerRef.current?.remove()
+      criticalLayerRef.current = null
+      if (!showCritical || !data) return
+      const L = await import("leaflet")
+      const renderer = infraRendererRef.current ?? undefined
+      const group = L.layerGroup()
+      for (const c of data.decision.kpi.criticalCells) {
+        L.rectangle(
+          [
+            [c[0], c[1]],
+            [c[2], c[3]],
+          ],
+          {
+            pane: "dumpInfra",
+            renderer,
+            color: "#a8322a",
+            weight: 2.5,
+            opacity: 0.95,
+            fillColor: "#a8322a",
+            fillOpacity: 0.18,
+          },
+        )
+          .bindTooltip(
+            `<b>집중관리 상습격자</b> · ${escapeHtml(c[5] || "광진구")}<br/>` +
+              `최근 12개월 민원+과태료 ${c[4]}건`,
+            { sticky: true, direction: "top", opacity: 1 },
+          )
+          .addTo(group)
+      }
+      group.addTo(map)
+      criticalLayerRef.current = group
+    }
+    void draw()
+  }, [data, showCritical, ready])
+
+  // 목록 클릭 → 해당 지점으로 당겨가기 + 펄스 하이라이트로 위치를 확실히 표시
+  useEffect(() => {
+    const run = async () => {
+      const map = mapRef.current
+      if (!map) return
+      focusLayerRef.current?.remove()
+      focusLayerRef.current = null
+      if (!focusCandidate) return
+      const L = await import("leaflet")
+      const group = L.layerGroup()
+      const marker = L.marker(focusCandidate.latlng, {
+        pane: "dumpInfra",
+        interactive: false,
+        icon: L.divIcon({
+          className: "",
+          html: `<div class="dump-focus"><i class="dump-focus-dot"></i><i class="dump-focus-ring"></i></div>`,
+          iconSize: [64, 64],
+          iconAnchor: [32, 32],
+        }),
+      })
+      if (focusCandidate.label) {
+        marker.bindTooltip(escapeHtml(focusCandidate.label), {
+          permanent: true,
+          direction: "top",
+          offset: [0, -20],
+          opacity: 1,
+          className: "dump-focus-label",
+        })
+      }
+      marker.addTo(group)
+      group.addTo(map)
+      focusLayerRef.current = group
+      map.flyTo(focusCandidate.latlng, 16, { duration: 0.6 })
+    }
+    void run()
   }, [focusCandidate])
 
   // 헤더 배너 리셋 → 구 전체 뷰

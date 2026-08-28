@@ -92,6 +92,8 @@ export interface DecisionLayer {
   kpi: {
     watchCellsNow: number
     criticalCellsNow: number
+    // [s, w, n, e, 12개월 건수, 행정동] — 지도 강조 레이어용 격자 사각형
+    criticalCells: [number, number, number, number, number, string][]
     persistentQuarterly: { asof: string; watch: number; critical: number }[]
     definition: string
   }

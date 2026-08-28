@@ -794,3 +794,67 @@
     box-shadow: none;
   }
 }
+
+/* ── /dumping 예측 핫스팟 배지 — 재배치 후보(원형 빨강)와 구분되는 각진 자주색 */
+.dumping-map .dump-hot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: #7c2d5e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.dumping-map .dump-hot-top {
+  background: #a8322a;
+  box-shadow: 0 0 0 3px rgba(168, 50, 42, 0.25), 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ── /dumping 목록 클릭 지점 하이라이트 — 중심점 + 퍼지는 링 */
+.dumping-map .dump-focus {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.dumping-map .dump-focus-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 9999px;
+  background: #a8322a;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+.dumping-map .dump-focus-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 3px solid #a8322a;
+  animation: dump-focus-pulse 1.5s ease-out infinite;
+}
+@keyframes dump-focus-pulse {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.95;
+  }
+  75% {
+    transform: scale(1);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+.dumping-map .dump-focus-label {
+  font-weight: 600;
+  font-size: 13px;
+}

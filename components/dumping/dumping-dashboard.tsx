@@ -19,6 +19,7 @@ import type { Finding } from "./findings-data"
 import OntoPanel from "./onto-panel"
 import OpsPanel from "./ops-panel"
 import BriefingModal from "./briefing-modal"
+import MethodsModal from "./methods-modal"
 import QaChat from "./qa-chat"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 
@@ -66,6 +67,8 @@ export default function DumpingDashboard() {
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
   const [briefingDong, setBriefingDong] = useState<string | null>(null)
+  const [showCritical, setShowCritical] = useState(false) // 집중관리 상습격자 지도 강조
+  const [showMethods, setShowMethods] = useState(false) // 분석 방법 안내 모달
   const [baseMode, setBaseMode] = useState<BaseMode>("unm")
   const [circles, setCircles] = useState<CircleId[]>(["comp"]) // 기본 = 원인 바탕 + 민원 원
   const [layers, setLayers] = useState<InfraLayerId[]>([])
@@ -93,6 +96,8 @@ export default function DumpingDashboard() {
     setActiveFinding(null)
     setFocusCandidate(null)
     setBriefingDong(null)
+    setShowCritical(false)
+    setShowMethods(false)
     setResetSeq((v) => v + 1)
   }
 
@@ -207,17 +212,23 @@ export default function DumpingDashboard() {
             광진구 발생구조 분석 · 100m 격자 1,062 · 2024.1~2026.8
           </p>
         </button>
-        <div className="ml-auto hidden items-center gap-4 sm:flex">
+        <div className="ml-auto flex items-center gap-4">
           {[
             { k: "민원", v: "3,462건" },
             { k: "과태료", v: "3,247건" },
-            { k: "지식그래프", v: "지식 59 · 연결 76" },
+            { k: "지식그래프", v: "지식 69 · 연결 93" },
           ].map((s) => (
-            <div key={s.k} className="text-right">
+            <div key={s.k} className="hidden text-right sm:block">
               <p className="text-[12px] text-[var(--cp-text-dim)]">{s.k}</p>
               <p className="font-mono text-[14px] font-semibold text-[var(--cp-text-strong)]">{s.v}</p>
             </div>
           ))}
+          <button
+            onClick={() => setShowMethods(true)}
+            className="shrink-0 rounded-lg border border-[var(--cp-border)] px-2.5 py-1.5 text-[13px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+          >
+            분석 방법
+          </button>
         </div>
       </header>
 
@@ -237,6 +248,8 @@ export default function DumpingDashboard() {
                 selectedDong={selectedDong}
                 layers={layers}
                 showCandidates={showCandidates}
+                showHotspots={tab === "ops"}
+                showCritical={showCritical && tab === "ops"}
                 focusCandidate={focusCandidate}
                 showRoutes={showRoutes}
                 resetSeq={resetSeq}
@@ -392,7 +405,13 @@ export default function DumpingDashboard() {
                     {mapData.cctvCandidates.map((c, i) => (
                       <button
                         key={i}
-                        onClick={() => setFocusCandidate({ seq: Date.now(), latlng: [c[0], c[1]] })}
+                        onClick={() =>
+                          setFocusCandidate({
+                            seq: Date.now(),
+                            latlng: [c[0], c[1]],
+                            label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}`,
+                          })
+                        }
                         className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
                           i < 3 ? "bg-red-50" : ""
                         }`}
@@ -468,7 +487,9 @@ export default function DumpingDashboard() {
               <OpsPanel
                 data={mapData}
                 interventions={interventions}
-                onFocus={(latlng) => setFocusCandidate({ seq: Date.now(), latlng })}
+                onFocus={(latlng, label) => setFocusCandidate({ seq: Date.now(), latlng, label })}
+                showCritical={showCritical}
+                onToggleCritical={() => setShowCritical((v) => !v)}
               />
             )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
@@ -484,6 +505,7 @@ export default function DumpingDashboard() {
       </footer>
 
       <BriefingModal dong={briefingDong} data={mapData} onClose={() => setBriefingDong(null)} />
+      <MethodsModal open={showMethods} onClose={() => setShowMethods(false)} />
 
       <FindingModal
         finding={openFinding}
