@@ -204,42 +204,48 @@ function BetaChart() {
 }
 
 function DidChart() {
-  const cy = 130
-  const scale = 110 // px per 1.0
+  const cy = 140
+  const scale = 90 // px per 1.0
   const bars = [
-    { n: "초기 분석(비대칭 설계)", v: -0.785, color: GRAY, note: "철회됨" },
-    { n: "재검증(대칭 설계)", v: 0.221, color: GREEN, note: "p>0.5 · 효과 없음" },
+    { n: "초기 분석(비대칭 설계)", v: -0.785, color: GRAY, note: "철회됨", retracted: true },
+    { n: "재검증(대칭 설계)", v: 0.221, color: GREEN, note: "p>0.5 · 효과 없음", retracted: false },
   ]
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+      <text x={W / 2} y={22} textAnchor="middle" fontSize={13} fill={INK_DIM}>
+        비교 조건을 공정하게 다시 걸자 감소 효과가 사라졌다
+      </text>
       <line x1={60} y1={cy} x2={W - 20} y2={cy} stroke="#cbd5e1" />
-      <text x={44} y={cy + 5} textAnchor="end" fontSize={13} fill={INK_DIM}>0</text>
+      <text x={50} y={cy + 5} textAnchor="end" fontSize={13} fill={INK_DIM}>0</text>
       {bars.map((b, i) => {
-        const x = 130 + i * 220
+        const x = 120 + i * 230
         const h = Math.abs(b.v) * scale
         const yy = b.v < 0 ? cy : cy - h
         return (
           <g key={b.n}>
-            <rect x={x} y={yy} width={90} height={h} fill={b.color} rx={4} />
-            {b.note === "철회됨" && (
-              <line x1={x - 8} y1={yy + h + 8} x2={x + 98} y2={yy - 8} stroke={RED} strokeWidth={2.5} />
-            )}
-            <text x={x + 45} y={b.v < 0 ? yy + h + 22 : yy - 10} textAnchor="middle" fontSize={15} fontWeight={700} fill={b.color === GRAY ? INK_DIM : b.color}>
-              {b.v > 0 ? "+" : ""}
-              {b.v}건
-            </text>
-            <text x={x + 45} y={b.v < 0 ? yy + h + 42 : yy - 30} textAnchor="middle" fontSize={13} fill={b.note === "철회됨" ? RED : INK_DIM}>
-              {b.note}
-            </text>
-            <text x={x + 45} y={235} textAnchor="middle" fontSize={14} fill={INK}>
+            {/* 이름은 상단 고정 — 막대·값과 절대 안 겹친다 */}
+            <text x={x + 45} y={48} textAnchor="middle" fontSize={15} fill={INK} fontWeight={600}>
               {b.n}
             </text>
+            <rect x={x} y={yy} width={90} height={h} fill={b.color} rx={4} />
+            {b.retracted && (
+              <line x1={x - 6} y1={yy + h + 6} x2={x + 96} y2={yy - 6} stroke={RED} strokeWidth={2.5} />
+            )}
+            {b.v < 0 ? (
+              <text x={x + 45} y={yy + h + 24} textAnchor="middle" fontSize={15} fontWeight={700} fill={INK_DIM}>
+                {b.v}건 <tspan fill={RED}>(철회됨)</tspan>
+              </text>
+            ) : (
+              <g textAnchor="middle">
+                <text x={x + 45} y={yy - 32} fontSize={13} fill={INK_DIM}>{b.note}</text>
+                <text x={x + 45} y={yy - 12} fontSize={16} fontWeight={700} fill={b.color}>
+                  +{b.v}건
+                </text>
+              </g>
+            )}
           </g>
         )
       })}
-      <text x={W / 2} y={22} textAnchor="middle" fontSize={13} fill={INK_DIM}>
-        비교 조건을 공정하게 다시 걸자 감소 효과가 사라졌다
-      </text>
     </svg>
   )
 }
