@@ -27,6 +27,15 @@ const MODE_LABEL: Record<MapMode, string> = {
   enf: "과태료",
 }
 
+// 선택된 모드가 뭘 보여주는 설계인지 — 칩 아래 한 줄 설명
+const MODE_DESC: Record<MapMode, string> = {
+  overlay:
+    "바탕색 = 원인 후보(무관리주거 밀도), 빨간 원 = 결과(민원). 진한 바탕 위에 큰 원이 겹치면 원인이 있는 곳에서 결과가 났다는 뜻입니다.",
+  unm: "관리주체 없는 주거(다가구·단독) 밀도. 관리주체가 있는 아파트는 발생과 무관해(β −0.011) 별도 레이어가 없습니다. 색이 옅은 주거지가 사실상 유관리 지역입니다.",
+  comp: "주민이 신고한 민원 건수. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀 수 있습니다.",
+  enf: "단속으로 과태료가 부과된 지점. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
+}
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "findings", label: "발견" },
   { id: "onto", label: "온톨로지" },
@@ -47,6 +56,7 @@ export default function DumpingDashboard() {
   const [mode, setMode] = useState<MapMode>("overlay")
   const [layers, setLayers] = useState<InfraLayerId[]>([])
   const [showCandidates, setShowCandidates] = useState(false)
+  const [showRoutes, setShowRoutes] = useState(false)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [openFinding, setOpenFinding] = useState<Finding | null>(null)
@@ -61,6 +71,7 @@ export default function DumpingDashboard() {
     setMode("overlay")
     setLayers([])
     setShowCandidates(false)
+    setShowRoutes(false)
     setSelectedDong(null)
     setSelectedNode(null)
     setOpenFinding(null)
@@ -92,6 +103,7 @@ export default function DumpingDashboard() {
     if (viz.mode) setMode(viz.mode)
     if (viz.layers) setLayers(viz.layers)
     if (viz.candidates !== undefined) setShowCandidates(viz.candidates)
+    if (viz.routes !== undefined) setShowRoutes(viz.routes)
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
     // → viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
@@ -201,6 +213,7 @@ export default function DumpingDashboard() {
                 layers={layers}
                 showCandidates={showCandidates}
                 focusCandidate={focusCandidate}
+                showRoutes={showRoutes}
                 resetSeq={resetSeq}
               />
               {/* 발견 카드에서 적용한 시각화 배너 */}
@@ -260,6 +273,17 @@ export default function DumpingDashboard() {
                     )
                   })}
                   <button
+                    onClick={() => setShowRoutes((v) => !v)}
+                    className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
+                      showRoutes
+                        ? "border-[#d97706] bg-[#d97706]/10 font-medium text-[#92500a]"
+                        : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+                    }`}
+                  >
+                    <i className="h-0.5 w-3.5 rounded-full bg-[#d97706]" />
+                    청소차 노선
+                  </button>
+                  <button
                     onClick={() => setShowCandidates((v) => !v)}
                     className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
                       showCandidates
@@ -271,6 +295,10 @@ export default function DumpingDashboard() {
                     재배치 후보 20
                   </button>
                 </div>
+                {/* 현재 모드 설명 */}
+                <p className="max-w-md rounded-lg bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] backdrop-blur">
+                  {MODE_DESC[mode]}
+                </p>
               </div>
               {/* 범례 — 모드별 팔레트 반영 */}
               <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">

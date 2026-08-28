@@ -82,8 +82,16 @@ interface DumpingMapProps {
   layers: InfraLayerId[]
   showCandidates: boolean
   focusCandidate: CandidateFocus | null
+  showRoutes: boolean // 청소차 관리노선 (도로청소 종합계획의 도로명 × 표준노드링크 지오메트리)
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
 }
+
+// 「2026년 도로청소 종합계획」 관리도로 — 도로명 기준(광진 구간 전체를 그림, 문서상 세부 구간과 근사)
+const ROUTE_FOCUS = new Set(["천호대로", "아차산로"])
+const ROUTE_GENERAL = new Set([
+  "능동로", "자양로", "동일로", "뚝섬로", "구의로", "용마산로", "광나루로", "긴고랑로",
+  "영화사로", "구의강변로", "워커힐로", "아차산로70길", "광나루로56길", "아차산로58길",
+])
 
 export default function DumpingMap({
   data,
@@ -92,6 +100,7 @@ export default function DumpingMap({
   layers,
   showCandidates,
   focusCandidate,
+  showRoutes,
   resetSeq,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -104,6 +113,7 @@ export default function DumpingMap({
   const boundaryDrawn = useRef(false)
   const prevDongRef = useRef<string | null>(null)
   const resizeObsRef = useRef<ResizeObserver | null>(null)
+  const routesLayerRef = useRef<LayerGroup | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
   const [ready, setReady] = useState(false)
 
@@ -367,6 +377,44 @@ export default function DumpingMap({
     }
     void draw()
   }, [data, layers, showCandidates, ready])
+
+  // 청소차 관리노선 레이어 — road-links.json 동적 임포트(번들 제외), 도로명으로 필터
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map) return
+      routesLayerRef.current?.remove()
+      routesLayerRef.current = null
+      if (!showRoutes) return
+      const [L, roads] = await Promise.all([import("leaflet"), import("@/lib/gwangjin/road-links.json")])
+      if (!mapRef.current) return
+      const group = L.layerGroup()
+      const renderer = infraRendererRef.current ?? undefined
+      const linkList = (roads.default as unknown as { links: { n?: string; p: number[][] }[] }).links
+      for (const link of linkList) {
+        const name = link.n ?? ""
+        const focus = ROUTE_FOCUS.has(name)
+        if (!focus && !ROUTE_GENERAL.has(name)) continue
+        L.polyline(link.p as [number, number][], {
+          pane: "dumpInfra",
+          renderer,
+          color: focus ? "#d97706" : "#64748b",
+          weight: focus ? 5 : 3,
+          opacity: focus ? 0.85 : 0.6,
+        })
+          .bindTooltip(
+            `<b>${focus ? "집중관리도로" : "일반관리도로"}</b> · ${name}<br/>` +
+              (focus ? "겨울 4회/일 · 평상시 1회/일" : "평상시 1회/2일 이상") +
+              `<br/><span style="color:#64748b">도로명 기준 표시(광진 구간 전체)</span>`,
+            { sticky: true, direction: "top", opacity: 1 },
+          )
+          .addTo(group)
+      }
+      group.addTo(map)
+      routesLayerRef.current = group
+    }
+    void draw()
+  }, [showRoutes, ready])
 
   // 후보 목록 클릭 → 해당 지점으로 당겨가기
   useEffect(() => {

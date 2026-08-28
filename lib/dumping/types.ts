@@ -72,6 +72,7 @@ export interface VizAction {
   mode?: MapMode
   layers?: InfraLayerId[]
   candidates?: boolean
+  routes?: boolean // 청소차 관리노선 레이어
   dong?: string | null
 }
 
