@@ -32,8 +32,11 @@ export interface CrowdAdapter {
   fetchDisaster?(): Promise<CrowdDisaster[]>
 }
 
-// 서울 5분·부산 2분 주기 갱신 → 엣지 캐시 2분 + SWR 3분
+// 부산 2분 주기 갱신 → 엣지 캐시 2분 + SWR 3분
 const CACHE_120 = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=180" }
+// 서울 RTD는 5분 주기 갱신 — 2분 캐시는 같은 스냅샷을 두 번 받아오던 셈이라 원천 주기에 맞췄다.
+// 클라이언트 폴링도 CITY_CAPS.pollMinutes 5분이라 주기당 재검증 1회로 수렴한다.
+const CACHE_300 = { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=300" }
 // 제주는 명소당 1콜(66콜/회) 구조라 원천 부담이 서울·부산의 수십 배 — 15분 캐시로 낮춘다.
 // (2026-08 원천 차단 사고 이후 감축. 클라이언트 폴링도 제주만 15분으로 맞춰져 있다.)
 const CACHE_900 = { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=900" }
@@ -84,7 +87,7 @@ async function seoulFetchDisaster(): Promise<CrowdDisaster[]> {
 export const ADAPTERS: Record<CityId, CrowdAdapter> = {
   seoul: {
     id: "seoul",
-    cacheHeaders: CACHE_120,
+    cacheHeaders: CACHE_300,
     async fetchSpots() {
       const spots = await fetchAllSpots()
       cacheSeoulCoords(spots)
@@ -97,7 +100,7 @@ export const ADAPTERS: Record<CityId, CrowdAdapter> = {
   // 광진 = 서울 RTD 121곳 중 광진 소재 5곳 + 생활권 1곳(광나루) — /gwangjin 전용 서피스
   gwangjin: {
     id: "gwangjin",
-    cacheHeaders: CACHE_120,
+    cacheHeaders: CACHE_300,
     async fetchSpots() {
       const all = await fetchAllSpots()
       cacheSeoulCoords(all)

@@ -42,9 +42,11 @@ test("신규 caps: 대기질 전 도시 · TourAPI 행사는 인천공항만 제
   }
 })
 
-test("캐시 헤더: 서울·부산·강원 120s / 제주 900s / 인천 60s (값 보존)", () => {
+test("캐시 헤더: 서울·광진 300s / 부산·강원 120s / 제주 900s / 인천 60s (값 보존)", () => {
   const sec = (id: keyof typeof ADAPTERS) => ADAPTERS[id].cacheHeaders["Cache-Control"]
-  assert.equal(sec("seoul"), "public, s-maxage=120, stale-while-revalidate=180")
+  // 서울 RTD 원천이 5분 주기 — 서울 계열은 캐시를 원천 주기에 맞춘다
+  assert.equal(sec("seoul"), "public, s-maxage=300, stale-while-revalidate=300")
+  assert.equal(sec("gwangjin"), "public, s-maxage=300, stale-while-revalidate=300")
   assert.equal(sec("busan"), "public, s-maxage=120, stale-while-revalidate=180")
   assert.equal(sec("gangwon"), "public, s-maxage=120, stale-while-revalidate=180")
   assert.equal(sec("jeju"), "public, s-maxage=900, stale-while-revalidate=900")
