@@ -43,6 +43,10 @@ function corsHeaders(origin: string): Record<string, string> {
   }
 }
 
+// 프록시는 CDN 캐시 앞에서 돈다 — 캐시 히트여도 함수가 매번 깨어난다. 인파레이더·광진 라이프는
+// same-origin GET 폴링뿐이라 여기서 통과만 시키고 끝나므로, 폴링 경로는 매처에서 뺀다.
+// (2026-08 Fluid Active CPU 초과 당시 gjdong 함수 호출의 54%가 이 미들웨어였다.)
+// CORS가 실제로 필요한 건 크롬 확장이 부르는 resolve-address 계열이다.
 export const config = {
-  matcher: "/api/:path*",
+  matcher: "/api/((?!crowd|gwangjin).*)",
 }
