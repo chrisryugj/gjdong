@@ -51,9 +51,13 @@ const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
 
 const TILE_ATTR =
   '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+// CARTO raster는 무키 요청에 "API KEY REQUIRED" 워터마크를 구워서 준다 — HTTP 200이라 Leaflet은
+// 에러 없이 그냥 그린다. 무료 키(월 500만 타일)를 쿼리로 붙인다. 타일은 브라우저가 직접 부르므로
+// 공개 키가 맞고, 키가 없으면 워터마크 상태로 떨어질 뿐 지도는 뜬다.
+const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_KEY ? `?key=${process.env.NEXT_PUBLIC_CARTO_KEY}` : ""
 const TILE_URL = {
-  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  light: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${CARTO_KEY}`,
+  dark: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${CARTO_KEY}`,
 }
 
 // 개수 많은 생활 레이어는 동네 줌부터 — 도시 줌에서 마커 수백 개는 신호가 아니라 소음이다.
