@@ -125,12 +125,22 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
       <polygon points={band} fill="#0c6155" opacity="0.12" />
       <polyline points={histPts} fill="none" stroke="var(--cp-text-muted)" strokeWidth="1.4" />
       <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#0c6155" strokeWidth="1.8" strokeDasharray="4 3" />
-      {[hist[0][0], hist[hist.length - 1][0], f.fc[f.fc.length - 1].m].map((m, i) => (
+      {/* 실적/전망 경계 — 라벨 대신 세로 점선 (가운데 라벨은 우측 끝 라벨과 겹침) */}
+      <line
+        x1={x(hist.length - 1)}
+        x2={x(hist.length - 1)}
+        y1={4}
+        y2={H - 12}
+        stroke="var(--cp-text-faint)"
+        strokeWidth="1"
+        strokeDasharray="2 2"
+      />
+      {[hist[0][0], f.fc[f.fc.length - 1].m].map((m, i) => (
         <text
           key={m + i}
-          x={i === 0 ? 4 : i === 1 ? x(hist.length - 1) : W - 4}
+          x={i === 0 ? 4 : W - 4}
           y={H - 2}
-          textAnchor={i === 0 ? "start" : i === 1 ? "middle" : "end"}
+          textAnchor={i === 0 ? "start" : "end"}
           className="fill-[var(--cp-text-faint)] text-[9px]"
         >
           {m}
