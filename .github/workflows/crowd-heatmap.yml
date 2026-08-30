@@ -25,7 +25,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node scripts/collect-crowd-heatmap.mjs
+      # SeoulRtd가 1~2분 통째로 안 열릴 때가 있어 스크립트 내부 30초 백오프로는 부족하다.
+      # 단계 자체를 최대 3회(90초 간격)까지 다시 돌려 5분 남짓의 서버 끊김을 흡수한다.
+      - run: |
+          for i in 1 2 3; do
+            node scripts/collect-crowd-heatmap.mjs && exit 0
+            [ "$i" -lt 3 ] && { echo "::warning::collect attempt $i failed — retry in 90s"; sleep 90; }
+          done
+          exit 1
         env:
           FRESH: ${{ inputs.fresh && '1' || '' }}
       # data는 heatmap.json만 든 orphan 브랜치라 Vercel이 빌드하면 반드시 실패한다.
