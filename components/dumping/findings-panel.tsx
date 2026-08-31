@@ -221,8 +221,8 @@ export default function FindingsPanel({
           })}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-[var(--cp-text-faint)]">
-          회귀계수는 통제 후 조건부 연관이며 인과 증명이 아니다. 상세 방법론·검증은 저장소{" "}
-          <span className="font-mono">gwangjin-dumping/docs</span> 참조.
+          회귀계수는 통제 후 조건부 연관이며 인과 증명이 아니다. 상세 방법론·검증은 내부 분석
+          저장소(gwangjin-dumping, 비공개)의 docs 참조.
         </p>
       </section>
     </div>

@@ -254,7 +254,7 @@ export default function MethodsModal({ open, onClose }: { open: boolean; onClose
             </section>
           ))}
           <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            상세 수식·검증 절차는 저장소 gwangjin-dumping의 README와 REPRODUCE/MODEL_SPEC.md에 있으며,
+            상세 수식·검증 절차는 내부 분석 저장소 gwangjin-dumping(비공개)의 README와 REPRODUCE/MODEL_SPEC.md에 있으며,
             모든 수치는 해시 검증(verify.py)으로 재현이 고정돼 있다.
           </p>
         </div>

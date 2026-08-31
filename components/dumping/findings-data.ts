@@ -1,6 +1,6 @@
 import type { VizAction } from "@/lib/dumping/types"
 
-// 핵심 발견 — gwangjin-dumping/README.md 확정 수치의 요약 사본 (SSOT는 README·ontology.db)
+// 핵심 발견 — 내부 저장소 gwangjin-dumping(비공개) README.md 확정 수치의 요약 사본 (SSOT는 README·ontology.db)
 export interface Finding {
   tag: string
   title: string

@@ -1,4 +1,4 @@
-// /dumping 대시보드 공유 타입 — 데이터 산출은 gwangjin-dumping/scripts/export_dashboard.py
+// /dumping 대시보드 공유 타입 — 데이터 산출은 내부 저장소 gwangjin-dumping(비공개)/scripts/export_dashboard.py
 
 // [s, w, n, e, 민원, 과태료, 무관리주거, 행정동]
 export type GridCell = [number, number, number, number, number, number, number, string]
