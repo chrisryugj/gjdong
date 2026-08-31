@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { OntoGraph } from "@/lib/dumping/types"
 import { relLabel } from "@/lib/dumping/labels"
+import { DEFAULT_ZOOM, FOV, declutterLabels, labelVisible, projScale } from "./onto-view"
 
 // 3D 온톨로지 그래프 — 의존성 없이 SVG로 직접 구현.
 // KPI 허브를 원점에 두고 BFS 깊이 = 구면 셸 반지름으로 배치(피보나치 구면 분포),
@@ -32,7 +33,6 @@ export const SPACE_KO: Record<string, string> = {
 
 const W = 1200
 const H = 860
-const FOV = 1100 // 원근 초점거리
 const HUB = "kpi-dump-rate"
 
 interface P3 {
@@ -125,7 +125,7 @@ interface OntologyGraphProps {
 
 export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyGraphProps) {
   const [hoverId, setHoverId] = useState<string | null>(null)
-  const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: 1 })
+  const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: DEFAULT_ZOOM })
   const dragRef = useRef<{ sx: number; sy: number; yaw: number; pitch: number; moved: boolean } | null>(null)
   const interactedRef = useRef(false)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -210,12 +210,32 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
       const p = pos.get(n.id)
       if (!p) return null
       const r = rotate(p, view.yaw, view.pitch)
-      const s = (FOV / (FOV + r.z)) * view.k
+      const s = projScale(r.z, view.k)
       return { n, x: W / 2 + r.x * s, y: H / 2 + r.y * s, z: r.z, s }
     })
     .filter((p): p is NonNullable<typeof p> => p !== null)
     .sort((a, b) => b.z - a.z)
   const byId = new Map(projected.map((p) => [p.n.id, p]))
+
+  // 라벨 겹침 제거 — 앞쪽(z 작은) 노드부터 자리 선점, 포커스·이웃은 무조건 유지.
+  // 박스 추정은 렌더와 같은 폰트 공식(한글 폭 ≈ 폰트 크기)으로 한다.
+  const labelSet = declutterLabels(
+    [...projected].reverse().flatMap(({ n, x, y, z, s }) => {
+      const fon = focus === n.id || (focusSet?.has(n.id) ?? false)
+      if (!labelVisible(z, view.k, fon)) return []
+      const base = n.type === "KPI" || n.type === "Claim" ? 14 : n.type === "Lever" ? 12 : 10
+      const nodeR = Math.max(3, base * s)
+      const fs = 14.5 * Math.max(0.85, Math.min(1.3, s))
+      return [{
+        id: n.id,
+        x,
+        y: y - nodeR - 5 - fs / 2,
+        w: shortLabel(n.label).length * fs * 0.92 + 8,
+        h: fs + 8,
+        keep: fon,
+      }]
+    }),
+  )
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--cp-bg)]">
@@ -293,7 +313,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           const faded = focus !== null && !isFocus && !isNeighbor
           const base = n.type === "KPI" || n.type === "Claim" ? 14 : n.type === "Lever" ? 12 : 10
           const r = Math.max(3, base * s)
-          const showLabel = isFocus || isNeighbor || s > 0.98
+          const showLabel = labelSet.has(n.id)
           return (
             <g
               key={n.id}
@@ -319,10 +339,10 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
                 <text
                   y={-r - 5}
                   textAnchor="middle"
-                  fontSize={isFocus ? 17 : 13 * Math.min(1.15, s)}
+                  fontSize={isFocus ? 18 : 14.5 * Math.max(0.85, Math.min(1.3, s))}
                   fontWeight={isFocus ? 700 : 500}
                   fill={faded ? "var(--cp-text-faint)" : "var(--cp-text-strong)"}
-                  style={{ paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 3.5 }}
+                  style={{ paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 4.5 }}
                 >
                   {shortLabel(n.label)}
                 </text>
