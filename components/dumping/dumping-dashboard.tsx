@@ -47,11 +47,12 @@ const BASE_DESC: Record<BaseMode, string> = {
   enf: "바탕색은 단속 과태료 부과 건수. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
 }
 
+// 질의응답(검색)이 첫 화면 — 나머지는 깊이 파고들 때 여는 보조 탭
 const TABS: { id: Tab; label: string }[] = [
+  { id: "qa", label: "물어보기" },
   { id: "findings", label: "발견" },
   { id: "ops", label: "운영·전망" },
-  { id: "onto", label: "온톨로지" },
-  { id: "qa", label: "질의응답" },
+  { id: "onto", label: "정책" },
 ]
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -62,7 +63,7 @@ export default function DumpingDashboard() {
   const [pwError, setPwError] = useState<string | null>(null)
   const [pwBusy, setPwBusy] = useState(false)
 
-  const [tab, setTab] = useState<Tab>("findings")
+  const [tab, setTab] = useState<Tab>("qa")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
@@ -84,7 +85,7 @@ export default function DumpingDashboard() {
 
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
-    setTab("findings")
+    setTab("qa")
     setBaseMode("unm")
     setCircles(["comp"])
     setLayers([])
@@ -175,9 +176,9 @@ export default function DumpingDashboard() {
             onSubmit={submitPw}
             className="w-full max-w-xs rounded-2xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-6 shadow-sm"
           >
-            <h1 className="text-lg font-bold text-[var(--cp-text-strong)]">무단투기 상황판</h1>
+            <h1 className="text-lg font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
             <p className="mt-1 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-              내부 검토용 대시보드입니다. 비밀번호를 입력하세요.
+              광진구 무단투기 분석 · 내부 검토용입니다. 비밀번호를 입력하세요.
             </p>
             <input
               type="password"
@@ -207,9 +208,9 @@ export default function DumpingDashboard() {
       {/* 헤더 */}
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-3 py-2">
         <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
-          <h1 className="truncate text-[17px] font-bold text-[var(--cp-text-strong)]">무단투기 상황판</h1>
+          <h1 className="truncate text-[17px] font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
           <p className="truncate text-[13px] text-[var(--cp-text-dim)]">
-            광진구 발생구조 분석 · 100m 격자 1,062 · 2024.1~2026.8
+            무단투기 발생구조 분석 · 물어보면 데이터로 답합니다
           </p>
         </button>
         <div className="ml-auto flex items-center gap-4">
@@ -227,7 +228,7 @@ export default function DumpingDashboard() {
             onClick={() => setShowMethods(true)}
             className="shrink-0 rounded-lg border border-[var(--cp-border)] px-2.5 py-1.5 text-[13px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
           >
-            분석 방법
+            데이터·방법
           </button>
         </div>
       </header>

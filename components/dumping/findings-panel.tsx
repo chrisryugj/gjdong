@@ -176,7 +176,7 @@ export default function FindingsPanel({
             </p>
             <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
               관찰된 상관이며 인과 아님. 과태료 시간대·요일(평일 오전 집중)은 단속 근무 패턴이 섞여
-              있어 투기 시각으로 읽으면 안 된다. 자세한 수치는 질의응답에 물어볼 것.
+              있어 투기 시각으로 읽으면 안 된다. 자세한 수치는 물어보기 탭에서 질문할 것.
             </p>
           </div>
         </section>

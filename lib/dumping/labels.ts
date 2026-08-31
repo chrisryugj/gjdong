@@ -19,6 +19,7 @@ export const REL_KO: Record<string, string> = {
   contributes_to: "늘리는 방향 연관",
   degrades: "악화시킴",
   derived_from: "이 데이터에서 나옴",
+  governed_by: "실행 근거 법령",
   exemplifies: "사례임",
   mentions: "언급함",
   restricts: "제한함",

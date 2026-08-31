@@ -341,7 +341,8 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
         ))}
       </div>
       <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text-dim)]">
-        지식 59개 · 연결 76개 · 드래그로 회전, 휠로 확대, 동그라미를 누르면 상세 (가만두면 천천히 돕니다)
+        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · 드래그로 회전, 휠로 확대, 동그라미를
+        누르면 상세 (가만두면 천천히 돕니다)
       </div>
     </div>
   )

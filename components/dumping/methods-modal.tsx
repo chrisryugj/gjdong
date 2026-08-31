@@ -1,9 +1,91 @@
 "use client"
 
+import { useState } from "react"
 import { ModalShell } from "./ops-modal"
 
-// 분석에 쓰인 통계 모델·방법론 해설 — 일반 직원도 읽을 수 있게 "쉽게 말하면"을 앞세운다.
+// 데이터·분석 방법 안내 — 두 섹션으로 구성.
+// [쓰인 데이터] 구청 제공 자료와 직접 수집한 공개 데이터를 출처별로 구분해 보여준다.
+// [분석 방법] 통계 모델·방법론 해설 — 일반 직원도 읽을 수 있게 "쉽게 말하면"을 앞세운다.
 // 수치는 gwangjin-dumping/README.md 확정치만 인용한다(SSOT).
+
+interface Dataset {
+  name: string
+  scale: string // 규모·기간 — 한눈에 크기 감 잡기용
+  use: string // 이 분석에서 어디에 썼는지
+}
+
+// 구청 내부 행정자료 (청소과·동주민센터 제공)
+const PROVIDED: Dataset[] = [
+  {
+    name: "민원 접수 내역",
+    scale: "3,462건 · 2024.1~2026.8",
+    use: "발생 분포 지도, 신고 채널 분해, 처리 소요(SLA) 계산의 바탕",
+  },
+  {
+    name: "과태료 부과 내역",
+    scale: "3,247건 · 2024~2026 연도별",
+    use: "신고 편향 없는 단속 실측. 회귀분석의 결과지표, 품목 분해·징수 퍼널",
+  },
+  {
+    name: "CCTV 현황 (고정·이동식)",
+    scale: "청소과 총괄 + 동주민센터 취합",
+    use: "배치 지도 레이어, 이동식 CCTV 효과 검증(DID)의 설치 정보",
+  },
+  {
+    name: "재활용정거장 설치현황",
+    scale: "940곳",
+    use: "배치 지도 레이어. 설치·철거 변이가 없어 효과 판정은 불가",
+  },
+  {
+    name: "가로쓰레기통 설치현황",
+    scale: "구 전체",
+    use: "배치 지도 레이어",
+  },
+  {
+    name: "도로청소 종합계획 (2026)",
+    scale: "청소차 17대 · 노선 39.3km",
+    use: "청소차 관리노선 레이어(집중 10.6km·일반 28.7km), 운영 주기 정보",
+  },
+]
+
+// 공개 데이터에서 분석팀이 직접 수집
+const COLLECTED: Dataset[] = [
+  {
+    name: "건축물대장 표제부",
+    scale: "24,520동 · 국토부 건축HUB",
+    use: "무관리 주거단위 밀도 계산 — 최강 예측변수(β +0.312)의 원천",
+  },
+  {
+    name: "등록인구 (연령·동별)",
+    scale: "KOSIS · 15개 행정동 × 연도",
+    use: "천명당 환산, 청년 20-34·외국인 비율 요인",
+  },
+  {
+    name: "주민등록 세대 구성",
+    scale: "행정안전부 · 세대원수별",
+    use: "1인세대 비율 요인",
+  },
+  {
+    name: "건물·도로·상권(POI)",
+    scale: "OpenStreetMap",
+    use: "골목 비율·간선 이격거리 계산(은폐 가설 검정), 상권 통제 변수",
+  },
+  {
+    name: "행정동 경계",
+    scale: "행안부 KIKcd_H (admdongkor)",
+    use: "동 경계 지도, 동별 집계의 기준",
+  },
+  {
+    name: "날씨 일별 관측",
+    scale: "Open-Meteo · 2024.1~2026.8",
+    use: "계절·기온·강수 요인 조인",
+  },
+  {
+    name: "건축 인허가 파이프라인",
+    scale: "건축HUB · 최근 12개월",
+    use: "구조 전망 — 소형 공동주택·다가구 신축 흐름(관리 취약 주거의 증감 방향)",
+  },
+]
 
 interface Method {
   name: string
@@ -58,39 +140,125 @@ const METHODS: Method[] = [
   },
 ]
 
+type Section = "data" | "methods"
+
+function DatasetGroup({
+  badge,
+  badgeCls,
+  title,
+  desc,
+  items,
+}: {
+  badge: string
+  badgeCls: string
+  title: string
+  desc: string
+  items: Dataset[]
+}) {
+  return (
+    <section className="rounded-xl border border-[var(--cp-border)] p-3">
+      <div className="mb-1 flex items-center gap-2">
+        <span className={`rounded px-1.5 py-0.5 text-[12px] font-bold ${badgeCls}`}>{badge}</span>
+        <h3 className="text-[15px] font-bold text-[var(--cp-text-strong)]">{title}</h3>
+      </div>
+      <p className="mb-2.5 text-[13px] leading-relaxed text-[var(--cp-text-dim)]">{desc}</p>
+      <div className="flex flex-col">
+        {items.map((d) => (
+          <div
+            key={d.name}
+            className="border-t border-[var(--cp-border-faint)] py-2 first:border-t-0"
+          >
+            <p className="flex flex-wrap items-baseline gap-x-2 text-[14px]">
+              <b className="text-[var(--cp-text-strong)]">{d.name}</b>
+              <span className="font-mono text-[12.5px] text-[var(--cp-text-dim)]">{d.scale}</span>
+            </p>
+            <p className="mt-0.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">{d.use}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function MethodsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [section, setSection] = useState<Section>("data")
   if (!open) return null
   return (
     <ModalShell
-      title="분석 방법 안내"
-      sub="이 상황판의 숫자가 어떻게 계산됐는지, 통계를 모르는 분도 읽을 수 있게 정리했습니다"
+      title="데이터·분석 방법"
+      sub="무엇을 근거로 어떻게 계산했는지, 통계를 모르는 분도 읽을 수 있게 정리했습니다"
       onClose={onClose}
     >
-      <div className="flex flex-col gap-3">
-        {METHODS.map((m, i) => (
-          <section key={m.name} className="rounded-xl border border-[var(--cp-border)] p-3">
-            <h3 className="flex items-baseline gap-2 text-[15px] font-bold text-[var(--cp-text-strong)]">
-              <span className="font-mono text-[13px] text-[var(--cp-text-faint)]">{String(i + 1).padStart(2, "0")}</span>
-              {m.name}
-            </h3>
-            <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-              <b className="text-[#0a4a41]">쉽게 말하면</b> · {m.easy}
-            </p>
-            <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-              <b className="text-[var(--cp-text-strong)]">이 분석에서는</b> · {m.here}
-            </p>
-            {m.caution && (
-              <p className="mt-1.5 rounded-lg bg-[#a8322a]/8 px-2.5 py-1.5 text-[13.5px] leading-relaxed text-[#7a2620]">
-                주의 · {m.caution}
-              </p>
-            )}
-          </section>
+      {/* 섹션 전환 — 데이터 출처와 방법론을 나란히 확인 */}
+      <div className="mb-3 flex gap-1 rounded-lg bg-[var(--cp-hover)] p-1">
+        {(
+          [
+            { id: "data", label: "쓰인 데이터" },
+            { id: "methods", label: "통계 방법" },
+          ] as { id: Section; label: string }[]
+        ).map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSection(s.id)}
+            className={`flex-1 rounded-md py-1.5 text-[14px] font-semibold transition-colors ${
+              section === s.id
+                ? "bg-white text-[var(--cp-text-strong)] shadow-sm"
+                : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+            }`}
+          >
+            {s.label}
+          </button>
         ))}
-        <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          상세 수식·검증 절차는 저장소 gwangjin-dumping의 README와 REPRODUCE/MODEL_SPEC.md에 있으며,
-          모든 수치는 해시 검증(verify.py)으로 재현이 고정돼 있다.
-        </p>
       </div>
+
+      {section === "data" ? (
+        <div className="flex flex-col gap-3">
+          <DatasetGroup
+            badge="구청 제공"
+            badgeCls="bg-[#8a530e]/12 text-[#8a530e]"
+            title="구청 내부 행정자료 6종"
+            desc="청소과·동주민센터가 제공한 원자료. 외부에 공개되지 않은 내부 장부로, 개인정보는 삭제된 상태로 받았습니다."
+            items={PROVIDED}
+          />
+          <DatasetGroup
+            badge="직접 수집"
+            badgeCls="bg-[#0c6155]/12 text-[#0c6155]"
+            title="공개 데이터 직접 수집 7종"
+            desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
+            items={COLLECTED}
+          />
+          <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+            원자료의 컬럼 사전·파일 해시(SHA-256) 83개는 재현 패키지(REPRODUCE)에 고정돼 있으며,
+            verify.py로 해시 대조와 핵심 수치 재계산을 언제든 검증할 수 있다.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {METHODS.map((m, i) => (
+            <section key={m.name} className="rounded-xl border border-[var(--cp-border)] p-3">
+              <h3 className="flex items-baseline gap-2 text-[15px] font-bold text-[var(--cp-text-strong)]">
+                <span className="font-mono text-[13px] text-[var(--cp-text-faint)]">{String(i + 1).padStart(2, "0")}</span>
+                {m.name}
+              </h3>
+              <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+                <b className="text-[#0a4a41]">쉽게 말하면</b> · {m.easy}
+              </p>
+              <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+                <b className="text-[var(--cp-text-strong)]">이 분석에서는</b> · {m.here}
+              </p>
+              {m.caution && (
+                <p className="mt-1.5 rounded-lg bg-[#a8322a]/8 px-2.5 py-1.5 text-[13.5px] leading-relaxed text-[#7a2620]">
+                  주의 · {m.caution}
+                </p>
+              )}
+            </section>
+          ))}
+          <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+            상세 수식·검증 절차는 저장소 gwangjin-dumping의 README와 REPRODUCE/MODEL_SPEC.md에 있으며,
+            모든 수치는 해시 검증(verify.py)으로 재현이 고정돼 있다.
+          </p>
+        </div>
+      )}
     </ModalShell>
   )
 }
