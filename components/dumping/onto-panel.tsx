@@ -4,13 +4,10 @@ import { useMemo, useState } from "react"
 import type { OntoGraph, OntoNode } from "@/lib/dumping/types"
 import { helpForKeys, propLabel, relLabel, typeLabel } from "@/lib/dumping/labels"
 import { SPACE_COLOR, SPACE_KO } from "./ontology-graph"
-import PolicyBoard from "./policy-board"
 
-// 정책 탭 좌측 — 두 모드.
-// [정책 지도] 기본: 지식그래프를 "무엇을 해야 하나" 관점으로 재구성한 정책 보드 (policy-board.tsx)
-// [전체 탐색]: 검색·space 필터·노드 리스트 + 선택 노드 상세(속성·관계 따라가기)
-
-type Mode = "policy" | "explore"
+// 온톨로지 탭 좌측 — 지식그래프 전체 탐색.
+// 검색·영역 필터·노드 목록과, 고른 노드의 속성·관계를 따라가는 상세 카드로 이루어진다.
+// 정책 관점으로 정리한 화면은 정책 제안 탭(policy-board.tsx)이 맡는다.
 
 interface OntoPanelProps {
   graph: OntoGraph | null
@@ -19,7 +16,6 @@ interface OntoPanelProps {
 }
 
 export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProps) {
-  const [mode, setMode] = useState<Mode>("policy")
   const [query, setQuery] = useState("")
   const [spaceFilter, setSpaceFilter] = useState<string | null>(null)
 
@@ -50,7 +46,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
   }, [graph, selectedId])
 
   if (!graph) {
-    return <div className="p-4 text-base text-[var(--cp-text-dim)]">온톨로지 로딩 중…</div>
+    return <div className="p-4 text-base text-[var(--cp-text-dim)]">지식그래프를 불러오는 중입니다…</div>
   }
 
   const detailCard = selected ? (
@@ -176,89 +172,63 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      {/* 모드 전환 — 정책 관점이 기본, 원자료 탐색은 보조 */}
-      <div className="flex gap-1 rounded-lg bg-[var(--cp-hover)] p-1">
-        {(
-          [
-            { id: "policy", label: "정책 지도" },
-            { id: "explore", label: "전체 탐색" },
-          ] as { id: Mode; label: string }[]
-        ).map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id)}
-            className={`flex-1 rounded-md py-1.5 text-[14px] font-semibold transition-colors ${
-              mode === m.id
-                ? "bg-white text-[var(--cp-text-strong)] shadow-sm"
-                : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
+      <p className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+        이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 엮어 둔 곳입니다. 오른쪽 그래프나
+        아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.
+      </p>
+
+      {detailCard ?? (
+        <p className="rounded-lg border border-[var(--cp-border-faint)] px-3 py-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
+          아직 고른 항목이 없습니다. β·p값 같은 검증 수치에는 쉬운 풀이가 함께 붙습니다.
+        </p>
+      )}
+
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="이름이나 아이디로 검색해 보세요"
+        className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[15px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
+      />
+      <div className="flex flex-wrap gap-1">
+        {Object.entries(SPACE_KO).map(([space, ko]) => {
+          const on = spaceFilter === space
+          return (
+            <button
+              key={space}
+              onClick={() => setSpaceFilter(on ? null : space)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] transition-colors ${
+                on
+                  ? "border-[var(--cp-border-active)] bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
+                  : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+              }`}
+            >
+              <i className="h-1.5 w-1.5 rounded-full" style={{ background: SPACE_COLOR[space] }} />
+              {ko}
+            </button>
+          )
+        })}
       </div>
 
-      {mode === "policy" ? (
-        <>
-          {/* 레버는 보드 카드가 곧 상세 — 그래프에서 다른 유형을 고르면 상세 카드를 위에 띄운다 */}
-          {selected && selected.type !== "Lever" && detailCard}
-          <PolicyBoard graph={graph} selectedId={selectedId} onSelect={onSelect} />
-        </>
-      ) : (
-        <>
-          {detailCard ?? (
-            <p className="rounded-lg border border-[var(--cp-border-faint)] px-3 py-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-              오른쪽 그래프나 아래 목록에서 항목을 고르면 내용과 연결 관계가 여기 나온다. β·p값 같은
-              검증 수치에는 쉬운 풀이가 함께 붙는다.
-            </p>
-          )}
-
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="노드 검색 (라벨·id)"
-            className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[15px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
-          />
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(SPACE_KO).map(([space, ko]) => {
-              const on = spaceFilter === space
-              return (
-                <button
-                  key={space}
-                  onClick={() => setSpaceFilter(on ? null : space)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] transition-colors ${
-                    on
-                      ? "border-[var(--cp-border-active)] bg-[var(--cp-hover2)] text-[var(--cp-text-strong)]"
-                      : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                  }`}
-                >
-                  <i className="h-1.5 w-1.5 rounded-full" style={{ background: SPACE_COLOR[space] }} />
-                  {ko}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="flex flex-col gap-0.5">
-            {filtered.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => onSelect(n.id === selectedId ? null : n.id)}
-                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
-                  n.id === selectedId ? "bg-[var(--cp-hover2)]" : "hover:bg-[var(--cp-hover)]"
-                }`}
-              >
-                <i className="h-2 w-2 shrink-0 rounded-full" style={{ background: SPACE_COLOR[n.space] }} />
-                <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{n.label}</span>
-                <span className="shrink-0 text-[12px] text-[var(--cp-text-faint)]">{typeLabel(n.type)}</span>
-              </button>
-            ))}
-            {!filtered.length && (
-              <p className="px-2 py-3 text-center text-[14px] text-[var(--cp-text-dim)]">검색 결과 없음</p>
-            )}
-          </div>
-        </>
-      )}
+      <div className="flex flex-col gap-0.5">
+        {filtered.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => onSelect(n.id === selectedId ? null : n.id)}
+            className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
+              n.id === selectedId ? "bg-[var(--cp-hover2)]" : "hover:bg-[var(--cp-hover)]"
+            }`}
+          >
+            <i className="h-2 w-2 shrink-0 rounded-full" style={{ background: SPACE_COLOR[n.space] }} />
+            <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">{n.label}</span>
+            <span className="shrink-0 text-[12px] text-[var(--cp-text-faint)]">{typeLabel(n.type)}</span>
+          </button>
+        ))}
+        {!filtered.length && (
+          <p className="px-2 py-3 text-center text-[14px] text-[var(--cp-text-dim)]">
+            검색 결과가 없습니다
+          </p>
+        )}
+      </div>
     </div>
   )
 }

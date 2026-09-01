@@ -18,12 +18,14 @@ import FindingModal from "./finding-modal"
 import type { Finding } from "./findings-data"
 import OntoPanel from "./onto-panel"
 import OpsPanel from "./ops-panel"
+import PolicyBoard from "./policy-board"
 import BriefingModal from "./briefing-modal"
 import MethodsModal from "./methods-modal"
 import QaChat from "./qa-chat"
+import { vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 
-type Tab = "findings" | "ops" | "onto" | "qa"
+type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
 
 const BASE_LABEL: Record<BaseMode, string> = {
@@ -42,18 +44,19 @@ const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> = {
 
 // 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음)
 const BASE_DESC: Record<BaseMode, string> = {
-  unm: "바탕색은 관리주체 없는 주거(다가구·단독) 밀도. 아파트는 발생과 무관해(β −0.011) 레이어가 없고, 색이 옅은 주거지가 사실상 유관리 지역입니다.",
-  comp: "바탕색은 주민 신고 민원 건수. 앱 보급에 따른 신고 편향이 섞여 실제 발생보다 부풀 수 있습니다.",
-  enf: "바탕색은 단속 과태료 부과 건수. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
+  unm: "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 발생과 무관해(β −0.011) 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다.",
+  comp: "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다.",
+  enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
 }
 
 // 정책 제안이 첫 화면 — 분석의 결론이자 행정이 바로 검토할 대목이다.
-// 나머지는 근거를 파고들 때 여는 보조 탭 (물어보기 → 발견 → 운영)
+// 지식그래프 원자료를 훑는 온톨로지는 맨 끝. 정책 판단에 먼저 필요한 화면이 아니다.
 const TABS: { id: Tab; label: string }[] = [
-  { id: "onto", label: "정책 제안" },
+  { id: "policy", label: "정책 제안" },
   { id: "qa", label: "물어보기" },
   { id: "findings", label: "발견" },
   { id: "ops", label: "운영·전망" },
+  { id: "onto", label: "온톨로지" },
 ]
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -64,7 +67,7 @@ export default function DumpingDashboard() {
   const [pwError, setPwError] = useState<string | null>(null)
   const [pwBusy, setPwBusy] = useState(false)
 
-  const [tab, setTab] = useState<Tab>("onto")
+  const [tab, setTab] = useState<Tab>("policy")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
@@ -81,13 +84,14 @@ export default function DumpingDashboard() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [openFinding, setOpenFinding] = useState<Finding | null>(null)
   const [activeFinding, setActiveFinding] = useState<Finding | null>(null) // 지도에 반영 중인 발견
+  const [activeLever, setActiveLever] = useState<LeverView | null>(null) // 지도에 반영 중인 정책 수단
   const [focusCandidate, setFocusCandidate] = useState<CandidateFocus | null>(null)
   const [resetSeq, setResetSeq] = useState(0)
   const split = useSplitPane() // 모바일: 지도/패널 분할 핸들 (crowd 패턴 재사용)
 
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
-    setTab("onto")
+    setTab("policy")
     setBaseMode("unm")
     setCircles(["comp"])
     setLayers([])
@@ -97,6 +101,7 @@ export default function DumpingDashboard() {
     setSelectedNode(null)
     setOpenFinding(null)
     setActiveFinding(null)
+    setActiveLever(null)
     setFocusCandidate(null)
     setBriefingDong(null)
     setShowCritical(false)
@@ -141,6 +146,29 @@ export default function DumpingDashboard() {
     // → viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
   }, [])
+
+  // 정책 제안 모달에서 "지도에서 보기" — 겨냥 지표가 가장 높은 동은 실측값에서 고른다
+  const applyLeverViz = useCallback(
+    (lv: LeverView) => {
+      const viz = vizForLever(lv)
+      if (!viz) return
+      let dong: string | null = null
+      if (viz.dongBy && mapData) {
+        const top = [...mapData.dong].sort((a, b) => b[viz.dongBy!] - a[viz.dongBy!])[0]
+        dong = top?.d ?? null
+      }
+      applyViz({
+        mode: viz.mode,
+        layers: viz.layers ?? [],
+        candidates: viz.candidates ?? false,
+        routes: viz.routes ?? false,
+        dong,
+      })
+      setActiveLever(lv)
+      setActiveFinding(null)
+    },
+    [mapData, applyViz],
+  )
 
   const submitPw = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -213,7 +241,7 @@ export default function DumpingDashboard() {
         <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
           <h1 className="truncate text-[17px] font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
           <p className="truncate text-[13px] text-[var(--cp-text-dim)]">
-            무단투기 발생구조 분석 · 물어보면 데이터로 답합니다
+            무단투기가 왜 어디에서 생기는지 · 물어보시면 데이터로 답합니다
           </p>
         </button>
         <div className="ml-auto flex items-center gap-4">
@@ -258,23 +286,48 @@ export default function DumpingDashboard() {
                 showRoutes={showRoutes}
                 resetSeq={resetSeq}
               />
-              {/* 발견 카드에서 적용한 시각화 배너 */}
-              {activeFinding && (
-                <div className="absolute left-1/2 top-2 z-[1010] flex max-w-[80%] -translate-x-1/2 items-center gap-2 rounded-full border border-[#0c6155]/40 bg-white/95 py-1.5 pl-3.5 pr-2 shadow-md backdrop-blur">
-                  <span className="truncate text-[14px] font-medium text-[#0c6155]">
-                    {activeFinding.title} · 지도에 반영 중
-                  </span>
-                  <button
-                    onClick={() => setActiveFinding(null)}
-                    aria-label="시각화 해제"
-                    className="rounded-full bg-[#0c6155]/10 px-2 py-0.5 text-[13px] text-[#0c6155] hover:bg-[#0c6155]/20"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
               {/* 지도 모드 + 인프라 레이어 칩 */}
-              <div className="absolute left-2 top-2 z-[1000] flex max-w-[calc(100%-1rem)] flex-col gap-1.5 md:max-w-[calc(100%-6rem)]">
+              <button
+                onClick={() => setShowMapHelp((v) => !v)}
+                aria-expanded={showMapHelp}
+                className={`absolute right-2 top-2 z-[1001] whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] shadow-sm backdrop-blur transition-colors ${
+                  showMapHelp
+                    ? "border-[var(--cp-border-active)] bg-white/95 font-medium text-[var(--cp-text-strong)]"
+                    : "border-[var(--cp-border)] bg-white/90 text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+                }`}
+              >
+                {showMapHelp ? "✕ 닫기" : "ⓘ 지도 읽는 법"}
+              </button>
+              <div className="absolute left-2 top-2 z-[1000] flex max-w-[calc(100%-8rem)] flex-col gap-1.5">
+                {/* 지금 지도에 무엇이 반영돼 있는지 — 칩과 같은 흐름에 쌓아 지도를 덜 가린다 */}
+                {activeLever && (
+                  <span className="flex max-w-full items-center gap-2 self-start rounded-full border border-[#0c6155]/40 bg-white/95 py-1 pl-3 pr-1.5 shadow-sm backdrop-blur">
+                    <span className="truncate text-[13.5px] font-medium text-[#0c6155]">
+                      {activeLever.node.label.split("(")[0].trim()} · 지도에 표시 중
+                    </span>
+                    <button
+                      onClick={() => setActiveLever(null)}
+                      aria-label="표시 해제"
+                      className="shrink-0 rounded-full bg-[#0c6155]/10 px-1.5 py-0.5 text-[12px] text-[#0c6155] hover:bg-[#0c6155]/20"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {activeFinding && (
+                  <span className="flex max-w-full items-center gap-2 self-start rounded-full border border-[#0c6155]/40 bg-white/95 py-1 pl-3 pr-1.5 shadow-sm backdrop-blur">
+                    <span className="truncate text-[13.5px] font-medium text-[#0c6155]">
+                      {activeFinding.title} · 지도에 반영 중
+                    </span>
+                    <button
+                      onClick={() => setActiveFinding(null)}
+                      aria-label="시각화 해제"
+                      className="shrink-0 rounded-full bg-[#0c6155]/10 px-1.5 py-0.5 text-[12px] text-[#0c6155] hover:bg-[#0c6155]/20"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
                 <div className="flex flex-nowrap items-center gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
                   <span className="shrink-0 pl-1 text-[12px] font-medium text-[var(--cp-text-dim)]">바탕</span>
                   {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => (
@@ -320,17 +373,6 @@ export default function DumpingDashboard() {
                       </button>
                     )
                   })}
-                  <button
-                    onClick={() => setShowMapHelp((v) => !v)}
-                    aria-expanded={showMapHelp}
-                    className={`ml-auto shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                      showMapHelp
-                        ? "border-[var(--cp-border-active)] bg-[var(--cp-overlay)] font-medium text-[var(--cp-text-strong)]"
-                        : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                    }`}
-                  >
-                    {showMapHelp ? "✕ 설명 닫기" : "ⓘ 지도 읽는 법"}
-                  </button>
                 </div>
                 <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
                   {INFRA_IDS.map((id) => {
@@ -384,7 +426,7 @@ export default function DumpingDashboard() {
                   <p className="max-w-md rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] shadow-sm backdrop-blur">
                     {BASE_DESC[baseMode]}
                     {circles.length > 0 &&
-                      ` 그 위의 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 겹쳐 보며 비교하는 결과 지표입니다.`}
+                      ` 그 위에 겹친 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 견줘 보시라고 올린 결과 지표입니다.`}
                   </p>
                 )}
               </div>
@@ -509,6 +551,13 @@ export default function DumpingDashboard() {
                 onToggleCritical={() => setShowCritical((v) => !v)}
               />
             )}
+            {tab === "policy" && (
+              <PolicyBoard
+                graph={graph}
+                onShowMap={applyLeverViz}
+                activeLeverId={activeLever?.node.id ?? null}
+              />
+            )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
             {tab === "qa" && <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyViz} data={mapData} />}
           </div>
@@ -517,8 +566,9 @@ export default function DumpingDashboard() {
 
       {/* 초기 분석 고지 푸터 */}
       <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-1.5 text-center text-[12px] leading-snug text-[var(--cp-text-dim)]">
-        이 상황판은 확보된 행정데이터와 기본 변수로 수행한 초기 분석입니다. 실제 정책 적용 전에는
-        현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을 권장합니다.
+        이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다. 실제로 정책에
+        적용하시기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을 거치시길
+        권해 드립니다.
       </footer>
 
       <BriefingModal dong={briefingDong} data={mapData} onClose={() => setBriefingDong(null)} />
@@ -530,6 +580,7 @@ export default function DumpingDashboard() {
         onApplyViz={(f) => {
           if (f.viz) applyViz(f.viz)
           setActiveFinding(f)
+          setActiveLever(null)
           setOpenFinding(null)
           setTab("findings") // 지도 페인이 보이는 탭으로
         }}

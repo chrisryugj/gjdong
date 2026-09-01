@@ -108,9 +108,9 @@ export default function BriefingModal({ dong, data, onClose }: BriefingModalProp
         </section>
 
         <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          수치는 조건부 연관이며 인과 증명이 아니다. 무관리주거·1인세대·청년·외국인은 서로 얽혀
-          있어(상관 0.85~0.97) 어느 하나를 원인으로 지목할 수 없다. 개입 실행 전 조치 대장에
-          사전등록하고 대조군을 정한 뒤 평가할 것.
+          수치는 조건부 연관이며 인과를 증명한 것은 아닙니다. 무관리주거·1인세대·청년·외국인은 서로 얽혀
+          있어(상관 0.85~0.97) 어느 하나를 원인으로 지목할 수 없습니다. 개입은 실행 전에 조치 대장에
+          사전등록하고 비교 대상을 정한 뒤 평가해 주세요.
         </p>
 
         <div className="mt-4 flex gap-2 print:hidden">

@@ -171,12 +171,12 @@ export default function FindingsPanel({
               })}
             </div>
             <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
-              여름·더운 날(25도+)에 민원이 겨울의 2배. 비 오는 날엔 단속 적발이
-              {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어든다.
+              여름과 더운 날(25도 이상)에는 민원이 겨울의 2배입니다. 비 오는 날에는 단속 적발이
+              {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>
             <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-              관찰된 상관이며 인과 아님. 과태료 시간대·요일(평일 오전 집중)은 단속 근무 패턴이 섞여
-              있어 투기 시각으로 읽으면 안 된다. 자세한 수치는 물어보기 탭에서 질문할 것.
+              관찰된 상관일 뿐 인과는 아닙니다. 과태료의 시간대와 요일(평일 오전 집중)에는 단속 근무 패턴이 섞여
+              있어 투기가 일어난 시각으로 읽으시면 안 됩니다. 자세한 수치는 물어보기 탭에서 질문해 주세요.
             </p>
           </div>
         </section>
@@ -221,8 +221,8 @@ export default function FindingsPanel({
           })}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-[var(--cp-text-faint)]">
-          회귀계수는 통제 후 조건부 연관이며 인과 증명이 아니다. 상세 방법론·검증은 내부 분석
-          저장소(gwangjin-dumping, 비공개)의 docs 참조.
+          회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 상세 방법론과 검증은 내부 분석
+          저장소(gwangjin-dumping, 비공개)의 docs를 참고해 주세요.
         </p>
       </section>
     </div>

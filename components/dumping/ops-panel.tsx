@@ -124,8 +124,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </button>
         </div>
         <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-          민원 총건수는 앱 보급 편향 탓에 성과지표로 쓰지 않는다. 연도 비교는 채널고정(120·직접)과
-          상습격자 수로 한다. 채널고정 {Object.keys(fixedYearly).slice(-1)[0]}년 수치는 8월까지 부분 집계.
+          민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
+          채널고정(120·직접)과 상습격자 수로 합니다. 채널고정 {Object.keys(fixedYearly).slice(-1)[0]}년
+          수치는 8월까지의 부분 집계입니다.
         </p>
       </section>
 
@@ -167,8 +168,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           ))}
         </div>
         <p className="mt-1 text-[12px] text-[var(--cp-text-faint)]">
-          점수 = 민원 1점 + 과태료 2점, 최근일수록 가중(반감기 90일). 행정수요 예측이지 발생의 인과
-          예측이 아니다.
+          점수는 민원 1점에 과태료 2점을 더하고, 최근일수록 무겁게 친 값입니다(반감기 90일).
+          행정수요 예측이지 발생의 인과를 예측하는 것은 아닙니다.
         </p>
       </section>
 
@@ -185,8 +186,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </p>
           <ForecastChart data={data} />
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-            홀트윈터스 계절 모형, 직전 8개월 백테스트 오차 {d.forecast.backtest.mapePct}%. 신고
-            접수량(앱 보급 추세 포함) 전망이므로 인력·순찰 배치 참고용이며 발생 예측이 아니다.
+            홀트윈터스 계절 모형이며, 직전 8개월 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다.
+            신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
       </section>
@@ -216,8 +217,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             ))}
           </div>
           <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
-            담배꽁초(차량) {cigShare}%는 주거 구조와 무관한 도로 현상. 생활쓰레기 대책과 분리해서
-            관리해야 한다.
+            담배꽁초(차량) {cigShare}%는 주거 구조와 무관한 도로 현상입니다. 생활쓰레기 대책과 나눠
+            관리해야 합니다.
           </p>
         </DetailCard>
       </section>
@@ -315,8 +316,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               })}
             </div>
             <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
-              최강 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가 구의·자양·중곡에 집중
-              공급되는 중. 준공 시점부터 배출안내·공동배출 협의를 선제 적용할 후보 지역이다.
+              가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가 구의·자양·중곡에
+              몰려 공급되고 있습니다. 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보
+              지역입니다.
             </p>
           </DetailCard>
         </section>
@@ -327,8 +329,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionTitle>조치 대장 (개입 사전등록부)</SectionTitle>
         <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <p className="mb-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-            새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·대조군·판정 기준을
-            등록하고, 평가는 등록된 설계로만 한다. CCTV 효과 철회(평균회귀 오염)의 재발 방지 장치다.
+            새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을
+            등록하고, 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지
+            않기 위한 장치입니다.
           </p>
           {interventions === null ? (
             <p className="text-[13px] text-[var(--cp-text-dim)]">대장을 불러오지 못했습니다.</p>

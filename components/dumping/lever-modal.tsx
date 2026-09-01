@@ -12,6 +12,7 @@ import {
   reasonSentences,
   STATUS_FALLBACK,
   STATUS_STYLE,
+  vizForLever,
   type FactorStat,
   type LeverView,
 } from "./lever-view"
@@ -126,10 +127,10 @@ interface LeverModalProps {
   lever: LeverView | null
   graph: OntoGraph
   onClose: () => void
-  onShowGraph: (id: string) => void
+  onShowMap: (lever: LeverView) => void
 }
 
-export default function LeverModal({ lever, graph, onClose, onShowGraph }: LeverModalProps) {
+export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverModalProps) {
   useEffect(() => {
     if (!lever) return
     const onKey = (e: KeyboardEvent) => {
@@ -155,6 +156,7 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
   const rhos = stats.filter((s) => s.kind === "rho")
   // 통계 효과 근거가 아니라 자원배분 논리로만 유지하는 제안 — 오독하면 안 되는 대목
   const caveat = lever.node.props.note != null ? String(lever.node.props.note) : null
+  const viz = vizForLever(lever)
 
   return (
     <div
@@ -187,7 +189,7 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
 
         <div className="min-h-0 overflow-y-auto px-5 py-4">
           <h4 className="mb-2 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-            {proposal ? "제안 이유" : "검증 결과"}
+            {proposal ? "이 사업을 제안하는 까닭" : "검증 결과"}
           </h4>
 
           {proposal ? (
@@ -216,7 +218,7 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
           ) : (
             <div className="mb-4">
               <p className="rounded-lg bg-[var(--cp-hover)] px-3 py-2.5 text-[15px] leading-[1.75] text-[var(--cp-text)]">
-                {easy ?? lever.verdictNote ?? STATUS_FALLBACK[lever.status] ?? "판정 근거가 아직 기록되지 않았다."}
+                {easy ?? lever.verdictNote ?? STATUS_FALLBACK[lever.status] ?? "판정 근거가 아직 기록되지 않았습니다."}
               </p>
               {/* 쉬운 말을 본문으로 올렸을 때만 원문을 아래에 남긴다 */}
               {easy && lever.verdictNote && (
@@ -229,14 +231,14 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
 
           {caveat && (
             <p className="mb-4 rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[14px] font-semibold leading-[1.7] text-[#7c2620]">
-              주의 · {caveat}
+              유의해 주세요 · {caveat}
             </p>
           )}
 
           {evidence.length > 0 && (
             <div className="mb-4">
               <h4 className="mb-1.5 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-                실제로 세어 본 숫자
+                실제로 세어 본 숫자입니다
               </h4>
               <ul className="flex flex-col gap-1">
                 {evidence.map((e, i) => (
@@ -253,23 +255,23 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
 
           <div className="mb-4 flex flex-col gap-2">
             <h4 className="text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-              무단투기를 키우는 조건과, 이 사업이 겨냥하는 지점
+              무단투기를 키우는 조건과 이 사업이 겨냥하는 지점
             </h4>
             <StatGroup
               title="① 광진구를 100m 격자로 쪼개 견준 결과"
-              caption="막대가 오른쪽이면 그 조건이 클수록 무단투기가 늘고, 왼쪽이면 줄어든다. 길게 뻗을수록 설명하는 힘이 크다."
+              caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고, 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
               stats={betas}
               targeted={targeted}
             />
             <StatGroup
               title="② 행정동 15곳을 나란히 견준 결과"
-              caption="동네 특성과 무단투기가 함께 움직이는 정도. 막대가 끝까지 차면 완전히 붙어 다닌다는 뜻이고, 절반이면 절반쯤 같이 움직인다는 뜻이다."
+              caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 붙어 다닌다는 뜻이고, 절반이면 절반쯤 같이 움직인다는 뜻입니다."
               stats={rhos}
               targeted={targeted}
             />
             <p className="px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-              1인세대·청년·외국인·무관리주택은 같은 동네에 겹쳐 있어 넷 중 무엇이 진짜 원인인지 갈라낼 수 없다. 어느
-              쪽을 겨냥해도 결국 같은 지역에 닿는다.
+              1인세대·청년·외국인·무관리주택은 같은 동네에 겹쳐 있어, 넷 가운데 무엇이 진짜 원인인지 갈라낼 수 없습니다.
+              어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
             </p>
           </div>
 
@@ -294,7 +296,7 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
           {lever.preRegistered && (
             <p className="mt-3 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
               <b className="text-[var(--cp-text-strong)]">실행 전 등록 대상</b> · 어디에·얼마 동안·무엇과 견줘 판단할지를
-              먼저 조치 대장에 적어 두고 시작한다. 이동식 CCTV 효과 주장이 비교 방법 오류로 철회된 뒤 만든 장치다.
+              먼저 조치 대장에 적어 두고 시작합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류로 철회된 뒤 만든 장치입니다.
             </p>
           )}
           {lever.ordinance && (
@@ -307,14 +309,16 @@ export default function LeverModal({ lever, graph, onClose, onShowGraph }: Lever
           )}
         </div>
 
-        <div className="border-t border-[var(--cp-border)] px-5 py-3">
-          <button
-            onClick={() => onShowGraph(lever.node.id)}
-            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[15px] font-semibold text-white hover:bg-[#0a5449]"
-          >
-            지식그래프에서 연결 보기
-          </button>
-        </div>
+        {viz && (
+          <div className="border-t border-[var(--cp-border)] px-5 py-3">
+            <button
+              onClick={() => onShowMap(lever)}
+              className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[15px] font-semibold text-white hover:bg-[#0a5449]"
+            >
+              {viz.label}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
