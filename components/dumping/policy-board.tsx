@@ -107,13 +107,48 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      {/* 정책 논리 요약 — 왜 이 대책들인가 */}
-      <p className="rounded-xl border border-[#0c6155]/30 bg-[#0c6155]/5 px-3 py-2.5 text-[14px] leading-relaxed text-[var(--cp-text)]">
-        <b className="text-[#0a4a41]">정책 논리</b> · 무단투기 발생과 가장 강하게 연관된 조건은 관리주체
-        없는 주거의 밀도였습니다. 그런데 사람(청년·외국인·1인세대)을 겨냥하는 대책은 비어 있었습니다.
-        아래 제안 {proposals.length}건은 이 두 공백을 메우는 수단이며, 모두 실행 전에 조치 대장에
-        설계를 등록한 뒤 평가합니다.
-      </p>
+      {/* 정책 논리 — 확인·공백·제안 세 단계. 한 문단으로 이으면 좁은 패널에서 읽히지 않는다 */}
+      <section className="rounded-xl border border-[#0c6155]/30 bg-[#0c6155]/5 p-3">
+        <h3 className="mb-2 text-[13px] font-bold tracking-wide text-[#0a4a41]">정책 논리</h3>
+        <dl className="flex flex-col gap-2">
+          {[
+            {
+              k: "확인",
+              v: (
+                <>
+                  무단투기 발생과 가장 강하게 연관된 조건은{" "}
+                  <b className="text-[var(--cp-text-strong)]">관리주체 없는 주거의 밀도</b>였습니다.
+                </>
+              ),
+            },
+            {
+              k: "공백",
+              v: (
+                <>
+                  그런데 <b className="text-[var(--cp-text-strong)]">사람</b>(청년·외국인·1인세대)을
+                  겨냥하는 대책은 비어 있었습니다.
+                </>
+              ),
+            },
+            {
+              k: "제안",
+              v: (
+                <>
+                  아래 {proposals.length}건이 이 두 공백을 메웁니다. 모두 실행 전에 조치 대장에 설계를
+                  등록한 뒤 평가합니다.
+                </>
+              ),
+            },
+          ].map((row) => (
+            <div key={row.k} className="flex gap-2">
+              <dt className="mt-0.5 h-fit shrink-0 rounded bg-[#0c6155]/15 px-1.5 py-0.5 text-[11.5px] font-bold text-[#0a4a41]">
+                {row.k}
+              </dt>
+              <dd className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-[var(--cp-text)]">{row.v}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {/* 지도 연동 상태 — 어떤 사업을 지도에 띄워 두었는지 */}
       {active && (
