@@ -47,12 +47,13 @@ const BASE_DESC: Record<BaseMode, string> = {
   enf: "바탕색은 단속 과태료 부과 건수. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
 }
 
-// 질의응답(검색)이 첫 화면 — 나머지는 깊이 파고들 때 여는 보조 탭
+// 정책 제안이 첫 화면 — 분석의 결론이자 행정이 바로 검토할 대목이다.
+// 나머지는 근거를 파고들 때 여는 보조 탭 (물어보기 → 발견 → 운영)
 const TABS: { id: Tab; label: string }[] = [
+  { id: "onto", label: "정책 제안" },
   { id: "qa", label: "물어보기" },
   { id: "findings", label: "발견" },
   { id: "ops", label: "운영·전망" },
-  { id: "onto", label: "정책" },
 ]
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -63,13 +64,14 @@ export default function DumpingDashboard() {
   const [pwError, setPwError] = useState<string | null>(null)
   const [pwBusy, setPwBusy] = useState(false)
 
-  const [tab, setTab] = useState<Tab>("qa")
+  const [tab, setTab] = useState<Tab>("onto")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
   const [briefingDong, setBriefingDong] = useState<string | null>(null)
   const [showCritical, setShowCritical] = useState(false) // 집중관리 상습격자 지도 강조
   const [showMethods, setShowMethods] = useState(false) // 분석 방법 안내 모달
+  const [showMapHelp, setShowMapHelp] = useState(false) // 지도 읽는 법 — 좁은 화면에서 지도를 덮지 않도록 기본 접힘
   const [baseMode, setBaseMode] = useState<BaseMode>("unm")
   const [circles, setCircles] = useState<CircleId[]>(["comp"]) // 기본 = 원인 바탕 + 민원 원
   const [layers, setLayers] = useState<InfraLayerId[]>([])
@@ -85,7 +87,7 @@ export default function DumpingDashboard() {
 
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
-    setTab("qa")
+    setTab("onto")
     setBaseMode("unm")
     setCircles(["comp"])
     setLayers([])
@@ -99,6 +101,7 @@ export default function DumpingDashboard() {
     setBriefingDong(null)
     setShowCritical(false)
     setShowMethods(false)
+    setShowMapHelp(false)
     setResetSeq((v) => v + 1)
   }
 
@@ -217,7 +220,7 @@ export default function DumpingDashboard() {
           {[
             { k: "민원", v: "3,462건" },
             { k: "과태료", v: "3,247건" },
-            { k: "지식그래프", v: "지식 69 · 연결 93" },
+            { k: "지식그래프", v: `지식 ${graph?.nodes.length ?? 0} · 연결 ${graph?.edges.length ?? 0}` },
           ].map((s) => (
             <div key={s.k} className="hidden text-right sm:block">
               <p className="text-[12px] text-[var(--cp-text-dim)]">{s.k}</p>
@@ -317,6 +320,17 @@ export default function DumpingDashboard() {
                       </button>
                     )
                   })}
+                  <button
+                    onClick={() => setShowMapHelp((v) => !v)}
+                    aria-expanded={showMapHelp}
+                    className={`ml-auto shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
+                      showMapHelp
+                        ? "border-[var(--cp-border-active)] bg-[var(--cp-overlay)] font-medium text-[var(--cp-text-strong)]"
+                        : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+                    }`}
+                  >
+                    {showMapHelp ? "✕ 설명 닫기" : "ⓘ 지도 읽는 법"}
+                  </button>
                 </div>
                 <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
                   {INFRA_IDS.map((id) => {
@@ -365,12 +379,14 @@ export default function DumpingDashboard() {
                     재배치 후보 20
                   </button>
                 </div>
-                {/* 현재 모드 설명 */}
-                <p className="max-w-md rounded-lg bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] backdrop-blur">
-                  {BASE_DESC[baseMode]}
-                  {circles.length > 0 &&
-                    ` 그 위의 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 겹쳐 보며 비교하는 결과 지표입니다.`}
-                </p>
+                {/* 현재 모드 설명 — 기본은 접어 둔다. 지도를 덮는 쪽이 손해가 크다 */}
+                {showMapHelp && (
+                  <p className="max-w-md rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] shadow-sm backdrop-blur">
+                    {BASE_DESC[baseMode]}
+                    {circles.length > 0 &&
+                      ` 그 위의 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 겹쳐 보며 비교하는 결과 지표입니다.`}
+                  </p>
+                )}
               </div>
               {/* 범례 — 모드별 팔레트 반영 */}
               <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">

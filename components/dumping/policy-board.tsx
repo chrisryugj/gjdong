@@ -1,88 +1,29 @@
 "use client"
 
-import { useMemo } from "react"
-import type { OntoEdge, OntoGraph, OntoNode } from "@/lib/dumping/types"
+import { useMemo, useState } from "react"
+import type { OntoGraph } from "@/lib/dumping/types"
+import { costBadge, deriveLevers, STATUS_STYLE, type LeverView } from "./lever-view"
+import LeverModal from "./lever-modal"
 
 // 정책 보드 — 지식그래프를 관리자 관점("무엇을 해야 하나")으로 재구성한 뷰.
 // 별도 데이터 없이 graph.json의 Lever·KPI·Policy 노드와 관계에서 전부 파생한다.
-// 카드를 누르면 오른쪽 3D 그래프가 해당 노드로 회전·하이라이트된다.
-
-interface LeverView {
-  node: OntoNode
-  status: string // lowers/stabilizes 엣지의 status — 제안·철회·효과없음·측정불가·미검증
-  verdictNote: string | null // 판정 근거 (엣지 note·rationale)
-  targets: { id: string; label: string }[] // affects → 겨냥 요인
-  owner: string | null
-  costNote: string | null
-  verificationPlan: string | null
-  preRegistered: boolean // 개입 사전등록 원칙(restricts) 적용 대상
-}
-
-// 비용 표기를 배지로 정규화 — 관리자가 먼저 보는 것은 "돈이 드는가"
-function costBadge(costNote: string | null, edgeCost: string | undefined): { label: string; cls: string } | null {
-  const src = costNote ?? edgeCost ?? ""
-  if (!src) return null
-  if (src.includes("0원")) return { label: "무예산", cls: "bg-[#0c6155]/12 text-[#0a4a41]" }
-  if (src.includes("저")) return { label: "저비용", cls: "bg-[#1c4f96]/10 text-[#1c4f96]" }
-  return { label: "예산 필요", cls: "bg-[#8a530e]/12 text-[#8a530e]" }
-}
-
-const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
-  "제안": { label: "신규 제안", cls: "bg-[#0c6155] text-white" },
-  "효과 확인 안 됨(철회)": { label: "효과 철회", cls: "bg-[#a8322a] text-white" },
-  "효과없음": { label: "효과 없음", cls: "bg-slate-500 text-white" },
-  "측정불가": { label: "판정 불가", cls: "bg-[#8a530e] text-white" },
-  "미검증": { label: "미검증", cls: "bg-slate-400 text-white" },
-}
-
-// 요인 라벨은 그래프 원문이 길다 — 칩용으로 짧게
-function shortTarget(label: string): string {
-  return label.replace(/\(.*?\)/g, "").trim()
-}
-
-function deriveLevers(graph: OntoGraph): LeverView[] {
-  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]))
-  const restricted = new Set(
-    graph.edges.filter((e) => e.f === "proc-intervention-registry" && e.rel === "restricts").map((e) => e.t),
-  )
-  return graph.nodes
-    .filter((n) => n.type === "Lever")
-    .map((node) => {
-      const verdict: OntoEdge | undefined = graph.edges.find(
-        (e) => e.f === node.id && (e.rel === "lowers" || e.rel === "stabilizes"),
-      )
-      const p = verdict?.props ?? {}
-      const targets = graph.edges
-        .filter((e) => e.f === node.id && e.rel === "affects")
-        .map((e) => ({ id: e.t, label: shortTarget(nodeById.get(e.t)?.label ?? e.t) }))
-      return {
-        node,
-        status: String(p.status ?? "미검증"),
-        verdictNote: p.note != null ? String(p.note) : p.rationale != null ? String(p.rationale) : null,
-        targets,
-        owner: node.props.owner != null ? String(node.props.owner) : null,
-        costNote: node.props.cost_note != null ? String(node.props.cost_note) : null,
-        verificationPlan:
-          node.props.verification_plan != null ? String(node.props.verification_plan) : null,
-        preRegistered: restricted.has(node.id),
-      }
-    })
-}
+// 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 3D 그래프로 이어갈 수 있다.
 
 function LeverCard({
   lv,
   selected,
-  onSelect,
+  onOpen,
 }: {
   lv: LeverView
   selected: boolean
-  onSelect: (id: string | null) => void
+  onOpen: (lv: LeverView) => void
 }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
   const cost = costBadge(lv.costNote, undefined)
+  const proposal = lv.status === "제안"
   return (
     <button
-      onClick={() => onSelect(selected ? null : lv.node.id)}
+      onClick={() => onOpen(lv)}
       className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${
         selected
           ? "border-[#0c6155] bg-[#0c6155]/5 ring-2 ring-[#0c6155]/25"
@@ -126,8 +67,8 @@ function LeverCard({
           </div>
         )}
       </dl>
-      <span className="mt-1.5 inline-block text-[12.5px] font-medium text-[#0c6155]">
-        {selected ? "✓ 그래프에 표시 중" : "그래프에서 연결 보기 →"}
+      <span className="mt-1.5 inline-block rounded-md bg-[#0c6155]/10 px-2 py-1 text-[12.5px] font-semibold text-[#0c6155]">
+        {proposal ? "왜 이 사업인가 — 제안 이유 보기 →" : "검증 결과 자세히 보기 →"}
       </span>
     </button>
   )
@@ -141,6 +82,7 @@ interface PolicyBoardProps {
 
 export default function PolicyBoard({ graph, selectedId, onSelect }: PolicyBoardProps) {
   const levers = useMemo(() => deriveLevers(graph), [graph])
+  const [openLever, setOpenLever] = useState<LeverView | null>(null)
   const proposals = levers.filter((l) => l.status === "제안")
   const existing = levers.filter((l) => l.status !== "제안")
   const kpis = graph.nodes.filter((n) => n.type === "KPI")
@@ -165,11 +107,11 @@ export default function PolicyBoard({ graph, selectedId, onSelect }: PolicyBoard
       {/* 신규 제안 — 무예산 먼저 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          지금 검토할 제안 {proposals.length} · 카드를 누르면 그래프에서 연결이 보입니다
+          지금 검토할 제안 {proposals.length} · 카드를 누르면 제안 이유가 열립니다
         </h3>
         <div className="flex flex-col gap-2">
           {proposals.map((lv) => (
-            <LeverCard key={lv.node.id} lv={lv} selected={selectedId === lv.node.id} onSelect={onSelect} />
+            <LeverCard key={lv.node.id} lv={lv} selected={selectedId === lv.node.id} onOpen={setOpenLever} />
           ))}
         </div>
       </section>
@@ -181,7 +123,7 @@ export default function PolicyBoard({ graph, selectedId, onSelect }: PolicyBoard
         </h3>
         <div className="flex flex-col gap-2">
           {existing.map((lv) => (
-            <LeverCard key={lv.node.id} lv={lv} selected={selectedId === lv.node.id} onSelect={onSelect} />
+            <LeverCard key={lv.node.id} lv={lv} selected={selectedId === lv.node.id} onOpen={setOpenLever} />
           ))}
         </div>
       </section>
@@ -231,6 +173,16 @@ export default function PolicyBoard({ graph, selectedId, onSelect }: PolicyBoard
           장치다. 진행 상황은 운영·전망 탭의 조치 대장에서 볼 수 있다.
         </p>
       </section>
+
+      <LeverModal
+        lever={openLever}
+        graph={graph}
+        onClose={() => setOpenLever(null)}
+        onShowGraph={(id) => {
+          onSelect(id)
+          setOpenLever(null)
+        }}
+      />
     </div>
   )
 }
