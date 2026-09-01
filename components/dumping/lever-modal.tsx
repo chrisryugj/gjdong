@@ -189,7 +189,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
 
         <div className="min-h-0 overflow-y-auto px-5 py-4">
           <h4 className="mb-2 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-            {proposal ? "이 사업을 제안하는 까닭" : "검증 결과"}
+            {proposal ? "제안 이유" : "검증 결과"}
           </h4>
 
           {proposal ? (
@@ -231,14 +231,14 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
 
           {caveat && (
             <p className="mb-4 rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[14px] font-semibold leading-[1.7] text-[#7c2620]">
-              유의해 주세요 · {caveat}
+              주의 · {caveat}
             </p>
           )}
 
           {evidence.length > 0 && (
             <div className="mb-4">
               <h4 className="mb-1.5 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-                실제로 세어 본 숫자입니다
+                실측으로 확인한 수치
               </h4>
               <ul className="flex flex-col gap-1">
                 {evidence.map((e, i) => (
@@ -258,13 +258,13 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
               무단투기를 키우는 조건과 이 사업이 겨냥하는 지점
             </h4>
             <StatGroup
-              title="① 광진구를 100m 격자로 쪼개 견준 결과"
+              title="① 광진구를 100m 격자로 나눠 분석한 결과"
               caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고, 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
               stats={betas}
               targeted={targeted}
             />
             <StatGroup
-              title="② 행정동 15곳을 나란히 견준 결과"
+              title="② 행정동 15곳을 비교한 결과"
               caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 붙어 다닌다는 뜻이고, 절반이면 절반쯤 같이 움직인다는 뜻입니다."
               stats={rhos}
               targeted={targeted}
@@ -295,7 +295,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
 
           {lever.preRegistered && (
             <p className="mt-3 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-              <b className="text-[var(--cp-text-strong)]">실행 전 등록 대상</b> · 어디에·얼마 동안·무엇과 견줘 판단할지를
+              <b className="text-[var(--cp-text-strong)]">실행 전 등록 대상</b> · 어디에·얼마 동안·무엇과 비교해 판단할지를
               먼저 조치 대장에 적어 두고 시작합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류로 철회된 뒤 만든 장치입니다.
             </p>
           )}

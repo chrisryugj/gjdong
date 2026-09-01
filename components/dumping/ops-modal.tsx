@@ -278,7 +278,7 @@ export default function OpsModal({
         <H>어떻게 계산했나</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
           지난 31개월의 월별 접수에서 수준·추세·계절 반복(여름에 많고 겨울에 적은 패턴)을 학습하는
-          홀트윈터스 계절 모형을 썼습니다. 직전 8개월을 한 달씩 가려 놓고 맞혀 보는 백테스트에서
+          홀트윈터스 계절 모형을 썼습니다. 직전 8개월을 한 달씩 제외하고 예측해 보는 백테스트에서
           평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
         </p>
         <Callout>
@@ -359,7 +359,7 @@ export default function OpsModal({
         이 분석에서 가장 강한 예측변수는 "관리주체 없는 주거"입니다. 150세대 미만 공동주택은
         공동주택관리법상 의무관리 대상이 아니어서 관리사무소와 경비, 공동 배출장이 없는 경우가
         많습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는
-        2~3년 안에 같은 성격의 주거 재고로 들어옵니다.
+        2~3년 안에 같은 성격의 주택 물량으로 편입됩니다.
       </p>
       <Callout>
         준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두는 편이, 늘어나는 위험

@@ -189,7 +189,7 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   if (!top) {
     return [
       "특정 요인을 겨냥하기보다, 수거와 단속의 운영 방식 자체를 조정하는 수단입니다.",
-      "새 예산 없이 지금 있는 인력과 노선만 바꿔 시도할 수 있어, 먼저 검토해 볼 값어치가 있습니다.",
+      "새 예산 없이 지금 있는 인력과 노선만 조정해 시도할 수 있어, 먼저 검토해 볼 만합니다.",
     ]
   }
   const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 사업입니다.`
@@ -212,7 +212,7 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
       : `이런 결과가 우연히 나올 확률은 ${(top.p * 100).toFixed(1)}%입니다.`
   const s2 =
     top.kind === "beta"
-      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 견줘 보니, 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
+      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니, 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
       : `행정동 15곳을 나란히 놓고 보면, 이 비율이 높은 동네일수록 무단투기도 ${
           top.value >= 0.8 ? "거의 예외 없이" : top.value >= 0.7 ? "뚜렷하게" : "어느 정도"
         } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 붙어 다닌다는 뜻입니다.`

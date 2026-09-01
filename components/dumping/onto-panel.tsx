@@ -173,7 +173,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
   return (
     <div className="flex flex-col gap-3 p-3">
       <p className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-        이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 엮어 둔 곳입니다. 오른쪽 그래프나
+        이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 정리한 곳입니다. 오른쪽 그래프나
         아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.
       </p>
 

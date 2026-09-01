@@ -426,7 +426,7 @@ export default function DumpingDashboard() {
                   <p className="max-w-md rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] shadow-sm backdrop-blur">
                     {BASE_DESC[baseMode]}
                     {circles.length > 0 &&
-                      ` 그 위에 겹친 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 견줘 보시라고 올린 결과 지표입니다.`}
+                      ` 그 위에 겹친 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 비교해 보시라고 올린 결과 지표입니다.`}
                   </p>
                 )}
               </div>

@@ -168,7 +168,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           ))}
         </div>
         <p className="mt-1 text-[12px] text-[var(--cp-text-faint)]">
-          점수는 민원 1점에 과태료 2점을 더하고, 최근일수록 무겁게 친 값입니다(반감기 90일).
+          점수는 민원 1점에 과태료 2점을 더하고, 최근일수록 가중치를 높인 값입니다(반감기 90일).
           행정수요 예측이지 발생의 인과를 예측하는 것은 아닙니다.
         </p>
       </section>

@@ -73,7 +73,7 @@ function LeverCard({
         )}
       </dl>
       <span className="mt-1.5 inline-block rounded-md bg-[#0c6155]/10 px-2 py-1 text-[12.5px] font-semibold text-[#0c6155]">
-        {proposal ? "왜 이 사업인지 보기 →" : "검증 결과 자세히 보기 →"}
+        {proposal ? "제안 이유 보기 →" : "검증 결과 자세히 보기 →"}
       </span>
     </button>
   )
@@ -109,7 +109,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
     <div className="flex flex-col gap-4 p-3">
       {/* 정책 논리 요약 — 왜 이 대책들인가 */}
       <p className="rounded-xl border border-[#0c6155]/30 bg-[#0c6155]/5 px-3 py-2.5 text-[14px] leading-relaxed text-[var(--cp-text)]">
-        <b className="text-[#0a4a41]">정책 논리</b> · 무단투기를 가장 강하게 끌어올리는 조건은 관리주체
+        <b className="text-[#0a4a41]">정책 논리</b> · 무단투기 발생과 가장 강하게 연관된 조건은 관리주체
         없는 주거의 밀도였습니다. 그런데 사람(청년·외국인·1인세대)을 겨냥하는 대책은 비어 있었습니다.
         아래 제안 {proposals.length}건은 이 두 공백을 메우는 수단이며, 모두 실행 전에 조치 대장에
         설계를 등록한 뒤 평가합니다.
@@ -118,14 +118,14 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
       {/* 지도 연동 상태 — 어떤 사업을 지도에 띄워 두었는지 */}
       {active && (
         <p className="rounded-lg border border-[#0c6155]/40 bg-[#0c6155]/8 px-3 py-2 text-[13px] leading-relaxed text-[#0a4a41]">
-          지금 지도에는 <b>{active.node.label}</b> 관련 화면이 떠 있습니다.
+          지도에 <b>{active.node.label}</b> 관련 화면을 표시하고 있습니다.
         </p>
       )}
 
       {/* 신규 제안 — 무예산 먼저 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          지금 검토할 제안 {proposals.length}건 · 카드를 누르면 제안하는 까닭이 열립니다
+          지금 검토할 제안 {proposals.length}건 · 카드를 누르면 제안 이유가 나옵니다
         </h3>
         <div className="flex flex-col gap-2">
           {proposals.map((lv) => (
@@ -149,7 +149,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
       {/* 성과지표 — 무엇으로 성과를 재는가 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          성과는 이 지표로 잽니다
+          성과는 이 지표로 측정합니다
         </h3>
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
