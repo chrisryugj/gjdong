@@ -1,6 +1,7 @@
 "use client"
 
 import type { DumpingMapData } from "@/lib/dumping/types"
+import { summarize } from "@/lib/dumping/facts"
 import { FINDINGS, type Finding } from "./findings-data"
 
 interface FindingsPanelProps {
@@ -21,6 +22,7 @@ export default function FindingsPanel({
   activeTitle,
 }: FindingsPanelProps) {
   const dongs = data ? [...data.dong].sort((a, b) => b.cr - a.cr) : []
+  const periodLabel = data ? summarize(data).period.label : ""
   const maxCr = dongs.length ? dongs[0].cr : 1
   const sel = data?.dong.find((d) => d.d === selectedDong) ?? null
   const ts = sel ? (data?.ts[sel.d] ?? []) : []
@@ -31,7 +33,7 @@ export default function FindingsPanel({
       {/* 동별 랭킹 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          동별 민원 (천명당 · 2024.1~2026.8) · 누르면 지도가 그 동에 맞춰집니다
+          동별 민원 (천명당 · {periodLabel}) · 누르면 지도가 그 동에 맞춰집니다
         </h3>
         <div className="flex flex-col gap-1">
           {dongs.map((d, rank) => {
@@ -149,7 +151,7 @@ export default function FindingsPanel({
       {data && (
         <section>
           <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-            계절·날씨 요인 (일평균, 2024.1~2026.8)
+            계절·날씨 요인 (일평균, {periodLabel})
           </h3>
           <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
             <div className="grid grid-cols-4 gap-1.5 text-center">

@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { OntoGraph } from "@/lib/dumping/types"
 import { relLabel } from "@/lib/dumping/labels"
-import { DEFAULT_ZOOM, FOV, declutterLabels, labelVisible, projScale } from "./onto-view"
+import { DEFAULT_ZOOM, declutterLabels, labelVisible, projScale } from "./onto-view"
 
 // 3D 온톨로지 그래프 — 의존성 없이 SVG로 직접 구현.
 // KPI 허브를 원점에 두고 BFS 깊이 = 구면 셸 반지름으로 배치(피보나치 구면 분포),
-// 드래그 = 회전(yaw/pitch), 휠 = 줌, 가만두면 천천히 자동 회전. 59노드라 SVG로 충분.
+// 드래그 = 회전(yaw/pitch), 휠·버튼 = 줌, 가만두면 천천히 자동 회전. 노드가 수십 개라 SVG로 충분.
 
 export const SPACE_COLOR: Record<string, string> = {
   subject: "#64748b",
@@ -34,6 +34,7 @@ export const SPACE_KO: Record<string, string> = {
 const W = 1200
 const H = 860
 const HUB = "kpi-dump-rate"
+const clampZoom = (k: number) => Math.max(0.5, Math.min(3.5, k))
 
 interface P3 {
   x: number
@@ -126,6 +127,7 @@ interface OntologyGraphProps {
 export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyGraphProps) {
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: DEFAULT_ZOOM })
+  const [legendOpen, setLegendOpen] = useState(false) // 모바일에서만 의미 — 데스크톱은 항상 펼침
   const dragRef = useRef<{ sx: number; sy: number; yaw: number; pitch: number; moved: boolean } | null>(null)
   const interactedRef = useRef(false)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -181,17 +183,20 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     return () => clearInterval(timer)
   }, [selectedId, hoverId])
 
-  // wheel 줌 — passive 리스너로는 preventDefault가 안 먹어 native로 등록
+  const zoomBy = (f: number) => setView((v) => ({ ...v, k: clampZoom(v.k * f) }))
+
+  // wheel 줌 — passive 리스너로는 preventDefault가 안 먹어 native로 등록.
+  // svg는 graph가 온 뒤에야 마운트되므로 graph를 의존성에 둔다 (빈 deps면 늦게 온 그래프에 휠이 안 붙는다)
   useEffect(() => {
     const el = svgRef.current
     if (!el) return
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault()
-      setView((v) => ({ ...v, k: Math.max(0.5, Math.min(3.5, v.k * (ev.deltaY < 0 ? 1.28 : 0.78))) }))
+      setView((v) => ({ ...v, k: clampZoom(v.k * (ev.deltaY < 0 ? 1.28 : 0.78)) }))
     }
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
-  }, [])
+  }, [graph])
 
   if (!graph) {
     return (
@@ -241,11 +246,12 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     <div className="relative h-full w-full overflow-hidden bg-[var(--cp-bg)]">
       <svg
         ref={svgRef}
-        className="h-full w-full cursor-grab active:cursor-grabbing"
+        className="h-full w-full touch-none cursor-grab active:cursor-grabbing"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={(e) => {
           interactedRef.current = true
+          e.currentTarget.setPointerCapture(e.pointerId) // 포인터가 svg 밖으로 나가도 드래그 유지
           dragRef.current = { sx: e.clientX, sy: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false }
         }}
         onPointerMove={(e) => {
@@ -351,8 +357,20 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           )
         })}
       </svg>
-      {/* 범례 */}
-      <div className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-3 py-2 text-[13px] text-[var(--cp-text-muted)] backdrop-blur">
+      {/* 범례 — 좁은 화면에선 그래프를 가려서 접어 두고 버튼으로 편다 */}
+      <button
+        type="button"
+        onClick={() => setLegendOpen((o) => !o)}
+        aria-expanded={legendOpen}
+        className="absolute left-2 top-2 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 text-[13px] text-[var(--cp-text-muted)] backdrop-blur sm:hidden"
+      >
+        범례 {legendOpen ? "▾" : "▸"}
+      </button>
+      <div
+        className={`pointer-events-none absolute left-2 top-2 flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-3 py-2 text-[13px] text-[var(--cp-text-muted)] backdrop-blur max-sm:top-10 ${
+          legendOpen ? "" : "max-sm:hidden"
+        }`}
+      >
         {Object.entries(SPACE_KO).map(([space, ko]) => (
           <span key={space} className="inline-flex items-center gap-1.5">
             <i className="h-2 w-2 rounded-full" style={{ background: SPACE_COLOR[space] }} />
@@ -360,9 +378,20 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           </span>
         ))}
       </div>
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text-dim)]">
-        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · 드래그로 회전, 휠로 확대, 동그라미를
-        누르면 상세 (가만두면 천천히 돕니다)
+      {/* 확대·축소 버튼 — 터치 기기엔 휠이 없다 */}
+      <div className="absolute bottom-2 right-2 flex flex-col overflow-hidden rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] backdrop-blur">
+        <button type="button" onClick={() => zoomBy(1.28)} aria-label="확대" className="h-8 w-8 text-[16px] leading-none text-[var(--cp-text)] hover:bg-[var(--cp-hover)]">
+          +
+        </button>
+        <button type="button" onClick={() => zoomBy(0.78)} aria-label="축소" className="h-8 w-8 border-t border-[var(--cp-border)] text-[16px] leading-none text-[var(--cp-text)] hover:bg-[var(--cp-hover)]">
+          −
+        </button>
+      </div>
+      <div className="pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-4rem)] rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text-dim)]">
+        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 ·{" "}
+        <span className="pointer-coarse:hidden">드래그로 회전, 휠로 확대,</span>
+        <span className="pointer-fine:hidden">손가락으로 돌리고 +/−로 확대,</span> 동그라미를 누르면 상세 (가만두면
+        천천히 돕니다)
       </div>
     </div>
   )

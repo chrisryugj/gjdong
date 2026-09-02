@@ -1,58 +1,15 @@
 "use client"
 
-import { useEffect } from "react"
 import type { DumpingMapData } from "@/lib/dumping/types"
+import { fmtKrw, partialYearSuffix, summarize } from "@/lib/dumping/facts"
+import ModalShell from "./modal-shell"
 
 // 운영·전망 탭 상세 모달 — 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
-// 셸(ModalShell)과 공용 조각(KRW·ForecastChart)은 methods-modal·ops-panel이 함께 쓴다.
+// 공용 조각(KRW·ForecastChart)은 methods-modal·ops-panel이 함께 쓴다. 셸은 modal-shell.tsx.
 
 export type OpsModalId = "funnel" | "channels" | "forecast" | "fines" | "sla" | "permits"
 
-export const KRW = (n: number) => `${(n / 10000).toLocaleString(undefined, { maximumFractionDigits: 0 })}만원`
-
-export function ModalShell({
-  title,
-  sub,
-  onClose,
-  children,
-}: {
-  title: string
-  sub?: string
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-  return (
-    <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[88dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[var(--cp-border)] bg-white shadow-xl"
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-[var(--cp-border)] px-5 py-3.5">
-          <div className="min-w-0">
-            <h2 className="text-[17px] font-bold text-[var(--cp-text-strong)]">{title}</h2>
-            {sub && <p className="mt-0.5 text-[13px] text-[var(--cp-text-dim)]">{sub}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="닫기"
-            className="shrink-0 rounded-full px-2.5 py-1 text-[15px] text-[var(--cp-text-dim)] hover:bg-[var(--cp-hover)]"
-          >
-            ✕
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-      </div>
-    </div>
-  )
-}
+export const KRW = fmtKrw
 
 // 소제목·해설·표 공용 스타일 — 모달 안 가독성 통일
 export function H({ children }: { children: React.ReactNode }) {
@@ -71,14 +28,16 @@ function Callout({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Table({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
+// align: 열별 정렬 — 기본은 첫 열 왼쪽·나머지 오른쪽(숫자). 설명 열이 섞이면 지정한다
+function Table({ head, rows, align }: { head: string[]; rows: (string | number)[][]; align?: ("l" | "r")[] }) {
+  const right = (i: number) => (align ? align[i] === "r" : i > 0)
   return (
     <div className="overflow-x-auto rounded-lg border border-[var(--cp-border)]">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-[var(--cp-border)] bg-[var(--cp-hover)] text-left">
             {head.map((h, i) => (
-              <th key={h} className={`px-2.5 py-1.5 font-semibold text-[var(--cp-text-muted)] ${i > 0 ? "text-right" : ""}`}>
+              <th key={h} className={`px-2.5 py-1.5 font-semibold text-[var(--cp-text-muted)] ${right(i) ? "text-right" : ""}`}>
                 {h}
               </th>
             ))}
@@ -90,7 +49,7 @@ function Table({ head, rows }: { head: string[]; rows: (string | number)[][] }) 
               {r.map((c, ci) => (
                 <td
                   key={ci}
-                  className={`px-2.5 py-1.5 ${ci > 0 ? "text-right font-mono text-[var(--cp-text)]" : "text-[var(--cp-text-strong)]"}`}
+                  className={`px-2.5 py-1.5 ${right(ci) ? "text-right font-mono text-[var(--cp-text)]" : "text-[var(--cp-text-strong)]"}`}
                 >
                   {typeof c === "number" ? c.toLocaleString() : c}
                 </td>
@@ -110,9 +69,9 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
   const all = [...hist.map(([m, v]) => ({ m, v })), ...f.fc.map((p) => ({ m: p.m, v: p.yhat }))]
   const maxV = Math.max(...all.map((p) => p.v), ...f.fc.map((p) => p.hi))
   const W = 320
-  const H = tall ? 130 : 80
+  const HH = tall ? 130 : 80
   const x = (i: number) => (i / (all.length - 1)) * (W - 8) + 4
-  const y = (v: number) => H - 14 - (v / maxV) * (H - 22)
+  const y = (v: number) => HH - 14 - (v / maxV) * (HH - 22)
   const histPts = hist.map(([, v], i) => `${x(i)},${y(v)}`).join(" ")
   const fcPts = f.fc.map((p, i) => `${x(hist.length + i)},${y(p.yhat)}`).join(" ")
   const bridge = `${x(hist.length - 1)},${y(hist[hist.length - 1][1])}`
@@ -121,7 +80,7 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
     ...[...f.fc].reverse().map((p, i) => `${x(hist.length + f.fc.length - 1 - i)},${y(p.lo)}`),
   ].join(" ")
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+    <svg viewBox={`0 0 ${W} ${HH}`} className="w-full">
       <polygon points={band} fill="#0c6155" opacity="0.12" />
       <polyline points={histPts} fill="none" stroke="var(--cp-text-muted)" strokeWidth="1.4" />
       <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#0c6155" strokeWidth="1.8" strokeDasharray="4 3" />
@@ -130,7 +89,7 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
         x1={x(hist.length - 1)}
         x2={x(hist.length - 1)}
         y1={4}
-        y2={H - 12}
+        y2={HH - 12}
         stroke="var(--cp-text-faint)"
         strokeWidth="1"
         strokeDasharray="2 2"
@@ -139,7 +98,7 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
         <text
           key={m + i}
           x={i === 0 ? 4 : W - 4}
-          y={H - 2}
+          y={HH - 2}
           textAnchor={i === 0 ? "start" : "end"}
           className="fill-[var(--cp-text-faint)] text-[9px]"
         >
@@ -206,6 +165,7 @@ export default function OpsModal({
   if (!id || !data) return null
   const d = data.decision
   const f = d.fines
+  const { period, finesPeriod } = summarize(data)
 
   if (id === "funnel") {
     const MEANING: Record<string, string> = {
@@ -215,10 +175,11 @@ export default function OpsModal({
       "진행 중": "부과 직후이거나 정리 보류 상태",
     }
     return (
-      <ModalShell title="과태료 처분·징수 상세" sub={`부과 ${f.totalN.toLocaleString()}건 · ${KRW(f.totalAmount)} (2024.1~2026.8 위반분)`} onClose={onClose}>
+      <ModalShell title="과태료 처분·징수 상세" sub={`부과 ${f.totalN.toLocaleString()}건 · ${KRW(f.totalAmount)} (${finesPeriod.label} 위반분)`} onClose={onClose}>
         <H>단계별 현황</H>
         <Table
-          head={["단계", "건수", "금액", ""]}
+          head={["단계", "건수", "금액", "뜻"]}
+          align={["l", "r", "r", "l"]}
           rows={Object.entries(f.funnel).map(([g, v]) => [g, v.n, KRW(v.amount), MEANING[g] ?? ""])}
         />
         <Callout>
@@ -231,7 +192,7 @@ export default function OpsModal({
           {KRW(f.arrearsAmount)}은 금액보다도, 상습 체납 지점과 상습 투기 지점이 겹치는지가 다음
           분석 과제입니다(지금 데이터에는 체납자 위치가 담겨 있지 않습니다).
         </p>
-        <Note>금액은 과세금액 합산이며 가산금은 포함하지 않은 근사치다. 원천: 청소과 과태료 부과내역(세무 총괄과세 조회).</Note>
+        <Note>금액은 과세금액 합산이며 가산금은 포함하지 않은 근사치입니다. 원천: 청소과 과태료 부과내역(세무 총괄과세 조회).</Note>
       </ModalShell>
     )
   }
@@ -240,12 +201,12 @@ export default function OpsModal({
     const years = [...new Set(Object.values(d.channels.yearly).flatMap((y) => Object.keys(y)))].sort()
     const get = (ch: string, y: string) => d.channels.yearly[ch]?.[y] ?? 0
     return (
-      <ModalShell title="민원 채널 구조" sub="같은 발생이라도 신고 창구가 다르면 통계가 다르게 보인다" onClose={onClose}>
+      <ModalShell title="민원 채널 구조" sub="같은 발생이라도 신고 창구가 다르면 통계가 다르게 보입니다" onClose={onClose}>
         <H>연도별 접수 (건)</H>
         <Table
           head={["연도", "앱", "120", "직접·전화", "합계"]}
           rows={years.map((y) => [
-            y === years[years.length - 1] ? `${y} (1~8월)` : y,
+            `${y}${partialYearSuffix(period, y)}`,
             get("app", y),
             get("c120", y),
             get("direct", y),
@@ -277,9 +238,9 @@ export default function OpsModal({
         />
         <H>어떻게 계산했나</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-          지난 31개월의 월별 접수에서 수준·추세·계절 반복(여름에 많고 겨울에 적은 패턴)을 학습하는
-          홀트윈터스 계절 모형을 썼습니다. 직전 8개월을 한 달씩 제외하고 예측해 보는 백테스트에서
-          평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
+          지난 {Object.keys(d.forecast.series).length}개월의 월별 접수에서 수준·추세·계절 반복(여름에 많고 겨울에 적은
+          패턴)을 학습하는 홀트윈터스 계절 모형을 썼습니다. 최근 달을 하나씩 제외하고 예측해 보는
+          백테스트({d.forecast.backtest.window})에서 평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
         </p>
         <Callout>
           이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고,
@@ -303,7 +264,7 @@ export default function OpsModal({
             KRW(c.amount),
           ])}
         />
-        <H>월별 추이 · 두 현상은 따로 움직인다</H>
+        <H>월별 추이 · 두 현상은 따로 움직입니다</H>
         <CategoryTrendChart data={data} />
         <Callout>
           담배꽁초(차량) {Math.round((cigN / f.totalN) * 100)}%는 주행 중 도로에서 벌어지는 일이라
@@ -326,7 +287,7 @@ export default function OpsModal({
         <Table
           head={["연도", "절반은 이내", "느린 10%", "3일 내 처리", "표본"]}
           rows={years.map(([y, s]) => [
-            y === "2026" ? "2026 (1~8월)" : y,
+            `${y}${partialYearSuffix(period, y)}`,
             `${s.medianH}시간`,
             `${s.p90H}시간`,
             `${s.within3dPct}%`,

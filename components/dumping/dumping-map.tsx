@@ -20,9 +20,9 @@ const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">Open
 
 // 모드별 팔레트를 분리해 "지금 뭘 보고 있는지"가 색으로 구분되게 한다
 // 원인(무관리주거)=초록 · 민원=파랑 · 과태료=주황
-export const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
-export const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
-export const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
+const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
+const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
+const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 
@@ -139,6 +139,8 @@ export default function DumpingMap({
   const focusLayerRef = useRef<LayerGroup | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
   const [ready, setReady] = useState(false)
+  // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다 — 작은 점으로 바꾸기 위한 트리거
+  const [zoomedOut, setZoomedOut] = useState(false)
 
   // 지도 1회 초기화
   useEffect(() => {
@@ -171,6 +173,7 @@ export default function DumpingMap({
       dongPane.style.zIndex = "350"
       dongPane.style.pointerEvents = "none"
       // 모바일 분할 핸들 등으로 컨테이너 높이가 바뀌면 Leaflet에 알림
+      map.on("zoomend", () => setZoomedOut(map.getZoom() < 14))
       const observer = new ResizeObserver(() => mapRef.current?.invalidateSize())
       observer.observe(boxRef.current)
       resizeObsRef.current = observer
@@ -243,9 +246,15 @@ export default function DumpingMap({
       // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
       const muted = layers.length > 0 || showCandidates || showHotspots || showCritical
 
+      // 동을 골랐으면 그 동 안은 항상 또렷하게 — 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
+      const isDimmed = (cell: GridCell) => {
+        const inDong = selectedDong === null || cell[7] === selectedDong
+        return !inDong || (muted && selectedDong === null)
+      }
+
       for (const cell of data.grid) {
         const v = cell[def.idx]
-        const dimmed = (selectedDong !== null && cell[7] !== selectedDong) || muted
+        const dimmed = isDimmed(cell)
         if (v > 0) {
           L.rectangle(
             [
@@ -271,11 +280,12 @@ export default function DumpingMap({
         const busy = data.grid.filter((c) => c[cdef.idx] > 0).sort((a, b) => b[cdef.idx] - a[cdef.idx])
         for (const cell of busy) {
           const v = cell[cdef.idx]
-          const dimmed = (selectedDong !== null && cell[7] !== selectedDong) || muted
-          L.circleMarker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
+          const dimmed = isDimmed(cell)
+          // 반경은 미터 — 격자(약 100m)에 붙어 줌과 함께 커지고 작아진다. 픽셀 고정이면 전체보기에서 원끼리 덮는다
+          L.circle([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
-            radius: 2 + Math.pow(v, 0.6) * 1.4,
+            radius: Math.min(70, 8 + Math.pow(v, 0.6) * 6),
             color: cdef.color,
             weight: 1.1,
             opacity: dimmed ? 0.15 : 0.75,
@@ -455,13 +465,15 @@ export default function DumpingMap({
       const L = await import("leaflet")
       const group = L.layerGroup()
       data.decision.hotspots.top.forEach((h, i) => {
+        // 줌아웃 상태에선 순위 숫자 대신 작은 점 — 상위 3은 색으로만 구분
+        const sm = zoomedOut
         L.marker([h[0], h[1]], {
           pane: "dumpInfra",
           icon: L.divIcon({
             className: "",
-            html: `<div class="dump-hot${i < 3 ? " dump-hot-top" : ""}">${i + 1}</div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
+            html: `<div class="dump-hot${i < 3 ? " dump-hot-top" : ""}${sm ? " dump-hot-sm" : ""}">${sm ? "" : i + 1}</div>`,
+            iconSize: sm ? [10, 10] : [24, 24],
+            iconAnchor: sm ? [5, 5] : [12, 12],
           }),
         })
           .bindTooltip(hotspotTooltip(i + 1, h), { sticky: true, direction: "top", opacity: 1 })
@@ -471,7 +483,7 @@ export default function DumpingMap({
       hotspotLayerRef.current = group
     }
     void draw()
-  }, [data, showHotspots, ready])
+  }, [data, showHotspots, ready, zoomedOut])
 
   // 집중관리 상습격자 (12개월 10건 이상) — 격자 외곽선 강조
   useEffect(() => {

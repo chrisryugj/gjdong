@@ -1,18 +1,24 @@
 "use client"
 
-import type { DumpingMapData } from "@/lib/dumping/types"
+import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
+import { partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
 
 // 예시 질문에 딸려 나오는 데이터 차트 — 의존성 없이 SVG 직접 렌더.
-// LLM 답변과 무관하게 export 집계(map.json)에서 그리므로 수치가 지어질 수 없다.
+// LLM 답변과 무관하게 export 집계(map.json·graph.json)에서 그리므로 수치가 지어질 수 없다.
 
 export type ChartKind = "yearly" | "monthly" | "seasons" | "beta" | "did"
 
 export const CHART_TITLE: Record<ChartKind, string> = {
   yearly: "연도별 민원·과태료 건수",
-  monthly: "월별 민원 추이 (2024.1~2026.8)",
+  monthly: "월별 민원 추이",
   seasons: "계절별 일평균 발생 (민원·과태료)",
   beta: "요인별 영향력 (표준화 β)",
   did: "이동식 CCTV 효과 재검증 (DID)",
+}
+
+// 카드·모달 제목 — 월별은 집계 기간을 데이터에서 붙인다
+export function chartTitle(kind: ChartKind, data: DumpingMapData): string {
+  return kind === "monthly" ? `${CHART_TITLE.monthly} (${summarize(data).period.label})` : CHART_TITLE[kind]
 }
 
 const BLUE = "#1c4f96"
@@ -33,6 +39,7 @@ function niceMax(v: number): number {
 
 function YearlyChart({ data }: { data: DumpingMapData }) {
   const years = Object.keys(data.yearly.complaints).filter((y) => Number(y) >= 2024)
+  const { period } = summarize(data)
   const series = years.map((y) => ({
     y,
     comp: data.yearly.complaints[y] ?? 0,
@@ -48,7 +55,6 @@ function YearlyChart({ data }: { data: DumpingMapData }) {
       <line x1={x0} y1={200} x2={W - 10} y2={200} stroke="#cbd5e1" />
       {series.map((s, i) => {
         const cx = x0 + groupW * i + groupW / 2
-        const partial = s.y === "2026"
         return (
           <g key={s.y}>
             <rect x={cx - bw - 4} y={y(s.comp)} width={bw} height={200 - y(s.comp)} fill={BLUE} rx={3} />
@@ -61,7 +67,7 @@ function YearlyChart({ data }: { data: DumpingMapData }) {
             </text>
             <text x={cx} y={222} textAnchor="middle" fontSize={15} fill={INK}>
               {s.y}
-              {partial ? "(1~8월)" : ""}
+              {partialYearSuffix(period, s.y)}
             </text>
           </g>
         )
@@ -154,16 +160,17 @@ function SeasonsChart({ data }: { data: DumpingMapData }) {
   )
 }
 
-// 회귀 β — 수치는 검증 확정값(README·온톨로지)이라 정적으로 둔다
-const BETAS = [
-  { n: "무관리 주거단위", v: 0.312, note: "최강" },
-  { n: "골목 비율", v: -0.222, note: "반증" },
-  { n: "간선도로 이격", v: -0.139, note: "반증" },
-  { n: "음식점 수", v: 0.086, note: "" },
-  { n: "공동주택 세대수", v: -0.011, note: "무효" },
-]
+// 회귀 β — 그래프 Covariate 노드의 coefficient(|β| 내림차순). 꼬리표는 해석 결과라 id별로 붙인다
+const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "최강", "cov-alley": "반증", "cov-arterial": "반증" }
 
-function BetaChart() {
+function BetaChart({ graph }: { graph: OntoGraph }) {
+  const BETAS = regressionBetas(graph).map((b) => ({
+    n: b.label.replace(/\s*수$/, ""), // "무관리 주거단위 수" → "무관리 주거단위" (음식점 수는 그대로)
+    v: b.beta,
+    // p ≥ 0.05면 우연 범위 — "무효"
+    note: BETA_NOTE[b.id] ?? (b.p >= 0.05 ? "무효" : ""),
+    invalid: b.p >= 0.05,
+  }))
   const cx = W / 2 + 30
   const scale = 380 // px per β 1.0
   const rowH = 40
@@ -173,8 +180,7 @@ function BetaChart() {
       {BETAS.map((b, i) => {
         const yy = 24 + i * rowH
         const w = Math.abs(b.v) * scale
-        const invalid = b.n === "공동주택 세대수"
-        const color = invalid ? GRAY : b.v > 0 ? GREEN : BLUE
+        const color = b.invalid ? GRAY : b.v > 0 ? GREEN : BLUE
         return (
           <g key={b.n}>
             <rect x={b.v > 0 ? cx : cx - w} y={yy} width={Math.max(w, 2)} height={20} fill={color} rx={3} />
@@ -203,17 +209,20 @@ function BetaChart() {
   )
 }
 
-function DidChart() {
+// 초기값 −0.785는 철회된 분석의 기록(README)이라 그래프에 없다 — 정적. 재검증값은 판정 엣지에서 읽는다
+function DidChart({ graph }: { graph: OntoGraph }) {
   const cy = 140
   const scale = 90 // px per 1.0
+  const edge = graph.edges.find((e) => e.f === "lev-cctv-mobile" && e.rel === "lowers")
+  const sym = Number(edge?.props?.did_symmetric ?? 0.221)
   const bars = [
     { n: "초기 분석(비대칭 설계)", v: -0.785, color: GRAY, note: "철회됨", retracted: true },
-    { n: "재검증(대칭 설계)", v: 0.221, color: GREEN, note: "p>0.5 · 효과 없음", retracted: false },
+    { n: "재검증(대칭 설계)", v: sym, color: GREEN, note: `p${edge?.props?.p ?? ">0.5"} · 효과 없음`, retracted: false },
   ]
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
       <text x={W / 2} y={22} textAnchor="middle" fontSize={13} fill={INK_DIM}>
-        비교 조건을 공정하게 다시 걸자 감소 효과가 사라졌다
+        비교 조건을 공정하게 다시 걸자 감소 효과가 사라졌습니다
       </text>
       <line x1={60} y1={cy} x2={W - 20} y2={cy} stroke="#cbd5e1" />
       <text x={50} y={cy + 5} textAnchor="end" fontSize={13} fill={INK_DIM}>0</text>
@@ -250,7 +259,8 @@ function DidChart() {
   )
 }
 
-export default function QaChart({ kind, data }: { kind: ChartKind; data: DumpingMapData }) {
+export default function QaChart({ kind, data, graph }: { kind: ChartKind; data: DumpingMapData; graph: OntoGraph | null }) {
+  if ((kind === "beta" || kind === "did") && !graph) return null
   switch (kind) {
     case "yearly":
       return <YearlyChart data={data} />
@@ -259,8 +269,8 @@ export default function QaChart({ kind, data }: { kind: ChartKind; data: Dumping
     case "seasons":
       return <SeasonsChart data={data} />
     case "beta":
-      return <BetaChart />
+      return <BetaChart graph={graph!} />
     case "did":
-      return <DidChart />
+      return <DidChart graph={graph!} />
   }
 }

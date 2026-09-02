@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { DumpingMapData, InterventionEntry } from "@/lib/dumping/types"
+import { partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import OpsModal, { ForecastChart, KRW, type OpsModalId } from "./ops-modal"
 
 // 운영·전망 탭 — KPI 보드 · 예측 핫스팟 · 수요 전망 · 품목 분해 · 처분 퍼널 · 처리 SLA · 구조 전망 · 조치 대장.
@@ -68,8 +69,14 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
     ((d.fines.categories.find((c) => c.cat === "담배꽁초(차량)")?.n ?? 0) / d.fines.totalN) * 100,
   )
   const nextFc = d.forecast.fc[0]
+  // 전망 첫 달이 집계 중인 달(월별 마지막 키)이면 "다음 달"이 아니라 "이번 달" — 접수 중인 건수를 같이 보인다
+  const fcSoFar = data.yearly.complaintsMonthly[nextFc.m]
   const funnelOrder = ["납부 완료", "체납", "감면·감액", "진행 중"]
   const slaYears = Object.entries(d.sla.byYear)
+  const { period } = summarize(data)
+  // SLA 요약 문장 — 완결된 두 해의 중앙값 변화 + 마지막 해의 상위 10% 방향. 숫자는 표와 같은 원천
+  const [slaA, slaB, slaLast] = [slaYears[0], slaYears[1], slaYears[slaYears.length - 1]]
+  const slaPrev = slaYears[slaYears.length - 2]
 
   return (
     <div className="flex flex-col gap-4 p-3">
@@ -178,11 +185,16 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionTitle>민원 접수 전망 (운영 참고)</SectionTitle>
         <DetailCard onOpen={() => setModal("forecast")}>
           <p className="mb-1 text-[14px] text-[var(--cp-text-muted)]">
-            다음 달({nextFc.m}) 예상 접수{" "}
+            {fcSoFar != null ? "이번 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
             <b className="font-mono text-[16px] text-[var(--cp-text-strong)]">{nextFc.yhat}건</b>
             <span className="ml-1 font-mono text-[13px] text-[var(--cp-text-dim)]">
               (80% 구간 {nextFc.lo}~{nextFc.hi})
             </span>
+            {fcSoFar != null && (
+              <span className="block font-mono text-[12px] text-[var(--cp-text-dim)]">
+                {d.asof.slice(5).replace("-", "/")}까지 {fcSoFar}건 접수
+              </span>
+            )}
           </p>
           <ForecastChart data={data} />
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
@@ -268,18 +280,28 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                     {yr}년{worst && <b className="ml-1 text-[11px] text-[#a8322a]">주의</b>}
                   </p>
                   <p className="font-mono text-[15px] font-semibold text-[var(--cp-text-strong)]">
-                    {s.medianH}h
+                    {s.medianH}시간
                   </p>
                   <p className="text-[11px] text-[var(--cp-text-faint)]">
-                    상위10% {s.p90H}h · 3일내 {s.within3dPct}%
+                    상위10% {s.p90H}시간 · 3일내 {s.within3dPct}%
                   </p>
                 </div>
               )
             })}
           </div>
           <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-            중앙값은 2024년 21.6시간에서 2025년 7.9시간으로 개선. 2026년(1~8월)은 앱 민원 급증과 함께
-            상위 10% 처리가 다시 느려졌다.
+            {slaA && slaB && (
+              <>
+                중앙값은 {slaA[0]}년 {slaA[1].medianH}시간에서 {slaB[0]}년 {slaB[1].medianH}시간으로{" "}
+                {slaB[1].medianH < slaA[1].medianH ? "개선" : "악화"}.{" "}
+              </>
+            )}
+            {slaLast && slaPrev && (
+              <>
+                {slaLast[0]}년{partialYearSuffix(period, slaLast[0])}은 앱 민원 급증과 함께 상위 10% 처리가{" "}
+                {slaLast[1].p90H > slaPrev[1].p90H ? "다시 느려졌습니다" : "빨라졌습니다"}.
+              </>
+            )}
           </p>
         </DetailCard>
       </section>
@@ -342,8 +364,11 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               {interventions.map((it) => (
                 <div key={it.id} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-2">
                   <div className="flex items-center gap-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${STATUS_KO[it.status].cls}`}>
-                      {STATUS_KO[it.status].label}
+                    {/* 대장 JSON에 새 상태가 들어와도 화면이 깨지지 않게 — 모르는 값은 원문 그대로 */}
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${STATUS_KO[it.status]?.cls ?? "bg-slate-100 text-slate-500"}`}
+                    >
+                      {STATUS_KO[it.status]?.label ?? it.status}
                     </span>
                     <span className="truncate text-[13px] font-medium text-[var(--cp-text-strong)]">
                       {it.title}
@@ -365,7 +390,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             </div>
           )}
           <p className="mt-2 text-[12px] text-[var(--cp-text-faint)]">
-            등록·갱신은 저장소 <span className="font-mono">public/dumping/interventions.json</span> 편집
+            등록·갱신은 저장소 <span className="font-mono">data/dumping/interventions.json</span> 편집
             후 재배포.
           </p>
         </div>

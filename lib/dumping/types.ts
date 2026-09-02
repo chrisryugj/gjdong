@@ -135,7 +135,7 @@ export interface DecisionLayer {
   } | null
 }
 
-// 조치 대장 (public/dumping/interventions.json)
+// 조치 대장 (data/dumping/interventions.json — 인증 API /api/dumping/data/interventions 로 서빙)
 export interface InterventionEntry {
   id: string
   lever: string

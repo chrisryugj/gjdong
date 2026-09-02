@@ -1,14 +1,14 @@
-import graph from "@/public/dumping/graph.json"
-import mapData from "@/public/dumping/map.json"
+import graph from "@/data/dumping/graph.json"
+import mapData from "@/data/dumping/map.json"
+import type { DumpingMapData } from "./types"
+import { fmtKrw, summarize } from "./facts"
+import { TYPE_KO } from "./labels"
 
-// 온톨로지(59노드·76엣지) + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
+// 온톨로지 전체 + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
 // 그래프가 작아 통째로 컨텍스트에 들어간다 — RAG 불필요.
+// 노드·엣지 수와 기간·총건수는 JSON에서 세어 넣는다 — 재수출 때 문구가 어긋나지 않게.
 
-const TYPE_KO: Record<string, string> = {
-  Org: "조직", Team: "부서", Dataset: "데이터셋", Evidence: "증거", Class: "분석단위",
-  Concept: "요인/개념", Entity: "실체", Topic: "이론", Claim: "주장(검증됨)",
-  Covariate: "회귀 공변량", KPI: "결과지표", Risk: "리스크", Lever: "개입수단", Policy: "법령/정책",
-}
+const S = summarize(mapData as unknown as DumpingMapData)
 
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
@@ -58,9 +58,9 @@ export function buildSystemPrompt(): string {
 아래 온톨로지(지식그래프)와 동별 수치가 근거의 전부다. 여기에 없는 내용은 지어내지 말고 "이 분석에는 없는 내용"이라고 답하라.
 
 ## 분석 개요
-민원 3,462건(2024.1~2026.8)·과태료 3,247건·건축물대장 24,520동·주민등록 인구를 100m 격자 1,062개에 결합해
-무단투기 발생 구조를 추정한 데이터기반행정 분석이다. 온톨로지는 분석 59노드·76엣지에
-의사결정 레이어(품목·퍼널·KPI·핫스팟·전망)를 더해 69노드·93엣지.
+민원 ${S.complaints.toLocaleString()}건(${S.period.label})·과태료 ${S.enforcement.toLocaleString()}건·건축물대장 24,520동·주민등록 인구를 100m 격자 1,062개에 결합해
+무단투기 발생 구조를 추정한 데이터기반행정 분석이다. 온톨로지는 분석 노드·엣지에
+의사결정 레이어(품목·퍼널·KPI·핫스팟·전망)를 더해 ${graph.nodes.length}노드·${graph.edges.length}엣지.
 
 ## 해석 규칙 (반드시 지켜라 — 독립 검토로 확정된 사항)
 1. 인과 표현 금지: "원인이다"가 아니라 "조건부 연관"으로 말하라. 회귀계수는 통제 후 연관이지 인과 증명이 아니다.
@@ -98,10 +98,10 @@ export function buildSystemPrompt(): string {
 ## 온톨로지
 ${serializeOntology()}
 
-## 동별 수치 (행정동 15개)
+## 동별 수치 (행정동 ${S.dongCount}개)
 ${serializeDong()}
 
-## 연도별 집계 (민원=접수시각 기준, 과태료=위반일시 기준. ★2026년은 1~8월까지만의 부분 연도 — 연간 환산·비교 시 반드시 명시하라)
+## 연도별 집계 (민원=접수시각 기준, 과태료=위반일시 기준. ★${S.period.lastYear}년은 1~${S.period.lastMonth}월까지만의 부분 연도 — 연간 환산·비교 시 반드시 명시하라)
 민원 건수: ${Object.entries(mapData.yearly.complaints).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
 그중 앱(서울스마트불편신고) 접수: ${Object.entries(mapData.yearly.complaintsApp).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
 과태료 부과: ${Object.entries(mapData.yearly.enforcement).map(([y, n]) => `${y}년 ${n}건`).join(" · ")}
@@ -113,10 +113,10 @@ ${Object.entries(mapData.yearly.complaintsMonthly).map(([m, n]) => `${m}: ${n}`)
 ${Object.entries(mapData.decision.fines.monthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
 
 ## 과태료 품목 분해 (${mapData.decision.fines.totalN.toLocaleString()}건, 금액=과세금액 합)
-${mapData.decision.fines.categories.map((c) => `${c.cat}: ${c.n}건 ${Math.round(c.amount / 10000).toLocaleString()}만원`).join(" · ")}
+${mapData.decision.fines.categories.map((c) => `${c.cat}: ${c.n}건 ${fmtKrw(c.amount)}`).join(" · ")}
 
-## 과태료 처분 퍼널 (부과 총액 ${Math.round(mapData.decision.fines.totalAmount / 10000).toLocaleString()}만원, 가산금 미포함)
-${Object.entries(mapData.decision.fines.funnel).map(([g, v]) => `${g}: ${v.n}건 ${Math.round(v.amount / 10000).toLocaleString()}만원`).join(" · ")}
+## 과태료 처분 퍼널 (부과 총액 ${fmtKrw(mapData.decision.fines.totalAmount)}, 가산금 미포함)
+${Object.entries(mapData.decision.fines.funnel).map(([g, v]) => `${g}: ${v.n}건 ${fmtKrw(v.amount)}`).join(" · ")}
 징수율(감면·진행 제외): ${mapData.decision.fines.collectionRatePct}%
 
 ## 민원 채널별 연도 (앱=서울스마트불편신고, c120=120 계열, direct=직접·전화 등)
@@ -156,7 +156,7 @@ CCTV 철회(평균회귀 오염) 재발 방지 장치. "무슨 대책이 효과 
 - 2025년 실적 97,228km(목표 대비 98.2%), 2026년 목표 99,038km
 - 광진 클린데이: 월 1회(4~11월, 총 8회), 15개 동 동시 — 이면도로 무단투기 집중구역 환경정비 포함
 
-## 환경요인 집계 (2024.1~2026.8 일평균, 날씨=Open-Meteo 광진 일별 관측 조인)
+## 환경요인 집계 (${S.period.label} 일평균, 날씨=Open-Meteo 광진 일별 관측 조인)
 ★해석 주의: 전부 관찰된 상관이며 인과 아님. 민원은 "발견·신고 시각", 과태료 시간대·요일은
 "단속 적발 시각"이라 단속 인력의 근무 패턴(평일 오전 순찰)이 섞여 있다. 투기 행위 시각 자체는 관측 불가.
 계절별 일평균 (민원 / 과태료): ${Object.entries(mapData.env.seasons).map(([k, v]) => `${k} ${v.compPerDay}/${v.enfPerDay}건`).join(" · ")}

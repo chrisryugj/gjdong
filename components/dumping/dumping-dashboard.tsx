@@ -1,17 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import type {
-  BaseMode,
-  CircleId,
-  DumpingMapData,
-  InfraLayerId,
-  InterventionEntry,
-  MapMode,
-  OntoGraph,
-  VizAction,
-} from "@/lib/dumping/types"
-import DumpingMap, { BASE_DEF, CIRCLE_DEF, INFRA_STYLE, type CandidateFocus } from "./dumping-map"
+import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
+import { summarize } from "@/lib/dumping/facts"
+import DumpingMap, { type CandidateFocus } from "./dumping-map"
+import MapControls, { DEFAULT_VIEW, MODE_MAP, type MapView } from "./map-controls"
+import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
 import FindingsPanel from "./findings-panel"
 import FindingModal from "./finding-modal"
@@ -27,27 +21,7 @@ import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
-
-const BASE_LABEL: Record<BaseMode, string> = {
-  unm: "무관리주거",
-  comp: "민원",
-  enf: "과태료",
-}
-
-// VizAction(발견 카드·예시 질문)의 기존 mode를 바탕+원 조합으로 해석
-const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> = {
-  overlay: { base: "unm", circles: ["comp"] },
-  unm: { base: "unm", circles: [] },
-  comp: { base: "comp", circles: [] },
-  enf: { base: "enf", circles: [] },
-}
-
-// 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음)
-const BASE_DESC: Record<BaseMode, string> = {
-  unm: "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 발생과 무관해(β −0.011) 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다.",
-  comp: "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다.",
-  enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
-}
+type LoadState = "loading" | "ready" | "error"
 
 // 정책 제안이 첫 화면 — 분석의 결론이자 행정이 바로 검토할 대목이다.
 // 지식그래프 원자료를 훑는 온톨로지는 맨 끝. 정책 판단에 먼저 필요한 화면이 아니다.
@@ -59,27 +33,26 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "onto", label: "온톨로지" },
 ]
 
-const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
+const DATA_URL = (name: "map" | "graph" | "interventions") => `/api/dumping/data/${name}`
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${url} ${r.status}`)
+  return r.json()
+}
 
 export default function DumpingDashboard() {
   const [auth, setAuth] = useState<AuthState>("checking")
-  const [pw, setPw] = useState("")
-  const [pwError, setPwError] = useState<string | null>(null)
-  const [pwBusy, setPwBusy] = useState(false)
-
   const [tab, setTab] = useState<Tab>("policy")
   const [mapData, setMapData] = useState<DumpingMapData | null>(null)
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [interventions, setInterventions] = useState<InterventionEntry[] | null>(null)
+  const [load, setLoad] = useState<LoadState>("loading")
+  const [loadSeq, setLoadSeq] = useState(0) // 재시도 트리거
   const [briefingDong, setBriefingDong] = useState<string | null>(null)
   const [showCritical, setShowCritical] = useState(false) // 집중관리 상습격자 지도 강조
   const [showMethods, setShowMethods] = useState(false) // 분석 방법 안내 모달
-  const [showMapHelp, setShowMapHelp] = useState(false) // 지도 읽는 법 — 좁은 화면에서 지도를 덮지 않도록 기본 접힘
-  const [baseMode, setBaseMode] = useState<BaseMode>("unm")
-  const [circles, setCircles] = useState<CircleId[]>(["comp"]) // 기본 = 원인 바탕 + 민원 원
-  const [layers, setLayers] = useState<InfraLayerId[]>([])
-  const [showCandidates, setShowCandidates] = useState(false)
-  const [showRoutes, setShowRoutes] = useState(false)
+  const [view, setView] = useState<MapView>(DEFAULT_VIEW)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [openFinding, setOpenFinding] = useState<Finding | null>(null)
@@ -89,25 +62,30 @@ export default function DumpingDashboard() {
   const [resetSeq, setResetSeq] = useState(0)
   const split = useSplitPane() // 모바일: 지도/패널 분할 핸들 (crowd 패턴 재사용)
 
+  const clearActive = () => {
+    setActiveFinding(null)
+    setActiveLever(null)
+  }
+
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
     setTab("policy")
-    setBaseMode("unm")
-    setCircles(["comp"])
-    setLayers([])
-    setShowCandidates(false)
-    setShowRoutes(false)
+    setView(DEFAULT_VIEW)
     setSelectedDong(null)
     setSelectedNode(null)
     setOpenFinding(null)
-    setActiveFinding(null)
-    setActiveLever(null)
+    clearActive()
     setFocusCandidate(null)
     setBriefingDong(null)
     setShowCritical(false)
     setShowMethods(false)
-    setShowMapHelp(false)
     setResetSeq((v) => v + 1)
+  }
+
+  // 탭을 옮기면 목록 클릭으로 찍은 펄스 라벨은 의미를 잃는다 (핫스팟 순위는 운영 탭에서만 보인다)
+  const switchTab = (t: Tab) => {
+    setTab(t)
+    setFocusCandidate(null)
   }
 
   useEffect(() => {
@@ -119,33 +97,51 @@ export default function DumpingDashboard() {
 
   useEffect(() => {
     if (auth !== "open") return
-    fetch("/dumping/map.json")
-      .then((r) => r.json())
-      .then(setMapData)
-      .catch(() => {})
-    fetch("/dumping/graph.json")
-      .then((r) => r.json())
-      .then(setGraph)
-      .catch(() => {})
-    fetch("/dumping/interventions.json")
-      .then((r) => r.json())
-      // 예시 항목(registeredAt 빈값)은 목록에서 제외 — 스키마 안내용으로만 파일에 남는다
-      .then((d) => setInterventions((d?.entries ?? []).filter((e: InterventionEntry) => e.registeredAt)))
-      .catch(() => setInterventions(null))
-  }, [auth])
+    let alive = true
+    setLoad("loading")
+    Promise.all([
+      fetchJson<DumpingMapData>(DATA_URL("map")),
+      fetchJson<OntoGraph>(DATA_URL("graph")),
+      // 조치 대장은 없어도 화면이 선다 — 실패는 null(미확보)로만 표시
+      fetchJson<{ entries?: InterventionEntry[] } | null>(DATA_URL("interventions")).catch(() => null),
+    ])
+      .then(([map, g, iv]) => {
+        if (!alive) return
+        setMapData(map)
+        setGraph(g)
+        // 예시 항목(registeredAt 빈값)은 목록에서 제외 — 스키마 안내용으로만 파일에 남는다
+        setInterventions(iv ? (iv.entries ?? []).filter((e) => e.registeredAt) : null)
+        setLoad("ready")
+      })
+      .catch(() => {
+        if (alive) setLoad("error")
+      })
+    return () => {
+      alive = false
+    }
+  }, [auth, loadSeq])
 
   const applyViz = useCallback((viz: VizAction) => {
-    if (viz.mode) {
-      setBaseMode(MODE_MAP[viz.mode].base)
-      setCircles(MODE_MAP[viz.mode].circles)
-    }
-    if (viz.layers) setLayers(viz.layers)
-    if (viz.candidates !== undefined) setShowCandidates(viz.candidates)
-    if (viz.routes !== undefined) setShowRoutes(viz.routes)
+    setView((v) => ({
+      ...v,
+      ...(viz.mode ? MODE_MAP[viz.mode] : {}),
+      ...(viz.layers ? { layers: viz.layers } : {}),
+      ...(viz.candidates !== undefined ? { candidates: viz.candidates } : {}),
+      ...(viz.routes !== undefined ? { routes: viz.routes } : {}),
+    }))
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
     // → viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
   }, [])
+
+  // 답변·칩이 지도를 바꾸면 이전 "반영 중" 배지는 사실이 아니다
+  const applyVizFromQa = useCallback(
+    (viz: VizAction) => {
+      applyViz(viz)
+      clearActive()
+    },
+    [applyViz],
+  )
 
   // 정책 제안 모달에서 "지도에서 보기" — 겨냥 지표가 가장 높은 동은 실측값에서 고른다
   const applyLeverViz = useCallback(
@@ -170,69 +166,17 @@ export default function DumpingDashboard() {
     [mapData, applyViz],
   )
 
-  const submitPw = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (pwBusy) return
-    setPwBusy(true)
-    setPwError(null)
-    try {
-      const res = await fetch("/api/dumping/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pw }),
-      })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data?.ok) {
-        setAuth("open")
-        setPw("")
-      } else {
-        setPwError(data?.error ?? "인증에 실패했습니다")
-      }
-    } catch {
-      setPwError("네트워크 오류")
-    } finally {
-      setPwBusy(false)
-    }
+  if (auth !== "open") {
+    return <LoginGate checking={auth === "checking"} onOpen={() => setAuth("open")} />
   }
 
   const rightPane = tab === "onto" ? "graph" : "map"
-
-  if (auth !== "open") {
-    return (
-      <div className="crowd-page crowd-light flex h-dvh items-center justify-center bg-[var(--cp-bg)] px-4 text-[var(--cp-text)]">
-        {auth === "checking" ? (
-          <p className="text-base text-[var(--cp-text-dim)]">확인 중…</p>
-        ) : (
-          <form
-            onSubmit={submitPw}
-            className="w-full max-w-xs rounded-2xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-6 shadow-sm"
-          >
-            <h1 className="text-lg font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
-            <p className="mt-1 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-              광진구 무단투기 분석 · 내부 검토용입니다. 비밀번호를 입력하세요.
-            </p>
-            <input
-              type="password"
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              autoFocus
-              inputMode="numeric"
-              placeholder="비밀번호"
-              className="mt-4 w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2 text-[16px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
-            />
-            {pwError && <p className="mt-2 text-[14px] text-red-600">{pwError}</p>}
-            <button
-              type="submit"
-              disabled={pwBusy || !pw}
-              className="mt-3 w-full rounded-lg bg-[#0c6155] py-2 text-[15px] font-semibold text-white disabled:opacity-40"
-            >
-              {pwBusy ? "확인 중…" : "들어가기"}
-            </button>
-          </form>
-        )}
-      </div>
-    )
-  }
+  const stats = mapData ? summarize(mapData) : null
+  const active = activeLever
+    ? { label: activeLever.node.label.split("(")[0].trim(), onClear: () => setActiveLever(null) }
+    : activeFinding
+      ? { label: activeFinding.title, onClear: () => setActiveFinding(null) }
+      : null
 
   return (
     <div className="crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] text-[var(--cp-text)]">
@@ -246,8 +190,8 @@ export default function DumpingDashboard() {
         </button>
         <div className="ml-auto flex items-center gap-4">
           {[
-            { k: "민원", v: "3,462건" },
-            { k: "과태료", v: "3,247건" },
+            { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? `${stats.complaints.toLocaleString()}건` : "—" },
+            { k: "과태료", v: stats ? `${stats.enforcement.toLocaleString()}건` : "—" },
             { k: "지식그래프", v: `지식 ${graph?.nodes.length ?? 0} · 연결 ${graph?.edges.length ?? 0}` },
           ].map((s) => (
             <div key={s.k} className="hidden text-right sm:block">
@@ -264,237 +208,51 @@ export default function DumpingDashboard() {
         </div>
       </header>
 
+      {load === "error" && (
+        <div role="alert" className="flex shrink-0 items-center gap-3 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+          데이터를 불러오지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.
+          <button
+            onClick={() => setLoadSeq((v) => v + 1)}
+            className="rounded-md border border-red-300 bg-white px-2 py-0.5 font-medium hover:bg-red-100"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
+
       {/* 본문 스플릿 — 모바일: 위 지도/그래프 + 아래 패널, 데스크톱: 좌 패널 고정폭 + 우 지도 */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div
           ref={split.mapBoxRef}
           style={split.mapH != null ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties) : undefined}
-          className="relative h-[var(--dump-map-h,38dvh)] shrink-0 md:order-last md:h-auto md:flex-1"
+          className="relative h-[var(--dump-map-h,42dvh)] shrink-0 md:order-last md:h-auto md:flex-1"
         >
           {rightPane === "map" ? (
             <>
               <DumpingMap
                 data={mapData}
-                base={baseMode}
-                circles={circles}
+                base={view.base}
+                circles={view.circles}
                 selectedDong={selectedDong}
-                layers={layers}
-                showCandidates={showCandidates}
+                layers={view.layers}
+                showCandidates={view.candidates}
                 showHotspots={tab === "ops"}
                 showCritical={showCritical && tab === "ops"}
                 focusCandidate={focusCandidate}
-                showRoutes={showRoutes}
+                showRoutes={view.routes}
                 resetSeq={resetSeq}
               />
-              {/* 지도 모드 + 인프라 레이어 칩 */}
-              <button
-                onClick={() => setShowMapHelp((v) => !v)}
-                aria-expanded={showMapHelp}
-                className={`absolute right-2 top-2 z-[1001] whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] shadow-sm backdrop-blur transition-colors ${
-                  showMapHelp
-                    ? "border-[var(--cp-border-active)] bg-white/95 font-medium text-[var(--cp-text-strong)]"
-                    : "border-[var(--cp-border)] bg-white/90 text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                }`}
-              >
-                {showMapHelp ? "✕ 닫기" : "ⓘ 지도 읽는 법"}
-              </button>
-              <div className="absolute left-2 top-2 z-[1000] flex max-w-[calc(100%-8rem)] flex-col gap-1.5">
-                {/* 지금 지도에 무엇이 반영돼 있는지 — 칩과 같은 흐름에 쌓아 지도를 덜 가린다 */}
-                {activeLever && (
-                  <span className="flex max-w-full items-center gap-2 self-start rounded-full border border-[#0c6155]/40 bg-white/95 py-1 pl-3 pr-1.5 shadow-sm backdrop-blur">
-                    <span className="truncate text-[13.5px] font-medium text-[#0c6155]">
-                      {activeLever.node.label.split("(")[0].trim()} · 지도에 표시 중
-                    </span>
-                    <button
-                      onClick={() => setActiveLever(null)}
-                      aria-label="표시 해제"
-                      className="shrink-0 rounded-full bg-[#0c6155]/10 px-1.5 py-0.5 text-[12px] text-[#0c6155] hover:bg-[#0c6155]/20"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                {activeFinding && (
-                  <span className="flex max-w-full items-center gap-2 self-start rounded-full border border-[#0c6155]/40 bg-white/95 py-1 pl-3 pr-1.5 shadow-sm backdrop-blur">
-                    <span className="truncate text-[13.5px] font-medium text-[#0c6155]">
-                      {activeFinding.title} · 지도에 반영 중
-                    </span>
-                    <button
-                      onClick={() => setActiveFinding(null)}
-                      aria-label="시각화 해제"
-                      className="shrink-0 rounded-full bg-[#0c6155]/10 px-1.5 py-0.5 text-[12px] text-[#0c6155] hover:bg-[#0c6155]/20"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )}
-                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
-                  <span className="shrink-0 pl-1 text-[12px] font-medium text-[var(--cp-text-dim)]">바탕</span>
-                  {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => {
-                        setBaseMode(m)
-                        // 자기 자신을 원으로 또 겹치는 건 무의미 — 자동 해제
-                        setCircles((cs) => cs.filter((c) => c !== m))
-                      }}
-                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                        baseMode === m
-                          ? "border-[#0c6155] bg-[#0c6155]/15 font-medium text-[#0c6155]"
-                          : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                      }`}
-                    >
-                      {BASE_LABEL[m]}
-                    </button>
-                  ))}
-                  <span className="mx-1 h-4 w-px shrink-0 bg-[var(--cp-border)]" />
-                  <span className="shrink-0 text-[12px] font-medium text-[var(--cp-text-dim)]">원 겹치기</span>
-                  {(Object.keys(CIRCLE_DEF) as CircleId[]).map((c) => {
-                    const on = circles.includes(c)
-                    const sameAsBase = baseMode === c
-                    return (
-                      <button
-                        key={c}
-                        disabled={sameAsBase}
-                        title={sameAsBase ? "바탕과 같은 지표는 겹칠 필요가 없습니다" : undefined}
-                        onClick={() => setCircles((cs) => (on ? cs.filter((x) => x !== c) : [...cs, c]))}
-                        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors disabled:opacity-35 ${
-                          on
-                            ? "bg-[var(--cp-overlay)] font-medium"
-                            : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                        }`}
-                        style={on ? { borderColor: CIRCLE_DEF[c].color, color: CIRCLE_DEF[c].color } : undefined}
-                      >
-                        <i
-                          className="h-2.5 w-2.5 rounded-full border-2"
-                          style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
-                        />
-                        {CIRCLE_DEF[c].label} 원
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
-                  {INFRA_IDS.map((id) => {
-                    const on = layers.includes(id)
-                    return (
-                      <button
-                        key={id}
-                        onClick={() =>
-                          setLayers((ls) => (on ? ls.filter((l) => l !== id) : [...ls, id]))
-                        }
-                        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                          on
-                            ? "border-[var(--cp-border-active)] bg-[var(--cp-overlay)] font-medium text-[var(--cp-text-strong)]"
-                            : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                        }`}
-                      >
-                        <i
-                          className="h-2 w-2 rounded-full"
-                          style={{ background: INFRA_STYLE[id].color, opacity: on ? 1 : 0.4 }}
-                        />
-                        {INFRA_STYLE[id].label}
-                        {mapData ? ` ${mapData.infra[id].length}` : ""}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setShowRoutes((v) => !v)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                      showRoutes
-                        ? "border-[#d97706] bg-[#d97706]/10 font-medium text-[#92500a]"
-                        : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                    }`}
-                  >
-                    <i className="h-0.5 w-3.5 rounded-full bg-[#d97706]" />
-                    청소차 노선
-                  </button>
-                  <button
-                    onClick={() => setShowCandidates((v) => !v)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] backdrop-blur transition-colors ${
-                      showCandidates
-                        ? "border-red-500 bg-red-500/10 font-medium text-red-600"
-                        : "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-                    }`}
-                  >
-                    <i className="h-2 w-2 rounded-full border border-dashed border-red-500" />
-                    재배치 후보 20
-                  </button>
-                </div>
-                {/* 현재 모드 설명 — 기본은 접어 둔다. 지도를 덮는 쪽이 손해가 크다 */}
-                {showMapHelp && (
-                  <p className="max-w-md rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] shadow-sm backdrop-blur">
-                    {BASE_DESC[baseMode]}
-                    {circles.length > 0 &&
-                      ` 그 위에 겹친 ${circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 비교해 보시라고 올린 결과 지표입니다.`}
-                  </p>
-                )}
-              </div>
-              {/* 범례 — 모드별 팔레트 반영 */}
-              <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">
-                <span className="font-medium">{BASE_DEF[baseMode].legend}</span>
-                <span>적음</span>
-                <span className="flex">
-                  {BASE_DEF[baseMode].pal.map((c) => (
-                    <i key={c} className="h-3 w-4" style={{ background: c }} />
-                  ))}
-                </span>
-                <span>많음</span>
-                {circles.map((c) => (
-                  <span key={c} className="ml-1 inline-flex items-center gap-1">
-                    <i
-                      className="h-2.5 w-2.5 rounded-full border"
-                      style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
-                    />
-                    {CIRCLE_DEF[c].label} 원
-                  </span>
-                ))}
-                <span className="ml-1">칸=100m</span>
-              </div>
-              {/* 재배치 후보 주소 목록 */}
-              {showCandidates && mapData && (
-                <div className="absolute bottom-10 right-2 z-[1000] w-64 max-w-[75%] overflow-hidden md:bottom-auto md:top-2 md:w-72 rounded-xl border border-[var(--cp-border)] bg-white/95 shadow-md backdrop-blur">
-                  <p className="border-b border-[var(--cp-border)] px-3 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)]">
-                    이동식 CCTV 재배치 후보 20곳
-                    <span className="block text-[11px] font-normal text-[var(--cp-text-dim)]">
-                      발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)
-                    </span>
-                  </p>
-                  <div className="max-h-[22dvh] overflow-y-auto md:max-h-[42dvh]">
-                    {mapData.cctvCandidates.map((c, i) => (
-                      <button
-                        key={i}
-                        onClick={() =>
-                          setFocusCandidate({
-                            seq: Date.now(),
-                            latlng: [c[0], c[1]],
-                            label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}`,
-                          })
-                        }
-                        className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
-                          i < 3 ? "bg-red-50" : ""
-                        }`}
-                      >
-                        <span
-                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
-                            i < 3 ? "bg-red-600 ring-2 ring-red-300" : "bg-red-400"
-                          }`}
-                        >
-                          {i + 1}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-[13px] font-medium text-[var(--cp-text-strong)]">
-                            {c[5] || `${c[4]} (주소 미상)`}
-                          </span>
-                          <span className="block text-[12px] text-[var(--cp-text-dim)]">
-                            {c[4]} · 민원 {c[2]} · 과태료 {c[3]}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <MapControls
+                key={resetSeq}
+                data={mapData}
+                view={view}
+                onChange={(next) => {
+                  setView(next)
+                  clearActive()
+                }}
+                active={active}
+                onFocusCandidate={setFocusCandidate}
+              />
             </>
           ) : (
             <OntologyGraph graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />
@@ -516,12 +274,17 @@ export default function DumpingDashboard() {
           >
             <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
           </div>
-          <nav className="flex shrink-0 gap-1 border-b border-[var(--cp-border)] px-2 pt-2">
+          <nav
+            role="tablist"
+            className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--cp-border)] px-2 pt-2 [scrollbar-width:none]"
+          >
             {TABS.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`rounded-t-lg px-3.5 py-2 text-[15px] font-medium transition-colors ${
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => switchTab(t.id)}
+                className={`shrink-0 whitespace-nowrap rounded-t-lg px-2.5 py-2 text-[14px] font-medium transition-colors md:px-3.5 md:text-[15px] ${
                   tab === t.id
                     ? "border border-b-0 border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-strong)]"
                     : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
@@ -531,48 +294,51 @@ export default function DumpingDashboard() {
               </button>
             ))}
           </nav>
-          <div className={`min-h-0 flex-1 ${tab === "qa" ? "" : "overflow-y-auto"}`}>
-            {tab === "findings" && (
-              <FindingsPanel
-                data={mapData}
-                selectedDong={selectedDong}
-                onSelectDong={setSelectedDong}
-                onOpenFinding={setOpenFinding}
-                onOpenBriefing={setBriefingDong}
-                activeTitle={activeFinding?.title ?? null}
-              />
-            )}
-            {tab === "ops" && (
-              <OpsPanel
-                data={mapData}
-                interventions={interventions}
-                onFocus={(latlng, label) => setFocusCandidate({ seq: Date.now(), latlng, label })}
-                showCritical={showCritical}
-                onToggleCritical={() => setShowCritical((v) => !v)}
-              />
-            )}
-            {tab === "policy" && (
-              <PolicyBoard
-                graph={graph}
-                onShowMap={applyLeverViz}
-                activeLeverId={activeLever?.node.id ?? null}
-              />
-            )}
-            {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
-            {tab === "qa" && <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyViz} data={mapData} />}
+          {/* 물어보기는 항상 마운트 — 탭을 오가도 대화가 남는다. 나머지는 탭마다 새 스크롤 컨테이너 */}
+          <div className={tab === "qa" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+            <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyVizFromQa} data={mapData} graph={graph} />
           </div>
+          {tab !== "qa" && (
+            <div key={tab} className="min-h-0 flex-1 overflow-y-auto">
+              {tab === "findings" && (
+                <FindingsPanel
+                  data={mapData}
+                  selectedDong={selectedDong}
+                  onSelectDong={setSelectedDong}
+                  onOpenFinding={setOpenFinding}
+                  onOpenBriefing={setBriefingDong}
+                  activeTitle={activeFinding?.title ?? null}
+                />
+              )}
+              {tab === "ops" && (
+                <OpsPanel
+                  data={mapData}
+                  interventions={interventions}
+                  onFocus={(latlng, label) => setFocusCandidate({ seq: Date.now(), latlng, label })}
+                  showCritical={showCritical}
+                  onToggleCritical={() => setShowCritical((v) => !v)}
+                />
+              )}
+              {tab === "policy" && (
+                <PolicyBoard graph={graph} onShowMap={applyLeverViz} activeLeverId={activeLever?.node.id ?? null} />
+              )}
+              {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
+            </div>
+          )}
         </aside>
       </div>
 
-      {/* 초기 분석 고지 푸터 */}
+      {/* 초기 분석 고지 푸터 — 모바일은 첫 문장만 (지도·패널 공간이 우선) */}
       <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-1.5 text-center text-[12px] leading-snug text-[var(--cp-text-dim)]">
-        이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다. 실제로 정책에
-        적용하시기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을 거치시길
-        권해 드립니다.
+        이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다.{" "}
+        <span className="hidden md:inline">
+          실제로 정책에 적용하시기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을
+          거치시길 권해 드립니다.
+        </span>
       </footer>
 
-      <BriefingModal dong={briefingDong} data={mapData} onClose={() => setBriefingDong(null)} />
-      <MethodsModal open={showMethods} onClose={() => setShowMethods(false)} />
+      <BriefingModal dong={briefingDong} data={mapData} graph={graph} onClose={() => setBriefingDong(null)} />
+      <MethodsModal open={showMethods} data={mapData} graph={graph} onClose={() => setShowMethods(false)} />
 
       <FindingModal
         finding={openFinding}
@@ -582,7 +348,7 @@ export default function DumpingDashboard() {
           setActiveFinding(f)
           setActiveLever(null)
           setOpenFinding(null)
-          setTab("findings") // 지도 페인이 보이는 탭으로
+          switchTab("findings") // 지도 페인이 보이는 탭으로
         }}
       />
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import type { OntoGraph } from "@/lib/dumping/types"
 import {
+  COST_ORDER,
   costBadge,
   deriveLevers,
   easyVerdict,
@@ -27,7 +28,7 @@ function LeverCard({
   onOpen: (lv: LeverView) => void
 }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
-  const cost = costBadge(lv.costNote, undefined)
+  const cost = costBadge(lv.costNote)
   const proposal = lv.status === "제안"
   // 제안은 까닭을 모달에서 풀어 주므로 카드에는 판정 문장을 두지 않는다.
   // 기존 수단은 한 줄 판정이 곧 요점이라, 쉬운 설명이 있으면 그쪽을 쓴다.
@@ -93,7 +94,12 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
     return <div className="p-4 text-base text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다…</div>
   }
 
-  const proposals = levers.filter((l) => l.status === "제안")
+  // 제안은 돈이 덜 드는 순 — 무예산 → 저비용 → 예산 필요 (같은 등급 안에서는 그래프 순서 유지)
+  const costRank = (l: LeverView) => {
+    const b = costBadge(l.costNote)
+    return b ? COST_ORDER.indexOf(b.label) : COST_ORDER.length
+  }
+  const proposals = levers.filter((l) => l.status === "제안").sort((a, b) => costRank(a) - costRank(b))
   const existing = levers.filter((l) => l.status !== "제안")
   const kpis = graph.nodes.filter((n) => n.type === "KPI")
   // 성과 평가에 쓰는 지표(신고편향과 무관한 3종)를 앞으로

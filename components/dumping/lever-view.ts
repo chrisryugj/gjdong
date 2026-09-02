@@ -16,15 +16,15 @@ export interface LeverView {
   ordinance: string | null // governed_by → 실행 근거 조례 라벨
 }
 
-// 비용 표기를 배지로 정규화 — 관리자가 먼저 보는 것은 "돈이 드는가"
-export function costBadge(
-  costNote: string | null,
-  edgeCost: string | undefined,
-): { label: string; cls: string } | null {
-  const src = costNote ?? edgeCost ?? ""
+// 비용 표기를 배지로 정규화 — 관리자가 먼저 보는 것은 "돈이 드는가".
+// 원문은 노드 cost_note("재배치 0원"·"저비용(인쇄·번역)") 또는 판정 엣지 cost("0원"·"저") 두 형태다.
+export const COST_ORDER = ["무예산", "저비용", "예산 필요"] as const
+
+export function costBadge(costNote: string | null): { label: (typeof COST_ORDER)[number]; cls: string } | null {
+  const src = costNote ?? ""
   if (!src) return null
   if (src.includes("0원")) return { label: "무예산", cls: "bg-[#0c6155]/12 text-[#0a4a41]" }
-  if (src.includes("저")) return { label: "저비용", cls: "bg-[#1c4f96]/10 text-[#1c4f96]" }
+  if (src === "저" || src.includes("저비용")) return { label: "저비용", cls: "bg-[#1c4f96]/10 text-[#1c4f96]" }
   return { label: "예산 필요", cls: "bg-[#8a530e]/12 text-[#8a530e]" }
 }
 
@@ -64,7 +64,8 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
         rationale: p.rationale != null ? String(p.rationale) : null,
         targets,
         owner: node.props.owner != null ? String(node.props.owner) : null,
-        costNote: node.props.cost_note != null ? String(node.props.cost_note) : null,
+        // 노드에 비용 메모가 없으면 판정 엣지의 cost가 정본 (CCTV 재배치 "0원"이 여기에만 있다)
+        costNote: node.props.cost_note != null ? String(node.props.cost_note) : p.cost != null ? String(p.cost) : null,
         verificationPlan: node.props.verification_plan != null ? String(node.props.verification_plan) : null,
         preRegistered: restricted.has(node.id),
         ordinance: ordEdge ? (nodeById.get(ordEdge.t)?.label ?? null) : null,
@@ -213,7 +214,7 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   const s2 =
     top.kind === "beta"
       ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니, 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
-      : `행정동 15곳을 나란히 놓고 보면, 이 비율이 높은 동네일수록 무단투기도 ${
+      : `행정동 ${top.n ?? 15}곳을 나란히 놓고 보면, 이 비율이 높은 동네일수록 무단투기도 ${
           top.value >= 0.8 ? "거의 예외 없이" : top.value >= 0.7 ? "뚜렷하게" : "어느 정도"
         } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 붙어 다닌다는 뜻입니다.`
   const s3 =

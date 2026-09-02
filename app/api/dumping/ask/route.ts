@@ -5,12 +5,41 @@ import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash"
 const MAX_QUESTION = 500
-const MAX_HISTORY = 12 // user+model 합산 턴 수 상한
+const MAX_HISTORY = 8 // user+model 합산 턴 수 상한
+const MAX_HISTORY_CHARS = 8_000 // 이력 전체 글자 상한 — 시스템 프롬프트가 이미 길어 입력 토큰을 묶는다
+const UPSTREAM_TIMEOUT_MS = 55_000
 
 type Turn = { role: "user" | "model"; text: string }
+
+// Gemini는 user/model이 번갈아야 하고 첫 턴이 user여야 한다 — 클라이언트가 보낸 이력을 그 형태로 정리
+function normalizeHistory(raw: Turn[]): Turn[] {
+  const out: Turn[] = []
+  for (const t of raw) {
+    if (out.length === 0 && t.role !== "user") continue
+    if (out.length > 0 && out[out.length - 1].role === t.role) {
+      out[out.length - 1] = t // 같은 역할 연속이면 뒤엣것만
+      continue
+    }
+    out.push(t)
+  }
+  // 마지막이 user면 이번 질문과 겹친다 — 떨어뜨림
+  if (out.length && out[out.length - 1].role === "user") out.pop()
+  let total = 0
+  let cut = out.length
+  for (let i = out.length - 1; i >= 0; i--) {
+    total += out[i].text.length
+    if (total > MAX_HISTORY_CHARS) {
+      cut = i + 1
+      break
+    }
+  }
+  const trimmed = out.slice(cut)
+  return trimmed[0]?.role === "model" ? trimmed.slice(1) : trimmed
+}
 
 export async function POST(request: NextRequest) {
   if (!verifyRequest(request)) {
@@ -35,13 +64,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     question = typeof body?.question === "string" ? body.question.trim() : ""
     if (Array.isArray(body?.history)) {
-      history = body.history
-        .filter(
-          (t: Turn) =>
-            (t?.role === "user" || t?.role === "model") && typeof t?.text === "string",
-        )
-        .slice(-MAX_HISTORY)
-        .map((t: Turn) => ({ role: t.role, text: t.text.slice(0, 4000) }))
+      history = normalizeHistory(
+        body.history
+          .filter(
+            (t: Turn) =>
+              (t?.role === "user" || t?.role === "model") && typeof t?.text === "string",
+          )
+          .slice(-MAX_HISTORY)
+          .map((t: Turn) => ({ role: t.role, text: t.text.slice(0, 4000) })),
+      )
     }
   } catch {
     // fallthrough — 아래 빈 질문 검증에 걸린다
@@ -55,18 +86,25 @@ export async function POST(request: NextRequest) {
     { role: "user", parts: [{ text: question }] },
   ]
 
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-        contents,
-        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
-      }),
-    },
-  )
+  let upstream: Response
+  try {
+    upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+          contents,
+          generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        }),
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      },
+    )
+  } catch (e) {
+    console.error("[dumping/ask] Gemini fetch failed:", e instanceof Error ? e.message : e)
+    return NextResponse.json({ error: "답변 생성에 실패했습니다. 잠시 뒤 다시 시도해주세요." }, { status: 502 })
+  }
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "")

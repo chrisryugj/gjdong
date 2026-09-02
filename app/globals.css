@@ -786,12 +786,20 @@
     visibility: visible;
   }
   #dump-brief {
+    display: block; /* 모달 셸의 flex 열 레이아웃 해제 — 본문이 페이지 높이에 갇히지 않게 */
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
     max-height: none;
     overflow: visible;
     border: none;
     box-shadow: none;
+  }
+  /* 셸 본문(overflow-y: auto)도 풀어야 두 쪽 이상 이어 찍힌다 */
+  #dump-brief > div {
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -813,6 +821,14 @@
 .dumping-map .dump-hot-top {
   background: #a8322a;
   box-shadow: 0 0 0 3px rgba(168, 50, 42, 0.25), 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* 줌 14 미만 — 순위 숫자 대신 점 */
+.dumping-map .dump-hot-sm {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border-width: 1.5px;
+  font-size: 0;
 }
 
 /* ── /dumping 목록 클릭 지점 하이라이트 — 중심점 + 퍼지는 링 */
