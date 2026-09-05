@@ -85,7 +85,7 @@ export default function FindingsPanel({
         </div>
 
         {sel && (
-          <div className="mt-2 rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
+          <div className="mt-2 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
             <div className="mb-2 flex items-baseline justify-between gap-2">
               <h4 className="text-sm font-semibold text-[var(--cp-text-strong)]">{sel.d}</h4>
               <div className="flex items-center gap-2.5">
@@ -168,7 +168,7 @@ export default function FindingsPanel({
           <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
             계절·날씨 요인 (일평균, {periodLabel})
           </h3>
-          <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
+          <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
             <div className="grid grid-cols-4 gap-1.5 text-center">
               {Object.entries(data.env.seasons).map(([k, v]) => {
                 const max = Math.max(...Object.values(data.env.seasons).map((x) => x.compPerDay))
@@ -187,7 +187,7 @@ export default function FindingsPanel({
                 )
               })}
             </div>
-            <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
+            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[13.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
               여름과 더운 날(25도 이상)에는 민원이 겨울의 {(data.env.seasons["여름"].compPerDay / Math.max(data.env.seasons["겨울"].compPerDay, 0.01)).toFixed(1)}배입니다. 비 오는 날에는 단속 적발이
               {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>
@@ -211,9 +211,9 @@ export default function FindingsPanel({
               <button
                 key={f.title}
                 onClick={() => onOpenFinding(f)}
-                className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${
+                className={`rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
                   active
-                    ? "border-[#0c6155] bg-[#0c6155]/10 shadow-md ring-2 ring-[#0c6155]/30"
+                    ? "border-[#0c6155] bg-[#0c6155]/10  ring-2 ring-[#0c6155]/30"
                     : f.accent
                       ? "border-[#0c6155]/50 bg-[#0c6155]/5"
                       : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
@@ -229,7 +229,7 @@ export default function FindingsPanel({
                 )}
                 <h4 className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
                 <p className="mt-1 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
-                <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[14px] font-semibold leading-snug text-[#0a4a41]">
+                <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[14px] font-medium leading-snug text-[var(--cp-text-strong)]">
                   {f.takeaway}
                 </p>
                 <span className="mt-1.5 inline-block text-[13px] font-medium text-[#0c6155]">자세히 보기 →</span>

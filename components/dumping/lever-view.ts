@@ -25,7 +25,7 @@ export function costBadge(costNote: string | null): { label: (typeof COST_ORDER)
   const src = costNote ?? ""
   if (!src) return null
   if (src.includes("0원")) return { label: "무예산", cls: "bg-[#0c6155]/12 text-[#0a4a41]" }
-  if (src === "저" || src.includes("저비용")) return { label: "저비용", cls: "bg-[#1c4f96]/10 text-[#1c4f96]" }
+  if (src === "저" || src.includes("저비용")) return { label: "저비용", cls: "bg-[var(--cp-hover2)] text-[var(--cp-text-muted)]" }
   return { label: "예산 필요", cls: "bg-[#8a530e]/12 text-[#8a530e]" }
 }
 
@@ -33,7 +33,7 @@ export const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
   "제안": { label: "신규 제안", cls: "bg-[#0c6155] text-white" },
   "효과 확인 안 됨(철회)": { label: "효과 철회", cls: "bg-[#a8322a] text-white" },
   "효과없음": { label: "효과 없음", cls: "bg-slate-500 text-white" },
-  "측정불가": { label: "판정 불가", cls: "bg-[#8a530e] text-white" },
+  "측정불가": { label: "판정 불가", cls: "bg-slate-500 text-white" },
   "미검증": { label: "미검증", cls: "bg-slate-400 text-white" },
 }
 

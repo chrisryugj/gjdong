@@ -76,6 +76,7 @@ interface Props {
 }
 
 export default function MapControls({ data, view, onChange, active, onFocusCandidate, selectedDong = null }: Props) {
+  const [layersOpen, setLayersOpen] = useState(false)
   const [showHelp, setShowHelp] = useState(false) // 지도 읽는 법 — 좁은 화면에서 지도를 덮지 않도록 기본 접힘
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
 
@@ -151,8 +152,16 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
               </button>
             )
           })}
+          <button
+            aria-expanded={layersOpen}
+            onClick={() => setLayersOpen((v) => !v)}
+            className={`${CHIP} ${CHIP_OFF} xl:hidden`}
+          >
+            레이어 {view.layers.length + (view.routes ? 1 : 0) + (view.candidates ? 1 : 0)}/{INFRA_IDS.length + 2} {layersOpen ? "▴" : "▾"}
+          </button>
         </div>
-        <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible">
+        {/* 레이어 줄은 넓은 화면에서만 상시 노출. 그 아래에서는 칩이 3~4줄로 지도를 덮는다(2026-09-05 실측) */}
+        <div className={`${layersOpen ? "flex" : "hidden xl:flex"} flex-nowrap gap-1 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible`}>
           {INFRA_IDS.map((id) => {
             const on = view.layers.includes(id)
             return (
@@ -229,7 +238,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
 
       {/* 격자 대체 표 — 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸을 표로 */}
       {data && (
-        <details className="absolute bottom-10 left-2 z-[1000] max-w-[calc(100%-6rem)] rounded-lg border border-[var(--cp-border)] bg-white/95 text-[12.5px] shadow-sm backdrop-blur print:hidden">
+        <details className="absolute bottom-14 left-2 z-[1000] max-w-[calc(100%-6rem)] rounded-lg border border-[var(--cp-border)] bg-white/95 text-[12.5px] shadow-sm backdrop-blur print:hidden">
           <summary className="cursor-pointer px-2.5 py-1 text-[var(--cp-text-muted)]">
             격자 표로 보기 · {BASE_DEF[view.base].legend} 상위 20
           </summary>

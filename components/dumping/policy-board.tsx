@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import type { OntoGraph } from "@/lib/dumping/types"
+import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
+import { channelGrowth, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
 import {
   COST_ORDER,
   costBadge,
@@ -36,7 +37,7 @@ function LeverCard({
   return (
     <button
       onClick={() => onOpen(lv)}
-      className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-all hover:border-[#0c6155]/50 hover:shadow-md"
+      className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60"
     >
       <span className="mb-1 flex flex-wrap items-center gap-1.5">
         <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-bold ${status.cls}`}>{status.label}</span>
@@ -82,11 +83,22 @@ function LeverCard({
 
 interface PolicyBoardProps {
   graph: OntoGraph | null
+  data: DumpingMapData | null
   onShowMap: (lever: LeverView) => void
   activeLeverId: string | null
 }
 
-export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyBoardProps) {
+// 섹션 번호 — 위계는 색이 아니라 번호와 hairline으로
+function SectionHead({ n, children }: { n: string; children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 flex items-baseline gap-2 border-t border-[var(--cp-border)] pt-3 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+      <span className="font-mono text-[11px] text-[var(--cp-text-faint)]">{n}</span>
+      <span>{children}</span>
+    </h3>
+  )
+}
+
+export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: PolicyBoardProps) {
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
 
@@ -110,12 +122,38 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })
   const active = activeLeverId ? levers.find((l) => l.node.id === activeLeverId) : null
+  // 첫 화면 결론 — 수치는 전부 facts 파생(문장에 박지 않는다)
+  const topBeta = regressionBetas(graph)[0]
+  const growth = data ? channelGrowth(data) : null
+  const kpi = data?.decision.kpi
+  const headline = [
+    { k: "다가구·단독 밀집 β", v: topBeta ? `${topBeta.beta > 0 ? "+" : ""}${topBeta.beta.toFixed(3)}` : "—", sub: "13개 조건 중 최강" },
+    { k: "순찰 적발(연환산)", v: growth ? fmtRatio(growth.finesPatrol) : "—", sub: "신고와 독립인 채널" },
+    { k: "상습격자 앱 제외", v: kpi ? `${kpi.criticalCellsNow}→${kpi.criticalCellsNowNoApp}곳` : "—", sub: "성과 판단 기준" },
+  ]
 
   return (
     <div className="flex flex-col gap-4 p-3">
+      {/* 결론 한 줄 + 핵심 수치 3개 — 첫 화면에서 답이 먼저 보이게 */}
+      <section>
+        <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
+        <h2 className="mt-1 text-[17px] font-bold leading-snug text-[var(--cp-text-strong)]">
+          무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에서 더 생깁니다. 늘어난 것은 발생이 아니라 신고 창구입니다.
+        </h2>
+        <dl className="mt-3 grid grid-cols-3 gap-2">
+          {headline.map((h) => (
+            <div key={h.k} className="min-w-0 border-l border-[var(--cp-border-strong)] pl-2.5">
+              <dt className="text-[11.5px] leading-tight text-[var(--cp-text-muted)]">{h.k}</dt>
+              <dd className="mt-0.5 font-mono text-[20px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">{h.v}</dd>
+              <dd className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{h.sub}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
       {/* 정책 논리 — 확인·공백·제안 세 단계. 한 문단으로 이으면 좁은 패널에서 읽히지 않는다 */}
-      <section className="rounded-xl border border-[#0c6155]/30 bg-[#0c6155]/5 p-3">
-        <h3 className="mb-2 text-[13px] font-bold tracking-wide text-[#0a4a41]">정책 논리</h3>
+      <section className="border-t border-[var(--cp-border)] pt-3">
+        <h3 className="mb-2 flex items-baseline gap-2 text-[13px] font-bold tracking-wide text-[var(--cp-text-strong)]"><span className="font-mono text-[11px] font-normal text-[var(--cp-text-faint)]">02</span>정책 논리</h3>
         <dl className="flex flex-col gap-2">
           {[
             {
@@ -123,7 +161,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
               v: (
                 <>
                   무단투기 발생과 가장 강하게 연관된 조건은{" "}
-                  <b className="text-[var(--cp-text-strong)]">관리주체 없는 주거의 밀도</b>였습니다.
+                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀도</b>였습니다. 관리주체가 없는 다세대·연립은 연관이 없었습니다.
                 </>
               ),
             },
@@ -165,9 +203,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
 
       {/* 신규 제안 — 무예산 먼저 */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          지금 검토할 제안 {proposals.length}건 · 카드를 누르면 제안 이유가 나옵니다
-        </h3>
+        <SectionHead n="03">지금 검토할 제안 {proposals.length}건 · 카드를 누르면 제안 이유가 나옵니다</SectionHead>
         <div className="flex flex-col gap-2">
           {proposals.map((lv) => (
             <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
@@ -177,9 +213,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
 
       {/* 기존 수단 판정 */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          이미 쓰고 있는 수단의 검증 결과 {existing.length}건
-        </h3>
+        <SectionHead n="04">이미 쓰고 있는 수단의 검증 결과 {existing.length}건</SectionHead>
         <div className="flex flex-col gap-2">
           {existing.map((lv) => (
             <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
@@ -189,9 +223,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
 
       {/* 성과지표 — 무엇으로 성과를 재는가 */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          성과는 이 지표로 측정합니다
-        </h3>
+        <SectionHead n="05">성과는 이 지표로 측정합니다</SectionHead>
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
@@ -201,11 +233,11 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
                 className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left"
               >
                 <i
-                  className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#dc2626]" : "bg-[var(--cp-text-faint)]"}`}
+                  className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#a8322a]" : "bg-[var(--cp-text-faint)]"}`}
                 />
                 <span className="min-w-0 flex-1 text-[14px] text-[var(--cp-text)]">{k.label}</span>
                 {main && (
-                  <span className="shrink-0 rounded bg-[#dc2626]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#b91c1c]">
+                  <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#a8322a]">
                     성과 평가용
                   </span>
                 )}
@@ -221,8 +253,8 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
       </section>
 
       {/* 원칙 — CCTV 철회의 교훈 */}
-      <section className="rounded-xl border border-[var(--cp-border)] p-3">
-        <h3 className="text-[14px] font-bold text-[var(--cp-text-strong)]">원칙 · 개입 사전등록(조치 대장)</h3>
+      <section className="border-t border-[var(--cp-border)] pt-3">
+        <h3 className="flex items-baseline gap-2 text-[14px] font-bold text-[var(--cp-text-strong)]"><span className="font-mono text-[11px] font-normal text-[var(--cp-text-faint)]">06</span>원칙 · 개입 사전등록(조치 대장)</h3>
         <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
           새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고, 평가는 등록한
           설계 그대로만 합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류(평균회귀)로 철회된 뒤에 만든

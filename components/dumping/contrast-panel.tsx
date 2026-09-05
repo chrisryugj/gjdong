@@ -134,14 +134,14 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
       </h3>
       <div className="flex flex-col gap-1.5">
         {pairs.map((p) => (
-          <div key={p.k} className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5">
+          <div key={p.k} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5">
             <p className="mb-1.5 text-[12.5px] font-bold text-[var(--cp-text-strong)]">{p.k}</p>
             <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5">
               <div className="rounded-lg border border-dashed border-[var(--cp-border)] px-2 py-1.5">
                 <span className="mb-0.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--cp-text-dim)]">
                   {p.beforeTag}
                 </span>
-                <p className="text-[12.5px] leading-snug text-[var(--cp-text-dim)] line-through decoration-[var(--cp-text-faint)]">
+                <p className="text-[12.5px] leading-snug text-[var(--cp-text-muted)] line-through decoration-[var(--cp-border-strong)] decoration-1">
                   {p.before}
                 </p>
               </div>

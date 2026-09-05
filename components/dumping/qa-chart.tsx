@@ -174,8 +174,9 @@ function BetaChart({ graph }: { graph: OntoGraph }) {
   const cx = W / 2 + 30
   const scale = 380 // px per β 1.0
   const rowH = 40
+  const h = 24 + BETAS.length * rowH + 28 // 변수 수에 맞춰 늘어난다(13개면 고정 높이를 넘친다)
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+    <svg viewBox={`0 0 ${W} ${h}`} className="h-auto w-full">
       <line x1={cx} y1={16} x2={cx} y2={16 + BETAS.length * rowH} stroke="#cbd5e1" />
       {BETAS.map((b, i) => {
         const yy = 24 + i * rowH
@@ -202,7 +203,7 @@ function BetaChart({ graph }: { graph: OntoGraph }) {
           </g>
         )
       })}
-      <text x={cx} y={H - 8} textAnchor="middle" fontSize={13} fill={INK_DIM}>
+      <text x={cx} y={h - 8} textAnchor="middle" fontSize={13} fill={INK_DIM}>
         0 기준 오른쪽(+) = 많을수록 발생 증가 · 왼쪽(−) = 감소 방향 연관
       </text>
     </svg>

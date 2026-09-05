@@ -145,7 +145,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "100m 격자 결합",
       easy: `구 전체를 100m 바둑판(회귀 표본 ${n(sz.gridN)}칸)으로 나누고, 민원·과태료·건축물대장·도로·생활인구를 모두 같은 칸 위에 얹었습니다. 서로 다른 자료를 한 지도에서 비교할 수 있게 만드는 기초 작업입니다.`,
-      here: `자료마다 칸에 넣는 방식이 다릅니다. 민원 ${n(s.complaints)}건·과태료 ${n(data.decision.fines.totalN)}건은 건별 주소를 좌표로 바꿔 점이 속한 칸에, 건축물대장 ${Number.isFinite(sz.ledgerRows) ? n(sz.ledgerRows) : "—"}동은 대지 지번 좌표로, 도로·건물 형태는 OSM 선·면을 칸 경계로 잘라, 서울시 생활인구는 250m 격자를 면적 비례로 나눠 넣었습니다. 등록인구는 동 단위뿐이라 격자 회귀에는 들어가지 않고 동별 지표에만 씁니다.`,
+      here: `자료마다 칸에 넣는 방식이 다릅니다. 민원 ${n(s.complaints)}건·과태료 ${n(data.decision.fines.totalN)}건은 건별 주소를 좌표로 바꿔 점이 속한 칸에, 건축물대장 ${Number.isFinite(sz.ledgerRows) ? n(sz.ledgerRows) : "—"}동은 대지 지번 좌표로, 도로·건물 형태는 OSM 선·면을 칸 경계로 잘라, 서울시 생활인구는 250m 격자를 면적 비례로 나눠, SGIS 상주인구는 100m 격자를 그대로 붙여 넣었습니다. 동별 천명당 지표는 주민등록 인구로 따로 계산합니다.`,
       caution: `"100m로 나눠서 그런 결과가 나온 것 아니냐"는 물음에는 격자를 200m로 합쳐 다시 적합한 결과로 답합니다(격자 검증 카드). 판정 유지 ${data.decision.regressionV2 ? `${Object.values(data.decision.regressionV2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(data.decision.regressionV2.gridSensitivity.v2).length}` : "—"} 변수. 격자는 통계청 EPSG:5179 정렬이라 SGIS 인구격자·서울시 250m 격자와 좌표로 바로 이어집니다.`,
     },
     {

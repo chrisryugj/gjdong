@@ -444,7 +444,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
           <section className="mb-4 flex flex-col gap-2" aria-live="polite">
             <h3 className="text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">내가 물어본 것</h3>
             {results.map((ex) => (
-              <div key={ex.q} className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
+              <div key={ex.q} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
                 <p className="mb-1.5 flex items-start gap-1.5 text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">
                   <span className="mt-0.5 shrink-0 rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#0c6155]">
                     Q
@@ -473,7 +473,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               return (
                 <div
                   key={s.q}
-                  className={`overflow-hidden rounded-xl border bg-[var(--cp-panel)] transition-colors ${
+                  className={`overflow-hidden rounded-lg border bg-[var(--cp-panel)] transition-colors ${
                     open ? "border-[var(--cp-border-active)]" : "border-[var(--cp-border)]"
                   }`}
                 >
@@ -509,7 +509,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                         <button
                           onClick={() => setBigChart(s.chart!)}
                           title="누르면 크게 볼 수 있습니다"
-                          className="rounded-xl border border-[var(--cp-border)] bg-white p-2.5 text-left transition-shadow hover:shadow-md"
+                          className="rounded-lg border border-[var(--cp-border)] bg-white p-2.5 text-left transition-shadow hover:border-[#0c6155]/60"
                         >
                           <span className="mb-1 flex items-baseline justify-between">
                             <b className="text-[13px] text-[var(--cp-text-strong)]">{chartTitle(s.chart, data)}</b>
@@ -526,7 +526,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                             disabled={onMap}
                             title={vizDesc}
                             className={`flex flex-col items-center rounded-lg px-3 py-2 transition-colors ${
-                              onMap ? "bg-[#0c6155]/10 text-[#0c6155]" : "bg-[#0c6155] text-white hover:bg-[#0a5449]"
+                              onMap ? "border border-[#0c6155]/30 bg-[#0c6155]/8 text-[#0c6155]" : "border border-[#0c6155] text-[#0c6155] hover:bg-[#0c6155]/8"
                             }`}
                           >
                             <span className="text-[14px] font-semibold">{onMap ? "✓ 지도에 반영됨" : "지도에서 확인"}</span>

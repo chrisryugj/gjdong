@@ -179,7 +179,7 @@ export default function DumpingDashboard() {
       : null
 
   return (
-    <div className="crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] text-[var(--cp-text)]">
+    <div className="crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)]">
       {/* 헤더 */}
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-3 py-2">
         <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
@@ -322,7 +322,7 @@ export default function DumpingDashboard() {
                 />
               )}
               {tab === "policy" && (
-                <PolicyBoard graph={graph} onShowMap={applyLeverViz} activeLeverId={activeLever?.node.id ?? null} />
+                <PolicyBoard graph={graph} data={mapData} onShowMap={applyLeverViz} activeLeverId={activeLever?.node.id ?? null} />
               )}
               {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
             </div>

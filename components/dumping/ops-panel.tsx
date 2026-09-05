@@ -17,8 +17,13 @@ interface OpsPanelProps {
   onToggleCritical: () => void
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">{children}</h3>
+function SectionTitle({ n, children }: { n?: string; children: React.ReactNode }) {
+  return (
+    <h3 className={`mb-2 flex items-baseline gap-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)] ${n && n !== "01" ? "border-t border-[var(--cp-border)] pt-3" : ""}`}>
+      {n && <span className="font-mono text-[11px] font-normal text-[var(--cp-text-faint)]">{n}</span>}
+      <span>{children}</span>
+    </h3>
+  )
 }
 
 // 모달로 여는 카드 공용 래퍼 — "자세히" 어포던스를 우상단에 고정
@@ -34,7 +39,7 @@ function DetailCard({
   return (
     <button
       onClick={onOpen}
-      className={`relative w-full rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-shadow hover:shadow-md ${className ?? ""}`}
+      className={`relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60 ${className ?? ""}`}
     >
       <span className="absolute right-3 top-2.5 text-[12px] font-medium text-[#0c6155]">자세히 →</span>
       {children}
@@ -82,11 +87,11 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
     <div className="flex flex-col gap-4 p-3">
       {/* KPI 보드 — 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
       <section>
-        <SectionTitle>성과지표 (신고편향에 덜 민감 · {d.asof} 기준)</SectionTitle>
+        <SectionTitle n="01">성과지표 (신고편향에 덜 민감 · {d.asof} 기준)</SectionTitle>
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <button
             onClick={onToggleCritical}
-            className={`rounded-xl border px-1 py-2 transition-colors ${
+            className={`rounded-lg border px-1 py-2 transition-colors ${
               showCritical
                 ? "border-[#a8322a] bg-[#a8322a]/8 ring-2 ring-[#a8322a]/25"
                 : "border-[var(--cp-border)] bg-[var(--cp-panel)] hover:bg-[var(--cp-hover)]"
@@ -104,7 +109,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </button>
           <button
             onClick={() => setModal("funnel")}
-            className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
+            className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
           >
             <p className="text-[12px] text-[var(--cp-text-dim)]">과태료 징수율</p>
             <p className="font-mono text-[20px] font-bold text-[var(--cp-text-strong)]">
@@ -117,7 +122,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </button>
           <button
             onClick={() => setModal("channels")}
-            className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
+            className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
           >
             <p className="text-[12px] text-[var(--cp-text-dim)]">채널고정 민원</p>
             <p className="font-mono text-[20px] font-bold text-[var(--cp-text-strong)]">
@@ -141,12 +146,12 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 예측 핫스팟 — 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
       <section>
-        <SectionTitle>다음 분기 예측 핫스팟 20 · 누르면 지도에서 위치 표시</SectionTitle>
+        <SectionTitle n="02">다음 분기 예측 핫스팟 20 · 누르면 지도에서 위치 표시</SectionTitle>
         <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13px] font-medium leading-snug text-[#0a4a41]">
           지난 {bt.windows.length}개 분기 백테스트: 상위 20곳 중 평균 {bt.avgPrecision20}%에서 다음
           분기 실제 발생. 전체 발생의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
         </p>
-        <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]">
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
           {d.hotspots.top.map((h, i) => (
             <button
               key={i}
@@ -169,7 +174,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 </span>
               </span>
               {h[7] === 0 && (
-                <span className="mt-0.5 shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                <span className="mt-0.5 shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
                   CCTV 없음
                 </span>
               )}
@@ -183,7 +188,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 수요 전망 */}
       <section>
-        <SectionTitle>민원 접수 전망 (운영 참고)</SectionTitle>
+        <SectionTitle n="03">민원 접수 전망 (운영 참고)</SectionTitle>
         <DetailCard onOpen={() => setModal("forecast")}>
           <p className="mb-1 text-[14px] text-[var(--cp-text-muted)]">
             {fcSoFar != null ? "이번 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
@@ -208,7 +213,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 품목 분해 */}
       <section>
-        <SectionTitle>무엇을 버리다 적발됐나 (과태료 {d.fines.totalN.toLocaleString()}건)</SectionTitle>
+        <SectionTitle n="04">무엇을 버리다 적발됐나 (과태료 {d.fines.totalN.toLocaleString()}건)</SectionTitle>
         <DetailCard onOpen={() => setModal("fines")}>
           <div className="mt-3 flex flex-col gap-2">
             {/* 수치가 길어(1,285건 · 7,169만원) 우측 고정폭 컬럼이 좁은 화면에서 줄바꿈으로 무너진다
@@ -230,7 +235,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               </div>
             ))}
           </div>
-          <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
+          <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[13.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
             담배꽁초(차량) {cigShare}%는 주거 구조와 무관한 도로 현상입니다. 생활쓰레기 대책과 나눠
             관리해야 합니다.
           </p>
@@ -239,7 +244,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 처분 퍼널 */}
       <section>
-        <SectionTitle>과태료는 걷히고 있나 (부과 {KRW(d.fines.totalAmount)})</SectionTitle>
+        <SectionTitle n="05">과태료는 걷히고 있나 (부과 {KRW(d.fines.totalAmount)})</SectionTitle>
         <DetailCard onOpen={() => setModal("funnel")}>
           <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
             {funnelOrder.map((g) => {
@@ -271,7 +276,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 처리 SLA */}
       <section>
-        <SectionTitle>민원 처리 속도 (접수 → 행정 종결)</SectionTitle>
+        <SectionTitle n="06">민원 처리 속도 (접수 → 행정 종결)</SectionTitle>
         <DetailCard onOpen={() => setModal("sla")}>
           <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
             {slaYears.map(([yr, s]) => {
@@ -311,7 +316,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       {/* 구조 전망 — 관리 취약 신축 공급 파이프라인 (법정동 기준이라 지도 대신 모달 상세) */}
       {d.permits && (
         <section>
-          <SectionTitle>구조 전망 · 관리 취약 신축이 어디로 들어오나</SectionTitle>
+          <SectionTitle n="07">구조 전망 · 관리 취약 신축이 어디로 들어오나</SectionTitle>
           <DetailCard onOpen={() => setModal("permits")}>
             <p className="mt-3 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
               최근 12개월 신축 허가(사용승인 전) 중 소형 공동주택(150세대 미만, 의무관리 기준 미달){" "}
@@ -339,7 +344,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 )
               })}
             </div>
-            <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
+            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[13.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
               가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가{" "}
               {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
               몰려 공급되고 있습니다. 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보
@@ -352,7 +357,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       {/* 서울시 맥락 — 25개 구 비교·서울 전체 앱 추세 */}
       {d.seoul && (
         <section>
-          <SectionTitle>서울시 안에서 광진은 어디쯤인가 (열린데이터광장)</SectionTitle>
+          <SectionTitle n="08">서울시 안에서 광진은 어디쯤인가 (열린데이터광장)</SectionTitle>
           <DetailCard onOpen={() => setModal("seoul")}>
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
               <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
@@ -389,8 +394,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 조치 대장 */}
       <section>
-        <SectionTitle>조치 대장 (개입 사전등록부)</SectionTitle>
-        <div className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
+        <SectionTitle n="09">조치 대장 (개입 사전등록부)</SectionTitle>
+        <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <p className="mb-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
             새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을
             등록하고, 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지
