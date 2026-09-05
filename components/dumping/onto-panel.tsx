@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react"
 import type { OntoGraph, OntoNode } from "@/lib/dumping/types"
 import { helpForKeys, propLabel, relLabel, typeLabel } from "@/lib/dumping/labels"
+import { lineageOf } from "@/lib/dumping/queries"
 import { SPACE_COLOR, SPACE_KO } from "./ontology-graph"
+import OntoQueries from "./onto-queries"
+import OntoSchemaModal from "./onto-schema-modal"
 
 // 온톨로지 탭 좌측 — 지식그래프 전체 탐색.
 // 검색·영역 필터·노드 목록과, 고른 노드의 속성·관계를 따라가는 상세 카드로 이루어진다.
@@ -18,6 +21,7 @@ interface OntoPanelProps {
 export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProps) {
   const [query, setQuery] = useState("")
   const [spaceFilter, setSpaceFilter] = useState<string | null>(null)
+  const [showSchema, setShowSchema] = useState(false)
 
   const nodeById = useMemo(() => {
     const m = new Map<string, OntoNode>()
@@ -44,6 +48,8 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       into: graph.edges.filter((e) => e.t === selectedId),
     }
   }, [graph, selectedId])
+  // 근거 계보 — 주장·지표·개입이 어느 증거·데이터셋·기관까지 거슬러 올라가는지
+  const lineage = useMemo(() => (graph && selectedId ? lineageOf(graph, selectedId) : null), [graph, selectedId])
 
   if (!graph) {
     return <div className="p-4 text-base text-[var(--cp-text-dim)]">지식그래프를 불러오는 중입니다…</div>
@@ -131,6 +137,29 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
           </div>
         )
       })()}
+      {lineage && (lineage.evidence.length > 0 || lineage.datasets.length > 0) && (
+        <div className="mt-3 rounded-lg bg-[var(--cp-hover)] px-2.5 py-2">
+          <p className="mb-1 text-[12px] font-semibold text-[var(--cp-text-dim)]">근거 계보 · 이 항목이 기대는 곳</p>
+          {(
+            [
+              ["증거", lineage.evidence],
+              ["데이터", lineage.datasets],
+              ["관리 기관", lineage.owners],
+            ] as [string, string[]][]
+          ).map(([k, ids]) =>
+            ids.length ? (
+              <p key={k} className="flex flex-wrap items-baseline gap-1 text-[12.5px]">
+                <span className="shrink-0 text-[var(--cp-text-dim)]">{k}</span>
+                {ids.map((id) => (
+                  <button key={id} onClick={() => onSelect(id)} className="rounded bg-white px-1.5 py-0.5 text-left text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]">
+                    {nodeById.get(id)?.label ?? id}
+                  </button>
+                ))}
+              </p>
+            ) : null,
+          )}
+        </div>
+      )}
       {(["out", "into"] as const).map((dir) => {
         const edges = related[dir]
         if (!edges.length) return null
@@ -172,16 +201,21 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <p className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+      <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
         이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 정리한 곳입니다. 오른쪽 그래프나
-        아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.
-      </p>
+        아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.{" "}
+        <button onClick={() => setShowSchema(true)} className="font-semibold text-[#0c6155] underline-offset-2 hover:underline">
+          스키마 보기
+        </button>
+      </div>
 
       {detailCard ?? (
         <p className="rounded-lg border border-[var(--cp-border-faint)] px-3 py-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
           아직 고른 항목이 없습니다. β·p값 같은 검증 수치에는 쉬운 풀이가 함께 붙습니다.
         </p>
       )}
+
+      <OntoQueries graph={graph} onSelect={onSelect} />
 
       <input
         value={query}
@@ -229,6 +263,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
           </p>
         )}
       </div>
+      {showSchema && <OntoSchemaModal graph={graph} onClose={() => setShowSchema(false)} />}
     </div>
   )
 }

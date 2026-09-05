@@ -85,3 +85,57 @@ export function regressionBetas(graph: OntoGraph): BetaRow[] {
 
 // 동별 수치 강조·권고 임계 — 발견 탭 표와 동 브리핑 권고가 같은 기준을 쓴다 (단위 %, cr·er는 천명당 건)
 export const DONG_THRESHOLDS = { cr: 15, er: 15, unm: 45, one: 55, yth: 35, frn: 10 } as const
+
+// ─── 채널 증가 배율 ────────────────────────────────────────────
+// "민원 2.10배·앱 2.97배·채널고정 1.10배"는 마지막 해(부분 연도)를 12개월로 연환산해 첫 완결 연도와 나눈 값이다.
+// 문구마다 숫자를 박아 두면 재수출 때 어긋나고, 연환산 기준을 빠뜨리기 쉬워 한 곳에서 계산해 basis까지 같이 돌려준다.
+export interface ChannelGrowth {
+  baseYear: string
+  lastYear: string
+  lastMonth: number
+  annualized: boolean // 마지막 해가 부분 연도라 ×12/lastMonth 로 환산했는가
+  basis: string // "2026년 1~8월 연환산 대비 2024년" 같은 한 줄 기준
+  total: number // 민원 전체
+  app: number // 앱(서울스마트불편신고)
+  fixed: number // 채널고정(120·직접)
+  fines: number // 과태료 부과(위반일시 기준, 단속 실측)
+}
+
+export function channelGrowth(data: DumpingMapData): ChannelGrowth {
+  const period = periodOf(data.yearly.complaintsMonthly)
+  const years = Object.keys(data.yearly.complaints).sort()
+  const baseYear = years[0]
+  const lastYear = period.lastYear
+  const factor = period.lastMonth < 12 ? 12 / period.lastMonth : 1
+  const ch = data.decision.channels.yearly
+  const at = (o: Record<string, number> | undefined, y: string) => o?.[y] ?? 0
+  const ratio = (last: number, base: number) => (base > 0 ? Math.round((last * factor) / base * 100) / 100 : NaN)
+  const fixedOf = (y: string) => at(ch.c120, y) + at(ch.direct, y)
+  return {
+    baseYear,
+    lastYear,
+    lastMonth: period.lastMonth,
+    annualized: factor !== 1,
+    basis:
+      factor !== 1
+        ? `${lastYear}년 1~${period.lastMonth}월을 12개월로 연환산해 ${baseYear}년과 비교`
+        : `${lastYear}년 대비 ${baseYear}년`,
+    total: ratio(at(data.yearly.complaints, lastYear), at(data.yearly.complaints, baseYear)),
+    app: ratio(at(ch.app, lastYear), at(ch.app, baseYear)),
+    fixed: ratio(fixedOf(lastYear), fixedOf(baseYear)),
+    fines: ratio(at(data.yearly.enforcement, lastYear), at(data.yearly.enforcement, baseYear)),
+  }
+}
+
+// "2.10배" / "0.53배" — 배율 표기 한 곳
+export function fmtRatio(r: number): string {
+  return Number.isFinite(r) ? `${r.toFixed(2)}배` : "—"
+}
+
+// 과태료가 늘었나 줄었나 — 문장 조립용 (배율 1 미만이면 감소)
+export function finesDirection(g: ChannelGrowth): "줄었" | "늘었" | "비슷했" {
+  if (!Number.isFinite(g.fines)) return "비슷했"
+  if (g.fines < 0.9) return "줄었"
+  if (g.fines > 1.1) return "늘었"
+  return "비슷했"
+}

@@ -174,8 +174,9 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     return m
   }, [graph])
 
-  // 자동 회전 — 사용자가 조작하거나 노드를 보고 있을 때는 멈춘다
+  // 자동 회전 — 사용자가 조작하거나 노드를 보고 있을 때는 멈춘다. 움직임 줄이기 설정이면 아예 돌리지 않는다
   useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
     const timer = setInterval(() => {
       if (interactedRef.current || selectedId || hoverId || dragRef.current) return
       setView((v) => ({ ...v, yaw: v.yaw + 0.0045 }))

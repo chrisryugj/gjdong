@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, fmtRatio, partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
@@ -12,7 +12,7 @@ import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 // 그 아래 "핵심 질의응답" 아코디언: 상위 3개는 펼쳐진 채 시작, 나머지는 눌러서 확장.
 // 답이 미리 준비된 항목은 API 호출 없이 즉시 열리고, 지도 반영은 명시적 버튼으로만 한다.
 // 준비된 답의 숫자는 map.json·graph.json에서 읽는다 — 데이터가 갱신되면 문장도 따라온다.
-// 배율(앱 2.97배 등)·청소차 제원처럼 export에 없는 수치만 README 정본을 그대로 적었다.
+// 청소차 제원처럼 export에 없는 수치만 README 정본을 그대로 적었다. 배율은 facts.channelGrowth가 연환산해 준다.
 
 interface Seed {
   q: string
@@ -40,6 +40,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
   const enf0 = data.yearly.enforcement[y0] ?? 0
   const enf1 = data.yearly.enforcement[y1] ?? 0
   const lastMonths = period.months - 12 * (years.length - 1) // 마지막 해의 집계 개월 수
+  const g = channelGrowth(data)
 
   const betas = regressionBetas(graph)
   const beta = (id: string) => betas.find((b) => b.id === id)
@@ -72,7 +73,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
 - 민원 접수: ${comp}
 - 단속 실측인 과태료 부과는 ${y0}년 ${n(enf0)}건에서 ${y1}년 ${n(enf1)}건으로 ${enf1 < enf0 ? "오히려 줄었습니다" : "늘었습니다"}
 
-민원 증가분의 대부분은 스마트폰 앱 보급으로 신고가 쉬워진 효과입니다(앱 신고만 2.97배, 전화·직접 신고는 1.10배). 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
+민원 증가분의 대부분은 스마트폰 앱 보급으로 신고가 쉬워진 효과입니다(${g.basis}하면 앱 신고만 ${fmtRatio(g.app)}, 전화·직접 신고는 ${fmtRatio(g.fixed)}). 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
       chart: "yearly",
       viz: { mode: "comp" },
       vizNote: "지도를 민원 분포로 전환했습니다. 민원 수치는 신고 편향이 섞여 있음에 주의하세요.",
@@ -82,7 +83,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       hint: `관리주체 없는 주거 밀도 (β ${unmText})`,
       answer: `관리주체 없는 주거단위 밀도입니다. 다가구·단독주택처럼 배출을 관리할 주체가 없는 주거가 몰린 곳일수록 발생이 많습니다(표준화 β ${unmText}, 이 요인이 많은 곳일수록 발생도 많다는 뜻. ${unm ? pText(unm.p) : "p<0.001"}로 우연이 아님).
 
-반대로 아파트 등 공동주택 세대수는 발생과 무관했습니다(β ${apt ? signed(apt.beta) : "−0.011"}, ${apt ? pText(apt.p) : "p=0.708"}). 같은 인구라도 관리사무소·공동 배출장이 있으면 발생이 늘지 않습니다. 무단투기는 시민의식보다 배출 관리 구조의 문제라는 뜻입니다.`,
+반대로 아파트 등 공동주택 세대수는 연관이 확인되지 않았습니다(β ${apt ? signed(apt.beta) : "−0.011"}, ${apt ? pText(apt.p) : "p=0.708"}). 같은 인구라도 관리사무소·공동 배출장이 있으면 발생이 늘지 않습니다. 무단투기는 시민의식보다 배출 관리 구조의 문제라는 뜻입니다.`,
       chart: "beta",
       viz: { mode: "unm" },
       vizNote: `지도를 무관리주거 밀도(β ${unmText})로 전환했습니다.`,
@@ -118,7 +119,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       hint: "반대입니다. 생활동선 위에서 발생합니다",
       answer: `아닙니다. 데이터는 반대를 가리킵니다.
 
-골목이 많은 격자일수록(β ${alley ? signed(alley.beta) : "−0.222"}), 큰길에서 멀수록(β ${arterial ? signed(arterial.beta) : "−0.139"}) 발생이 오히려 적었습니다. "사람 눈을 피해 으슥한 곳에 버린다"는 은폐 가설은 반증됐습니다.
+골목이 많은 격자일수록(β ${alley ? signed(alley.beta) : "−0.222"}), 큰길에서 멀수록(β ${arterial ? signed(arterial.beta) : "−0.139"}) 발생이 오히려 적었습니다. "사람 눈을 피해 으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않았습니다.
 
 무단투기는 숨어서 하는 행위가 아니라 생활동선 위, 배출 관리가 없는 곳에서 일어납니다. 단속이나 CCTV를 으슥한 곳 위주로 배치하는 논리는 데이터와 어긋납니다.`,
       chart: "beta",
@@ -167,7 +168,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
 - 민원: ${comp}
 - 과태료: ${enf}
 
-${period.lastYear}년은 ${lastMonths}개월 집계인데도 민원이 작년 연간치를 ${(data.yearly.complaints[period.lastYear] ?? 0) > (data.yearly.complaints[y1] ?? 0) ? "이미 넘었지만" : "따라잡고 있지만"}, 이 증가분의 대부분은 앱 신고 확산(앱만 2.97배) 때문입니다. 실제 발생에 가까운 과태료는 ${enf1 < enf0 ? "줄고 있어" : "함께 늘고 있어"}, 상황이 악화됐다고 단정할 수 없습니다. 월별 흐름은 차트를 참고하세요.`,
+${period.lastYear}년은 ${lastMonths}개월 집계인데도 민원이 작년 연간치를 ${(data.yearly.complaints[period.lastYear] ?? 0) > (data.yearly.complaints[y1] ?? 0) ? "이미 넘었지만" : "따라잡고 있지만"}, 이 증가분의 대부분은 앱 신고 확산(연환산 앱만 ${fmtRatio(g.app)}) 때문입니다. 단속 적발 실측인 과태료는 ${enf1 < enf0 ? "줄고 있어" : "함께 늘고 있어"}, 상황이 악화됐다고 단정할 수 없습니다. 월별 흐름은 차트를 참고하세요.`,
       chart: "monthly",
     },
   ]

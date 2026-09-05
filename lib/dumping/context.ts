@@ -1,14 +1,19 @@
-import graph from "@/data/dumping/graph.json"
+import rawGraph from "@/data/dumping/graph.json"
 import mapData from "@/data/dumping/map.json"
-import type { DumpingMapData } from "./types"
-import { fmtKrw, summarize } from "./facts"
+import type { DumpingMapData, OntoGraph } from "./types"
+import { applyErrata } from "./errata"
+import { channelGrowth, finesDirection, fmtKrw, fmtRatio, summarize } from "./facts"
 import { TYPE_KO } from "./labels"
 
 // 온톨로지 전체 + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
 // 그래프가 작아 통째로 컨텍스트에 들어간다 — RAG 불필요.
 // 노드·엣지 수와 기간·총건수는 JSON에서 세어 넣는다 — 재수출 때 문구가 어긋나지 않게.
 
-const S = summarize(mapData as unknown as DumpingMapData)
+const MAP = mapData as unknown as DumpingMapData
+const S = summarize(MAP)
+const G = channelGrowth(MAP)
+// 화면(데이터 라우트)과 같은 정오표를 거친 그래프 — 프롬프트와 UI가 다른 진술을 하지 않게
+const graph = applyErrata(rawGraph as unknown as OntoGraph)
 
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
@@ -69,13 +74,17 @@ export function buildSystemPrompt(): string {
    온톨로지에 retracted 속성이 붙은 노드(ev-did-cctv·claim-cctv-conditional·cov-did-cctv)의 원 수치는
    철회 전 것이니 근거로 인용 금지 — "조건부 효과" 표현도 철회됐다.
    재배치 권고는 통계 근거가 아니라 자원 배분 논리로만 유지된다.
-3. 민원 2.10배 증가는 발생 증가가 아니라 앱 보급에 따른 신고 편향이다(앱 2.97배 vs 120·직접 1.10배).
+3. 민원 ${fmtRatio(G.total)} 증가는 발생 증가가 아니라 앱 보급에 따른 신고 편향이다(앱 ${fmtRatio(G.app)} vs 120·직접 ${fmtRatio(G.fixed)}).
+   배율 기준: ${G.basis}. 단속 실측인 과태료 부과는 같은 기준으로 ${fmtRatio(G.fines)}, 즉 오히려 ${finesDirection(G)}다 — "과태료도 늘었다"고 말하지 마라.
 4. 1인세대·청년·외국인·무관리주거는 상관 0.85~0.97로 얽혀 개별 효과 분리가 불가하다(행정동 n=15).
    단일 잠재요인으로 다뤄야 하며 어느 하나를 "범인"으로 지목하지 마라.
-5. 골목 비율(β −0.222)·간선 이격거리(β −0.139)는 음수 — "으슥한 곳에 버린다"는 은폐 가설은 반증됐다.
-6. 공동주택 세대수는 무효(β −0.011, p=0.708) — 같은 인구라도 아파트면 발생이 늘지 않는다.
-   최강 예측변수는 관리주체 없는 주거단위 밀도(표준화 β +0.312, p<0.001, n=1,062).
-7. 민원 접수 시각은 투기 시각이 아니라 발견 시각이다. 재활용정거장은 설치·철거 변이가 없어 효과 측정 불가.
+5. 골목 비율(β −0.222)·간선 이격거리(β −0.139)는 음수 — "으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않는다. "반증했다"고 단정하지 마라.
+6. 공동주택 세대수는 연관이 확인되지 않았다(β −0.011, p=0.708) — 연관 없음의 증명이 아니라 "확인하지 못함"이다.
+   최강 예측변수는 관리주체 없는 주거단위 밀도(표준화 β +0.312, p<0.001, n=1,062). 이 변수는 건축물대장의
+   다가구 가구수+단독주택 동수를 합친 대리변수이지 관리자 부재를 직접 관측한 값이 아니다.
+   격자 회귀에 인구 변수는 없다 — "인구를 통제했다"고 말하지 마라(인구 대비 비교는 행정동 천명당 지표뿐).
+7. 민원 접수 시각은 투기 시각이 아니라 발견 시각이다. 과태료는 발생×발견×단속×처분의 결과라 "실제 발생"이라 부르지 말고
+   "단속 적발 실측"이라 하라. 재활용정거장은 설치·철거 변이가 없어 효과 측정 불가.
 8. 확실하지 않으면 한계를 함께 말하라. 관측 독립성 위배(공간 자기상관) 등 진단 결과도 온톨로지에 있다.
 9. 대책 효과 시뮬레이션(what-if) 금지: "이 대책을 하면 몇 건 줄어든다"는 계산을 절대 하지 마라.
    회귀계수는 관측 연관이라 개입 효과 예측에 쓸 수 없다. 효과는 조치 대장에 사전등록한 대조군 설계로만 판정한다.
@@ -83,6 +92,9 @@ export function buildSystemPrompt(): string {
    원인 구조와 대책이 다르므로, 원인·대책 질문에는 어느 계열 이야기인지 구분해서 답하라.
 11. 아래 "수요 전망"은 행정수요(신고 접수량) 전망이지 발생 예측이 아니다. 항상 "운영 참고"임을 밝혀라.
    성과 평가 지표는 민원 총건수가 아니라 채널고정 민원(120·직접)·집중관리 상습격자 수·징수율이다.
+   단, 상습격자 수는 앱 민원을 포함하므로 "신고편향이 제거된" 지표가 아니라 "덜 민감한 관리수요 지표"다.
+   징수율은 확정 처분 건(감면·진행 제외) 중 납부완료 비율이며 금액 기준 징수율이 아니다.
+12. 수요 전망의 오차 ${mapData.decision.forecast.backtest.mapePct}%는 모수 선택 구간과 같은 구간에서 잰 값이라 낙관적일 수 있다. 정확도를 보증하듯 말하지 마라.
 
 ## 답변 형식 (독자는 통계를 모르는 일반 직원·어르신이다)
 - 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게.

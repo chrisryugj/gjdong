@@ -1,11 +1,14 @@
 "use client"
 
-import type { DumpingMapData } from "@/lib/dumping/types"
-import { summarize } from "@/lib/dumping/facts"
-import { FINDINGS, type Finding } from "./findings-data"
+import { useMemo } from "react"
+import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
+import { DONG_THRESHOLDS, summarize } from "@/lib/dumping/facts"
+import { buildFindings, type Finding } from "./findings-data"
+import ContrastPanel from "./contrast-panel"
 
 interface FindingsPanelProps {
   data: DumpingMapData | null
+  graph: OntoGraph | null
   selectedDong: string | null
   onSelectDong: (dong: string | null) => void
   onOpenFinding: (finding: Finding) => void
@@ -15,12 +18,15 @@ interface FindingsPanelProps {
 
 export default function FindingsPanel({
   data,
+  graph,
   selectedDong,
   onSelectDong,
   onOpenFinding,
   onOpenBriefing,
   activeTitle,
 }: FindingsPanelProps) {
+  const findings = useMemo(() => (data && graph ? buildFindings(data, graph) : []), [data, graph])
+  const T = DONG_THRESHOLDS // 동 브리핑 권고와 같은 문턱 — 여기서 강조되는 값이 브리핑에서 권고로 이어진다
   const dongs = data ? [...data.dong].sort((a, b) => b.cr - a.cr) : []
   const periodLabel = data ? summarize(data).period.label : ""
   const maxCr = dongs.length ? dongs[0].cr : 1
@@ -30,6 +36,9 @@ export default function FindingsPanel({
 
   return (
     <div className="flex flex-col gap-4 p-3">
+      {/* 기존 해석 vs 이 분석 — 결론이 어디서 뒤집혔는지 먼저 */}
+      {data && graph && <ContrastPanel data={data} graph={graph} />}
+
       {/* 동별 랭킹 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
@@ -102,12 +111,12 @@ export default function FindingsPanel({
             </p>
             <dl className="grid grid-cols-3 gap-x-2 gap-y-2 text-center">
               {[
-                { k: "민원", v: sel.cr.toFixed(1), u: `천명당 · ${sel.comp}건`, hi: sel.cr >= 15 },
-                { k: "과태료", v: sel.er.toFixed(1), u: `천명당 · ${sel.enf}건`, hi: sel.er >= 15 },
-                { k: "무관리주거", v: `${sel.unm}%`, u: `다가구 ${sel.mf.toLocaleString()}가구`, hi: sel.unm >= 50 },
-                { k: "1인세대", v: `${sel.one}%`, u: `${sel.hh.toLocaleString()}세대 중`, hi: sel.one >= 60 },
-                { k: "청년 20-34", v: `${sel.yth}%`, u: "2025년", hi: sel.yth >= 40 },
-                { k: "외국인", v: `${sel.frn}%`, u: "2025년", hi: sel.frn >= 13 },
+                { k: "민원", v: sel.cr.toFixed(1), u: `천명당 · ${sel.comp}건`, hi: sel.cr >= T.cr },
+                { k: "과태료", v: sel.er.toFixed(1), u: `천명당 · ${sel.enf}건`, hi: sel.er >= T.er },
+                { k: "무관리주거", v: `${sel.unm}%`, u: `다가구 ${sel.mf.toLocaleString()}가구`, hi: sel.unm >= T.unm },
+                { k: "1인세대", v: `${sel.one}%`, u: `${sel.hh.toLocaleString()}세대 중`, hi: sel.one >= T.one },
+                { k: "청년 20-34", v: `${sel.yth}%`, u: "2025년", hi: sel.yth >= T.yth },
+                { k: "외국인", v: `${sel.frn}%`, u: "2025년", hi: sel.frn >= T.frn },
               ].map((f) => (
                 <div key={f.k} className={f.hi ? "rounded-lg bg-[#a8322a]/8 py-1" : "py-1"}>
                   <dt className="text-[12px] text-[var(--cp-text-dim)]">
@@ -173,7 +182,7 @@ export default function FindingsPanel({
               })}
             </div>
             <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
-              여름과 더운 날(25도 이상)에는 민원이 겨울의 2배입니다. 비 오는 날에는 단속 적발이
+              여름과 더운 날(25도 이상)에는 민원이 겨울의 {(data.env.seasons["여름"].compPerDay / Math.max(data.env.seasons["겨울"].compPerDay, 0.01)).toFixed(1)}배입니다. 비 오는 날에는 단속 적발이
               {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>
             <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
@@ -187,10 +196,10 @@ export default function FindingsPanel({
       {/* 핵심 발견 — 카드 클릭 시 모달 상세 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          핵심 발견 {FINDINGS.length} · 카드를 누르면 자세히 볼 수 있습니다
+          핵심 발견 {findings.length} · 카드를 누르면 자세히 볼 수 있습니다
         </h3>
         <div className="flex flex-col gap-2">
-          {FINDINGS.map((f) => {
+          {findings.map((f) => {
             const active = f.title === activeTitle
             return (
               <button

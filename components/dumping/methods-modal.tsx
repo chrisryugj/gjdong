@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { graphSize, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, finesDirection, fmtRatio, graphSize, regressionBetas, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
 // 데이터·분석 방법 안내 — 두 섹션으로 구성.
@@ -113,6 +113,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
   const bt = data.decision.hotspots.backtest
   const fc = data.decision.forecast.backtest
   const g = graph ? graphSize(graph) : null
+  const cg = channelGrowth(data)
   return [
     {
       name: "100m 격자 결합",
@@ -121,21 +122,22 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     },
     {
       name: "다중회귀 분석 (표준화 β)",
-      easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "인구가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
-      here: `격자 1,062칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 무효(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
+      easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
+      here: `격자 1,062칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
-        "계산 방법을 네 가지(기본 OLS, 이분산 보정, 군집 보정, 음이항)로 바꿔 가며 전부 같은 결론일 때만 채택했습니다. 그래도 이것은 조건부 연관이지 인과를 증명한 것은 아닙니다.",
+        "표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 격자 회귀에 인구 변수는 들어 있지 않고, 관리주체 없는 주거는 건축물대장 대리변수입니다. 조건부 연관이지 인과를 증명한 것은 아닙니다.",
     },
     {
       name: "이중차분(DID)과 이벤트 스터디",
       easy: "CCTV를 설치한 곳과 아직 설치하지 않은 곳을 전후로 비교해 효과를 재는 방법입니다. 여기에는 중요한 함정이 하나 있습니다. 원래 많이 발생하던 곳은 아무것도 하지 않아도 저절로 줄어드는 경향(평균회귀)이 있어서, 비교를 잘못 짜면 없는 효과가 있어 보입니다.",
-      here: "초기 분석은 감소 효과가 있다고 봤지만, 비교 대상에 같은 조건을 걸어 다시 분석하니 그쪽도 똑같이 줄었습니다. 감소분이 전부 평균회귀였던 것이라 주장을 철회했습니다. 설치 전후를 월 단위로 펼쳐 본 이벤트 스터디(관측 22,247행)에서도 유의한 시점은 없었습니다.",
+      here: "초기 분석은 감소 효과가 있다고 봤지만, 비교 대상에 같은 조건을 걸어 다시 분석하니 그쪽도 똑같이 줄었습니다. 감소분이 평균회귀로 설명돼, 선택 규칙과 대조군 정의에 민감한 효과 주장을 철회했습니다. 설치 전후를 월 단위로 펼쳐 본 이벤트 스터디(관측 22,247행)에서도 유의한 시점은 없었습니다.",
       caution: "이 철회 경험이 조치 대장(개입 사전등록) 원칙의 근거입니다. 효과 평가는 실행 전에 설계부터 등록합니다.",
     },
     {
       name: "신고 채널 분해",
       easy: "민원이 늘었다고 해서 발생이 는 것은 아닙니다. 신고 창구(앱·120·직접)별로 나눠 보면 무엇이 늘었는지가 드러납니다.",
-      here: "민원 2.10배 증가를 나눠 보니 앱만 2.97배였고 120·직접은 1.10배였습니다. 신고 성향과 무관한 과태료도 1.1배 수준이라, 늘어난 부분은 대부분 앱 보급 효과로 봅니다.",
+      here: `민원 ${fmtRatio(cg.total)} 증가를 나눠 보니 앱만 ${fmtRatio(cg.app)}였고 120·직접은 ${fmtRatio(cg.fixed)}였습니다. 신고 성향과 무관한 과태료 부과는 ${fmtRatio(cg.fines)}로 오히려 ${finesDirection(cg)}으니, 늘어난 부분은 대부분 앱 보급 효과로 봅니다.`,
+      caution: `배율은 ${cg.basis}한 값입니다.`,
     },
     {
       name: "핫스팟 점수와 백테스트",
@@ -146,7 +148,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
       name: "홀트윈터스 수요 전망",
       easy: "월별 접수의 수준과 추세, 계절 반복(여름에 많고 겨울에 적은 흐름)을 학습해 다음 달을 내다보는 시계열 모형입니다.",
       here: `최근 달을 하나씩 제외하고 예측해 보는 검증(${fc.window})에서 평균 오차가 ${fc.mapePct}%였습니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
-      caution: "신고 접수량 전망이지 발생량 예측이 아닙니다.",
+      caution: "신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 오차 측정 구간이 같아 오차는 낙관적일 수 있습니다.",
     },
     {
       name: "온톨로지 (지식그래프)",

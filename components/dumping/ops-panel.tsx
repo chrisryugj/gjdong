@@ -82,7 +82,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
     <div className="flex flex-col gap-4 p-3">
       {/* KPI 보드 — 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
       <section>
-        <SectionTitle>성과지표 (신고편향 무관 · {d.asof} 기준)</SectionTitle>
+        <SectionTitle>성과지표 (신고편향에 덜 민감 · {d.asof} 기준)</SectionTitle>
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <button
             onClick={onToggleCritical}
@@ -132,8 +132,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         </div>
         <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
           민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
-          채널고정(120·직접)과 상습격자 수로 합니다. 채널고정 {Object.keys(fixedYearly).slice(-1)[0]}년
-          수치는 8월까지의 부분 집계입니다.
+          채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하므로 편향이 제거된
+          지표가 아니라 관리수요 지표로 읽어 주세요.
+          {period.lastMonth < 12 && ` 채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
         </p>
       </section>
 
@@ -198,8 +199,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </p>
           <ForecastChart data={data} />
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-            홀트윈터스 계절 모형이며, 직전 8개월 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다.
-            신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
+            홀트윈터스 계절 모형이며, 직전 8개월 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(모수 선택과
+            같은 구간에서 잰 값이라 낙관적일 수 있습니다). 신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰
+            배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
       </section>

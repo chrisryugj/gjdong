@@ -215,8 +215,8 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
         </div>
         <p className="mt-1.5 px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
           민원 총건수에는 앱 보급에 따른 신고 편향이 섞여 있어 성과 평가에는 쓰지 않습니다. 빨간
-          점으로 표시한 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 편향 없이 성과를 재는
-          지표입니다.
+          점으로 표시한 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 편향에 덜 민감하게 성과를 재는
+          지표입니다. 상습격자 수는 앱 민원을 포함하므로 관리수요 지표로 함께 읽어 주세요.
         </p>
       </section>
 

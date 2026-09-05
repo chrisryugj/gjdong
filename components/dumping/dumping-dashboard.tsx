@@ -303,6 +303,7 @@ export default function DumpingDashboard() {
               {tab === "findings" && (
                 <FindingsPanel
                   data={mapData}
+                  graph={graph}
                   selectedDong={selectedDong}
                   onSelectDong={setSelectedDong}
                   onOpenFinding={setOpenFinding}

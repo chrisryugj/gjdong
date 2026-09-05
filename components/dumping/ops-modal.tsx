@@ -1,7 +1,7 @@
 "use client"
 
 import type { DumpingMapData } from "@/lib/dumping/types"
-import { fmtKrw, partialYearSuffix, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, finesDirection, fmtKrw, fmtRatio, partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
 // 운영·전망 탭 상세 모달 — 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
@@ -183,8 +183,8 @@ export default function OpsModal({
           rows={Object.entries(f.funnel).map(([g, v]) => [g, v.n, KRW(v.amount), MEANING[g] ?? ""])}
         />
         <Callout>
-          징수율 {f.collectionRatePct}%로, 부과한 과태료는 대부분 실제로 걷히고 있습니다. 단속의
-          집행력은 문제가 아닙니다.
+          확정 처분 건(감면·진행 제외) 가운데 납부 완료가 {f.collectionRatePct}%입니다. 건수 기준이라
+          금액 기준·가산금 포함 징수율과는 다릅니다.
         </Callout>
         <H>읽는 법</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
@@ -199,6 +199,7 @@ export default function OpsModal({
 
   if (id === "channels") {
     const years = [...new Set(Object.values(d.channels.yearly).flatMap((y) => Object.keys(y)))].sort()
+    const g = channelGrowth(data)
     const get = (ch: string, y: string) => d.channels.yearly[ch]?.[y] ?? 0
     return (
       <ModalShell title="민원 채널 구조" sub="같은 발생이라도 신고 창구가 다르면 통계가 다르게 보입니다" onClose={onClose}>
@@ -214,15 +215,16 @@ export default function OpsModal({
           ])}
         />
         <Callout>
-          민원 총건수가 2.10배로 뛴 동안 앱 접수만 2.97배로 늘었고 120·직접은 1.10배로 거의
+          민원 총건수가 {fmtRatio(g.total)}로 뛴 동안 앱 접수만 {fmtRatio(g.app)}로 늘었고 120·직접은 {fmtRatio(g.fixed)}로 거의
           그대로였습니다. 늘어난 것은 무단투기가 아니라 신고의 편리함입니다.
         </Callout>
         <H>그래서 어떻게 쓰나</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
           연도끼리 견주거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 쓰셔야 합니다.
-          신고 성향과 무관한 과태료 부과(단속 실측)도 같은 1.1배 수준이라 이 해석을 뒷받침합니다.
+          신고 성향과 무관한 과태료 부과(단속 실측)는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다.
+          발생이 두 배로 늘었다면 나올 수 없는 숫자입니다.
         </p>
-        <Note>앱은 서울스마트불편신고입니다. 채널은 민원 제목의 접수 경로 표기로 분류했습니다.</Note>
+        <Note>배율 기준: {g.basis}. 앱은 서울스마트불편신고입니다. 채널은 민원 제목의 접수 경로 표기로 분류했습니다.</Note>
       </ModalShell>
     )
   }
@@ -242,6 +244,10 @@ export default function OpsModal({
           패턴)을 학습하는 홀트윈터스 계절 모형을 썼습니다. 최근 달을 하나씩 제외하고 예측해 보는
           백테스트({d.forecast.backtest.window})에서 평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
         </p>
+        <Note>
+          모수(수준·추세·계절 가중치)를 고른 구간과 오차를 잰 구간이 같은 8개월이라 이 오차는 낙관적일 수 있습니다.
+          기준모형(전년 동월·최근 평균) 대비 검증과 예측구간 적중률 확인은 아직 하지 않았습니다.
+        </Note>
         <Callout>
           이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고,
           대책 효과를 계산하는 용도로도 쓰실 수 없습니다.
@@ -281,6 +287,9 @@ export default function OpsModal({
 
   if (id === "sla") {
     const years = Object.entries(d.sla.byYear)
+    // 해설 문장의 연도는 표와 같은 원천 — 가운데 해가 가장 빠르고 마지막 해 꼬리가 다시 길어진 구조를 전제로 쓴다
+    const best = [...years].sort((a, b) => a[1].p90H - b[1].p90H)[0]
+    const last = years[years.length - 1]
     return (
       <ModalShell title="민원 처리 속도 상세" sub="접수부터 행정 종결까지 걸린 시간" onClose={onClose}>
         <H>연도별 처리 시간</H>
@@ -297,8 +306,9 @@ export default function OpsModal({
         <H>읽는 법</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
           "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.
-          2025년에 크게 좋아졌다가 2026년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한
-          시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.
+          {best && last && best[0] !== last[0]
+            ? `${best[0]}년에 크게 좋아졌다가 ${last[0]}년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.`
+            : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄고 있다는 뜻입니다."}
         </p>
         <Note>{d.sla.note}. 주민이 체감하는 "현장 수거까지 걸린 시간"을 재려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).</Note>
       </ModalShell>

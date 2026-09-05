@@ -25,7 +25,7 @@ const BASE_LABEL: Record<BaseMode, string> = {
 const BASE_DESC: Record<BaseMode, string> = {
   unm: "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 발생과 무관해(β −0.011) 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다.",
   comp: "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다.",
-  enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와 무관해 실제 발생에 가장 가깝습니다.",
+  enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와는 무관하지만 순찰·근무 패턴이 섞인 적발 실측이라, 발생 그 자체는 아닙니다.",
 }
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -191,13 +191,20 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
       {/* 범례 — 모드별 팔레트 반영 */}
       <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">
         <span className="font-medium">{BASE_DEF[view.base].legend}</span>
-        <span>적음</span>
-        <span className="flex">
-          {BASE_DEF[view.base].pal.map((c) => (
-            <i key={c} className="h-3 w-4" style={{ background: c }} />
-          ))}
+        <span className="flex flex-col items-start">
+          <span className="flex">
+            {BASE_DEF[view.base].pal.map((c) => (
+              <i key={c} className="h-3 w-4" style={{ background: c }} />
+            ))}
+          </span>
+          {/* 구간 경계 — 색만으로는 "많음"이 몇 건인지 알 수 없다. stops[i] 초과가 pal[i+1] */}
+          <span className="flex font-mono text-[9.5px] leading-none text-[var(--cp-text-dim)]">
+            {BASE_DEF[view.base].stops.map((s, i) => (
+              <i key={s} className="w-4 not-italic">{i === 0 ? "0" : `${s}+`}</i>
+            ))}
+          </span>
         </span>
-        <span>많음</span>
+        <span>{BASE_DEF[view.base].unit}</span>
         {view.circles.map((c) => (
           <span key={c} className="ml-1 inline-flex items-center gap-1">
             <i

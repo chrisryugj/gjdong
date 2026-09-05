@@ -161,14 +161,14 @@ function SeasonsChart({ data }: { data: DumpingMapData }) {
 }
 
 // 회귀 β — 그래프 Covariate 노드의 coefficient(|β| 내림차순). 꼬리표는 해석 결과라 id별로 붙인다
-const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "최강", "cov-alley": "반증", "cov-arterial": "반증" }
+const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "최강", "cov-alley": "역방향", "cov-arterial": "역방향" }
 
 function BetaChart({ graph }: { graph: OntoGraph }) {
   const BETAS = regressionBetas(graph).map((b) => ({
     n: b.label.replace(/\s*수$/, ""), // "무관리 주거단위 수" → "무관리 주거단위" (음식점 수는 그대로)
     v: b.beta,
-    // p ≥ 0.05면 우연 범위 — "무효"
-    note: BETA_NOTE[b.id] ?? (b.p >= 0.05 ? "무효" : ""),
+    // p ≥ 0.05면 우연 범위 — "비유의"
+    note: BETA_NOTE[b.id] ?? (b.p >= 0.05 ? "비유의" : ""),
     invalid: b.p >= 0.05,
   }))
   const cx = W / 2 + 30
