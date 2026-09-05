@@ -411,10 +411,12 @@ export default function OpsModal({
       />
       <H>왜 무단투기 대시보드에 건축 허가가 나오나</H>
       <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-        이 분석에서 가장 강한 예측변수는 "관리주체 없는 주거"입니다. 150세대 미만 공동주택은
+        이 분석에서 가장 강한 예측변수는 다가구·단독주택 밀집입니다. 150세대 미만 공동주택은
         공동주택관리법상 의무관리 대상이 아니어서 관리사무소와 경비, 공동 배출장이 없는 경우가
-        많습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는
-        2~3년 안에 같은 성격의 주택 물량으로 편입됩니다.
+        많지만, K-apt로 나눈 세 갈래 모형에서 미등록 공동주택(다세대·연립·소형)은 과태료와 연관이
+        없었습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는
+        주거 구조가 어느 쪽으로 움직이는지 읽는 자료이지, 발생 증가의 예고는 아닙니다. 겨냥점과 직접
+        닿는 물량은 단독·다가구 허가 {pm.guTotal.detachedPermits12m}건입니다.
       </p>
       <Callout>
         준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두는 편이, 늘어나는 위험

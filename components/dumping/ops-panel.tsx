@@ -345,10 +345,10 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               })}
             </div>
             <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[13.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
-              가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가{" "}
+              의무관리 기준 미달 소형 주거가{" "}
               {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
-              몰려 공급되고 있습니다. 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보
-              지역입니다.
+              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관이 없었으므로 발생 예고가
+              아니라, 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>
         </section>
