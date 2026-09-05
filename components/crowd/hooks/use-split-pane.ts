@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-/** 모바일 지도/패널 분할 — 패널 상단 핸들 드래그로 지도 높이 조절 (null=자동 24/32dvh) */
-export function useSplitPane() {
+/** 모바일 지도/패널 분할 — 패널 상단 핸들 드래그로 지도 높이 조절 (null=자동 24/32dvh).
+ *  mapBelow: 지도가 패널 아래에 있고 핸들이 패널 바닥에 붙는 배치(/dumping). 드래그 방향이 반대다 */
+export function useSplitPane(opts: { mapBelow?: boolean } = {}) {
+  const sign = opts.mapBelow ? -1 : 1
   const [mapH, setMapH] = useState<number | null>(null)
   const [splitDragging, setSplitDragging] = useState(false)
   const mapBoxRef = useRef<HTMLDivElement>(null)
@@ -26,8 +28,8 @@ export function useSplitPane() {
   const onSplitMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const d = splitDragRef.current
     if (!d) return
-    setMapH(Math.min(Math.max(d.startH + e.clientY - d.startY, 96), window.innerHeight * 0.7))
-  }, [])
+    setMapH(Math.min(Math.max(d.startH + sign * (e.clientY - d.startY), 96), window.innerHeight * 0.7))
+  }, [sign])
 
   const onSplitUp = useCallback(() => {
     if (!splitDragRef.current) return

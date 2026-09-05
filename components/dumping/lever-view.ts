@@ -1,13 +1,13 @@
 import type { InfraLayerId, MapMode, OntoEdge, OntoGraph, OntoNode } from "@/lib/dumping/types"
 import { OUTCOMES } from "@/lib/dumping/queries"
 
-// 개입수단(Lever) 파생 로직 — 정책 제안 보드와 제안이유 모달이 함께 쓴다.
+// 개입수단(Lever) 파생 로직. 정책 제안 보드와 제안이유 모달이 함께 쓴다.
 // 표시 문구는 graph.json의 노드·엣지에서 만들어내고, 별도 원고는 두지 않는다.
 
 export interface LeverView {
   node: OntoNode
-  status: string // lowers/stabilizes 엣지의 status — 제안·철회·효과없음·측정불가·미검증
-  verdictNote: string | null // 판정 근거 (엣지 note) — 전문용어가 섞인 분석 메모는 rationale로 분리
+  status: string // lowers/stabilizes 엣지의 status: 제안·철회·효과없음·측정불가·미검증
+  verdictNote: string | null // 판정 근거 (엣지 note). 전문용어가 섞인 분석 메모는 rationale로 분리
   rationale: string | null // 분석 메모 원문 (있는 것만)
   targets: { id: string; label: string }[] // affects → 겨냥 요인
   owner: string | null
@@ -17,7 +17,7 @@ export interface LeverView {
   ordinance: string | null // governed_by → 실행 근거 조례 라벨
 }
 
-// 비용 표기를 배지로 정규화 — 관리자가 먼저 보는 것은 "돈이 드는가".
+// 비용 표기를 배지로 정규화. 관리자가 먼저 보는 것은 "돈이 드는가".
 // 원문은 노드 cost_note("재배치 0원"·"저비용(인쇄·번역)") 또는 판정 엣지 cost("0원"·"저") 두 형태다.
 export const COST_ORDER = ["무예산", "저비용", "예산 필요"] as const
 
@@ -37,7 +37,7 @@ export const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
   "미검증": { label: "미검증", cls: "bg-slate-400 text-white" },
 }
 
-// 요인 라벨은 그래프 원문이 길다 — 칩용으로 짧게
+// 요인 라벨은 그래프 원문이 길다. 칩용으로 짧게
 export function shortTarget(label: string): string {
   return label.replace(/\(.*?\)/g, "").trim()
 }
@@ -74,6 +74,37 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
     })
 }
 
+// ─── 결재선용 제안 표 ─────────────────────────────────────────
+// 제안 6건을 표 한 장으로. 새 판단을 쓰지 않고 레버 노드 속성(cost·owner·verification_plan)만 펼친다.
+// 비용 등급 순(무예산 → 저비용 → 예산 필요), 같은 등급 안에서는 그래프 순서.
+export interface ProposalRow {
+  lever: LeverView
+  name: string // 라벨에서 괄호 꼬리를 뗀 이름
+  cost: (typeof COST_ORDER)[number] | "미기재"
+  costNote: string // 원문 비용 메모(금액·근거)
+  owner: string
+  verify: string
+}
+
+export function costRank(lv: LeverView): number {
+  const b = costBadge(lv.costNote)
+  return b ? COST_ORDER.indexOf(b.label) : COST_ORDER.length
+}
+
+export function proposalRows(graph: OntoGraph): ProposalRow[] {
+  return deriveLevers(graph)
+    .filter((l) => l.status === "제안")
+    .sort((a, b) => costRank(a) - costRank(b))
+    .map((lever) => ({
+      lever,
+      name: shortTarget(lever.node.label),
+      cost: costBadge(lever.costNote)?.label ?? "미기재",
+      costNote: lever.costNote ?? "미기재",
+      owner: lever.owner ?? "미기재",
+      verify: lever.verificationPlan ?? "미기재",
+    }))
+}
+
 // ─── 지도 연계 ────────────────────────────────────────────────
 // 수단마다 "이 사업이 어디를 두고 하는 이야기인지" 지도로 바로 넘어가게 한다.
 // 바탕·레이어는 여기서 정하고, 대상 동은 실측값(map.json)에서 골라야 하므로
@@ -89,7 +120,7 @@ export interface LeverViz {
 }
 
 export const LEVER_VIZ: Record<string, LeverViz> = {
-  "lev-joint-disposal": { mode: "unm", label: "지도에서 관리주체 없는 주거 밀집지 보기" },
+  "lev-joint-disposal": { mode: "unm", label: "지도에서 다가구·단독 밀집지 보기" },
   "lev-collection-time": { mode: "enf", routes: true, label: "지도에서 청소차 노선과 함께 보기" },
   "lev-multilingual": { mode: "enf", dongBy: "frn", label: "지도에서 외국인 주민이 가장 많은 동 보기" },
   "lev-movein-guide": { mode: "enf", dongBy: "one", label: "지도에서 1인세대가 가장 많은 동 보기" },
@@ -125,7 +156,7 @@ export interface FactorStat {
 
 // 요인 id → 일반 독자가 바로 이해하는 표현
 export const FACTOR_EASY: Record<string, string> = {
-  "con-unmanaged": "관리주체 없는 주택(다가구·단독)이 몰린 정도",
+  "con-unmanaged": "다가구·단독주택이 몰린 정도",
   "con-youth": "20~34세 청년이 사는 비율",
   "con-foreign": "등록 외국인이 사는 비율",
   "con-single-person": "혼자 사는 세대 비율",
@@ -137,9 +168,9 @@ export const FACTOR_EASY: Record<string, string> = {
   "con-clothbin": "의류수거함이 몰린 정도",
 }
 
-// 흐름도 박스용 짧은 이름 — 긴 설명은 막대 그래프 쪽에서 읽는다
+// 흐름도 박스용 짧은 이름. 긴 설명은 막대 그래프 쪽에서 읽는다
 export const FACTOR_SHORT: Record<string, string> = {
-  "con-unmanaged": "관리주체 없는 주택 밀집",
+  "con-unmanaged": "다가구·단독 밀집",
   "con-youth": "청년 밀집",
   "con-foreign": "외국인 주민 밀집",
   "con-single-person": "1인세대 밀집",
@@ -196,17 +227,17 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   if (!top) {
     return [
       "특정 요인을 겨냥하기보다, 수거와 단속의 운영 방식 자체를 조정하는 수단입니다.",
-      "새 예산 없이 지금 있는 인력과 노선만 조정해 시도할 수 있어, 먼저 검토해 볼 만합니다.",
+      "새 예산 없이 지금 있는 인력과 노선만 조정해 시도할 수 있어 먼저 검토해 볼 만합니다.",
     ]
   }
   const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 사업입니다.`
 
-  // 통계로 확인된 효과가 아니라 자원 배분 논리로만 유지하는 제안 — 근거를 부풀리면 안 된다
+  // 통계로 확인된 효과가 아니라 자원 배분 논리로만 유지하는 제안. 근거를 부풀리면 안 된다
   const notStat = /근거가 아니|근거 아님/.test(`${lv.rationale ?? ""} ${lv.node.props.note ?? ""}`)
   if (notStat) {
     return [
       s1,
-      "다만 근거는 통계로 확인된 효과가 아닙니다. 이미 갖고 있는 장비를, 무단투기가 한 번도 없던 자리에서 실제로 잦은 자리로 옮기자는 자원 배분 논리입니다.",
+      "다만 근거는 통계로 확인된 효과가 아닙니다. 이미 있는 장비를 무단투기가 한 번도 없던 자리에서 실제로 잦은 자리로 옮기자는 자원 배분 논리입니다.",
       "돈이 들지 않으니 효과 판정을 기다리지 않고 지금 바로 조정할 수 있습니다.",
     ]
   }
@@ -219,12 +250,12 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
       : `이런 결과가 우연히 나올 확률은 ${(top.p * 100).toFixed(1)}%입니다.`
   const s2 =
     top.kind === "beta"
-      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니, 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
-      : `행정동 ${top.n ?? 15}곳을 나란히 놓고 보면, 이 비율이 높은 동네일수록 무단투기도 ${
+      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
+      : `행정동 ${top.n ?? 15}곳을 나란히 놓고 보면 이 비율이 높은 동네일수록 무단투기도 ${
           top.value >= 0.8 ? "거의 예외 없이" : top.value >= 0.7 ? "뚜렷하게" : "어느 정도"
-        } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 붙어 다닌다는 뜻입니다.`
+        } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 붙어 다닙니다.`
   const s3 =
-    "그동안 광진구 대책은 시설과 단속에 몰려 있었고, 이 조건을 직접 건드리는 수단은 비어 있었습니다."
+    "그동안 광진구 대책은 시설과 단속에 몰려 있었고 이 조건을 직접 건드리는 수단은 비어 있었습니다."
   return [s1, s2, s3]
 }
 
@@ -235,7 +266,7 @@ export const STATUS_FALLBACK: Record<string, string> = {
   "효과없음": "설치 위치와 무단투기 발생 사이에서 이렇다 할 관계가 나타나지 않았습니다.",
 }
 
-// 이 수단의 효과 분석(Evidence)에 달린 쉬운 설명 — 검증 결과를 전문용어 없이 보여줄 때 쓴다
+// 이 수단의 효과 분석(Evidence)에 달린 쉬운 설명. 검증 결과를 전문용어 없이 보여줄 때 쓴다
 export function easyVerdict(lv: LeverView, graph: OntoGraph): string | null {
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]))
   for (const e of graph.edges) {

@@ -5,8 +5,8 @@ import { normalizeHistory } from "../lib/dumping/history"
 const u = (text: string) => ({ role: "user" as const, text })
 const m = (text: string) => ({ role: "model" as const, text })
 
-test("보통 길이의 이력은 전부 유지된다 — 후속 질문이 앞 대화를 잃지 않는다", () => {
-  const h = normalizeHistory([u("중곡1동은 왜 높나?"), m("무관리주거가 많습니다."), u("그 동은?"), m("1인세대 57.7%")])
+test("보통 길이의 이력은 전부 유지된다. 후속 질문이 앞 대화를 잃지 않는다", () => {
+  const h = normalizeHistory([u("중곡1동은 왜 높나?"), m("다가구·단독 밀집이 높습니다."), u("그 동은?"), m("1인세대 57.7%")])
   assert.strictEqual(h.length, 4)
 })
 

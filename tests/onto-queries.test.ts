@@ -60,8 +60,8 @@ test("CQ4 개입 판정 분포. 11건(의류수거함 검토 포함) 전부 판�
   assert.strictEqual(r.hits.filter((h) => h.note === "제안").length, 6)
 })
 
-test("CQ5 실행 근거 없는 개입 4건", () => {
-  assert.deepStrictEqual(ids(cqLeversWithoutBasis(graph)), ["lev-bin", "lev-cctv-fixed", "lev-cctv-relocate", "lev-recycling"])
+test("CQ5 실행 근거 없는 개입 3건. 5라운드에 CCTV 재배치가 이동식 CCTV의 실행 정보(조례 연결 포함)를 받아 4건에서 줄었다", () => {
+  assert.deepStrictEqual(ids(cqLeversWithoutBasis(graph)), ["lev-bin", "lev-cctv-fixed", "lev-recycling"])
 })
 
 test("CQ6 계보 끊긴 증거. 0건 (결정 레이어·서울 레이어 전부 데이터셋에 닿는다)", () => {

@@ -5,7 +5,7 @@ import type { DumpingMapData, InterventionEntry } from "@/lib/dumping/types"
 import { partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import OpsModal, { ForecastChart, KRW, type OpsModalId } from "./ops-modal"
 
-// 운영·전망 탭 — KPI 보드 · 예측 핫스팟 · 수요 전망 · 품목 분해 · 처분 퍼널 · 처리 SLA · 구조 전망 · 조치 대장.
+// 운영·전망 탭. KPI 보드 · 예측 핫스팟 · 수요 전망 · 품목 분해 · 처분 퍼널 · 처리 SLA · 구조 전망 · 조치 대장.
 // 지도로 보여줄 수 있는 것(핫스팟·상습격자)은 클릭하면 지도에, 나머지는 중앙 상세 모달로 연다.
 // 전부 관측·운영 지표다. 발생의 인과 추정이 아니며, 전망은 행정수요(신고 접수량) 전망이다.
 
@@ -26,7 +26,7 @@ function SectionTitle({ n, children }: { n?: string; children: React.ReactNode }
   )
 }
 
-// 모달로 여는 카드 공용 래퍼 — "자세히" 어포던스를 우상단에 고정
+// 모달로 여는 카드 공용 래퍼. "자세히" 어포던스를 우상단에 고정
 function DetailCard({
   onOpen,
   children,
@@ -61,7 +61,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
   const q = d.kpi.persistentQuarterly
   // 기준일(asof)은 분기 진행 중 시점이라, 직전 "분기말" 값은 배열의 마지막 항목
   const prevCritical = q.length >= 1 ? q[q.length - 1].critical : null
-  // 채널고정(앱 제외) 민원 연도별 — 앱 보급 편향을 제거한 발생 근사
+  // 채널고정(앱 제외) 민원 연도별. 앱 보급 편향을 제거한 발생 근사
   const fixedYearly: Record<string, number> = {}
   for (const ch of ["c120", "direct"]) {
     for (const [yr, n] of Object.entries(d.channels.yearly[ch] ?? {})) {
@@ -74,18 +74,18 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
     ((d.fines.categories.find((c) => c.cat === "담배꽁초(차량)")?.n ?? 0) / d.fines.totalN) * 100,
   )
   const nextFc = d.forecast.fc[0]
-  // 전망 첫 달이 집계 중인 달(월별 마지막 키)이면 "다음 달"이 아니라 "이번 달" — 접수 중인 건수를 같이 보인다
+  // 전망 첫 달이 집계 중인 달(월별 마지막 키)이면 "다음 달"이 아니라 "이번 달". 접수 중인 건수를 같이 보인다
   const fcSoFar = data.yearly.complaintsMonthly[nextFc.m]
   const funnelOrder = ["납부 완료", "체납", "감면·감액", "진행 중"]
   const slaYears = Object.entries(d.sla.byYear)
   const { period } = summarize(data)
-  // SLA 요약 문장 — 완결된 두 해의 중앙값 변화 + 마지막 해의 상위 10% 방향. 숫자는 표와 같은 원천
+  // SLA 요약 문장. 완결된 두 해의 중앙값 변화 + 마지막 해의 상위 10% 방향. 숫자는 표와 같은 원천
   const [slaA, slaB, slaLast] = [slaYears[0], slaYears[1], slaYears[slaYears.length - 1]]
   const slaPrev = slaYears[slaYears.length - 2]
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      {/* KPI 보드 — 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
+      {/* KPI 보드. 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
       <section>
         <SectionTitle n="01">성과지표 (신고편향에 덜 민감 · {d.asof} 기준)</SectionTitle>
         <div className="grid grid-cols-3 gap-1.5 text-center">
@@ -140,11 +140,11 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
           채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하면 {d.kpi.criticalCellsNow}곳,
           빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 두세요.
-          {period.lastMonth < 12 && ` 채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
+          {period.lastMonth < 12 && `채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
         </p>
       </section>
 
-      {/* 예측 핫스팟 — 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
+      {/* 예측 핫스팟. 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
       <section>
         <SectionTitle n="02">다음 분기 예측 핫스팟 20 · 누르면 지도에서 위치 표시</SectionTitle>
         <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13px] font-medium leading-snug text-[#0a4a41]">
@@ -205,7 +205,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           <ForecastChart data={data} />
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
             홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월로
-            찍는 기준모형 {d.forecast.backtest.naiveMapePct ?? "—"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "—"}%).
+            찍는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%).
             신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
@@ -217,7 +217,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <DetailCard onOpen={() => setModal("fines")}>
           <div className="mt-3 flex flex-col gap-2">
             {/* 수치가 길어(1,285건 · 7,169만원) 우측 고정폭 컬럼이 좁은 화면에서 줄바꿈으로 무너진다
-                — 라벨+수치 한 줄, 막대는 아래 전체폭으로 적층 */}
+               . 라벨+수치 한 줄, 막대는 아래 전체폭으로 적층 */}
             {d.fines.categories.map((c) => (
               <div key={c.cat}>
                 <div className="flex items-baseline justify-between gap-2">
@@ -313,7 +313,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         </DetailCard>
       </section>
 
-      {/* 구조 전망 — 관리 취약 신축 공급 파이프라인 (법정동 기준이라 지도 대신 모달 상세) */}
+      {/* 구조 전망. 관리 취약 신축 공급 파이프라인 (법정동 기준이라 지도 대신 모달 상세) */}
       {d.permits && (
         <section>
           <SectionTitle n="07">구조 전망 · 관리 취약 신축이 어디로 들어오나</SectionTitle>
@@ -354,7 +354,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         </section>
       )}
 
-      {/* 서울시 맥락 — 25개 구 비교·서울 전체 앱 추세 */}
+      {/* 서울시 맥락. 25개 구 비교·서울 전체 앱 추세 */}
       {d.seoul && (
         <section>
           <SectionTitle n="08">서울시 안에서 광진은 어디쯤인가 (열린데이터광장)</SectionTitle>
@@ -373,7 +373,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                     const full = ys.filter((y) => y < period.lastYear)
                     const a = d.seoul!.smartReport.cleaningByYear[full[full.length - 2]] ?? 0
                     const b = d.seoul!.smartReport.cleaningByYear[full[full.length - 1]] ?? 0
-                    return a ? `${(b / a).toFixed(2)}배` : "—"
+                    return a ? `${(b / a).toFixed(2)}배` : "미산출"
                   })()}
                 </p>
                 <p className="text-[11px] text-[var(--cp-text-faint)]">최근 완결 2개년</p>
@@ -385,8 +385,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               </div>
             </div>
             <p className="mt-2 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-              앱 신고 확산은 서울 전체 현상입니다. 25개 구가 같은 착시에 노출돼 있어 채널고정 지표는 서울시 차원의
-              제안이 됩니다.
+              앱 신고 확산은 서울 전체 현상입니다. 25개 구가 같은 착시를 겪고 있어 채널고정 지표는 서울시 차원의 제안이 됩니다.
             </p>
           </DetailCard>
         </section>
@@ -397,9 +396,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionTitle n="09">조치 대장 (개입 사전등록부)</SectionTitle>
         <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <p className="mb-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-            새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을
-            등록하고, 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지
-            않기 위한 장치입니다.
+            새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을 등록하고 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지 않기 위한 장치입니다.
           </p>
           {interventions === null ? (
             <p className="text-[13px] text-[var(--cp-text-dim)]">대장을 불러오지 못했습니다.</p>
@@ -410,7 +407,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               {interventions.map((it) => (
                 <div key={it.id} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-2">
                   <div className="flex items-center gap-2">
-                    {/* 대장 JSON에 새 상태가 들어와도 화면이 깨지지 않게 — 모르는 값은 원문 그대로 */}
+                    {/* 대장 JSON에 새 상태가 들어와도 화면이 깨지지 않게. 모르는 값은 원문 그대로 */}
                     <span
                       className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${STATUS_KO[it.status]?.cls ?? "bg-slate-100 text-slate-500"}`}
                     >

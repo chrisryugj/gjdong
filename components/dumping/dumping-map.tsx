@@ -12,18 +12,18 @@ import type {
   InfraLayerId,
 } from "@/lib/dumping/types"
 
-// 100m 격자 choropleth — 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
-// 타일: OSM 표준 + CSS grayscale 뮤트(globals.css .dumping-map) — CARTO는 무키 워터마크,
+// 100m 격자 choropleth. 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
+// 타일: OSM 표준 + CSS grayscale 뮤트(globals.css .dumping-map). CARTO는 무키 워터마크,
 // Esri Light Gray는 한국 z14+ 미제공("Map data not yet available") 실측
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
 // 모드별 팔레트를 분리해 "지금 뭘 보고 있는지"가 색으로 구분되게 한다
-// 원인(무관리주거)=초록 · 민원=파랑 · 과태료=주황
+// 원인(다가구·단독 밀집)=초록 · 민원=파랑 · 과태료=주황
 const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
 const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
 const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
-const PAL_SLATE = ["#eef0f3", "#d9dee6", "#b7c0cf", "#8b98af", "#5b6b8a", "#2f3e5e"] // 생활인구(노출) — 결과·원인 색과 겹치지 않게
+const PAL_SLATE = ["#eef0f3", "#d9dee6", "#b7c0cf", "#8b98af", "#5b6b8a", "#2f3e5e"] // 생활인구(노출). 결과·원인 색과 겹치지 않게
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 const LP_STOPS = [0, 100, 300, 600, 1000, 2000] // 100m 격자 생활인구(명, 시간·일 평균)
@@ -36,12 +36,12 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
   bins: { color: "#475569", label: "가로쓰레기통" },
 }
 
-// 바탕(면)은 하나만 — 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
+// 바탕(면)은 하나만. 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
 export const BASE_DEF: Record<
   BaseMode,
   { idx: 4 | 5 | 6 | 8; stops: number[]; unit: string; pal: string[]; legend: string }
 > = {
-  unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거" },
+  unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "다가구·단독" },
   comp: { idx: 4, stops: CNT_STOPS, unit: "건", pal: PAL_BLUE, legend: "민원" },
   enf: { idx: 5, stops: CNT_STOPS, unit: "건", pal: PAL_AMBER, legend: "과태료" },
   lp: { idx: 8, stops: LP_STOPS, unit: "명", pal: PAL_SLATE, legend: "생활인구" },
@@ -67,7 +67,7 @@ function escapeHtml(s: string): string {
 function cellTooltip(cell: GridCell): string {
   const dong = escapeHtml(cell[7] || "광진구")
   const lp = cell[8] ? `<br/>생활인구 ${cell[8].toLocaleString()}명 <span style="color:#64748b">(서울시 250m 격자 배분)</span>` : ""
-  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>무관리주거 ${cell[6]}세대${lp}`
+  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>다가구·단독 ${cell[6]}세대${lp}`
 }
 
 function candidateTooltip(rank: number, c: CctvCandidate): string {
@@ -108,7 +108,7 @@ interface DumpingMapProps {
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
 }
 
-// 「2026년 도로청소 종합계획」 관리도로 — 도로명 기준(광진 구간 전체를 그림, 문서상 세부 구간과 근사)
+// 「2026년 도로청소 종합계획」 관리도로. 도로명 기준(광진 구간 전체를 그림, 문서상 세부 구간과 근사)
 const ROUTE_FOCUS = new Set(["천호대로", "아차산로"])
 const ROUTE_GENERAL = new Set([
   "능동로", "자양로", "동일로", "뚝섬로", "구의로", "용마산로", "광나루로", "긴고랑로",
@@ -142,9 +142,9 @@ export default function DumpingMap({
   const hotspotLayerRef = useRef<LayerGroup | null>(null)
   const criticalLayerRef = useRef<LayerGroup | null>(null)
   const focusLayerRef = useRef<LayerGroup | null>(null)
-  // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다 — ready로 재트리거
+  // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다. ready로 재트리거
   const [ready, setReady] = useState(false)
-  // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다 — 작은 점으로 바꾸기 위한 트리거
+  // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다. 작은 점으로 바꾸기 위한 트리거
   const [zoomedOut, setZoomedOut] = useState(false)
 
   // 지도 1회 초기화
@@ -205,7 +205,7 @@ export default function DumpingMap({
     }
   }, [])
 
-  // 경계(바깥 딤 + 점선 링) — 데이터 도착 후 1회
+  // 경계(바깥 딤 + 점선 링). 데이터 도착 후 1회
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -238,7 +238,7 @@ export default function DumpingMap({
     void draw()
   }, [data, ready])
 
-  // 격자 레이어 — 바탕·원·선택동 변경마다 재구축 (canvas라 재구축 비용 낮음)
+  // 격자 레이어. 바탕·원·선택동 변경마다 재구축 (canvas라 재구축 비용 낮음)
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -251,7 +251,7 @@ export default function DumpingMap({
       // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
       const muted = layers.length > 0 || showCandidates || showHotspots || showCritical
 
-      // 동을 골랐으면 그 동 안은 항상 또렷하게 — 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
+      // 동을 골랐으면 그 동 안은 항상 또렷하게. 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
       const isDimmed = (cell: GridCell) => {
         const inDong = selectedDong === null || cell[7] === selectedDong
         return !inDong || (muted && selectedDong === null)
@@ -279,14 +279,14 @@ export default function DumpingMap({
         }
       }
 
-      // 원 오버레이 — 선택된 지표들을 바탕 위에 중첩
+      // 원 오버레이. 선택된 지표들을 바탕 위에 중첩
       for (const cid of circles) {
         const cdef = CIRCLE_DEF[cid]
         const busy = data.grid.filter((c) => c[cdef.idx] > 0).sort((a, b) => b[cdef.idx] - a[cdef.idx])
         for (const cell of busy) {
           const v = cell[cdef.idx]
           const dimmed = isDimmed(cell)
-          // 반경은 미터 — 격자(약 100m)에 붙어 줌과 함께 커지고 작아진다. 픽셀 고정이면 전체보기에서 원끼리 덮는다
+          // 반경은 미터. 격자(약 100m)에 붙어 줌과 함께 커지고 작아진다. 픽셀 고정이면 전체보기에서 원끼리 덮는다
           L.circle([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
@@ -316,7 +316,7 @@ export default function DumpingMap({
     void draw()
   }, [data, base, circles, selectedDong, ready, layers, showCandidates, showHotspots, showCritical])
 
-  // 동 경계 레이어 — 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
+  // 동 경계 레이어. 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -327,7 +327,7 @@ export default function DumpingMap({
       for (const [dong, rings] of Object.entries(data.dongOutlines)) {
         if (!rings.length) continue
         const on = dong === selectedDong
-        // 실제 행정동 폴리곤 링 — 선택 동은 은은한 채움까지
+        // 실제 행정동 폴리곤 링. 선택 동은 은은한 채움까지
         L.polyline(rings as [number, number][][], {
           pane: "dumpDong",
           color: on ? "#0c6155" : "#64748b",
@@ -421,7 +421,7 @@ export default function DumpingMap({
     void draw()
   }, [data, layers, showCandidates, ready])
 
-  // 청소차 관리노선 레이어 — road-links.json 동적 임포트(번들 제외), 도로명으로 필터
+  // 청소차 관리노선 레이어. road-links.json 동적 임포트(번들 제외), 도로명으로 필터
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -459,7 +459,7 @@ export default function DumpingMap({
     void draw()
   }, [showRoutes, ready])
 
-  // 예측 핫스팟 20 순위 배지 (운영·전망 탭) — 재배치 후보와 구분되는 각진 배지
+  // 예측 핫스팟 20 순위 배지 (운영·전망 탭). 재배치 후보와 구분되는 각진 배지
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -470,7 +470,7 @@ export default function DumpingMap({
       const L = await import("leaflet")
       const group = L.layerGroup()
       data.decision.hotspots.top.forEach((h, i) => {
-        // 줌아웃 상태에선 순위 숫자 대신 작은 점 — 상위 3은 색으로만 구분
+        // 줌아웃 상태에선 순위 숫자 대신 작은 점. 상위 3은 색으로만 구분
         const sm = zoomedOut
         L.marker([h[0], h[1]], {
           pane: "dumpInfra",
@@ -490,7 +490,7 @@ export default function DumpingMap({
     void draw()
   }, [data, showHotspots, ready, zoomedOut])
 
-  // 집중관리 상습격자 (12개월 10건 이상) — 격자 외곽선 강조
+  // 집중관리 상습격자 (12개월 10건 이상). 격자 외곽선 강조
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current

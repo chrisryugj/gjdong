@@ -18,15 +18,15 @@ import {
   type LeverView,
 } from "./lever-view"
 
-// 제안이유 모달 — 정책 보드에서 사업 카드를 누르면 "왜 이걸 하자는 건가"를 보여준다.
+// 제안이유 모달. 정책 보드에서 사업 카드를 누르면 "왜 이걸 하자는 건가"를 보여준다.
 // 통계 용어를 그대로 늘어놓지 않고, 쉬운 문장 + 그림(인과 흐름·요인 강도 막대)으로 설명한다.
-// 내용은 전부 graph.json에서 파생 — 별도 원고를 두지 않는다.
+// 내용은 전부 graph.json에서 파생. 별도 원고를 두지 않는다.
 
 const POS = "#a8322a" // 발생을 늘리는 방향
 const NEG = "#1c4f96" // 발생을 줄이는 방향
 const HI = "#0c6155" // 이 사업이 겨냥하는 요인
 
-// 요인 강도 막대 한 줄 — beta는 0을 가운데 두고 좌우로, rho는 왼쪽에서 오른쪽으로
+// 요인 강도 막대 한 줄. beta는 0을 가운데 두고 좌우로, rho는 왼쪽에서 오른쪽으로
 function StatRow({ s, max, highlight }: { s: FactorStat; max: number; highlight: boolean }) {
   const ratio = Math.min(1, Math.abs(s.value) / max)
   const signed = s.kind === "beta"
@@ -62,7 +62,7 @@ function StatRow({ s, max, highlight }: { s: FactorStat; max: number; highlight:
             right: signed && s.value < 0 ? "50%" : undefined,
           }}
         />
-        {/* 0 기준선은 막대 위에 — 아래 깔면 긴 막대에 가려 좌우 의미가 안 읽힌다 */}
+        {/* 0 기준선은 막대 위에. 아래 깔면 긴 막대에 가려 좌우 의미가 안 읽힌다 */}
         {signed && (
           <i className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white shadow-[0_0_0_0.5px_rgba(15,23,42,0.35)]" />
         )}
@@ -100,7 +100,7 @@ function StatGroup({
   )
 }
 
-// 인과 흐름 — [사업] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
+// 인과 흐름. [사업] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
 function FlowDiagram({ lever, target }: { lever: string; target: string | null }) {
   const box = (text: string, cls: string) => (
     <span className={`flex-1 rounded-lg px-2.5 py-2 text-center text-[13px] font-semibold leading-snug ${cls}`}>
@@ -149,7 +149,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
   const top = primaryStat(lever, stats)
   const betas = stats.filter((s) => s.kind === "beta")
   const rhos = stats.filter((s) => s.kind === "rho")
-  // 통계 효과 근거가 아니라 자원배분 논리로만 유지하는 제안 — 오독하면 안 되는 대목
+  // 통계 효과 근거가 아니라 자원배분 논리로만 유지하는 제안. 오독하면 안 되는 대목
   const caveat = lever.node.props.note != null ? String(lever.node.props.note) : null
   const viz = vizForLever(lever)
 
@@ -225,6 +225,22 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </p>
       )}
 
+      {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {[
+          { k: "드는 돈", v: lever.costNote },
+          { k: "맡을 곳", v: lever.owner },
+          { k: "효과 확인 방법", v: lever.verificationPlan },
+        ]
+          .filter((d) => d.v)
+          .map((d) => (
+            <div key={d.k} className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-2">
+              <p className="text-[12px] text-[var(--cp-text-dim)]">{d.k}</p>
+              <p className="text-[13.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{d.v}</p>
+            </div>
+          ))}
+      </div>
+
       {evidence.length > 0 && (
         <div className="mb-4">
           <h4 className="mb-1.5 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
@@ -243,7 +259,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </div>
       )}
 
-      {/* 그래프에 통계 엣지가 하나도 없으면 제목·주석만 덩그러니 남는다 — 통째로 숨김 */}
+      {/* 그래프에 통계 엣지가 하나도 없으면 제목·주석만 덩그러니 남는다. 통째로 숨김 */}
       {(betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
           <h4 className="text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
@@ -251,40 +267,24 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
           </h4>
           <StatGroup
             title="① 광진구를 100m 격자로 나눠 분석한 결과"
-            caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고, 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
+            caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
             stats={betas}
             targeted={targeted}
           />
           <StatGroup
             title={`② 행정동 ${rhos[0]?.n ?? 15}곳을 비교한 결과`}
-            caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 붙어 다닌다는 뜻이고, 절반이면 절반쯤 같이 움직인다는 뜻입니다."
+            caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 붙어 다니는 것이고 절반이면 절반쯤 같이 움직입니다."
             stats={rhos}
             targeted={targeted}
           />
           <p className="px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            1인세대·청년·외국인·무관리주택은 같은 동네에 겹쳐 있어, 넷 가운데 무엇이 진짜 원인인지 갈라낼 수 없습니다.
-            어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
+            1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 갈라낼 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {[
-          { k: "드는 돈", v: lever.costNote },
-          { k: "맡을 곳", v: lever.owner },
-          { k: "효과 확인 방법", v: lever.verificationPlan },
-        ]
-          .filter((d) => d.v)
-          .map((d) => (
-            <div key={d.k} className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-2">
-              <p className="text-[12px] text-[var(--cp-text-dim)]">{d.k}</p>
-              <p className="text-[13.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{d.v}</p>
-            </div>
-          ))}
-      </div>
-
       {lever.preRegistered && (
-        <p className="mt-3 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="mt-1 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
           <b className="text-[var(--cp-text-strong)]">실행 전 등록 대상</b> · 어디에·얼마 동안·무엇과 비교해 판단할지를
           먼저 조치 대장에 적어 두고 시작합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류로 철회된 뒤 만든 장치입니다.
         </p>

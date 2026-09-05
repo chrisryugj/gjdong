@@ -4,7 +4,7 @@ import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction } from "@/lib/dumping/types"
 import { BASE_DEF, CIRCLE_DEF, INFRA_STYLE, type CandidateFocus } from "./dumping-map"
 
-// 지도 위에 무엇을 그릴지 — 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
+// 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
 export interface MapView {
   base: BaseMode
   circles: CircleId[]
@@ -16,17 +16,17 @@ export interface MapView {
 export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, routes: false }
 
 const BASE_LABEL: Record<BaseMode, string> = {
-  unm: "무관리주거",
+  unm: "다가구·단독",
   comp: "민원",
   enf: "과태료",
   lp: "생활인구",
 }
 
-// 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음). 수치는 데이터에서
+// 선택된 바탕이 뭘 보여주는지. 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음). 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
   switch (m) {
     case "unm":
-      return "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 연관이 확인되지 않아 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다."
+      return "바탕색은 다가구·단독 밀집(건축물대장 다가구 가구+일반단독 동)의 밀도입니다. 아파트 세대수는 연관이 확인되지 않아 따로 레이어를 두지 않았습니다."
     case "comp":
       return "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다."
     case "enf":
@@ -47,7 +47,7 @@ export const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> 
   lp: { base: "lp", circles: ["enf"] },
 }
 
-// "지도에서 확인"을 누르기 전에 지도가 어떻게 바뀌는지 한 줄로 — 칩·범례와 같은 낱말을 쓴다
+// "지도에서 확인"을 누르기 전에 지도가 어떻게 바뀌는지 한 줄로. 칩·범례와 같은 낱말을 쓴다
 export function vizDescription(viz: VizAction): string {
   const parts: string[] = []
   if (viz.mode) {
@@ -69,7 +69,7 @@ const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-overlay)] text-[var(--c
 interface Props {
   data: DumpingMapData | null
   view: MapView
-  onChange: (next: MapView) => void // 사용자가 칩을 만졌을 때 — 부모는 "반영 중" 배지를 내린다
+  onChange: (next: MapView) => void // 사용자가 칩을 만졌을 때. 부모는 "반영 중" 배지를 내린다
   active: { label: string; onClear: () => void } | null // 지도에 반영 중인 발견·정책 수단
   onFocusCandidate: (f: CandidateFocus) => void
   selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
@@ -77,7 +77,7 @@ interface Props {
 
 export default function MapControls({ data, view, onChange, active, onFocusCandidate, selectedDong = null }: Props) {
   const [layersOpen, setLayersOpen] = useState(false)
-  const [showHelp, setShowHelp] = useState(false) // 지도 읽는 법 — 좁은 화면에서 지도를 덮지 않도록 기본 접힘
+  const [showHelp, setShowHelp] = useState(false) // 지도 읽는 법. 좁은 화면에서 지도를 덮지 않도록 기본 접힘
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
 
   return (
@@ -118,7 +118,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
             <button
               key={m}
               aria-pressed={view.base === m}
-              // 자기 자신을 원으로 또 겹치는 건 무의미 — 자동 해제
+              // 자기 자신을 원으로 또 겹치는 건 무의미. 자동 해제
               onClick={() => patch({ base: m, circles: view.circles.filter((c) => c !== m) })}
               className={`${CHIP} ${
                 view.base === m ? "border-[#0c6155] bg-[#0c6155]/15 font-medium text-[#0c6155]" : CHIP_OFF
@@ -207,7 +207,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
         )}
       </div>
 
-      {/* 범례 — 모드별 팔레트 반영 */}
+      {/* 범례. 모드별 팔레트 반영 */}
       <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text)] backdrop-blur">
         <span className="font-medium">{BASE_DEF[view.base].legend}</span>
         <span className="flex flex-col items-start">
@@ -216,7 +216,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
               <i key={c} className="h-3 w-4" style={{ background: c }} />
             ))}
           </span>
-          {/* 구간 경계 — 색만으로는 "많음"이 몇 건인지 알 수 없다. stops[i] 초과가 pal[i+1] */}
+          {/* 구간 경계. 색만으로는 "많음"이 몇 건인지 알 수 없다. stops[i] 초과가 pal[i+1] */}
           <span className="flex font-mono text-[9.5px] leading-none text-[var(--cp-text-dim)]">
             {BASE_DEF[view.base].stops.map((s, i) => (
               <i key={s} className="w-4 not-italic">{i === 0 ? "0" : `${s}+`}</i>
@@ -236,7 +236,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
         <span className="ml-1">칸=100m</span>
       </div>
 
-      {/* 격자 대체 표 — 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸을 표로 */}
+      {/* 격자 대체 표. 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸을 표로 */}
       {data && (
         <details className="absolute bottom-14 left-2 z-[1000] max-w-[calc(100%-6rem)] rounded-lg border border-[var(--cp-border)] bg-white/95 text-[12.5px] shadow-sm backdrop-blur print:hidden">
           <summary className="cursor-pointer px-2.5 py-1 text-[var(--cp-text-muted)]">
@@ -276,7 +276,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
         </details>
       )}
 
-      {/* 재배치 후보 주소 목록 — 데스크톱은 "지도 읽는 법" 버튼 아래(top-12)에 둬 겹치지 않는다 */}
+      {/* 재배치 후보 주소 목록. 데스크톱은 "지도 읽는 법" 버튼 아래(top-12)에 둬 겹치지 않는다 */}
       {view.candidates && data && (
         <div className="absolute bottom-10 right-2 z-[1000] w-64 max-w-[75%] overflow-hidden rounded-xl border border-[var(--cp-border)] bg-white/95 shadow-md backdrop-blur md:bottom-auto md:top-12 md:w-72">
           <p className="border-b border-[var(--cp-border)] px-3 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)]">
@@ -305,7 +305,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-medium text-[var(--cp-text-strong)]">
-                    {c[5] || `${c[4]} (주소 미상)`}
+                    {c[5] || `${c[4]} (주소 없음)`}
                   </span>
                   <span className="block text-[12px] text-[var(--cp-text-dim)]">
                     {c[4]} · 민원 {c[2]} · 과태료 {c[3]}

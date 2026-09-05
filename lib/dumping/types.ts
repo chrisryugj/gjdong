@@ -1,6 +1,6 @@
-// /dumping 대시보드 공유 타입 — 데이터 산출은 내부 저장소 gwangjin-dumping(비공개)/scripts/export_dashboard.py
+// /dumping 대시보드 공유 타입. 데이터 산출은 내부 저장소 gwangjin-dumping(비공개)/scripts/export_dashboard.py
 
-// [s, w, n, e, 민원, 과태료, 무관리주거, 행정동, 생활인구(서울시 250m 격자 → 100m 면적 배분, 2026-07 평균)]
+// [s, w, n, e, 민원, 과태료, 다가구·단독 주거단위, 행정동, 생활인구(서울시 250m 격자 → 100m 면적 배분, 2026-07 평균)]
 export type GridCell = [number, number, number, number, number, number, number, string, number]
 
 export interface DongRow {
@@ -12,12 +12,12 @@ export interface DongRow {
   one: number // 1인세대 %
   yth: number // 청년 20-34 %
   frn: number // 등록외국인 %
-  unm: number // 무관리 주거 %
+  unm: number // 다가구·단독 주거 %
   hh: number // 세대수
   mf: number // 다가구 가구
   apt: number // 공동주택 세대
   o: number // 표시 순서
-  // 서울시 생활인구(행정동, 2024-01~2026-07 시간·일 평균) — 등록인구가 아니라 체류 인구 기준 노출
+  // 서울시 생활인구(행정동, 2024-01~2026-07 시간·일 평균). 등록인구가 아니라 체류 인구 기준 노출
   lp: number | null // 총 생활인구(내국인)
   lpf: number | null // 장기체류 외국인 생활인구
   crl: number | null // 민원 생활인구 천명당
@@ -37,7 +37,7 @@ export interface InfraLayers {
 
 export type InfraLayerId = keyof InfraLayers
 
-// [lat, lng, 민원, 과태료, 행정동, 대표주소] — 재배치 후보(자원배분 논리, 통계 효과 근거 아님)
+// [lat, lng, 민원, 과태료, 행정동, 대표주소]. 재배치 후보(자원배분 논리, 통계 효과 근거 아님)
 // 대표주소 = 해당 격자에 지오코딩된 민원 중 최빈 주소
 export type CctvCandidate = [number, number, number, number, string, string]
 
@@ -46,7 +46,7 @@ export interface DumpingMapData {
   ring: [number, number][]
   dong: DongRow[]
   ts: Record<string, (number | null)[]> // 청년비율 2015→2025
-  // 동별 실제 행정동 경계 링 목록 (vuski/admdongkor) — [ [lat,lng][], ... ]
+  // 동별 실제 행정동 경계 링 목록 (vuski/admdongkor). [ [lat,lng][], ... ]
   dongOutlines: Record<string, [number, number][][]>
   infra: InfraLayers
   cctvCandidates: CctvCandidate[]
@@ -65,9 +65,9 @@ export interface DumpingMapData {
     enfByHour: Record<string, number>
     enfByDow: Record<string, number>
   }
-  // 의사결정 레이어 (build_decision_layer.py) — 품목·퍼널·SLA·KPI·핫스팟·전망
+  // 의사결정 레이어 (build_decision_layer.py). 품목·퍼널·SLA·KPI·핫스팟·전망
   decision: DecisionLayer
-  // 내보내기 메타 — 재현 패키지 해시 수(manifest에서), 구청 쓰레기통 장부 고유 위치 수, 원자료 수집일
+  // 내보내기 메타. 재현 패키지 해시 수(manifest에서), 구청 쓰레기통 장부 고유 위치 수, 원자료 수집일
   meta?: {
     reproduce: { hashes: number; numbers: number; note: string }
     binSites: number
@@ -92,7 +92,7 @@ export interface DecisionLayer {
     arrearsAmount: number
     collectionRatePct: number | null
     monthly: Record<string, number>
-    // 적발 경로(원자료 route): 신고 유래 vs 순찰(수시). 과태료의 83%가 신고 유래라 "신고와 무관한 실측"이 아니다.
+    // 적발 경로(원자료 route): 신고 유래 vs 순찰(수시). 과태료의 83%가 신고 유래라 신고와 독립인 실측이 아니다.
     // 순찰 적발만 신고 성향과 독립. 최근 월은 부과 처리 지연으로 과소 집계(우측 절단)
     byRoute?: {
       yearly: Record<string, Record<string, number>>
@@ -115,7 +115,7 @@ export interface DecisionLayer {
     criticalCellsNow: number
     criticalCellsNowNoApp: number // 앱 민원 제외(120·직접+과태료) 집중관리 격자 수
     criticalNoAppOverlap: number
-    // [s, w, n, e, 12개월 건수, 행정동] — 지도 강조 레이어용 격자 사각형
+    // [s, w, n, e, 12개월 건수, 행정동]. 지도 강조 레이어용 격자 사각형
     criticalCells: [number, number, number, number, number, string][]
     persistentQuarterly: { asof: string; watch: number; critical: number; criticalNoApp?: number }[]
     thresholds?: { months: number; watch: number; critical: number } // 화면 문구 "12개월 10건+"의 원천
@@ -147,11 +147,11 @@ export interface DecisionLayer {
     }
     note: string
   }
-  // 서울시 공개데이터 맥락 (build_seoul_layers.py) — 25구 비교·서울 전체 앱 추세
+  // 서울시 공개데이터 맥락 (build_seoul_layers.py). 25구 비교·서울 전체 앱 추세
   seoul?: SeoulContext
-  // v2 격자 회귀 (regression_v2.py) — 생활인구 노출·의류수거함 추가, 200m 민감도
+  // v2 격자 회귀 (regression_v2.py). 생활인구 노출·의류수거함 추가, 200m 민감도
   regressionV2?: RegressionV2
-  // 구조 전망 — 건축HUB 인허가 파이프라인 (fetch_permits.py, 없으면 null)
+  // 구조 전망. 건축HUB 인허가 파이프라인 (fetch_permits.py, 없으면 null)
   permits: {
     asof: string
     source: string
@@ -211,7 +211,7 @@ export interface RegressionV2 {
   v2_100_complaints: { r2: number; coef: Record<string, RegCoef> }
   v2_200: { n: number; r2: number; coef: Record<string, RegCoef> }
   gridSensitivity: { base: Record<string, boolean>; v2: Record<string, boolean>; v3?: Record<string, boolean>; v4?: Record<string, boolean>; note: string }
-  // 3라운드 — 노출 변수 비교: 생활인구만(v2_100)·상주인구만(v2r_100)·둘 다(v3_100)
+  // 3라운드. 노출 변수 비교: 생활인구만(v2_100)·상주인구만(v2r_100)·둘 다(v3_100)
   exposure?: {
     asof: string
     resident_source: string
@@ -228,7 +228,7 @@ export interface RegressionV2 {
     corrLivingResident: number
     note: string
   }
-  // 3라운드 — 대리변수 검증: K-apt 등록 세대(관리주체 실측)로 관리/무관리 재정의
+  // 3라운드. 대리변수 검증: K-apt 등록 세대(관리주체 실측)로 주거를 세 갈래로 재정의
   proxyCheck?: {
     asof: string
     source: string
@@ -245,7 +245,7 @@ export interface RegressionV2 {
       corrLog: number | null
       aptHhNotInKapt: number
       aptHhNotInKaptShare: number | null
-      // 4라운드 — 기본정보 API(15058453) 세대수와 대장 조인값의 단지 단위 대조, 의무관리 분류
+      // 4라운드. 기본정보 API(15058453) 세대수와 대장 조인값의 단지 단위 대조, 의무관리 분류
       apiCompare?: {
         complexesWithApi: number
         apiHouseholdsZero: number
@@ -272,7 +272,7 @@ export interface RegressionV2 {
     v4_200: { n: number; r2: number; coef: Record<string, RegCoef> }
     v4b_100: { n: number; r2: number; coef: Record<string, RegCoef> }
     v4b_100_complaints: { n: number; r2: number; coef: Record<string, RegCoef> }
-    // 4라운드 — API 세대수를 격자에 안분해 관리 세대를 바꿔 끼운 v4b
+    // 4라운드. API 세대수를 격자에 안분해 관리 세대를 바꿔 끼운 v4b
     apiSensitivity?: {
       note: string
       source: { id: string; name: string; org: string; fetched: string; complexes: number } | null
@@ -287,7 +287,7 @@ export interface RegressionV2 {
   }
 }
 
-// 조치 대장 (data/dumping/interventions.json — 인증 API /api/dumping/data/interventions 로 서빙)
+// 조치 대장 (data/dumping/interventions.json. 인증 API /api/dumping/data/interventions 로 서빙)
 export interface InterventionEntry {
   id: string
   lever: string

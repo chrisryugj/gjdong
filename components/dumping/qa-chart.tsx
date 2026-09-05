@@ -3,7 +3,7 @@
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
 import { partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
 
-// 예시 질문에 딸려 나오는 데이터 차트 — 의존성 없이 SVG 직접 렌더.
+// 예시 질문에 딸려 나오는 데이터 차트. 의존성 없이 SVG 직접 렌더.
 // LLM 답변과 무관하게 export 집계(map.json·graph.json)에서 그리므로 수치가 지어질 수 없다.
 
 export type ChartKind = "yearly" | "monthly" | "seasons" | "beta" | "did"
@@ -16,7 +16,7 @@ export const CHART_TITLE: Record<ChartKind, string> = {
   did: "이동식 CCTV 효과 재검증 (DID)",
 }
 
-// 카드·모달 제목 — 월별은 집계 기간을 데이터에서 붙인다
+// 카드·모달 제목. 월별은 집계 기간을 데이터에서 붙인다
 export function chartTitle(kind: ChartKind, data: DumpingMapData): string {
   return kind === "monthly" ? `${CHART_TITLE.monthly} (${summarize(data).period.label})` : CHART_TITLE[kind]
 }
@@ -160,14 +160,14 @@ function SeasonsChart({ data }: { data: DumpingMapData }) {
   )
 }
 
-// 회귀 β — 그래프 Covariate 노드의 coefficient(|β| 내림차순). 꼬리표는 해석 결과라 id별로 붙인다
+// 회귀 β. 그래프 Covariate 노드의 coefficient(|β| 내림차순). 꼬리표는 해석 결과라 id별로 붙인다
 const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "최강", "cov-alley": "역방향", "cov-arterial": "역방향" }
 
 function BetaChart({ graph }: { graph: OntoGraph }) {
   const BETAS = regressionBetas(graph).map((b) => ({
-    n: b.label.replace(/\s*수$/, ""), // "무관리 주거단위 수" → "무관리 주거단위" (음식점 수는 그대로)
+    n: b.label.replace(/\s*수$/, ""), // "의류수거함 수" → "의류수거함" (음식점 수는 그대로)
     v: b.beta,
-    // p ≥ 0.05면 우연 범위 — "비유의"
+    // p ≥ 0.05면 우연 범위. "비유의"
     note: BETA_NOTE[b.id] ?? (b.p >= 0.05 ? "비유의" : ""),
     invalid: b.p >= 0.05,
   }))
@@ -210,7 +210,7 @@ function BetaChart({ graph }: { graph: OntoGraph }) {
   )
 }
 
-// 초기값 −0.785는 철회된 분석의 기록(README)이라 그래프에 없다 — 정적. 재검증값은 판정 엣지에서 읽는다
+// 초기값 −0.785는 철회된 분석의 기록(README)이라 그래프에 없다. 정적. 재검증값은 판정 엣지에서 읽는다
 function DidChart({ graph }: { graph: OntoGraph }) {
   const cy = 140
   const scale = 90 // px per 1.0
@@ -233,7 +233,7 @@ function DidChart({ graph }: { graph: OntoGraph }) {
         const yy = b.v < 0 ? cy : cy - h
         return (
           <g key={b.n}>
-            {/* 이름은 상단 고정 — 막대·값과 절대 안 겹친다 */}
+            {/* 이름은 상단 고정. 막대·값과 절대 안 겹친다 */}
             <text x={x + 45} y={48} textAnchor="middle" fontSize={15} fill={INK} fontWeight={600}>
               {b.n}
             </text>

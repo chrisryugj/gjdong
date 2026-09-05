@@ -8,7 +8,7 @@ import { SPACE_COLOR, SPACE_KO } from "./ontology-graph"
 import OntoQueries from "./onto-queries"
 import OntoSchemaModal from "./onto-schema-modal"
 
-// 온톨로지 탭 좌측 — 지식그래프 전체 탐색.
+// 근거 그래프(온톨로지) 탭 좌측. 지식그래프 전체 탐색.
 // 검색·영역 필터·노드 목록과, 고른 노드의 속성·관계를 따라가는 상세 카드로 이루어진다.
 // 정책 관점으로 정리한 화면은 정책 제안 탭(policy-board.tsx)이 맡는다.
 
@@ -48,7 +48,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       into: graph.edges.filter((e) => e.t === selectedId),
     }
   }, [graph, selectedId])
-  // 근거 계보 — 주장·지표·개입이 어느 증거·데이터셋·기관까지 거슬러 올라가는지
+  // 근거 계보. 주장·지표·개입이 어느 증거·데이터셋·기관까지 거슬러 올라가는지
   const lineage = useMemo(() => (graph && selectedId ? lineageOf(graph, selectedId) : null), [graph, selectedId])
 
   if (!graph) {
@@ -76,7 +76,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
         {selected.label}
       </h4>
       {(() => {
-        // p값이 있으면 유의/비유의 판정 배지 — 숫자만 판정 (">0.5" 같은 문자열은 비유의로)
+        // p값이 있으면 유의/비유의 판정 배지. 숫자만 판정 (">0.5" 같은 문자열은 비유의로)
         if (selected.props.retracted !== undefined) return null
         const raw = selected.props.p_value ?? selected.props.p
         if (raw === undefined) return null
@@ -202,8 +202,8 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-        이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 정리한 곳입니다. 오른쪽 그래프나
-        아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.{" "}
+        이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 정리한 곳입니다. 지식 {graph.nodes.length}개와
+        연결 {graph.edges.length}개입니다. 오른쪽 그래프나 아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.{" "}
         <button onClick={() => setShowSchema(true)} className="font-semibold text-[#0c6155] underline-offset-2 hover:underline">
           스키마 보기
         </button>

@@ -14,7 +14,7 @@ import OntoPanel from "./onto-panel"
 import OpsPanel from "./ops-panel"
 import PolicyBoard from "./policy-board"
 import BriefingModal from "./briefing-modal"
-import MethodsModal from "./methods-modal"
+import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
 import { vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
@@ -23,14 +23,14 @@ type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
 type LoadState = "loading" | "ready" | "error"
 
-// 정책 제안이 첫 화면 — 분석의 결론이자 행정이 바로 검토할 대목이다.
-// 지식그래프 원자료를 훑는 온톨로지는 맨 끝. 정책 판단에 먼저 필요한 화면이 아니다.
+// 정책 제안이 첫 화면. 분석의 결론이자 행정이 바로 검토할 대목이다.
+// 지식그래프 원자료를 훑는 근거 그래프는 맨 끝. 정책 판단에 먼저 필요한 화면이 아니다.
 const TABS: { id: Tab; label: string }[] = [
   { id: "policy", label: "정책 제안" },
   { id: "qa", label: "물어보기" },
   { id: "findings", label: "발견" },
   { id: "ops", label: "운영·전망" },
-  { id: "onto", label: "온톨로지" },
+  { id: "onto", label: "근거 그래프" },
 ]
 
 const DATA_URL = (name: "map" | "graph" | "interventions") => `/api/dumping/data/${name}`
@@ -52,6 +52,7 @@ export default function DumpingDashboard() {
   const [briefingDong, setBriefingDong] = useState<string | null>(null)
   const [showCritical, setShowCritical] = useState(false) // 집중관리 상습격자 지도 강조
   const [showMethods, setShowMethods] = useState(false) // 분석 방법 안내 모달
+  const [methodsSection, setMethodsSection] = useState<MethodsSection>("data") // 정책 탭 근거 경로가 지정한 섹션
   const [view, setView] = useState<MapView>(DEFAULT_VIEW)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
@@ -60,7 +61,7 @@ export default function DumpingDashboard() {
   const [activeLever, setActiveLever] = useState<LeverView | null>(null) // 지도에 반영 중인 정책 수단
   const [focusCandidate, setFocusCandidate] = useState<CandidateFocus | null>(null)
   const [resetSeq, setResetSeq] = useState(0)
-  const split = useSplitPane() // 모바일: 지도/패널 분할 핸들 (crowd 패턴 재사용)
+  const split = useSplitPane({ mapBelow: true }) // 모바일: 패널이 위, 지도가 아래. 핸들은 패널 바닥(crowd 패턴 재사용)
 
   const clearActive = () => {
     setActiveFinding(null)
@@ -79,7 +80,13 @@ export default function DumpingDashboard() {
     setBriefingDong(null)
     setShowCritical(false)
     setShowMethods(false)
+    setMethodsSection("data")
     setResetSeq((v) => v + 1)
+  }
+
+  const openMethods = (section: MethodsSection) => {
+    setMethodsSection(section)
+    setShowMethods(true)
   }
 
   // 탭을 옮기면 목록 클릭으로 찍은 펄스 라벨은 의미를 잃는다 (핫스팟 순위는 운영 탭에서만 보인다)
@@ -102,14 +109,14 @@ export default function DumpingDashboard() {
     Promise.all([
       fetchJson<DumpingMapData>(DATA_URL("map")),
       fetchJson<OntoGraph>(DATA_URL("graph")),
-      // 조치 대장은 없어도 화면이 선다 — 실패는 null(미확보)로만 표시
+      // 조치 대장은 없어도 화면이 선다. 실패는 null(미확보)로만 표시
       fetchJson<{ entries?: InterventionEntry[] } | null>(DATA_URL("interventions")).catch(() => null),
     ])
       .then(([map, g, iv]) => {
         if (!alive) return
         setMapData(map)
         setGraph(g)
-        // 예시 항목(registeredAt 빈값)은 목록에서 제외 — 스키마 안내용으로만 파일에 남는다
+        // 예시 항목(registeredAt 빈값)은 목록에서 제외. 스키마 안내용으로만 파일에 남는다
         setInterventions(iv ? (iv.entries ?? []).filter((e) => e.registeredAt) : null)
         setLoad("ready")
       })
@@ -130,7 +137,7 @@ export default function DumpingDashboard() {
       ...(viz.routes !== undefined ? { routes: viz.routes } : {}),
     }))
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
-    // → viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
+    // 그래서 viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
   }, [])
 
@@ -143,7 +150,7 @@ export default function DumpingDashboard() {
     [applyViz],
   )
 
-  // 정책 제안 모달에서 "지도에서 보기" — 겨냥 지표가 가장 높은 동은 실측값에서 고른다
+  // 정책 제안 모달에서 "지도에서 보기". 겨냥 지표가 가장 높은 동은 실측값에서 고른다
   const applyLeverViz = useCallback(
     (lv: LeverView) => {
       const viz = vizForLever(lv)
@@ -189,10 +196,10 @@ export default function DumpingDashboard() {
           </p>
         </button>
         <div className="ml-auto flex items-center gap-4">
+          {/* 기간·민원·과태료만. 그래프 규모(노드·엣지)는 근거 그래프 탭 안으로 옮겼다(결재선에게 뜻이 없다) */}
           {[
-            { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? `${stats.complaints.toLocaleString()}건` : "—" },
-            { k: "과태료", v: stats ? `${stats.enforcement.toLocaleString()}건` : "—" },
-            { k: "지식그래프", v: `지식 ${graph?.nodes.length ?? 0} · 연결 ${graph?.edges.length ?? 0}` },
+            { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? `${stats.complaints.toLocaleString()}건` : "미산출" },
+            { k: `과태료 ${stats?.finesPeriod.label ?? ""}`.trim(), v: stats ? `${stats.enforcement.toLocaleString()}건` : "미산출" },
           ].map((s) => (
             <div key={s.k} className="hidden text-right sm:block">
               <p className="text-[12px] text-[var(--cp-text-dim)]">{s.k}</p>
@@ -200,7 +207,7 @@ export default function DumpingDashboard() {
             </div>
           ))}
           <button
-            onClick={() => setShowMethods(true)}
+            onClick={() => openMethods("data")}
             className="shrink-0 rounded-lg border border-[var(--cp-border)] px-2.5 py-1.5 text-[13px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
           >
             데이터·방법
@@ -220,12 +227,12 @@ export default function DumpingDashboard() {
         </div>
       )}
 
-      {/* 본문 스플릿 — 모바일: 위 지도/그래프 + 아래 패널, 데스크톱: 좌 패널 고정폭 + 우 지도 */}
+      {/* 본문 스플릿. 모바일: 위 패널 + 아래 지도/그래프(결론이 지도보다 먼저), 데스크톱: 좌 패널 고정폭 + 우 지도 */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div
           ref={split.mapBoxRef}
           style={split.mapH != null ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties) : undefined}
-          className="relative h-[var(--dump-map-h,42dvh)] shrink-0 md:order-last md:h-auto md:flex-1"
+          className="relative order-last h-[var(--dump-map-h,42dvh)] shrink-0 md:h-auto md:flex-1"
         >
           {rightPane === "map" ? (
             <>
@@ -260,21 +267,7 @@ export default function DumpingDashboard() {
           )}
         </div>
 
-        <aside className="flex min-h-0 flex-1 flex-col border-t border-[var(--cp-border)] md:w-[420px] md:flex-none md:border-r md:border-t-0 xl:w-[480px]">
-          {/* 모바일 분할 핸들 — 드래그로 지도/패널 비율 조절, 더블탭 = 기본 복귀 */}
-          <div
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="패널 크기 조절"
-            onPointerDown={split.onSplitDown}
-            onPointerMove={split.onSplitMove}
-            onPointerUp={split.onSplitUp}
-            onPointerCancel={split.onSplitUp}
-            onDoubleClick={split.resetSplit}
-            className="flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
-          >
-            <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
-          </div>
+        <aside className="flex min-h-0 flex-1 flex-col border-b border-[var(--cp-border)] md:w-[420px] md:flex-none md:border-b-0 md:border-r xl:w-[480px]">
           <nav
             role="tablist"
             className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--cp-border)] px-2 pt-2 [scrollbar-width:none]"
@@ -295,7 +288,7 @@ export default function DumpingDashboard() {
               </button>
             ))}
           </nav>
-          {/* 물어보기는 항상 마운트 — 탭을 오가도 대화가 남는다. 나머지는 탭마다 새 스크롤 컨테이너 */}
+          {/* 물어보기는 항상 마운트. 탭을 오가도 대화가 남는다. 나머지는 탭마다 새 스크롤 컨테이너 */}
           <div className={tab === "qa" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
             <QaChat onAuthExpired={() => setAuth("locked")} onViz={applyVizFromQa} data={mapData} graph={graph} />
           </div>
@@ -322,15 +315,36 @@ export default function DumpingDashboard() {
                 />
               )}
               {tab === "policy" && (
-                <PolicyBoard graph={graph} data={mapData} onShowMap={applyLeverViz} activeLeverId={activeLever?.node.id ?? null} />
+                <PolicyBoard
+                  graph={graph}
+                  data={mapData}
+                  onShowMap={applyLeverViz}
+                  activeLeverId={activeLever?.node.id ?? null}
+                  onOpenMethods={openMethods}
+                  onGoFindings={() => switchTab("findings")}
+                />
               )}
               {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
             </div>
           )}
+          {/* 모바일 분할 핸들(패널 바닥). 드래그로 지도/패널 비율 조절, 더블탭 = 기본 복귀 */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="지도 크기 조절"
+            onPointerDown={split.onSplitDown}
+            onPointerMove={split.onSplitMove}
+            onPointerUp={split.onSplitUp}
+            onPointerCancel={split.onSplitUp}
+            onDoubleClick={split.resetSplit}
+            className="flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
+          >
+            <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
+          </div>
         </aside>
       </div>
 
-      {/* 초기 분석 고지 푸터 — 모바일은 첫 문장만 (지도·패널 공간이 우선) */}
+      {/* 초기 분석 고지 푸터. 모바일은 첫 문장만 (지도·패널 공간이 우선) */}
       <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-1.5 text-center text-[12px] leading-snug text-[var(--cp-text-dim)]">
         이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다.{" "}
         <span className="hidden md:inline">
@@ -340,7 +354,7 @@ export default function DumpingDashboard() {
       </footer>
 
       <BriefingModal dong={briefingDong} data={mapData} graph={graph} onClose={() => setBriefingDong(null)} />
-      <MethodsModal open={showMethods} data={mapData} graph={graph} onClose={() => setShowMethods(false)} />
+      <MethodsModal open={showMethods} data={mapData} graph={graph} initialSection={methodsSection} onClose={() => setShowMethods(false)} />
 
       <FindingModal
         finding={openFinding}

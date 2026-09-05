@@ -4,14 +4,14 @@ import type { DumpingMapData } from "@/lib/dumping/types"
 import { channelGrowth, finesCensorNote, finesDirection, fmtKrw, fmtRatio, partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
-// 운영·전망 탭 상세 모달 — 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
+// 운영·전망 탭 상세 모달. 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
 // 공용 조각(KRW·ForecastChart)은 methods-modal·ops-panel이 함께 쓴다. 셸은 modal-shell.tsx.
 
 export type OpsModalId = "funnel" | "channels" | "forecast" | "fines" | "sla" | "permits" | "seoul"
 
 export const KRW = fmtKrw
 
-// 소제목·해설·표 공용 스타일 — 모달 안 가독성 통일
+// 소제목·해설·표 공용 스타일. 모달 안 가독성 통일
 export function H({ children }: { children: React.ReactNode }) {
   return <h3 className="mb-1.5 mt-4 text-[13px] font-semibold tracking-wide text-[var(--cp-text-dim)] first:mt-0">{children}</h3>
 }
@@ -28,7 +28,7 @@ function Callout({ children }: { children: React.ReactNode }) {
   )
 }
 
-// align: 열별 정렬 — 기본은 첫 열 왼쪽·나머지 오른쪽(숫자). 설명 열이 섞이면 지정한다
+// align: 열별 정렬. 기본은 첫 열 왼쪽·나머지 오른쪽(숫자). 설명 열이 섞이면 지정한다
 function Table({ head, rows, align }: { head: string[]; rows: (string | number)[][]; align?: ("l" | "r")[] }) {
   const right = (i: number) => (align ? align[i] === "r" : i > 0)
   return (
@@ -62,7 +62,7 @@ function Table({ head, rows, align }: { head: string[]; rows: (string | number)[
   )
 }
 
-// 월별 시계열 + 전망 밴드 SVG — 패널(소형)·모달(대형) 공용
+// 월별 시계열 + 전망 밴드 SVG. 패널(소형)·모달(대형) 공용
 export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boolean }) {
   const f = data.decision.forecast
   const hist = Object.entries(f.series)
@@ -84,7 +84,7 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
       <polygon points={band} fill="#0c6155" opacity="0.12" />
       <polyline points={histPts} fill="none" stroke="var(--cp-text-muted)" strokeWidth="1.4" />
       <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#0c6155" strokeWidth="1.8" strokeDasharray="4 3" />
-      {/* 실적/전망 경계 — 라벨 대신 세로 점선 (가운데 라벨은 우측 끝 라벨과 겹침) */}
+      {/* 실적/전망 경계. 라벨 대신 세로 점선 (가운데 라벨은 우측 끝 라벨과 겹침) */}
       <line
         x1={x(hist.length - 1)}
         x2={x(hist.length - 1)}
@@ -109,10 +109,10 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
   )
 }
 
-// 품목 2계열 월별 추이 — 생활쓰레기 계열 vs 차량 담배꽁초 (두 현상이 다르게 움직이는지 육안 확인)
+// 품목 2계열 월별 추이. 생활쓰레기 계열 vs 차량 담배꽁초 (두 현상이 다르게 움직이는지 육안 확인)
 function CategoryTrendChart({ data }: { data: DumpingMapData }) {
   const cm = data.decision.fines.categoryMonthly
-  // 2022~2023년은 이월 부과 소수 건뿐이라 축을 왜곡한다 — 본 관측창(2024.1~)만 그린다
+  // 2022~2023년은 이월 부과 소수 건뿐이라 축을 왜곡한다. 본 관측창(2024.1~)만 그린다
   const months = [...new Set(Object.values(cm).flatMap((m) => Object.keys(m)))]
     .filter((m) => m >= "2024-01")
     .sort()
@@ -270,16 +270,15 @@ export default function OpsModal({
               rows={d.forecast.backtest.rows.map((r) => [r.m, r.y, r.hw, r.naive])}
             />
             <Note>
-              평균 오차 홀트윈터스 {d.forecast.backtest.mapePct}% vs 전년 동월 {d.forecast.backtest.naiveMapePct ?? "—"}%
-              (MAE {d.forecast.backtest.maeHw ?? "—"} vs {d.forecast.backtest.maeNaive ?? "—"}건). 80% 구간 적중률{" "}
-              {d.forecast.backtest.coverage80Pct ?? "—"}%. 모수 선택 구간과 평가 구간을 분리해 모수 선택에서 오는 낙관 편향은 제거했습니다.
+              평균 오차 홀트윈터스 {d.forecast.backtest.mapePct}% vs 전년 동월 {d.forecast.backtest.naiveMapePct ?? "미산출"}%
+              (MAE {d.forecast.backtest.maeHw ?? "미산출"} vs {d.forecast.backtest.maeNaive ?? "미산출"}건). 80% 구간 적중률{" "}
+              {d.forecast.backtest.coverage80Pct ?? "미산출"}%. 모수 선택 구간과 평가 구간을 분리했습니다.
               평가 표본이 {d.forecast.backtest.rows.length}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.
             </Note>
           </>
         )}
         <Callout>
-          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고,
-          대책 효과를 계산하는 용도로도 쓰실 수 없습니다.
+          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고 대책 효과를 계산하는 용도로도 쓰실 수 없습니다.
         </Callout>
       </ModalShell>
     )
@@ -303,12 +302,11 @@ export default function OpsModal({
         <CategoryTrendChart data={data} />
         <Callout>
           담배꽁초(차량) {Math.round((cigN / f.totalN) * 100)}%는 주행 중 도로에서 벌어지는 일이라
-          무관리주거와 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 처방도 다릅니다. 지표를 합쳐
+          다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 처방도 다릅니다. 지표를 합쳐
           관리하면 어느 쪽 성과도 읽을 수 없습니다.
         </Callout>
         <Note>
-          분류는 과세대상 문구의 키워드 규칙(담배, 대형, 시간외, 규격봉투, 음식물, 이동배출 순)으로
-          했고, 격자 회귀가 설명하는 본체는 생활쓰레기 계열입니다.
+          분류는 과세대상 문구의 키워드 규칙(담배, 대형, 시간외, 규격봉투, 음식물, 이동배출 순)으로 했고 격자 회귀가 설명하는 본체는 생활쓰레기 계열입니다.
         </Note>
       </ModalShell>
     )
@@ -316,7 +314,7 @@ export default function OpsModal({
 
   if (id === "sla") {
     const years = Object.entries(d.sla.byYear)
-    // 해설 문장의 연도는 표와 같은 원천 — 가운데 해가 가장 빠르고 마지막 해 꼬리가 다시 길어진 구조를 전제로 쓴다
+    // 해설 문장의 연도는 표와 같은 원천. 가운데 해가 가장 빠르고 마지막 해 꼬리가 다시 길어진 구조를 전제로 쓴다
     const best = [...years].sort((a, b) => a[1].p90H - b[1].p90H)[0]
     const last = years[years.length - 1]
     return (
@@ -337,7 +335,7 @@ export default function OpsModal({
           "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.
           {best && last && best[0] !== last[0]
             ? `${best[0]}년에 크게 좋아졌다가 ${last[0]}년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.`
-            : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄고 있다는 뜻입니다."}
+            : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄어듭니다."}
         </p>
         <Note>
           {d.sla.note}. 표본은 접수·처리 시각이 모두 있고 순서가 맞는 건만이라 전체 민원 {summarize(data).complaints.toLocaleString()}건 중{" "}
@@ -368,8 +366,7 @@ export default function OpsModal({
           ))}
         </div>
         <Callout>
-          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 차원에서도
-          성립하고, 25개 구 모두 채널고정 지표가 필요합니다.
+          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 전체에서도 성립하고 25개 구 모두 채널고정 지표가 필요합니다.
         </Callout>
         <Note>*{period.lastYear}년은 {sr.monthly[sr.monthly.length - 1].ym.slice(5)}월까지 부분 집계. 출처 OA-12051(서울시 스마트 불편신고 분야별 신고 현황).</Note>
 
@@ -386,9 +383,9 @@ export default function OpsModal({
 
         <H>가로쓰레기통 · 서울시 원천으로 교차검증</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-          서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 {data.meta?.binSites ?? "—"}개 위치와{" "}
+          서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 {data.meta?.binSites ?? "미산출"}개 위치와{" "}
           {data.meta?.binSites === d.seoul.streetBins.gwangjin202511.sites ? "일치합니다" : "대조했습니다"}.
-          연도별로는 {d.seoul.streetBins.years.slice(-3).map((y, i) => `${y}년 ${d.seoul!.streetBins.gwangjinByYear?.slice(-3)[i] ?? "—"}`).join(" · ")}. 출처 OA-15069.
+          연도별로는 {d.seoul.streetBins.years.slice(-3).map((y, i) => `${y}년 ${d.seoul!.streetBins.gwangjinByYear?.slice(-3)[i] ?? "미산출"}`).join(" · ")}. 출처 OA-15069.
         </p>
         <H>생활인구</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
@@ -399,7 +396,7 @@ export default function OpsModal({
     )
   }
 
-  // permits — 구조 전망 상세
+  // permits. 구조 전망 상세
   const pm = d.permits
   if (!pm) return null
   return (
@@ -419,8 +416,7 @@ export default function OpsModal({
         닿는 물량은 단독·다가구 허가 {pm.guTotal.detachedPermits12m}건입니다.
       </p>
       <Callout>
-        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두는 편이, 늘어나는 위험
-        지역을 뒤쫓기보다 앞질러 가는 방법입니다.
+        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두는 편이, 늘어나는 위험 지역을 뒤쫓기보다 앞질러 가는 방법입니다.
       </Callout>
       <Note>
         "진행중"은 허가는 났으나 사용승인 전인 건입니다(허가 5년이 지난 미착공은 제외). 출처는

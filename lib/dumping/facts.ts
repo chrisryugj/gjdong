@@ -1,6 +1,6 @@
 import type { DumpingMapData, OntoGraph } from "./types"
 
-// map.json·graph.json에서 파생하는 표시용 사실 — 헤더·프롬프트·모달이 같은 값을 쓰도록 한 곳에 모은다.
+// map.json·graph.json에서 파생하는 표시용 사실. 헤더·프롬프트·모달이 같은 값을 쓰도록 한 곳에 모은다.
 // 데이터가 갱신되면 여기서 뽑는 숫자·기간이 함께 바뀌어야 하므로 문구에 숫자를 박아 두지 않는다.
 
 export function sumValues(o: Record<string, number>): number {
@@ -63,7 +63,7 @@ export function graphSize(graph: OntoGraph): { nodes: number; edges: number } {
   return { nodes: graph.nodes.length, edges: graph.edges.length }
 }
 
-// 격자 회귀 표준화 β — Covariate 노드의 coefficient에서 뽑는다 (철회된 DID 항목 제외)
+// 격자 회귀 표준화 β. Covariate 노드의 coefficient에서 뽑는다 (철회된 DID 항목 제외)
 export interface BetaRow {
   id: string
   label: string
@@ -83,7 +83,7 @@ export function regressionBetas(graph: OntoGraph): BetaRow[] {
     .sort((a, b) => Math.abs(b.beta) - Math.abs(a.beta))
 }
 
-// 동별 수치 강조·권고 임계 — 발견 탭 표와 동 브리핑 권고가 같은 기준을 쓴다 (단위 %, cr·er는 천명당 건)
+// 동별 수치 강조·권고 임계. 발견 탭 표와 동 브리핑 권고가 같은 기준을 쓴다 (단위 %, cr·er는 천명당 건)
 export const DONG_THRESHOLDS = { cr: 15, er: 15, unm: 45, one: 55, yth: 35, frn: 10 } as const
 
 // ─── 채널 증가 배율 ────────────────────────────────────────────
@@ -99,7 +99,7 @@ export interface ChannelGrowth {
   app: number // 앱(서울스마트불편신고)
   fixed: number // 채널고정(120·직접)
   fines: number // 과태료 부과 전체(위반일시 기준)
-  // 적발 경로별 — 과태료의 대부분(신고 유래)은 신고 성향과 무관하지 않다. 순찰(수시) 적발만 신고와 독립
+  // 적발 경로별. 과태료의 대부분(신고 유래)은 신고 성향과 무관하지 않다. 순찰(수시) 적발만 신고와 독립
   finesPatrol: number // 순찰(수시) 적발
   finesReported: number // 신고 유래 적발
   patrolSharePct: number // 순찰 적발 비중(전 기간, %)
@@ -137,20 +137,20 @@ export function channelGrowth(data: DumpingMapData): ChannelGrowth {
   }
 }
 
-// 최근 월 과태료 우측 절단 — 위반→부과 처리 지연으로 마지막 달들은 과소 집계된다. 문장은 한 곳에서
+// 최근 월 과태료 우측 절단. 위반→부과 처리 지연으로 마지막 달들은 과소 집계된다. 문장은 한 곳에서
 export function finesCensorNote(data: DumpingMapData): string {
   const p = periodOf(data.decision.fines.monthly)
   return `과태료는 위반일시 기준이라 ${ym(p.to)} 등 최근 2~3개월은 부과 처리 지연으로 과소 집계될 수 있습니다`
 }
 
-// 네 요인(무관리주거·1인세대·청년·외국인) 공선성 범위 — claim-collinear 문장의 ρ 구간에서 읽는다
+// 네 요인(다가구·단독 밀집·1인세대·청년·외국인) 공선성 범위. claim-collinear 문장의 ρ 구간에서 읽는다
 export function collinearRange(graph: OntoGraph): string {
   const s = String(graph.nodes.find((n) => n.id === "claim-collinear")?.props.statement ?? "")
   const m = /ρ\s*([\d.]+)\s*~\s*([\d.]+)/.exec(s)
   return m ? `${m[1]}~${m[2]}` : "0.85~0.97"
 }
 
-// 문장에 박혀 있던 표본 크기 — 그래프·데이터에서 읽는다
+// 문장에 박혀 있던 표본 크기. 그래프·데이터에서 읽는다
 export function sampleSizes(data: DumpingMapData, graph: OntoGraph): { gridN: number; ledgerRows: number; dongN: number } {
   const unmEdge = graph.edges.find((e) => e.f === "con-unmanaged" && e.props?.beta !== undefined)
   const gridN = Number(unmEdge?.props?.n ?? data.decision.regressionV2?.v2_100.n ?? data.grid.length)
@@ -158,12 +158,12 @@ export function sampleSizes(data: DumpingMapData, graph: OntoGraph): { gridN: nu
   return { gridN, ledgerRows, dongN: data.dong.length }
 }
 
-// "2.10배" / "0.53배" — 배율 표기 한 곳
+// "2.10배" / "0.53배". 배율 표기 한 곳
 export function fmtRatio(r: number): string {
-  return Number.isFinite(r) ? `${r.toFixed(2)}배` : "—"
+  return Number.isFinite(r) ? `${r.toFixed(2)}배` : "미산출"
 }
 
-// 과태료가 늘었나 줄었나 — 문장 조립용 (배율 1 미만이면 감소)
+// 과태료가 늘었나 줄었나. 문장 조립용 (배율 1 미만이면 감소)
 export function finesDirection(g: ChannelGrowth): "줄었" | "늘었" | "비슷했" {
   if (!Number.isFinite(g.fines)) return "비슷했"
   if (g.fines < 0.9) return "줄었"

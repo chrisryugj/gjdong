@@ -4,7 +4,7 @@ import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
 import { collinearRange, DONG_THRESHOLDS, regressionBetas, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
-// 동별 브리핑 — 동장 회의·현장 배포용 원페이저. 인쇄 버튼은 이 모달만 출력한다(globals.css @media print, #dump-brief).
+// 동별 브리핑. 동장 회의·현장 배포용 원페이저. 인쇄 버튼은 이 모달만 출력한다(globals.css @media print, #dump-brief).
 
 interface BriefingModalProps {
   dong: string | null
@@ -20,19 +20,20 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
   const { period } = summarize(data)
   const rankAll = [...data.dong].sort((a, b) => b.er - a.er)
   const rank = rankAll.findIndex((d) => d.d === dong) + 1
-  const hotspots = data.decision.hotspots.top.filter((h) => h[5] === dong)
+  // 지오코딩이 안 돼 주소가 없는 격자는 뺀다. "(주소 미상)"이 인쇄물에 그대로 찍혔던 것을 고쳤다(5라운드)
+  const hotspots = data.decision.hotspots.top.filter((h) => h[5] === dong && h[6])
   const candidates = data.cctvCandidates.filter((c) => c[4] === dong)
-  // 최강 예측변수 β — 그래프에서 읽고, 없으면 README 정본 수치
+  // 최강 예측변수 β. 그래프에서 읽고, 없으면 README 정본 수치
   const unmBeta = graph ? regressionBetas(graph).find((b) => b.id === "cov-unmanaged")?.beta : undefined
   const betaText = unmBeta != null ? `${unmBeta > 0 ? "+" : "−"}${Math.abs(unmBeta).toFixed(3)}` : "+0.312"
 
-  // 규칙 기반 권고 — 온톨로지 레버와 동 특성 매칭 (수치 근거를 함께 표기). 문턱은 지도 동 패널과 같은 값.
+  // 규칙 기반 권고. 근거 그래프 레버와 동 특성 매칭 (수치 근거를 함께 표기). 문턱은 지도 동 패널과 같은 값.
   const T = DONG_THRESHOLDS
   const recs: { t: string; why: string }[] = []
   if (row.unm >= T.unm)
     recs.push({
       t: "다가구·단독 밀집 구역 공동 배출시설·관리주체 지정 검토",
-      why: `무관리주거 ${row.unm}% (최강 예측변수 β ${betaText})`,
+      why: `다가구·단독 ${row.unm}% (발생과 가장 강하게 같이 움직이는 조건, β ${betaText})`,
     })
   if (row.frn >= T.frn) recs.push({ t: "다국어 배출안내 우선 적용", why: `등록외국인 ${row.frn}%` })
   if (row.one >= T.one) recs.push({ t: "전입·임대차 시점 배출안내(무예산)", why: `1인세대 ${row.one}%` })
@@ -82,11 +83,11 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
         {[
           { k: "민원", v: row.cr.toFixed(1), u: `천명당 · ${row.comp}건` },
           { k: "과태료", v: row.er.toFixed(1), u: `천명당 · ${row.enf}건` },
-          { k: "무관리주거", v: `${row.unm}%`, u: `다가구 ${row.mf.toLocaleString()}가구` },
+          { k: "다가구·단독", v: `${row.unm}%`, u: `다가구 ${row.mf.toLocaleString()}가구` },
           { k: "1인세대", v: `${row.one}%`, u: `${row.hh.toLocaleString()}세대 중` },
           { k: "청년 20-34", v: `${row.yth}%`, u: "2025년" },
           { k: "외국인", v: `${row.frn}%`, u: "2025년" },
-          ...(row.lp ? [{ k: "생활인구", v: row.lp.toLocaleString(), u: `체류 기준 · 천명당 과태료 ${row.erl ?? "—"}` }] : []),
+          ...(row.lp ? [{ k: "생활인구", v: row.lp.toLocaleString(), u: `체류 기준 · 천명당 과태료 ${row.erl ?? "미산출"}` }] : []),
         ].map((f) => (
           <div key={f.k} className="rounded-lg bg-[var(--cp-hover)] py-1.5">
             <dt className="text-[12px] text-[var(--cp-text-dim)]">{f.k}</dt>
@@ -99,12 +100,12 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
       {hotspots.length > 0 && (
         <section className="mt-4">
           <h3 className="text-[13px] font-semibold text-[var(--cp-text-dim)]">
-            이 동의 예측 핫스팟 (구 전체 상위 {data.decision.hotspots.top.length} 중 {hotspots.length}곳)
+            이 동의 예측 핫스팟 · 구 전체 상위 {data.decision.hotspots.top.length}곳 가운데 이 동에 있고 주소가 확인된 {hotspots.length}곳
           </h3>
           <ul className="mt-1 flex flex-col gap-1">
             {hotspots.map((h, i) => (
               <li key={i} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5 text-[13px]">
-                <span className="font-medium text-[var(--cp-text-strong)]">{h[6] || "(주소 미상)"}</span>
+                <span className="font-medium text-[var(--cp-text-strong)]">{h[6]}</span>
                 <span className="ml-1.5 text-[var(--cp-text-dim)]">
                   최근 180일 민원 {h[3]} · 과태료 {h[4]}
                   {h[7] === 0 && " · 이동식 CCTV 없음"}
@@ -128,7 +129,7 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
       </section>
 
       <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--cp-text-faint)]">
-        수치는 조건부 연관이며 인과를 증명한 것은 아닙니다. 무관리주거·1인세대·청년·외국인은 서로 얽혀 있어(상관{" "}
+        수치는 조건부 연관이며 인과를 증명한 것은 아닙니다. 다가구·단독 밀집·1인세대·청년·외국인은 서로 얽혀 있어(상관{" "}
         {graph ? collinearRange(graph) : "0.85~0.97"}) 어느 하나를 원인으로 지목할 수 없습니다. 개입은 실행 전에 조치 대장에 사전등록하고 비교 대상을 정한
         뒤 평가해 주세요.
       </p>
