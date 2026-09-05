@@ -781,8 +781,10 @@
   body:has(#dump-brief) * {
     visibility: hidden;
   }
-  #dump-brief,
-  #dump-brief * {
+  /* 위 선택자는 :has(#id) 때문에 특이성이 (1,0,1)이라 #dump-brief *(1,0,0)보다 세다. 같은 접두를 붙여야 자식이 다시 보인다
+     (2026-09-05 헤드리스 PDF 백지 실측: #dump-brief는 visible인데 자식 69개 전부 hidden) */
+  body:has(#dump-brief) #dump-brief,
+  body:has(#dump-brief) #dump-brief * {
     visibility: visible;
   }
   #dump-brief {
