@@ -88,6 +88,16 @@ const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): D
     use: "계절·기온·강수 요인 조인",
   },
   {
+    name: "SGIS 100m 격자 총인구 (2024 등록센서스)",
+    scale: `국가데이터처 SGIS · 광진 ${n(data.decision.regressionV2?.exposure ? data.decision.regressionV2.exposure.v3_100.n : 0)}칸 회귀 표본`,
+    use: `상주인구 노출 변수(v3 회귀 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "—"}). 공식 1km 격자와 합산 대조해 같은 자료임을 확인`,
+  },
+  {
+    name: "K-apt 관리비공개 의무단지 (필지·관리비)",
+    scale: `국토교통부 K-apt · 광진 ${data.decision.regressionV2?.proxyCheck?.complexes ?? "—"}단지`,
+    use: "관리주체 실측. 건축물대장 세대수와 필지번호로 조인해 \"관리주체 없는 주거\" 대리변수를 검증(발견 탭 대리변수 검증 카드)",
+  },
+  {
     name: "건축 인허가 파이프라인",
     scale: `건축HUB · ${data.decision.permits?.window ?? "최근 12개월"}`,
     use: "구조 전망 — 소형 공동주택·다가구 신축 흐름(관리 취약 주거의 증감 방향)",
@@ -143,7 +153,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
       easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
       here: `격자 ${n(sz.gridN)}칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
-        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고, v2 모형은 서울시 250m 생활인구를 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "—"}, 무관리주거는 그대로). 관리주체 없는 주거는 건축물대장 대리변수이고, 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
+        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고, v2 모형은 서울시 250m 생활인구를, v3 모형은 SGIS 100m 상주인구까지 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "—"}, 상주인구 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "—"}, 무관리주거는 그대로). 관리주체 없는 주거는 건축물대장 대리변수인데, K-apt 등록 세대로 다시 나눠 보면 연관은 다가구·일반단독에 몰려 있고 관리주체 없는 다세대·연립은 연관이 없습니다. 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
     },
     {
       name: "이중차분(DID)과 이벤트 스터디",

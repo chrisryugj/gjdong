@@ -44,7 +44,7 @@ test("collinearRange·sampleSizes — 문장에 박혀 있던 수치를 그래�
   assert.strictEqual(sz.gridN, 1062)
   assert.strictEqual(sz.ledgerRows, 24520)
   assert.strictEqual(sz.dongN, 15)
-  assert.strictEqual(map!.meta?.reproduce.hashes, 102)
+  assert.strictEqual(map!.meta?.reproduce.hashes, 108)
   assert.strictEqual(map!.meta?.binSites, 64)
 })
 
@@ -86,10 +86,14 @@ test("regressionBetas — 철회된 DID 계수는 빠지고 |β| 내림차순", 
   for (let i = 1; i < b.length; i++) assert.ok(Math.abs(b[i - 1].beta) >= Math.abs(b[i].beta))
 })
 
-test("buildFindings — 13장(서울 데이터 3장 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
+test("buildFindings — 14장(서울 데이터 3장·K-apt 대리변수 검증 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
   const fs = buildFindings(map!, graph)
-  assert.strictEqual(fs.length, 13)
-  assert.ok(fs.some((f) => f.tag === "격자 검증") && fs.some((f) => f.tag === "통념 검증") && fs.some((f) => f.tag === "노출 통제"))
+  assert.strictEqual(fs.length, 14)
+  assert.ok(fs.some((f) => f.tag === "격자 검증") && fs.some((f) => f.tag === "통념 검증") && fs.some((f) => f.tag === "노출 통제") && fs.some((f) => f.tag === "대리변수 검증"))
+  const proxy = fs.find((f) => f.tag === "대리변수 검증")!
+  assert.ok(/다가구·단독/.test(proxy.title) && /다세대·연립/.test(proxy.body), "대리변수 검증 카드가 세 갈래 결과를 말하지 않는다")
+  const exposure = fs.find((f) => f.tag === "노출 통제")!
+  assert.ok(JSON.stringify(exposure).includes("상주인구"), "노출 통제 카드에 상주인구가 없다")
   const all = JSON.stringify(fs)
   assert.ok(!/과태료[^.]{0,20}1\.1배/.test(all), "'과태료 1.1배' 오류 문구가 남아 있다")
   assert.ok(all.includes("연환산"), "연환산 기준 미고지")

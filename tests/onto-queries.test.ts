@@ -20,11 +20,13 @@ import {
 const graph = graphJson as unknown as OntoGraph
 const ids = (r: { hits: { id: string }[] }) => r.hits.map((h) => h.id).sort()
 
-test("CQ1 대책 없는 요인 — 상권 밀집만 실제 공백, 도로 형태·생활인구 노출은 통제변수", () => {
+test("CQ1 대책 없는 요인 — 상권 밀집만 실제 공백, 도로 형태·생활인구·상주인구 노출·K-apt 대조는 통제변수", () => {
   const r = cqUntargetedFactors(graph)
-  assert.deepStrictEqual(ids(r), ["con-alley", "con-arterial-dist", "con-commercial", "con-living-pop"])
+  assert.deepStrictEqual(ids(r), ["con-alley", "con-arterial-dist", "con-commercial", "con-living-pop", "con-managed-kapt", "con-resident-pop"])
   assert.strictEqual(r.gaps, 1)
   assert.match(r.hits.find((h) => h.id === "con-living-pop")!.note!, /노출/)
+  assert.match(r.hits.find((h) => h.id === "con-resident-pop")!.note!, /상주/)
+  assert.match(r.hits.find((h) => h.id === "con-managed-kapt")!.note!, /K-apt/)
   assert.match(r.hits.find((h) => h.id === "con-commercial")!.note!, /β \+0\.086/)
 })
 

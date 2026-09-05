@@ -108,6 +108,11 @@ export function buildSystemPrompt(): string {
 13. 서울시 공개데이터(아래 "서울시 맥락"·"v2 회귀")로 확인된 것: 생활인구 노출을 넣어도 무관리주거 β는 그대로다. 의류수거함은 단속 적발과 연관이 없고 신고 민원과만 약한 양의 연관이다 —
    "의류수거함이 온상"이라고 단정하지 마라. 격자를 200m로 합쳐도 핵심 판정은 유지된다 — "100m라서 나온 결과"가 아니다.
    앱 청소 신고 증가는 서울 전체 현상이다. 상습격자 KPI는 앱 포함 ${mapData.decision.kpi.criticalCellsNow}곳·앱 제외 ${mapData.decision.kpi.criticalCellsNowNoApp}곳 — 두 값을 같이 말하라.
+14. 인구는 두 종류를 넣었다(아래 "노출 변수 비교"). 생활인구(통신 기반 체류 추정)와 상주인구(SGIS 2024 등록센서스 100m 격자)를 따로·같이 넣어도 무관리주거 β는 유지되고,
+   상주인구 자체는 연관이 없다. "등록인구를 안 넣었다"는 옛 답이니 쓰지 마라. 다만 "인구를 통제했다"고 단정하지 말고 "두 종류 인구 노출을 넣어도 결론이 같다"로 말하라.
+15. 관리주체 대리변수는 K-apt로 검증했다(아래 "대리변수 검증"). 건축물대장 "공동주택" 세대의 ${mapData.decision.regressionV2?.proxyCheck ? Math.round((mapData.decision.regressionV2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100) : "—"}%만 K-apt 등록(관리주체 실측)이다.
+   세 갈래로 나눠 돌리면 발생과 같이 움직이는 것은 다가구·일반단독뿐이고, 관리주체 없는 다세대·연립은 연관이 없다. 그러므로 "관리주체가 없어서"라고 일반화하지 말고
+   "다가구·단독주택 밀집"이라고 좁혀 말하라. 기제(왜 다가구인가)는 이 자료로 알 수 없다.
 
 ## 답변 형식 (독자는 통계를 모르는 일반 직원·어르신이다)
 - 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게.
@@ -178,6 +183,18 @@ ${Object.entries(MAP.decision.regressionV2.v2_100.coef).map(([k, c]) => `${k} β
 민원 종속 v2: 의류수거함 β ${MAP.decision.regressionV2.v2_100_complaints.coef.clothbin_n.beta} (p=${MAP.decision.regressionV2.v2_100_complaints.coef.clothbin_n.p})
 200m 재집계(n=${MAP.decision.regressionV2.v2_200.n}, R² ${MAP.decision.regressionV2.v2_200.r2}): ${Object.entries(MAP.decision.regressionV2.v2_200.coef).map(([k, c]) => `${k} ${c.beta > 0 ? "+" : ""}${c.beta}(p=${c.p})`).join(" · ")}
 격자 민감도(판정 유지): ${Object.entries(MAP.decision.regressionV2.gridSensitivity.v2).map(([k, v]) => `${k}=${v ? "유지" : "경계"}`).join(", ")}` : "(미산출)"}
+
+## 노출 변수 비교 (3라운드, 생활인구 vs 상주인구 — SGIS 2024 100m 격자 등록센서스)
+${MAP.decision.regressionV2?.exposure ? `생활인구만: 무관리주거 β ${MAP.decision.regressionV2.exposure.compare.living_only.unmanaged.beta}, 생활인구 β ${MAP.decision.regressionV2.exposure.compare.living_only.living_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.living_only.living_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.living_only.r2}
+상주인구만: 무관리주거 β ${MAP.decision.regressionV2.exposure.compare.resident_only.unmanaged.beta}, 상주인구 β ${MAP.decision.regressionV2.exposure.compare.resident_only.resident_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.resident_only.resident_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.resident_only.r2}
+둘 다(v3): 무관리주거 β ${MAP.decision.regressionV2.exposure.compare.both.unmanaged.beta}, 생활인구 β ${MAP.decision.regressionV2.exposure.compare.both.living_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.both.living_pop.p}), 상주인구 β ${MAP.decision.regressionV2.exposure.compare.both.resident_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.both.resident_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.both.r2}
+생활인구×상주인구 상관 ${MAP.decision.regressionV2.exposure.corrLivingResident}, VIF 최대 ${Math.max(...Object.values(MAP.decision.regressionV2.exposure.vif))}(상주인구 ${MAP.decision.regressionV2.exposure.vif.resident_pop}). 200m 재집계(v3)에서는 공동주택 세대수가 β ${MAP.decision.regressionV2.exposure.v3_200.coef.apt_hh.beta}(p=${MAP.decision.regressionV2.exposure.v3_200.coef.apt_hh.p})로 유의해지고 상주인구는 p=${MAP.decision.regressionV2.exposure.v3_200.coef.resident_pop.p}로 경계 — 100m 결과와 다르니 "격자 크기에 무관"이라고 말할 때 이 예외를 붙여라.
+상주인구 정의: 인구주택총조사 등록센서스 총인구(2024-11-01, 외국인 포함), 셀당 최대 ±7 노이즈. 주민등록 인구가 아니다.` : "(미산출)"}
+
+## 대리변수 검증 (3라운드, K-apt 관리비공개 의무단지 ${MAP.decision.regressionV2?.proxyCheck?.asof ?? ""})
+${MAP.decision.regressionV2?.proxyCheck ? `K-apt 등록 ${MAP.decision.regressionV2.proxyCheck.complexes}단지 ${MAP.decision.regressionV2.proxyCheck.crossCheck.managedTotal.toLocaleString()}세대 = 건축물대장 공동주택 ${MAP.decision.regressionV2.proxyCheck.crossCheck.aptHhTotal.toLocaleString()}세대의 ${Math.round((MAP.decision.regressionV2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%. 대장 공동주택 구성: ${Object.entries(MAP.decision.regressionV2.proxyCheck.ledgerAptKinds.households).map(([k, v]) => `${k} ${v.toLocaleString()}세대`).join(" · ")}.
+세 갈래 모형(v4b, n=${MAP.decision.regressionV2.proxyCheck.v4b_100.n}, R² ${MAP.decision.regressionV2.proxyCheck.v4b_100.r2}): 다가구·일반단독 β ${MAP.decision.regressionV2.proxyCheck.split.unmanaged_units.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.unmanaged_units.p}) · 미등록 공동주택(다세대·연립·소형) β ${MAP.decision.regressionV2.proxyCheck.split.apt_nokapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.apt_nokapt.p}) · K-apt 등록 β ${MAP.decision.regressionV2.proxyCheck.split.managed_kapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.managed_kapt.p}).
+무관리를 K-apt 미등록 전체로 넓힌 모형(v4): β ${MAP.decision.regressionV2.proxyCheck.compare.unmanaged_v4.beta}(p=${MAP.decision.regressionV2.proxyCheck.compare.unmanaged_v4.p}), R² ${MAP.decision.regressionV2.proxyCheck.compare.r2_v4} — 정의를 넓히면 효과가 묽어진다. 의무관리 기준: ${MAP.decision.regressionV2.proxyCheck.source} · 300세대 이상, 150세대 이상+승강기 또는 중앙난방 등.` : "(미산출)"}
 
 ## 서울시 맥락 (서울 열린데이터광장, 25개 구 비교)
 ${MAP.decision.seoul ? `통합관제센터 연계 무단투기 CCTV: 서울 ${MAP.decision.seoul.cctv.seoulDumpingTotal}대, 광진 ${MAP.decision.seoul.cctv.gwangjin.dumping}대(보고 ${MAP.decision.seoul.cctv.reportingGus}개 구 중 ${MAP.decision.seoul.cctv.gwangjin.dumpingRank}위). ${MAP.decision.seoul.cctv.note}.

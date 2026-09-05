@@ -230,6 +230,8 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
   ]
 
   if (r2) {
+    const ex = r2.exposure
+    const px = r2.proxyCheck
     const lp = r2.v2_100.coef.living_pop
     const unm2 = r2.v2_100.coef.unmanaged_units
     const cb = r2.v2_100.coef.clothbin_n
@@ -247,13 +249,19 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `체류 인구가 많은 칸일수록 적발이 조금 늘지만(β ${signed(lp.beta)}), 관리주체 없는 주거의 계수는 ${signed(unm2.beta)}로 바뀌지 않았습니다. 설명력은 R² ${r2.base100.r2}→${r2.v2_100.r2}입니다.`,
           "해석: 무단투기는 사람이 많이 오가는 만큼 생기는 현상이 아니라, 배출을 관리할 주체가 없는 주거가 몰린 곳에서 생기는 현상이라는 결론이 노출을 통제한 뒤에도 유지됩니다.",
           `주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고, ${seoul?.livingPop250Month ?? "2026-07"} 한 달 평균입니다. 관측 기간 전체의 노출과 다를 수 있습니다.`,
+          ...(ex
+            ? [
+                `사는 사람 수도 넣었습니다. 국가데이터처 SGIS 100m 격자 총인구(2024 등록센서스, 셀당 최대 ±7 노이즈)를 같은 칸에 붙여 생활인구와 따로, 그리고 같이 넣었습니다. 상주인구만 넣으면 β ${signed(ex.compare.resident_only.resident_pop.beta)}(p=${pText(ex.compare.resident_only.resident_pop.p)}), 둘 다 넣으면 상주인구 β ${signed(ex.compare.both.resident_pop.beta)}(p=${pText(ex.compare.both.resident_pop.p)})로 연관이 없고, 관리주체 없는 주거는 β ${signed(ex.compare.both.unmanaged.beta)}로 유지됩니다. 두 인구 변수의 상관은 ${ex.corrLivingResident.toFixed(2)}, VIF는 최대 ${Math.max(...Object.values(ex.vif)).toFixed(1)}이라 같이 넣어도 됩니다.`,
+                `예외 하나는 적어 둡니다. 200m로 합친 뒤 두 인구를 같이 넣으면 공동주택 세대수가 β ${signed(ex.v3_200.coef.apt_hh.beta)}(p=${pText(ex.v3_200.coef.apt_hh.p)})로 유의해집니다. 100m에서는 아닙니다. 격자 크기에 따라 달라지는 변수가 하나 있다는 뜻이라, "아파트는 연관 없음"은 100m 기준 진술로 한정합니다.`,
+              ]
+            : []),
         ],
         numbers: [
           { k: "무관리주거 β(v2)", v: signed(unm2.beta) },
           { k: "생활인구 β", v: `${signed(lp.beta)} (p=${pText(lp.p)})` },
-          { k: "R²", v: `${r2.base100.r2} → ${r2.v2_100.r2}` },
+          ex ? { k: "상주인구 β(v3)", v: `${signed(ex.compare.both.resident_pop.beta)} (p=${pText(ex.compare.both.resident_pop.p)})` } : { k: "R²", v: `${r2.base100.r2} → ${r2.v2_100.r2}` },
         ],
-        takeaway: "노출을 통제해도 결론은 같습니다. 대책의 겨냥점은 사람 수가 아니라 관리 구조입니다.",
+        takeaway: "머무는 사람도 사는 사람도 넣어 봤습니다. 결론은 같습니다. 대책의 겨냥점은 사람 수가 아니라 주거 구조입니다.",
         viz: { mode: "lp" },
         vizLabel: "지도에서 생활인구 바탕에 과태료 겹쳐 보기",
       },
@@ -280,7 +288,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         title: "100m로 잘라서 나온 결과가 아닙니다",
         body: `격자를 200m로 네 배 키워 다시 적합해도 ${total}개 변수 중 ${held}개의 판정이 유지됐습니다. ${["unmanaged_units", "alley_ratio", "dist_arterial"].every((kk) => r2.gridSensitivity.v2[kk]) ? "관리주체 없는 주거·골목·간선 이격은 그대로이고, " : ""}${notHeld.length ? `경계에 걸린 것은 ${notHeld.map((kk) => (kk === "living_pop" ? "생활인구" : kk)).join("·")}뿐입니다` : "달라진 변수가 없습니다"}.`,
         detail: [
-          "\"데이터가 100m 단위로 구분되느냐\"는 질문에 대한 답입니다. 민원·과태료는 건별 주소를 좌표로 바꿔 점으로 찍고, 건축물대장은 대지 지번으로 점을 찍어 그 점이 속한 칸에 셉니다. 도로·건물 형태는 OSM 선·면을 칸에 잘라 넣고, 생활인구는 서울시 250m 격자를 면적 비례로 나눕니다. 등록인구는 동 단위뿐이라 격자 회귀에 넣지 않았습니다.",
+          "\"데이터가 100m 단위로 구분되느냐\"는 질문에 대한 답입니다. 민원·과태료는 건별 주소를 좌표로 바꿔 점으로 찍고, 건축물대장은 대지 지번으로 점을 찍어 그 점이 속한 칸에 셉니다. 도로·건물 형태는 OSM 선·면을 칸에 잘라 넣고, 생활인구는 서울시 250m 격자를 면적 비례로 나눕니다. 상주인구는 SGIS 100m 격자를 같은 칸에 그대로 붙입니다.",
           `칸을 100m에서 200m로 합쳐 같은 모형을 다시 돌리면(n=${n(r2.v2_200.n)}) 관리주체 없는 주거 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}, 간선 이격 β ${signed(r2.v2_200.coef.dist_arterial.beta)}로 방향과 유의성이 유지됩니다. 설명력은 R² ${r2.v2_100.r2}→${r2.v2_200.r2}로 올라가는데, 칸이 커지면 점 하나가 경계 바깥 칸으로 떨어지는 잡음이 줄기 때문입니다.`,
           "주의: 100m 격자는 통계청 EPSG:5179 정렬이라 SGIS 인구격자와 좌표로 바로 이어집니다. 격자를 더 잘게(50m) 자르는 검증은 주소 정밀도 한계로 하지 않았습니다.",
         ],
@@ -294,6 +302,31 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         vizLabel: "지도에서 100m 격자 보기",
       },
     )
+    if (px) {
+      const cc = px.crossCheck
+      const sp = px.split
+      const kinds = px.ledgerAptKinds.households
+      findings.push({
+        tag: "대리변수 검증",
+        title: "관리주체가 없어서가 아니라, 다가구·단독주택이라서입니다",
+        body: `건축물대장 "공동주택" ${n(cc.aptHhTotal)}세대 가운데 관리주체가 실제로 있는 K-apt 등록 단지는 ${n(cc.managedTotal)}세대(${Math.round((cc.managedShareOfAptHh ?? 0) * 100)}%)뿐이었습니다. 세 갈래로 나눠 다시 돌리면 다가구·일반단독 β ${signed(sp.unmanaged_units.beta)}는 그대로이고, 관리주체 없는 다세대·연립은 β ${signed(sp.apt_nokapt.beta)}(p=${pText(sp.apt_nokapt.p)})로 연관이 없습니다.`,
+        detail: [
+          `지금까지 "관리주체 있는 주거"로 세던 건축물대장 공동주택 세대에는 관리사무소가 없는 다세대 ${n(kinds["다세대"] ?? 0)}세대, 연립 ${n(kinds["연립"] ?? 0)}세대가 섞여 있었습니다. 심사에서 나온 "대리변수 아니냐"는 지적이 맞았습니다.`,
+          `국토교통부 K-apt 관리비공개 의무단지 ${px.complexes}단지(${px.asof})의 필지번호를 건축물대장과 조인해 관리주체 실측 세대 ${n(cc.managedTotal)}를 얻었습니다. 공동주택 세대가 있는 ${n(cc.aptCells)}칸 중 K-apt 단지가 있는 칸은 ${n(cc.aptCellsWithKapt)}칸입니다.`,
+          `주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록 세대)로 나눠 같은 모형을 돌리면 다가구·일반단독만 β ${signed(sp.unmanaged_units.beta)}(p=${pText(sp.unmanaged_units.p)})로 남고, 나머지 둘은 각각 β ${signed(sp.apt_nokapt.beta)}, β ${signed(sp.managed_kapt.beta)}로 0에 가깝습니다. 무관리 정의를 K-apt 미등록 전체로 넓히면 β는 ${signed(px.compare.unmanaged_v4.beta)}로 묽어집니다.`,
+          "해석: 발생과 같이 움직이는 것은 \"관리사무소 부재\" 일반이 아니라 다가구·단독주택 밀집입니다. 소유자 한 명이 여러 세입자에게 임대하는 구조, 배출 장소가 대문 앞 골목인 구조가 후보이지만 이 자료로는 어느 쪽인지 가를 수 없습니다. 대책의 겨냥점은 \"관리주체 없는 주거\"보다 \"다가구·단독 밀집 골목\"으로 좁혀야 합니다.",
+          `주의: K-apt 등록에는 자발 등록 단지가 섞여 있고, ${px.unmatched}단지는 대장과 조인되지 않았습니다. 의무관리 기준은 300세대 이상, 150세대 이상이면서 승강기나 중앙난방이 있는 단지 등입니다.`,
+        ],
+        numbers: [
+          { k: "K-apt 등록 세대 비율", v: `${Math.round((cc.managedShareOfAptHh ?? 0) * 100)}% (${n(cc.managedTotal)}/${n(cc.aptHhTotal)})` },
+          { k: "다가구·단독 β", v: `${signed(sp.unmanaged_units.beta)} (p=${pText(sp.unmanaged_units.p)})` },
+          { k: "다세대·연립 β", v: `${signed(sp.apt_nokapt.beta)} (p=${pText(sp.apt_nokapt.p)})` },
+        ],
+        takeaway: "대리변수 지적은 맞았고, 결론은 더 좁아졌습니다. 겨냥점은 다가구·단독주택 밀집 골목입니다.",
+        viz: { mode: "unm" },
+        vizLabel: "지도에서 무관리 주거 밀도 보기",
+      })
+    }
   }
 
   if (pm) {

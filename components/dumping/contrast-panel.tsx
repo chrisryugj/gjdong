@@ -38,9 +38,21 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
           k: "인구 노출",
           beforeTag: "통념",
           before: "사람이 많이 오가는 곳이니 많이 생긴다. 인구를 넣으면 결론이 바뀔 것이다.",
-          after: `서울시 250m 생활인구를 넣어도 관리주체 없는 주거 β ${s(r2.v2_100.coef.unmanaged_units.beta)} 그대로. 생활인구 자체는 β ${s(r2.v2_100.coef.living_pop.beta)}(p=${r2.v2_100.coef.living_pop.p.toFixed(3)}).`,
+          after: r2.exposure
+            ? `생활인구(체류)와 상주인구(SGIS 등록센서스)를 같이 넣어도 관리주체 없는 주거 β ${s(r2.exposure.compare.both.unmanaged.beta)} 유지. 생활인구 β ${s(r2.exposure.compare.both.living_pop.beta)}, 상주인구 β ${s(r2.exposure.compare.both.resident_pop.beta)}(p=${r2.exposure.compare.both.resident_pop.p.toFixed(2)}).`
+            : `서울시 250m 생활인구를 넣어도 관리주체 없는 주거 β ${s(r2.v2_100.coef.unmanaged_units.beta)} 그대로. 생활인구 자체는 β ${s(r2.v2_100.coef.living_pop.beta)}(p=${r2.v2_100.coef.living_pop.p.toFixed(3)}).`,
           chart: "beta",
         },
+        ...(r2.proxyCheck
+          ? [
+              {
+                k: "관리주체 대리변수",
+                beforeTag: "초기 분석" as const,
+                before: "건축물대장 공동주택은 관리주체가 있고, 다가구·단독은 없다. 관리주체 부재가 발생을 설명한다.",
+                after: `K-apt 등록 세대는 대장 공동주택의 ${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%뿐. 세 갈래로 나누면 다가구·단독 β ${s(r2.proxyCheck.split.unmanaged_units.beta)}만 남고 관리주체 없는 다세대·연립은 β ${s(r2.proxyCheck.split.apt_nokapt.beta)}로 연관 없음. 겨냥점은 다가구·단독 밀집.`,
+              },
+            ]
+          : []),
         {
           k: "의류수거함",
           beforeTag: "통념",

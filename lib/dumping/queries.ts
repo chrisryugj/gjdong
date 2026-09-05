@@ -12,7 +12,12 @@ export const OUTCOMES = new Set([OUTCOME, OUTCOME_CELL])
 const FACTOR_RELS = new Set(["predicts", "contributes_to", "constrains"])
 const VERDICT_RELS = new Set(["lowers", "stabilizes"])
 // 도로 형태·생활인구(노출)는 관측 통제용이지 개입으로 바꿀 대상이 아니다 — 공백으로 세지 않되 답에는 표시한다
-export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist", "con-living-pop"])
+export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist", "con-living-pop", "con-resident-pop", "con-managed-kapt"])
+const STRUCTURAL_NOTE: Record<string, string> = {
+  "con-living-pop": "노출(체류 인구) 통제변수",
+  "con-resident-pop": "노출(상주 인구) 통제변수",
+  "con-managed-kapt": "관리주체 실측(K-apt) 대조변수, 연관 없음",
+}
 
 export interface CqHit {
   id: string
@@ -45,7 +50,7 @@ export function cqUntargetedFactors(graph: OntoGraph): CqResult {
       return {
         id,
         note: STRUCTURAL_FACTORS.has(id)
-          ? `${beta} · ${id === "con-living-pop" ? "노출(체류 인구) 통제변수" : "도로 형태 통제변수"}, 개입 대상 아님`
+          ? `${beta} · ${STRUCTURAL_NOTE[id] ?? "도로 형태 통제변수"}, 개입 대상 아님`
           : `${beta} · 겨냥하는 개입 없음`,
       }
     })

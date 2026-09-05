@@ -210,7 +210,54 @@ export interface RegressionV2 {
   v2_100: { n: number; r2: number; coef: Record<string, RegCoef> }
   v2_100_complaints: { r2: number; coef: Record<string, RegCoef> }
   v2_200: { n: number; r2: number; coef: Record<string, RegCoef> }
-  gridSensitivity: { base: Record<string, boolean>; v2: Record<string, boolean>; note: string }
+  gridSensitivity: { base: Record<string, boolean>; v2: Record<string, boolean>; v3?: Record<string, boolean>; v4?: Record<string, boolean>; note: string }
+  // 3라운드 — 노출 변수 비교: 생활인구만(v2_100)·상주인구만(v2r_100)·둘 다(v3_100)
+  exposure?: {
+    asof: string
+    resident_source: string
+    v2r_100: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v3_100: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v3_100_complaints: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v3_200: { n: number; r2: number; coef: Record<string, RegCoef> }
+    compare: {
+      living_only: { unmanaged: RegCoef; living_pop: RegCoef; r2: number }
+      resident_only: { unmanaged: RegCoef; resident_pop: RegCoef; r2: number }
+      both: { unmanaged: RegCoef; living_pop: RegCoef; resident_pop: RegCoef; r2: number }
+    }
+    vif: Record<string, number>
+    corrLivingResident: number
+    note: string
+  }
+  // 3라운드 — 대리변수 검증: K-apt 등록 세대(관리주체 실측)로 관리/무관리 재정의
+  proxyCheck?: {
+    asof: string
+    source: string
+    definition: string
+    crossCheck: {
+      aptCells: number
+      aptCellsWithKapt: number
+      aptCellsNoKapt: number
+      kaptCellsNoApt: number
+      aptHhTotal: number
+      managedTotal: number
+      managedShareOfAptHh: number | null
+      unmanagedUnitsTotal: number
+      corrLog: number | null
+      aptHhNotInKapt: number
+      aptHhNotInKaptShare: number | null
+    }
+    ledgerAptKinds: { buildings: Record<string, number>; households: Record<string, number> }
+    tiers: Record<string, number>
+    complexes: number
+    unmatched: number
+    v4_100: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v4_100_complaints: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v4_200: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v4b_100: { n: number; r2: number; coef: Record<string, RegCoef> }
+    v4b_100_complaints: { n: number; r2: number; coef: Record<string, RegCoef> }
+    split: { unmanaged_units: RegCoef; apt_nokapt: RegCoef; managed_kapt: RegCoef; r2: number; note: string }
+    compare: { unmanaged_proxy: RegCoef; apt_hh_proxy: RegCoef; unmanaged_v4: RegCoef; managed_kapt: RegCoef; r2_v3: number; r2_v4: number }
+  }
 }
 
 // 조치 대장 (data/dumping/interventions.json — 인증 API /api/dumping/data/interventions 로 서빙)

@@ -83,13 +83,39 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
           answer: `됩니다. 자료마다 칸에 넣는 방식이 다르고, 칸 크기를 바꿔도 결론이 같았습니다.
 
 - 민원·과태료는 건별 주소를 좌표로 바꿔 그 점이 속한 칸에, 건축물대장은 대지 지번 좌표로, 도로·건물은 OSM 선·면을 칸 경계로 잘라 넣습니다
-- 등록인구는 동 단위뿐이라 격자 회귀에 넣지 않았고, 대신 서울시 250m 격자 생활인구를 면적 비례로 나눠 노출 변수로 썼습니다
+- 인구는 서울시 250m 격자 생활인구(면적 비례 배분)와 SGIS 100m 격자 상주인구(2024 등록센서스) 두 가지를 노출 변수로 넣었습니다
 - 칸을 200m로 네 배 키워 다시 적합하면 관리주체 없는 주거 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}로 방향과 유의성이 그대로입니다(R² ${r2.v2_100.r2}→${r2.v2_200.r2})
 
 격자는 통계청 좌표계(EPSG:5179)에 맞춰 SGIS 인구격자·서울시 250m 격자와 좌표로 바로 이어집니다.`,
           viz: { mode: "overlay" },
           vizNote: "지도의 칸 하나가 100m입니다. 칸 위에 마우스를 올리면 그 칸의 민원·과태료·무관리주거·생활인구가 보입니다.",
         },
+        ...(r2.exposure
+          ? [
+              {
+                q: "등록인구를 넣으면 결론이 바뀌나?",
+                hint: "상주인구도 넣었습니다. 바뀌지 않습니다",
+                answer: `바뀌지 않습니다. 국가데이터처 SGIS 100m 격자 총인구(2024 등록센서스)를 같은 칸에 붙여 회귀에 넣었습니다. 상주인구만 넣으면 β ${signed(r2.exposure.compare.resident_only.resident_pop.beta)}(${pText(r2.exposure.compare.resident_only.resident_pop.p)}), 생활인구와 같이 넣으면 β ${signed(r2.exposure.compare.both.resident_pop.beta)}(${pText(r2.exposure.compare.both.resident_pop.p)})로 사는 사람 수 자체는 연관이 없었습니다. 관리주체 없는 주거는 β ${signed(r2.exposure.compare.both.unmanaged.beta)}로 그대로입니다.
+
+머무는 사람(생활인구)과 사는 사람(상주인구)은 상관이 ${r2.exposure.corrLivingResident.toFixed(2)}밖에 안 돼 서로 다른 정보를 담고 있고, 같이 넣어도 공선성 문제(VIF 최대 ${Math.max(...Object.values(r2.exposure.vif)).toFixed(1)})는 없습니다. 다만 "인구를 통제했다"고 단정하기보다 "두 종류 인구 노출을 넣어도 결론이 같다"가 정확한 말입니다. 격자 통계에는 셀당 최대 ±7명의 비밀보호 노이즈가 들어 있습니다.`,
+                viz: { mode: "lp" as const },
+                vizNote: "지도 바탕은 생활인구입니다. 상주인구는 회귀 변수로만 썼습니다.",
+              },
+            ]
+          : []),
+        ...(r2.proxyCheck
+          ? [
+              {
+                q: "다세대·연립도 관리주체가 없는데, 왜 다가구만 문제인가?",
+                hint: "K-apt로 나눠 보니 연관은 다가구·단독에만 있었습니다",
+                answer: `좋은 질문이고, 이번에 확인한 내용입니다. 건축물대장 "공동주택" ${n(r2.proxyCheck.crossCheck.aptHhTotal)}세대 가운데 관리주체가 실제로 있는 K-apt 등록 단지는 ${n(r2.proxyCheck.crossCheck.managedTotal)}세대(${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%)뿐이었습니다. 나머지는 관리사무소 없는 다세대·연립·소형 공동주택입니다.
+
+주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록)로 나눠 같은 모형을 돌리면, 다가구·일반단독만 β ${signed(r2.proxyCheck.split.unmanaged_units.beta)}(${pText(r2.proxyCheck.split.unmanaged_units.p)})로 남고 관리주체 없는 다세대·연립은 β ${signed(r2.proxyCheck.split.apt_nokapt.beta)}(${pText(r2.proxyCheck.split.apt_nokapt.p)})로 연관이 없습니다. 그래서 "관리주체가 없어서"라는 설명은 너무 넓고, "다가구·단독주택 밀집"이 이 자료가 뒷받침하는 범위입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 가를 수 없습니다.`,
+                viz: { mode: "unm" as const },
+                vizNote: "지도에 무관리 주거 밀도를 표시했습니다. 다가구·단독 밀집 칸이 진하게 보입니다.",
+              },
+            ]
+          : []),
         {
           q: "다른 구도 앱 때문에 민원이 늘었나?",
           hint: "서울 전체 앱 청소 신고가 해마다 증가",
