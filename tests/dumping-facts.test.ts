@@ -44,7 +44,7 @@ test("collinearRange·sampleSizes — 문장에 박혀 있던 수치를 그래�
   assert.strictEqual(sz.gridN, 1062)
   assert.strictEqual(sz.ledgerRows, 24520)
   assert.strictEqual(sz.dongN, 15)
-  assert.strictEqual(map!.meta?.reproduce.hashes, 110)
+  assert.strictEqual(map!.meta?.reproduce.hashes, 112)
   assert.strictEqual(map!.meta?.binSites, 64)
 })
 

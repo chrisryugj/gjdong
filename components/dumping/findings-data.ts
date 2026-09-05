@@ -305,6 +305,8 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
     if (px) {
       const cc = px.crossCheck
       const sp = px.split
+      const ac = cc.apiCompare
+      const mand = (cc.mandatory ?? {}) as Record<string, number>
       const kinds = px.ledgerAptKinds.households
       findings.push({
         tag: "대리변수 검증",
@@ -316,6 +318,11 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록 세대)로 나눠 같은 모형을 돌리면 다가구·일반단독만 β ${signed(sp.unmanaged_units.beta)}(p=${pText(sp.unmanaged_units.p)})로 남고, 나머지 둘은 각각 β ${signed(sp.apt_nokapt.beta)}, β ${signed(sp.managed_kapt.beta)}로 0에 가깝습니다. 무관리 정의를 K-apt 미등록 전체로 넓히면 β는 ${signed(px.compare.unmanaged_v4.beta)}로 묽어집니다.`,
           "해석: 발생과 같이 움직이는 것은 \"관리사무소 부재\" 일반이 아니라 다가구·단독주택 밀집입니다. 소유자 한 명이 여러 세입자에게 임대하는 구조, 배출 장소가 대문 앞 골목인 구조가 후보이지만 이 자료로는 어느 쪽인지 가를 수 없습니다. 대책의 겨냥점은 \"관리주체 없는 주거\"보다 \"다가구·단독 밀집 골목\"으로 좁혀야 합니다.",
           `주의: K-apt 등록에는 자발 등록 단지가 섞여 있고, ${px.unmatched}단지는 대장과 조인되지 않았습니다. 의무관리 기준은 300세대 이상, 150세대 이상이면서 승강기나 중앙난방이 있는 단지 등입니다.`,
+          ...(ac && px.apiSensitivity
+            ? [
+                `외부 대조(4라운드): 국토교통부 공동주택 기본정보 API가 주는 단지별 세대수를 대장 조인값과 하나씩 맞춰 보니, 세대수가 있는 ${ac.complexesWithApi - ac.apiHouseholdsZero}단지 중 ${ac.exact}단지가 정확히 같고 ${ac.over5pct}단지가 5% 넘게 달랐습니다(최대 ${n(ac.maxAbsDiff ?? 0)}세대, 한 필지에 여러 단지가 얹힌 경우). 의무관리 기준을 채운 단지 ${mand.mandatory ?? 0}곳, 자발 등록 ${mand.voluntary ?? 0}곳입니다. API 세대수로 바꿔 끼워도 다가구·일반단독 β ${signed(px.apiSensitivity.unmanaged_units.beta)}, K-apt 등록 β ${signed(px.apiSensitivity.managed_kapt.beta)}로 결론이 같습니다.`,
+              ]
+            : []),
         ],
         numbers: [
           { k: "K-apt 등록 세대 비율", v: `${Math.round((cc.managedShareOfAptHh ?? 0) * 100)}% (${n(cc.managedTotal)}/${n(cc.aptHhTotal)})` },
@@ -337,7 +344,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       body: `최근 12개월 신축 허가 가운데 소형 공동주택(150세대 미만, 의무관리 기준 미달)이 ${pm.guTotal.smallAptPermits12m}건 ${n(pm.guTotal.smallAptUnits12m)}세대입니다. ${top3.map((r) => r.dong.replace(/동$/, "")).join("·")}에 몰려 있습니다.`,
       detail: [
         `건축HUB 인허가 실측(${pm.asof} 조회) 결과, 사용승인 전 진행 중인 허가 ${n(pm.guTotal.inProgress)}건 가운데 최근 12개월 신축만 봐도 소형 공동주택 ${pm.guTotal.smallAptPermits12m}건 ${n(pm.guTotal.smallAptUnits12m)}세대에 단독·다가구 ${pm.guTotal.detachedPermits12m}건이 더해집니다. ${top3.map((r) => `${r.dong} ${n(r.smallAptUnits)}세대`).join(", ")} 순입니다.`,
-        "이 소형 주택들은 공동주택관리법 의무관리 기준(150세대)에 못 미쳐 관리사무소와 경비, 공동 배출장이 없는 경우가 많습니다. 가장 강한 예측변수인 \"관리주체 없는 주거\"와 같은 성격의 주택 물량이 계속 늘고 있다는 뜻입니다.",
+        "이 소형 주택들은 공동주택관리법 의무관리 기준(150세대)에 못 미쳐 관리사무소와 경비, 공동 배출장이 없는 경우가 많습니다. 다만 대리변수 검증 카드에서 K-apt 미등록 공동주택(다세대·연립·소형)은 과태료와 연관이 없었으므로, 이 물량이 곧 발생 증가를 뜻하지는 않습니다. 겨냥점과 직접 닿는 것은 단독·다가구 허가 쪽입니다.",
         "활용: 준공과 입주 시점에 맞춰 배출안내를 동봉하거나 공동배출을 협의할 후보 지역을 미리 고를 수 있습니다. 인과 예측이 아니라 주거 구조가 어느 쪽으로 움직이는지를 읽는 전망입니다.",
       ],
       numbers: [

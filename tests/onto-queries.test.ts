@@ -20,6 +20,17 @@ import {
 const graph = graphJson as unknown as OntoGraph
 const ids = (r: { hits: { id: string }[] }) => r.hits.map((h) => h.id).sort()
 
+test("4라운드 근거 — K-apt API 대조·공간 모형 노드가 다가구·단독 변수를 뒷받침한다", () => {
+  for (const id of ["ev-kapt-api-check", "ev-spatial-models"]) {
+    assert.ok(graph.nodes.some((n) => n.id === id), `${id} 없음`)
+    assert.ok(graph.edges.some((e) => e.f === id && e.rel === "supports" && e.t === "cov-unmanaged"), `${id} → cov-unmanaged supports 없음`)
+    assert.ok(graph.edges.some((e) => e.t === id && (e.rel === "contains" || e.rel === "derived_from")), `${id} 출처 계보 없음`)
+  }
+  const api = graph.nodes.find((n) => n.id === "ev-kapt-api-check")!
+  assert.match(String(api.props?.summary), /정확히 일치 \d+/)
+  assert.doesNotMatch(String(api.props?.summary), /미수신/)
+})
+
 test("CQ1 대책 없는 요인 — 상권 밀집만 실제 공백, 도로 형태·생활인구·상주인구 노출·K-apt 대조는 통제변수", () => {
   const r = cqUntargetedFactors(graph)
   assert.deepStrictEqual(ids(r), ["con-alley", "con-arterial-dist", "con-commercial", "con-living-pop", "con-managed-kapt", "con-resident-pop"])

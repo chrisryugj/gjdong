@@ -245,6 +245,23 @@ export interface RegressionV2 {
       corrLog: number | null
       aptHhNotInKapt: number
       aptHhNotInKaptShare: number | null
+      // 4라운드 — 기본정보 API(15058453) 세대수와 대장 조인값의 단지 단위 대조, 의무관리 분류
+      apiCompare?: {
+        complexesWithApi: number
+        apiHouseholdsZero: number
+        exact: number
+        within5pct: number
+        over5pct: number
+        ledgerTotal: number
+        apiTotal: number
+        medianAbsDiff: number | null
+        maxAbsDiff: number | null
+        unmatchedApiHouseholds: number
+        top: { name: string | null; ledger: number; api: number; diff: number }[]
+        note: string
+      }
+      mandatory?: Record<string, number | string>
+      managedApiTotal?: number
     }
     ledgerAptKinds: { buildings: Record<string, number>; households: Record<string, number> }
     tiers: Record<string, number>
@@ -255,6 +272,16 @@ export interface RegressionV2 {
     v4_200: { n: number; r2: number; coef: Record<string, RegCoef> }
     v4b_100: { n: number; r2: number; coef: Record<string, RegCoef> }
     v4b_100_complaints: { n: number; r2: number; coef: Record<string, RegCoef> }
+    // 4라운드 — API 세대수를 격자에 안분해 관리 세대를 바꿔 끼운 v4b
+    apiSensitivity?: {
+      note: string
+      source: { id: string; name: string; org: string; fetched: string; complexes: number } | null
+      n: number
+      r2: number
+      unmanaged_units: RegCoef
+      apt_nokapt: RegCoef
+      managed_kapt: RegCoef
+    } | null
     split: { unmanaged_units: RegCoef; apt_nokapt: RegCoef; managed_kapt: RegCoef; r2: number; note: string }
     compare: { unmanaged_proxy: RegCoef; apt_hh_proxy: RegCoef; unmanaged_v4: RegCoef; managed_kapt: RegCoef; r2_v3: number; r2_v4: number }
   }

@@ -110,7 +110,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
                 hint: "K-apt로 나눠 보니 연관은 다가구·단독에만 있었습니다",
                 answer: `좋은 질문이고, 이번에 확인한 내용입니다. 건축물대장 "공동주택" ${n(r2.proxyCheck.crossCheck.aptHhTotal)}세대 가운데 관리주체가 실제로 있는 K-apt 등록 단지는 ${n(r2.proxyCheck.crossCheck.managedTotal)}세대(${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%)뿐이었습니다. 나머지는 관리사무소 없는 다세대·연립·소형 공동주택입니다.
 
-주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록)로 나눠 같은 모형을 돌리면, 다가구·일반단독만 β ${signed(r2.proxyCheck.split.unmanaged_units.beta)}(${pText(r2.proxyCheck.split.unmanaged_units.p)})로 남고 관리주체 없는 다세대·연립은 β ${signed(r2.proxyCheck.split.apt_nokapt.beta)}(${pText(r2.proxyCheck.split.apt_nokapt.p)})로 연관이 없습니다. 그래서 "관리주체가 없어서"라는 설명은 너무 넓고, "다가구·단독주택 밀집"이 이 자료가 뒷받침하는 범위입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 가를 수 없습니다.`,
+주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록)로 나눠 같은 모형을 돌리면, 다가구·일반단독만 β ${signed(r2.proxyCheck.split.unmanaged_units.beta)}(${pText(r2.proxyCheck.split.unmanaged_units.p)})로 남고 관리주체 없는 다세대·연립은 β ${signed(r2.proxyCheck.split.apt_nokapt.beta)}(${pText(r2.proxyCheck.split.apt_nokapt.p)})로 연관이 없습니다. 그래서 "관리주체가 없어서"라는 설명은 너무 넓고, "다가구·단독주택 밀집"이 이 자료가 뒷받침하는 범위입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 가를 수 없습니다.${r2.proxyCheck.apiSensitivity ? ` 국토교통부 기본정보 API의 단지별 세대수로 바꿔 끼워도 다가구·일반단독 β ${signed(r2.proxyCheck.apiSensitivity.unmanaged_units.beta)}로 같은 답입니다.` : ""}`,
                 viz: { mode: "unm" as const },
                 vizNote: "지도에 무관리 주거 밀도를 표시했습니다. 다가구·단독 밀집 칸이 진하게 보입니다.",
               },
