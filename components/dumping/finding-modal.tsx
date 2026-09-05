@@ -3,7 +3,7 @@
 import type { Finding } from "./findings-data"
 import ModalShell from "./modal-shell"
 
-// 핵심 발견 상세 모달 — 컴팩트한 카드형, 스크롤은 본문만, 통계 용어 쉬운 풀이 동봉
+// 핵심 발견 상세 모달. 컴팩트한 카드형, 스크롤은 본문만, 통계 용어 쉬운 풀이 동봉
 
 const STAT_HELP: [string, string][] = [
   ["β(베타)", "0보다 크면 이 조건이 큰 곳일수록 무단투기도 많다는 뜻입니다. 음수면 반대입니다."],
@@ -52,7 +52,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
         ) : undefined
       }
     >
-      {/* 한 줄 결론 — 의사결정 포인트를 맨 위에 */}
+      {/* 한 줄 결론. 의사결정 포인트를 맨 위에 */}
       <p className="mb-4 rounded-lg bg-[#0c6155]/10 px-3 py-2.5 text-[15.5px] font-bold leading-snug text-[#0a4a41]">
         {finding.takeaway}
       </p>
@@ -69,7 +69,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
 
       <div className="flex flex-col gap-3">
         {finding.detail.map((p, i) => {
-          // "해석:"은 의사결정 포인트, "주의:"는 오독 방지 — 본문과 구분되게 하이라이트
+          // "해석:"은 의사결정 포인트, "주의:"는 오독 방지. 본문과 구분되게 하이라이트
           if (p.startsWith("해석:"))
             return (
               <p key={i} className="rounded-lg bg-[#0c6155]/8 px-3 py-2 text-[15px] font-semibold leading-[1.7] text-[#0a4a41]">

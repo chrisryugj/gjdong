@@ -6,7 +6,7 @@ import { typeLabel } from "@/lib/dumping/labels"
 import { runCompetencyQuestions, type CqResult } from "@/lib/dumping/queries"
 import { validateGraph } from "@/lib/dumping/schema"
 
-// 온톨로지 탭 "온톨로지에 묻기" — 역량 질문 7개를 그래프 위에서 그 자리에서 계산해 보여준다.
+// 온톨로지 탭 "온톨로지에 묻기". 역량 질문 7개를 그래프 위에서 그 자리에서 계산해 보여준다.
 // "표로는 못 던지는 질문"이라는 온톨로지의 존재 이유를 화면에서 증명하는 구간. 항목을 누르면 그 노드가 선택된다.
 
 interface Props {
@@ -90,7 +90,7 @@ export default function OntoQueries({ graph, onSelect }: Props) {
           )
         })}
       </div>
-      {/* 스키마 검증 — 도메인·레인지·철회 규약을 그래프가 지키는지. 오류 0이어야 정상 */}
+      {/* 스키마 검증. 도메인·레인지·철회 규약을 그래프가 지키는지. 오류 0이어야 정상 */}
       <p className="mt-2 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
         스키마 검증: 오류 {errors.length}건 · 주의 {warns.length}건
         {warns.length > 0 && ` (${warns.map((w) => `${w.ref}: ${w.msg}`).join(" · ")})`}

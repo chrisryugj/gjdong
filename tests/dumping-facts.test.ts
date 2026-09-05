@@ -11,23 +11,23 @@ import { applyErrata, EDGE_ERRATA } from "../lib/dumping/errata"
 const MAP_PATH = new URL("../data/dumping/map.json", import.meta.url)
 const map: DumpingMapData | null = existsSync(MAP_PATH) ? (JSON.parse(readFileSync(MAP_PATH, "utf8")) as DumpingMapData) : null
 const graph = graphJson as unknown as OntoGraph
-const withMap = { skip: map ? false : "data/dumping/map.json 없음 — `npm run dumping:decrypt`" }
+const withMap = { skip: map ? false : "data/dumping/map.json 없음. `npm run dumping:decrypt`" }
 
-test("channelGrowth — 실데이터: 마지막 해가 부분 연도면 연환산하고 기준을 문장으로 돌려준다", withMap, () => {
+test("channelGrowth. 실데이터: 마지막 해가 부분 연도면 연환산하고 기준을 문장으로 돌려준다", withMap, () => {
   const g = channelGrowth(map!)
   assert.strictEqual(g.baseYear, "2024")
   assert.strictEqual(g.lastYear, "2026")
   assert.strictEqual(g.annualized, true)
   assert.match(g.basis, /연환산/)
-  // README 정본 2.10 / 2.97 / 1.10(반올림 1.11) — 과태료는 오히려 감소(0.53)
+  // README 정본 2.10 / 2.97 / 1.10(반올림 1.11). 과태료는 오히려 감소(0.53)
   assert.strictEqual(g.total, 2.1)
   assert.strictEqual(g.app, 2.97)
   assert.ok(Math.abs(g.fixed - 1.11) < 0.011, `fixed=${g.fixed}`)
-  assert.ok(g.fines < 0.6, `fines=${g.fines} — "과태료 1.1배"는 데이터와 맞지 않는다`)
+  assert.ok(g.fines < 0.6, `fines=${g.fines}. "과태료 1.1배"는 데이터와 맞지 않는다`)
   assert.strictEqual(finesDirection(g), "줄었")
 })
 
-test("적발 경로 — 과태료 대부분이 신고 유래(순찰 17%)이고, 신고와 독립인 순찰 적발도 절반 이하로 줄었다", withMap, () => {
+test("적발 경로. 과태료 대부분이 신고 유래(순찰 17%)이고, 신고와 독립인 순찰 적발도 절반 이하로 줄었다", withMap, () => {
   const g = channelGrowth(map!)
   assert.strictEqual(g.patrolSharePct, 17)
   assert.ok(g.finesPatrol < 0.6 && g.finesReported < 0.6, `patrol=${g.finesPatrol} reported=${g.finesReported}`)
@@ -38,7 +38,7 @@ test("적발 경로 — 과태료 대부분이 신고 유래(순찰 17%)이고, 
   assert.ok(fs.includes("순찰"), "순찰 적발 계열 언급 없음")
 })
 
-test("collinearRange·sampleSizes — 문장에 박혀 있던 수치를 그래프·데이터에서 읽는다", withMap, () => {
+test("collinearRange·sampleSizes. 문장에 박혀 있던 수치를 그래프·데이터에서 읽는다", withMap, () => {
   assert.strictEqual(collinearRange(graph), "0.85~0.97")
   const sz = sampleSizes(map!, graph)
   assert.strictEqual(sz.gridN, 1062)
@@ -48,7 +48,7 @@ test("collinearRange·sampleSizes — 문장에 박혀 있던 수치를 그래�
   assert.strictEqual(map!.meta?.binSites, 64)
 })
 
-test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", withMap, () => {
+test("channelGrowth. 완결 연도끼리면 연환산하지 않는다", withMap, () => {
   const synthetic = {
     ...map!,
     yearly: {
@@ -71,7 +71,7 @@ test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", withM
   assert.strictEqual(fmtRatio(g.total), "1.50배")
 })
 
-test("periodOf·partialYearSuffix — 마지막 달이 12월 미만일 때만 꼬리표", withMap, () => {
+test("periodOf·partialYearSuffix. 마지막 달이 12월 미만일 때만 꼬리표", withMap, () => {
   const p = periodOf(map!.yearly.complaintsMonthly)
   assert.strictEqual(p.from, "2024-01")
   assert.strictEqual(p.lastMonth, 8)
@@ -79,14 +79,14 @@ test("periodOf·partialYearSuffix — 마지막 달이 12월 미만일 때만 �
   assert.strictEqual(partialYearSuffix(p, "2025"), "")
 })
 
-test("regressionBetas — 철회된 DID 계수는 빠지고 |β| 내림차순", () => {
+test("regressionBetas. 철회된 DID 계수는 빠지고 |β| 내림차순", () => {
   const b = regressionBetas(graph)
   assert.ok(!b.some((x) => x.id === "cov-did-cctv"))
   assert.strictEqual(b[0].id, "cov-unmanaged")
   for (let i = 1; i < b.length; i++) assert.ok(Math.abs(b[i - 1].beta) >= Math.abs(b[i].beta))
 })
 
-test("buildFindings — 14장(서울 데이터 3장·K-apt 대리변수 검증 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
+test("buildFindings. 14장(서울 데이터 3장·K-apt 대리변수 검증 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
   const fs = buildFindings(map!, graph)
   assert.strictEqual(fs.length, 14)
   assert.ok(fs.some((f) => f.tag === "격자 검증") && fs.some((f) => f.tag === "통념 검증") && fs.some((f) => f.tag === "노출 통제") && fs.some((f) => f.tag === "대리변수 검증"))
@@ -100,11 +100,11 @@ test("buildFindings — 14장(서울 데이터 3장·K-apt 대리변수 검증 �
   assert.ok(all.includes("0.53배"), "과태료 배율(0.53배)이 문장에 없다")
   assert.ok(!all.includes("인구·상권·도로 형태를 통제"), "회귀식에 없는 인구 통제를 주장한다")
   assert.ok(all.includes("대리변수"))
-  // 카드 제목은 대시보드가 활성 발견을 title로 식별한다 — 중복 금지
+  // 카드 제목은 대시보드가 활성 발견을 title로 식별한다. 중복 금지
   assert.strictEqual(new Set(fs.map((f) => f.title)).size, fs.length)
 })
 
-test("applyErrata — 정오표가 비어 있으면 그래프를 그대로 돌려주고, 정본이 고쳐진 ERR-001은 데이터에 남아 있지 않다", () => {
+test("applyErrata. 정오표가 비어 있으면 그래프를 그대로 돌려주고, 정본이 고쳐진 ERR-001은 데이터에 남아 있지 않다", () => {
   assert.strictEqual(EDGE_ERRATA.length, 0)
   const fixed = applyErrata(graph)
   assert.strictEqual(fixed, graph)

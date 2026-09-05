@@ -6,7 +6,7 @@ import { CLASSES, RELATIONS } from "@/lib/dumping/schema"
 import { SPACE_COLOR, SPACE_KO } from "./ontology-graph"
 import ModalShell from "./modal-shell"
 
-// 온톨로지 스키마 — 클래스 14·관계 22의 정의와 도메인→레인지. 그래프가 무엇을 뜻하는지 한 장으로.
+// 온톨로지 스키마. 클래스 14·관계 22의 정의와 도메인→레인지. 그래프가 무엇을 뜻하는지 한 장으로.
 // 정의는 lib/dumping/schema.ts, 표시명은 labels.ts가 정본이라 여기서는 그리기만 한다.
 
 const KIND_KO: Record<string, string> = {

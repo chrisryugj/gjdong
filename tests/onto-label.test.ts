@@ -14,15 +14,15 @@ test("기본 줌에서 정면(z<0) 노드는 전부 라벨이 보인다", () => 
   const front = Z_SAMPLES.filter((z) => z < 0)
   const shown = front.filter((z) => labelVisible(z, DEFAULT_ZOOM, false))
   assert.strictEqual(shown.length, front.length,
-    `정면 ${front.length}개 중 ${shown.length}개만 라벨 표시 — 기본 뷰에서 라벨 소실`)
+    `정면 ${front.length}개 중 ${shown.length}개만 라벨 표시. 기본 뷰에서 라벨 소실`)
 })
 
 test("어떤 줌 레벨에서도 비포커스 라벨이 전멸하지 않는다 (줌아웃 라벨 소실 버그)", () => {
-  // 휠 줌 클램프 [0.5, 3.5] 전 구간 스캔 — 휠 1틱 축소(×0.78) 포함
+  // 휠 줌 클램프 [0.5, 3.5] 전 구간 스캔. 휠 1틱 축소(×0.78) 포함
   for (let k = 0.5; k <= 3.5; k += 0.02) {
     const n = visibleCount(k)
     assert.ok(n >= Math.floor(Z_SAMPLES.length * 0.3),
-      `k=${k.toFixed(2)}에서 라벨 ${n}/${Z_SAMPLES.length}개 — 줌에 따라 라벨이 사라진다`)
+      `k=${k.toFixed(2)}에서 라벨 ${n}/${Z_SAMPLES.length}개. 줌에 따라 라벨이 사라진다`)
   }
 })
 
@@ -40,7 +40,7 @@ test("겹치는 라벨은 앞쪽 하나만 남는다", () => {
   // 떨어져 있으면 둘 다
   const s2 = declutterLabels([box("a", 100, 100), box("b", 100, 200)])
   assert.strictEqual(s2.size, 2)
-  // keep(포커스·이웃)은 겹쳐도 항상 유지되고 자리를 선점 — 겹친 일반 라벨이 양보한다
+  // keep(포커스·이웃)은 겹쳐도 항상 유지되고 자리를 선점. 겹친 일반 라벨이 양보한다
   const s3 = declutterLabels([box("plain", 100, 100), box("focus", 105, 102, true)])
   assert.ok(s3.has("focus") && !s3.has("plain"))
   // keep끼리는 겹쳐도 둘 다 유지
@@ -50,5 +50,5 @@ test("겹치는 라벨은 앞쪽 하나만 남는다", () => {
 
 test("기본 줌이 확대돼 그래프가 캔버스를 채운다 (정면 중앙 스케일 ≥ 1.2)", () => {
   assert.ok(projScale(0, DEFAULT_ZOOM) >= 1.2,
-    `projScale(0, ${DEFAULT_ZOOM}) = ${projScale(0, DEFAULT_ZOOM)} — 기본 보기가 너무 작다`)
+    `projScale(0, ${DEFAULT_ZOOM}) = ${projScale(0, DEFAULT_ZOOM)}. 기본 보기가 너무 작다`)
 })

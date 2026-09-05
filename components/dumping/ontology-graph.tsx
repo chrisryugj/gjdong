@@ -5,7 +5,7 @@ import type { OntoGraph } from "@/lib/dumping/types"
 import { relLabel } from "@/lib/dumping/labels"
 import { DEFAULT_ZOOM, declutterLabels, labelVisible, projScale } from "./onto-view"
 
-// 3D 온톨로지 그래프 — 의존성 없이 SVG로 직접 구현.
+// 3D 온톨로지 그래프. 의존성 없이 SVG로 직접 구현.
 // KPI 허브를 원점에 두고 BFS 깊이 = 구면 셸 반지름으로 배치(피보나치 구면 분포),
 // 드래그 = 회전(yaw/pitch), 휠·버튼 = 줌, 가만두면 천천히 자동 회전. 노드가 수십 개라 SVG로 충분.
 
@@ -88,7 +88,7 @@ function layout3d(graph: OntoGraph): Map<string, P3> {
       (a, b) => spaceOrder.indexOf(a.space) - spaceOrder.indexOf(b.space) || a.id.localeCompare(b.id),
     )
     sorted.forEach((n, i) => {
-      // 피보나치 구면 — i를 [-1,1] 위도로 펴고 골든앵글로 경도 회전
+      // 피보나치 구면. i를 [-1,1] 위도로 펴고 골든앵글로 경도 회전
       const t = sorted.length === 1 ? 0 : (i / (sorted.length - 1)) * 2 - 1
       const lat = Math.asin(t * 0.92) // 극점 뭉침 완화
       const lon = i * golden + d * 1.1
@@ -127,7 +127,7 @@ interface OntologyGraphProps {
 export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyGraphProps) {
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: DEFAULT_ZOOM })
-  const [legendOpen, setLegendOpen] = useState(false) // 모바일에서만 의미 — 데스크톱은 항상 펼침
+  const [legendOpen, setLegendOpen] = useState(false) // 모바일에서만 의미. 데스크톱은 항상 펼침
   const dragRef = useRef<{ sx: number; sy: number; yaw: number; pitch: number; moved: boolean } | null>(null)
   const interactedRef = useRef(false)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -174,7 +174,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     return m
   }, [graph])
 
-  // 자동 회전 — 사용자가 조작하거나 노드를 보고 있을 때는 멈춘다. 움직임 줄이기 설정이면 아예 돌리지 않는다
+  // 자동 회전. 사용자가 조작하거나 노드를 보고 있을 때는 멈춘다. 움직임 줄이기 설정이면 아예 돌리지 않는다
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
     const timer = setInterval(() => {
@@ -186,7 +186,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
 
   const zoomBy = (f: number) => setView((v) => ({ ...v, k: clampZoom(v.k * f) }))
 
-  // wheel 줌 — passive 리스너로는 preventDefault가 안 먹어 native로 등록.
+  // wheel 줌. passive 리스너로는 preventDefault가 안 먹어 native로 등록.
   // svg는 graph가 온 뒤에야 마운트되므로 graph를 의존성에 둔다 (빈 deps면 늦게 온 그래프에 휠이 안 붙는다)
   useEffect(() => {
     const el = svgRef.current
@@ -223,7 +223,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     .sort((a, b) => b.z - a.z)
   const byId = new Map(projected.map((p) => [p.n.id, p]))
 
-  // 라벨 겹침 제거 — 앞쪽(z 작은) 노드부터 자리 선점, 포커스·이웃은 무조건 유지.
+  // 라벨 겹침 제거. 앞쪽(z 작은) 노드부터 자리 선점, 포커스·이웃은 무조건 유지.
   // 박스 추정은 렌더와 같은 폰트 공식(한글 폭 ≈ 폰트 크기)으로 한다.
   const labelSet = declutterLabels(
     [...projected].reverse().flatMap(({ n, x, y, z, s }) => {
@@ -279,7 +279,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           dragRef.current = null
         }}
       >
-        {/* 엣지 — 양 끝 평균 z로 깊이감 (앞쪽일수록 진하게) */}
+        {/* 엣지. 양 끝 평균 z로 깊이감 (앞쪽일수록 진하게) */}
         {graph.edges.map((e, i) => {
           const a = byId.get(e.f)
           const b = byId.get(e.t)
@@ -312,7 +312,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
             </g>
           )
         })}
-        {/* 노드 — 뒤에서 앞으로, 원근 스케일 반영 */}
+        {/* 노드. 뒤에서 앞으로, 원근 스케일 반영 */}
         {projected.map(({ n, x, y, s }) => {
           const color = SPACE_COLOR[n.space] ?? "#64748b"
           const isFocus = focus === n.id
@@ -358,7 +358,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           )
         })}
       </svg>
-      {/* 범례 — 좁은 화면에선 그래프를 가려서 접어 두고 버튼으로 편다 */}
+      {/* 범례. 좁은 화면에선 그래프를 가려서 접어 두고 버튼으로 편다 */}
       <button
         type="button"
         onClick={() => setLegendOpen((o) => !o)}
@@ -379,7 +379,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
           </span>
         ))}
       </div>
-      {/* 확대·축소 버튼 — 터치 기기엔 휠이 없다 */}
+      {/* 확대·축소 버튼. 터치 기기엔 휠이 없다 */}
       <div className="absolute bottom-2 right-2 flex flex-col overflow-hidden rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] backdrop-blur">
         <button type="button" onClick={() => zoomBy(1.28)} aria-label="확대" className="h-8 w-8 text-[16px] leading-none text-[var(--cp-text)] hover:bg-[var(--cp-hover)]">
           +

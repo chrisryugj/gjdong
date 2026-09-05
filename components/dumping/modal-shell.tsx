@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef } from "react"
 
-// /dumping 모달 공용 셸 — 다섯 모달이 제각각 들고 있던 ESC·배경 클릭·닫기 버튼을 한 곳으로.
+// /dumping 모달 공용 셸. 다섯 모달이 제각각 들고 있던 ESC·배경 클릭·닫기 버튼을 한 곳으로.
 // 접근성: role=dialog + aria-modal, 제목 연결(aria-labelledby), 열릴 때 포커스 이동·Tab 가둠·닫히면 복귀,
 // 뒤 페이지 스크롤 잠금. 배경 클릭은 mousedown·mouseup이 모두 배경일 때만 닫는다(본문 드래그 선택이 밖에서 끝나도 안 닫힘).
 
@@ -14,7 +14,7 @@ const SIZE = { md: "max-w-lg", lg: "max-w-xl", xl: "max-w-3xl" } as const
 interface ModalShellProps {
   onClose: () => void
   children: React.ReactNode
-  title?: string // 텍스트 제목 — 배지 등이 붙는 모달은 header 슬롯을 쓴다
+  title?: string // 텍스트 제목. 배지 등이 붙는 모달은 header 슬롯을 쓴다
   sub?: string
   header?: React.ReactNode // 커스텀 제목 영역 (닫기 버튼은 셸이 붙인다)
   footer?: React.ReactNode // 고정 푸터 (지도에서 보기 등)
@@ -44,7 +44,7 @@ export default function ModalShell({
     const restoreTo = document.activeElement as HTMLElement | null
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    // 첫 포커스는 패널 자체 — 닫기 버튼에 주면 스크린리더가 제목보다 "닫기"를 먼저 읽는다
+    // 첫 포커스는 패널 자체. 닫기 버튼에 주면 스크린리더가 제목보다 "닫기"를 먼저 읽는다
     panel.focus({ preventScroll: true })
 
     const onKey = (e: KeyboardEvent) => {
@@ -97,7 +97,7 @@ export default function ModalShell({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        // --cp-panel은 라이트 테마에서 비치는 틴트 — 떠 있는 모달은 불투명 흰색이어야 한다
+        // --cp-panel은 라이트 테마에서 비치는 틴트. 떠 있는 모달은 불투명 흰색이어야 한다
         className={`flex max-h-[88dvh] w-full ${SIZE[size]} flex-col overflow-hidden rounded-2xl border border-[var(--cp-border)] bg-white shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200`}
       >
         <header className="flex items-start justify-between gap-3 border-b border-[var(--cp-border)] px-5 py-3.5">

@@ -1,7 +1,7 @@
 import type { OntoGraph } from "./types"
 import { REL_KO, TYPE_KO } from "./labels"
 
-// 온톨로지 스키마 — graph.json(OpenCrab 문법 프로퍼티 그래프)의 클래스·관계에 정의·도메인·레인지를 붙이고
+// 온톨로지 스키마. graph.json(OpenCrab 문법 프로퍼티 그래프)의 클래스·관계에 정의·도메인·레인지를 붙이고
 // 그래프가 그 규약을 지키는지 검증한다. 한글 표시명은 labels.ts가 정본이라 여기서는 정의와 제약만 둔다.
 // 분석 SSOT(ontology.db)는 재현 해시로 잠겨 있어, 스키마는 "이미 있는 그래프가 무엇을 뜻하는지"를 명문화하는 층이다.
 
@@ -10,7 +10,7 @@ export type Space = (typeof SPACES)[number]
 
 export interface ClassDef {
   type: string // 노드 type (Org·Dataset·…)
-  space: Space // 상위 분류 — 그래프 색·범례 단위
+  space: Space // 상위 분류. 그래프 색·범례 단위
   en: string
   def: string
 }
@@ -61,7 +61,7 @@ export const RELATIONS: RelDef[] = [
   { rel: "part_of", en: "part of", kind: "association", def: "하위 요인·실체가 상위 요인(잠재요인)의 일부다", domain: FACTOR, range: FACTOR },
   { rel: "related_to", en: "related to", kind: "association", def: "요인끼리 상관·중첩된다(방향 없음, rho를 실을 수 있다)", domain: FACTOR, range: FACTOR },
   { rel: "influences", en: "influences", kind: "association", def: "요인이 다른 요인의 분포에 영향을 준다", domain: FACTOR, range: FACTOR },
-  // 요인 → 결과 (통계 연관 — 인과 아님)
+  // 요인 → 결과 (통계 연관. 인과 아님)
   { rel: "predicts", en: "predicts", kind: "association", def: "요인이 결과지표와 양의 조건부 연관을 갖는다(β 또는 ρ). 인과를 뜻하지 않는다", domain: FACTOR, range: ["KPI", "Risk"] },
   { rel: "contributes_to", en: "contributes to", kind: "association", def: "요인이 결과지표를 늘리는 방향의 약한 연관", domain: FACTOR, range: ["KPI"] },
   { rel: "constrains", en: "constrains", kind: "association", def: "요인이 결과지표와 음의 연관(β<0)을 갖는다. 인과를 뜻하지 않는다", domain: FACTOR, range: ["KPI"] },
@@ -78,7 +78,7 @@ export const RELATIONS: RelDef[] = [
   { rel: "governs", en: "governs", kind: "governance", def: "주장이 지표의 운용 규칙을 정한다(예: 품목 분리 없는 총량 관리 금지). 통계 연관이 아니다", domain: ["Claim"], range: ["KPI"] },
 ]
 
-// PROV 최소 속성 — 데이터셋·증거는 출처·기준시점·산출 스크립트를 가져야 재현 패키지와 맞물린다
+// PROV 최소 속성. 데이터셋·증거는 출처·기준시점·산출 스크립트를 가져야 재현 패키지와 맞물린다
 export const PROV_KEYS = ["source", "asof", "derived_by"] as const
 export const PROV_TYPES = new Set(["Dataset", "Evidence"])
 
@@ -163,7 +163,7 @@ export function validateGraph(graph: OntoGraph): SchemaIssue[] {
   return issues
 }
 
-// 그래프에서 실제 관측된 (출발 type → 도착 type) 조합 — 스키마 표와 대조하거나 문서 생성에 쓴다
+// 그래프에서 실제 관측된 (출발 type → 도착 type) 조합. 스키마 표와 대조하거나 문서 생성에 쓴다
 export function observedSignatures(graph: OntoGraph): Record<string, string[]> {
   const typeOf = new Map(graph.nodes.map((n) => [n.id, n.type]))
   const out: Record<string, Set<string>> = {}

@@ -3,9 +3,9 @@ import type { NextRequest } from "next/server"
 
 export const AUTH_COOKIE = "gj_dump_auth"
 
-// 비밀번호 자체는 환경변수에만 둔다 — 쿠키에는 HMAC만 실린다.
+// 비밀번호 자체는 환경변수에만 둔다. 쿠키에는 HMAC만 실린다.
 // 키는 DUMPING_COOKIE_SECRET(없으면 비밀번호로 폴백). 무키 sha256(v1)은 오프라인 추측이 가능해 v2로 올렸다.
-// 키를 바꾸면 발급된 쿠키가 전부 무효가 된다 — 강제 로그아웃 수단으로 쓴다.
+// 키를 바꾸면 발급된 쿠키가 전부 무효가 된다. 강제 로그아웃 수단으로 쓴다.
 function secret(): string | null {
   return process.env.DUMPING_COOKIE_SECRET || process.env.DUMPING_PASSWORD || null
 }

@@ -1,4 +1,4 @@
-// 온톨로지 표시용 한글 라벨 사전 — 그래프·패널이 공유한다.
+// 온톨로지 표시용 한글 라벨 사전. 그래프·패널이 공유한다.
 // 데이터(graph.json)의 관계·속성 키는 원문(영문)을 유지하고 표시만 바꾼다.
 
 export const REL_KO: Record<string, string> = {
@@ -96,7 +96,7 @@ export function propLabel(k: string): string {
   return PROP_KO[k] ?? k
 }
 
-// 통계 용어 쉬운 풀이 — 해당 키가 화면에 있을 때만 노출
+// 통계 용어 쉬운 풀이. 해당 키가 화면에 있을 때만 노출
 export const PROP_HELP: Record<string, string> = {
   coefficient: "β(베타): 0보다 크면 이 조건이 큰 곳일수록 무단투기도 많다는 뜻입니다. 숫자가 클수록 영향이 큽니다.",
   beta: "β(베타): 0보다 크면 이 조건이 큰 곳일수록 무단투기도 많다는 뜻입니다. 음수면 반대입니다.",

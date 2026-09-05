@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-// 암호 게이트 — 세션 쿠키 발급까지만 담당하고, 열리면 부모가 대시보드를 그린다
+// 암호 게이트. 세션 쿠키 발급까지만 담당하고, 열리면 부모가 대시보드를 그린다
 export default function LoginGate({ checking, onOpen }: { checking: boolean; onOpen: () => void }) {
   const [pw, setPw] = useState("")
   const [error, setError] = useState<string | null>(null)

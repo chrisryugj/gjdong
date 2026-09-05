@@ -1,7 +1,7 @@
 import type { OntoGraph, OntoNode } from "./types"
 import { PROV_KEYS, PROV_TYPES } from "./schema"
 
-// 역량 질문(competency questions) — "이 온톨로지는 무엇에 답할 수 있는가"를 코드로 고정한다.
+// 역량 질문(competency questions). "이 온톨로지는 무엇에 답할 수 있는가"를 코드로 고정한다.
 // 전부 graph.json 위의 순수 함수라 데이터가 바뀌면 답도 따라오고, 테스트가 현재 답을 핀으로 박는다.
 // 화면(온톨로지 탭 "온톨로지에 묻기")과 문서가 같은 함수를 쓴다.
 
@@ -11,7 +11,7 @@ export const OUTCOME_CELL = "kpi-dump-count-cell"
 export const OUTCOMES = new Set([OUTCOME, OUTCOME_CELL])
 const FACTOR_RELS = new Set(["predicts", "contributes_to", "constrains"])
 const VERDICT_RELS = new Set(["lowers", "stabilizes"])
-// 도로 형태·생활인구(노출)는 관측 통제용이지 개입으로 바꿀 대상이 아니다 — 공백으로 세지 않되 답에는 표시한다
+// 도로 형태·생활인구(노출)는 관측 통제용이지 개입으로 바꿀 대상이 아니다. 공백으로 세지 않되 답에는 표시한다
 export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist", "con-living-pop", "con-resident-pop", "con-managed-kapt"])
 const STRUCTURAL_NOTE: Record<string, string> = {
   "con-living-pop": "노출(체류 인구) 통제변수",
@@ -37,7 +37,7 @@ function byId(graph: OntoGraph): Map<string, OntoNode> {
   return new Map(graph.nodes.map((n) => [n.id, n]))
 }
 
-// CQ1 — 발생과 연관된 요인 가운데 겨냥하는 개입이 없는 것
+// CQ1. 발생과 연관된 요인 가운데 겨냥하는 개입이 없는 것
 export function cqUntargetedFactors(graph: OntoGraph): CqResult {
   const nodes = byId(graph)
   const factors = [...new Set(graph.edges.filter((e) => OUTCOMES.has(e.t) && FACTOR_RELS.has(e.rel) && nodes.get(e.f)?.type === "Concept").map((e) => e.f))]
@@ -64,7 +64,7 @@ export function cqUntargetedFactors(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ2 — 증거 없는 주장
+// CQ2. 증거 없는 주장
 export function cqUnsupportedClaims(graph: OntoGraph): CqResult {
   const supported = new Set(graph.edges.filter((e) => e.rel === "supports").map((e) => e.t))
   const hits = graph.nodes.filter((n) => n.type === "Claim" && !supported.has(n.id)).map((n) => ({ id: n.id }))
@@ -78,7 +78,7 @@ export function cqUnsupportedClaims(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ3 — 철회된 근거에 아직 연결된 항목 (철회는 지워서 감추지 않고 그대로 보존한다)
+// CQ3. 철회된 근거에 아직 연결된 항목 (철회는 지워서 감추지 않고 그대로 보존한다)
 export function cqRetractedCitations(graph: OntoGraph): CqResult {
   const nodes = byId(graph)
   const retracted = new Set(graph.nodes.filter((n) => n.props.retracted !== undefined).map((n) => n.id))
@@ -107,7 +107,7 @@ export function cqRetractedCitations(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ4 — 개입수단의 검증 상태 분포
+// CQ4. 개입수단의 검증 상태 분포
 export function cqLeversByVerdict(graph: OntoGraph): CqResult {
   const hits = graph.nodes
     .filter((n) => n.type === "Lever")
@@ -125,7 +125,7 @@ export function cqLeversByVerdict(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ5 — 실행 근거 법령·조례가 연결되지 않은 개입
+// CQ5. 실행 근거 법령·조례가 연결되지 않은 개입
 export function cqLeversWithoutBasis(graph: OntoGraph): CqResult {
   const governed = new Set(graph.edges.filter((e) => e.rel === "governed_by").map((e) => e.f))
   const hits = graph.nodes
@@ -144,7 +144,7 @@ export function cqLeversWithoutBasis(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ6 — 출처 데이터셋 계보가 끊긴 증거
+// CQ6. 출처 데이터셋 계보가 끊긴 증거
 export function cqEvidenceWithoutLineage(graph: OntoGraph): CqResult {
   const fromDs = new Set(graph.edges.filter((e) => e.rel === "contains" || e.rel === "derived_from").map((e) => e.t))
   const hits = graph.nodes.filter((n) => n.type === "Evidence" && !fromDs.has(n.id)).map((n) => ({ id: n.id, note: "contains·derived_from 없음" }))
@@ -158,7 +158,7 @@ export function cqEvidenceWithoutLineage(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ7 — 사전등록 원칙이 그래프에 실제로 연결된 개입
+// CQ7. 사전등록 원칙이 그래프에 실제로 연결된 개입
 export function cqPreregistrationCoverage(graph: OntoGraph): CqResult {
   const restricted = new Set(graph.edges.filter((e) => e.f === "proc-intervention-registry" && e.rel === "restricts").map((e) => e.t))
   const proposals = graph.nodes.filter((n) => {
@@ -177,7 +177,7 @@ export function cqPreregistrationCoverage(graph: OntoGraph): CqResult {
   }
 }
 
-// CQ8 — 출처(source)·기준 시점(asof)·산출 스크립트(derived_by)가 없는 데이터셋·증거 (PROV 최소형 커버리지)
+// CQ8. 출처(source)·기준 시점(asof)·산출 스크립트(derived_by)가 없는 데이터셋·증거 (PROV 최소형 커버리지)
 export function cqProvenanceGaps(graph: OntoGraph): CqResult {
   const hits = graph.nodes
     .filter((n) => PROV_TYPES.has(n.type))
