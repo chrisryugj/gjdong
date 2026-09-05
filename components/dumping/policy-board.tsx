@@ -148,12 +148,12 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
     {
       k: "순찰 적발",
       v: growth ? fmtRatio(growth.finesPatrol) : "미산출",
-      sub: growth ? `신고 없이 순찰로 잡은 건수, ${growth.baseYear}년 대비 연환산` : "",
+      sub: growth ? `신고 없이 순찰로 잡은 건수, ${growth.baseYear}년 대비 연환산. 최근 2~3개월은 부과 지연으로 과소집계` : "",
     },
     {
       k: "상습격자 앱 제외",
-      v: kpi ? `${kpi.criticalCellsNow}→${kpi.criticalCellsNowNoApp}곳` : "미산출",
-      sub: `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸, 앱 신고를 빼고 센 수`,
+      v: kpi ? `${kpi.criticalCellsNowNoApp}곳` : "미산출",
+      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸, 앱 신고를 빼고 센 수(넣으면 ${kpi.criticalCellsNow}곳)` : "",
     },
   ]
   // 평가자 진입 줄. 데이터 → 방법 → 결론 → 한계 → 재현

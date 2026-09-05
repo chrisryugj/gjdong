@@ -1,7 +1,7 @@
 "use client"
 
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
 
 // 예시 질문에 딸려 나오는 데이터 차트. 의존성 없이 SVG 직접 렌더.
 // LLM 답변과 무관하게 export 집계(map.json·graph.json)에서 그리므로 수치가 지어질 수 없다.
@@ -40,6 +40,7 @@ function niceMax(v: number): number {
 function YearlyChart({ data }: { data: DumpingMapData }) {
   const years = Object.keys(data.yearly.complaints).filter((y) => Number(y) >= 2024)
   const { period } = summarize(data)
+  const reportedPct = 100 - channelGrowth(data).patrolSharePct // 과태료 대부분이 신고 유래. "단속 실측"이 아니다
   const series = years.map((y) => ({
     y,
     comp: data.yearly.complaints[y] ?? 0,
@@ -76,7 +77,7 @@ function YearlyChart({ data }: { data: DumpingMapData }) {
         <rect x={x0} y={12} width={12} height={12} fill={BLUE} rx={2} />
         <text x={x0 + 17} y={22}>민원(신고 편향 포함)</text>
         <rect x={x0 + 165} y={12} width={12} height={12} fill={AMBER} rx={2} />
-        <text x={x0 + 182} y={22}>과태료(단속 실측)</text>
+        <text x={x0 + 182} y={22}>과태료(신고 유래 {reportedPct}%)</text>
       </g>
     </svg>
   )

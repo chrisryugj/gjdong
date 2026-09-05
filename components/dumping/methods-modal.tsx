@@ -45,8 +45,8 @@ const provided = (data: DumpingMapData): Dataset[] => {
     },
     {
       name: "가로쓰레기통 설치현황",
-      scale: `${data.infra.bins.length}개`,
-      use: "배치 지도 레이어",
+      scale: `${data.infra.bins.length}개 · ${data.meta?.binSites ?? "미산출"}개 위치`,
+      use: "배치 지도 레이어. 한 위치에 통이 두 개씩이라 지도 점 수는 위치 수의 두 배",
     },
     {
       name: "도로청소 종합계획 (2026)",
