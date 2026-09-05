@@ -67,6 +67,12 @@ export interface DumpingMapData {
   }
   // 의사결정 레이어 (build_decision_layer.py) — 품목·퍼널·SLA·KPI·핫스팟·전망
   decision: DecisionLayer
+  // 내보내기 메타 — 재현 패키지 해시 수(manifest에서), 구청 쓰레기통 장부 고유 위치 수, 원자료 수집일
+  meta?: {
+    reproduce: { hashes: number; numbers: number; note: string }
+    binSites: number
+    asof: string
+  }
 }
 
 // [lat, lng, 점수, 민원180일, 과태료180일, 행정동, 대표주소, 이동식CCTV유무(0/1)]
@@ -86,6 +92,15 @@ export interface DecisionLayer {
     arrearsAmount: number
     collectionRatePct: number | null
     monthly: Record<string, number>
+    // 적발 경로(원자료 route): 신고 유래 vs 순찰(수시). 과태료의 83%가 신고 유래라 "신고와 무관한 실측"이 아니다.
+    // 순찰 적발만 신고 성향과 독립. 최근 월은 부과 처리 지연으로 과소 집계(우측 절단)
+    byRoute?: {
+      yearly: Record<string, Record<string, number>>
+      monthly: Record<string, Record<string, number>>
+      byCategory: Record<string, Record<string, number>>
+      labels: Record<string, string>
+      note: string
+    }
   }
   channels: {
     yearly: Record<string, Record<string, number>>
@@ -103,6 +118,7 @@ export interface DecisionLayer {
     // [s, w, n, e, 12개월 건수, 행정동] — 지도 강조 레이어용 격자 사각형
     criticalCells: [number, number, number, number, number, string][]
     persistentQuarterly: { asof: string; watch: number; critical: number; criticalNoApp?: number }[]
+    thresholds?: { months: number; watch: number; critical: number } // 화면 문구 "12개월 10건+"의 원천
     definition: string
   }
   hotspots: {

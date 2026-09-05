@@ -24,6 +24,8 @@ export const REL_KO: Record<string, string> = {
   mentions: "언급함",
   restricts: "제한함",
   stabilizes: "굳어지게 함",
+  governs: "운용 규칙을 정함",
+  operationalizes: "격자 수준 정의임",
 }
 
 export function relLabel(rel: string): string {
@@ -85,6 +87,9 @@ export const PROP_KO: Record<string, string> = {
   rationale: "근거 논리",
   size: "인원",
   retracted: "철회 사유",
+  source: "출처",
+  asof: "기준 시점",
+  derived_by: "산출 스크립트",
 }
 
 export function propLabel(k: string): string {

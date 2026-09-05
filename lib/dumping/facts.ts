@@ -98,7 +98,11 @@ export interface ChannelGrowth {
   total: number // 민원 전체
   app: number // 앱(서울스마트불편신고)
   fixed: number // 채널고정(120·직접)
-  fines: number // 과태료 부과(위반일시 기준, 단속 실측)
+  fines: number // 과태료 부과 전체(위반일시 기준)
+  // 적발 경로별 — 과태료의 대부분(신고 유래)은 신고 성향과 무관하지 않다. 순찰(수시) 적발만 신고와 독립
+  finesPatrol: number // 순찰(수시) 적발
+  finesReported: number // 신고 유래 적발
+  patrolSharePct: number // 순찰 적발 비중(전 기간, %)
 }
 
 export function channelGrowth(data: DumpingMapData): ChannelGrowth {
@@ -111,6 +115,9 @@ export function channelGrowth(data: DumpingMapData): ChannelGrowth {
   const at = (o: Record<string, number> | undefined, y: string) => o?.[y] ?? 0
   const ratio = (last: number, base: number) => (base > 0 ? Math.round((last * factor) / base * 100) / 100 : NaN)
   const fixedOf = (y: string) => at(ch.c120, y) + at(ch.direct, y)
+  const route = data.decision.fines.byRoute?.yearly ?? {}
+  const patrolAll = sumValues(route["수시"] ?? {})
+  const reportedAll = sumValues(route["신고"] ?? {})
   return {
     baseYear,
     lastYear,
@@ -124,7 +131,31 @@ export function channelGrowth(data: DumpingMapData): ChannelGrowth {
     app: ratio(at(ch.app, lastYear), at(ch.app, baseYear)),
     fixed: ratio(fixedOf(lastYear), fixedOf(baseYear)),
     fines: ratio(at(data.yearly.enforcement, lastYear), at(data.yearly.enforcement, baseYear)),
+    finesPatrol: ratio(at(route["수시"], lastYear), at(route["수시"], baseYear)),
+    finesReported: ratio(at(route["신고"], lastYear), at(route["신고"], baseYear)),
+    patrolSharePct: patrolAll + reportedAll > 0 ? Math.round((patrolAll / (patrolAll + reportedAll)) * 100) : NaN,
   }
+}
+
+// 최근 월 과태료 우측 절단 — 위반→부과 처리 지연으로 마지막 달들은 과소 집계된다. 문장은 한 곳에서
+export function finesCensorNote(data: DumpingMapData): string {
+  const p = periodOf(data.decision.fines.monthly)
+  return `과태료는 위반일시 기준이라 ${ym(p.to)} 등 최근 2~3개월은 부과 처리 지연으로 과소 집계될 수 있습니다`
+}
+
+// 네 요인(무관리주거·1인세대·청년·외국인) 공선성 범위 — claim-collinear 문장의 ρ 구간에서 읽는다
+export function collinearRange(graph: OntoGraph): string {
+  const s = String(graph.nodes.find((n) => n.id === "claim-collinear")?.props.statement ?? "")
+  const m = /ρ\s*([\d.]+)\s*~\s*([\d.]+)/.exec(s)
+  return m ? `${m[1]}~${m[2]}` : "0.85~0.97"
+}
+
+// 문장에 박혀 있던 표본 크기 — 그래프·데이터에서 읽는다
+export function sampleSizes(data: DumpingMapData, graph: OntoGraph): { gridN: number; ledgerRows: number; dongN: number } {
+  const unmEdge = graph.edges.find((e) => e.f === "con-unmanaged" && e.props?.beta !== undefined)
+  const gridN = Number(unmEdge?.props?.n ?? data.decision.regressionV2?.v2_100.n ?? data.grid.length)
+  const ledgerRows = Number(graph.nodes.find((n) => n.id === "ds-ledger")?.props.rows ?? NaN)
+  return { gridN, ledgerRows, dongN: data.dong.length }
 }
 
 // "2.10배" / "0.53배" — 배율 표기 한 곳

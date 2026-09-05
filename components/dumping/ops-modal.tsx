@@ -1,7 +1,7 @@
 "use client"
 
 import type { DumpingMapData } from "@/lib/dumping/types"
-import { channelGrowth, finesDirection, fmtKrw, fmtRatio, partialYearSuffix, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, finesCensorNote, finesDirection, fmtKrw, fmtRatio, partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
 // 운영·전망 탭 상세 모달 — 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
@@ -218,13 +218,31 @@ export default function OpsModal({
           민원 총건수가 {fmtRatio(g.total)}로 뛴 동안 앱 접수만 {fmtRatio(g.app)}로 늘었고 120·직접은 {fmtRatio(g.fixed)}로 거의
           그대로였습니다. 늘어난 것은 무단투기가 아니라 신고의 편리함입니다.
         </Callout>
+        {d.fines.byRoute && (
+          <>
+            <H>과태료 적발 경로 (신고 유래 vs 순찰)</H>
+            <Table
+              head={["연도", "신고 유래", "순찰(수시)", "합계"]}
+              rows={years.map((y) => [
+                `${y}${partialYearSuffix(period, y)}`,
+                d.fines.byRoute!.yearly["신고"]?.[y] ?? 0,
+                d.fines.byRoute!.yearly["수시"]?.[y] ?? 0,
+                (d.fines.byRoute!.yearly["신고"]?.[y] ?? 0) + (d.fines.byRoute!.yearly["수시"]?.[y] ?? 0),
+              ])}
+            />
+          </>
+        )}
         <H>그래서 어떻게 쓰나</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
           연도끼리 견주거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 쓰셔야 합니다.
-          신고 성향과 무관한 과태료 부과(단속 실측)는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다.
-          발생이 두 배로 늘었다면 나올 수 없는 숫자입니다.
+          과태료 부과는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다. 다만 과태료의 {100 - g.patrolSharePct}%는
+          신고를 받아 나간 것이라 신고 성향과 무관하지 않습니다. 신고와 상관없는 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}이니,
+          발생이 두 배로 늘었다면 나오기 어려운 숫자입니다.
         </p>
-        <Note>배율 기준: {g.basis}. 앱은 서울스마트불편신고입니다. 채널은 민원 제목의 접수 경로 표기로 분류했습니다.</Note>
+        <Note>
+          배율 기준: {g.basis}. 앱은 서울스마트불편신고입니다. 채널은 민원 제목의 접수 경로 표기로, 적발 경로는 과태료 원자료의 route로 분류했습니다.
+          {" "}{finesCensorNote(data)}.
+        </Note>
       </ModalShell>
     )
   }
@@ -254,7 +272,8 @@ export default function OpsModal({
             <Note>
               평균 오차 홀트윈터스 {d.forecast.backtest.mapePct}% vs 전년 동월 {d.forecast.backtest.naiveMapePct ?? "—"}%
               (MAE {d.forecast.backtest.maeHw ?? "—"} vs {d.forecast.backtest.maeNaive ?? "—"}건). 80% 구간 적중률{" "}
-              {d.forecast.backtest.coverage80Pct ?? "—"}%. 모수 선택 구간과 평가 구간을 분리했으므로 낙관 편향이 없습니다.
+              {d.forecast.backtest.coverage80Pct ?? "—"}%. 모수 선택 구간과 평가 구간을 분리해 모수 선택에서 오는 낙관 편향은 제거했습니다.
+              평가 표본이 {d.forecast.backtest.rows.length}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.
             </Note>
           </>
         )}
@@ -320,7 +339,11 @@ export default function OpsModal({
             ? `${best[0]}년에 크게 좋아졌다가 ${last[0]}년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.`
             : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄고 있다는 뜻입니다."}
         </p>
-        <Note>{d.sla.note}. 주민이 체감하는 "현장 수거까지 걸린 시간"을 재려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).</Note>
+        <Note>
+          {d.sla.note}. 표본은 접수·처리 시각이 모두 있고 순서가 맞는 건만이라 전체 민원 {summarize(data).complaints.toLocaleString()}건 중{" "}
+          {(summarize(data).complaints - years.reduce((a, [, s]) => a + s.n, 0)).toLocaleString()}건(미종결·기록 오류)이 빠져 있어 체감보다 낙관적일 수 있습니다.
+          주민이 체감하는 "현장 수거까지 걸린 시간"을 재려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).
+        </Note>
       </ModalShell>
     )
   }
@@ -358,12 +381,13 @@ export default function OpsModal({
         />
         <Note>
           {sc.note}. 보고 구 {sc.reportingGus}개 중 광진 {sc.gwangjin.dumpingRank}위({sc.gwangjin.dumping}대). 이 표의 광진 수치는 연계분이고, 이 분석이
-          쓴 청소과 장부는 고정 72개소·이동식 276대입니다. 출처 OA-2722.
+          쓴 청소과 장부는 고정 {data.infra.cctvFixed.length}개소·이동식 {data.infra.cctvMobile.length}대입니다. 출처 OA-2722.
         </Note>
 
         <H>가로쓰레기통 · 서울시 원천으로 교차검증</H>
         <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
-          서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 64개 위치와 일치합니다.
+          서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 {data.meta?.binSites ?? "—"}개 위치와{" "}
+          {data.meta?.binSites === d.seoul.streetBins.gwangjin202511.sites ? "일치합니다" : "대조했습니다"}.
           연도별로는 {d.seoul.streetBins.years.slice(-3).map((y, i) => `${y}년 ${d.seoul!.streetBins.gwangjinByYear?.slice(-3)[i] ?? "—"}`).join(" · ")}. 출처 OA-15069.
         </p>
         <H>생활인구</H>

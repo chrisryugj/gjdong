@@ -8,11 +8,11 @@
 이 그래프는 **타입이 붙은 프로퍼티 그래프**다. 노드에 `type`과 `space`, 엣지에 `rel`과 속성이 있다. OWL 공리도, SHACL 제약도, SPARQL 종단점도 없다.
 "온톨로지"라고 부를 수 있는 근거는 세 가지뿐이다.
 
-1. 클래스 14종과 관계 22종에 정의·도메인·레인지가 명문화돼 있고(schema.ts), 그래프가 그 규약을 지키는지 자동 검증한다(오류 0·주의 0이 현재 상태).
-2. 역량 질문 7개가 코드로 고정돼 있고, 화면에서 그 자리에서 계산된다. "표로는 못 던지는 질문"이 실제로 답을 낸다.
+1. 클래스 14종과 관계 24종에 정의·도메인·레인지가 명문화돼 있고(schema.ts), 그래프가 그 규약을 지키는지 자동 검증한다(오류 0·주의 0이 현재 상태).
+2. 역량 질문 8개가 코드로 고정돼 있고, 화면에서 그 자리에서 계산된다. "표로는 못 던지는 질문"이 실제로 답을 낸다.
 3. 철회·판정·계보를 데이터 구조로 다룬다. 문장이 아니라 속성과 엣지로.
 
-RDF·OWL로 옮기는 일은 어렵지 않다(클래스와 관계가 이미 닫힌 목록이다). 안 한 이유는 이 규모(88노드)에서 추론기가 줄 것이 없어서다. 심사에서 "온톨로지냐"고 물으면 위 세 가지를 답하고, 형식 온톨로지가 아니라고 먼저 말한다.
+RDF·OWL로 옮기는 일은 어렵지 않다(클래스와 관계가 이미 닫힌 목록이다). 안 한 이유는 이 규모(90노드)에서 추론기가 줄 것이 없어서다. 심사에서 "온톨로지냐"고 물으면 위 세 가지를 답하고, 형식 온톨로지가 아니라고 먼저 말한다.
 
 ## 2. 클래스와 영역
 
@@ -25,7 +25,7 @@ RDF·OWL로 옮기는 일은 어렵지 않다(클래스와 관계가 이미 닫�
 | evidence 증거 | Evidence | 데이터셋에서 계산한 관측 사실. `confidence`, 철회 시 `retracted`+`confidence 0` |
 | concept 요인 | Class, Concept, Entity, Topic | 분석 단위·요인·실체·이론 |
 | claim 주장 | Claim, Covariate | 증거가 뒷받침하는 주장 · 회귀/상관 변수 기록(격자 β는 `coefficient`, 행정동 상관은 `rho`) |
-| outcome 결과 | KPI, Risk | 요인이 예측하고 개입이 겨냥하는 지표 |
+| outcome 결과 | KPI, Risk | 요인이 예측하고 개입이 겨냥하는 지표. 동 천명당 발생률(`kpi-dump-rate`, ρ·개입)과 격자 적발 건수(`kpi-dump-count-cell`, 격자 β)를 분리하고 후자가 전자를 `operationalizes` |
 | lever 개입 | Lever | 보유·제안 개입수단. 판정은 노드가 아니라 엣지에 |
 | policy 법령·절차 | Policy | 조례·법령·개입 사전등록 원칙 |
 
@@ -35,26 +35,26 @@ RDF·OWL로 옮기는 일은 어렵지 않다(클래스와 관계가 이미 닫�
 
 **철회는 지우지 않는다.** `ev-did-cctv`, `claim-cctv-conditional`, `cov-did-cctv`는 `retracted` 사유와 `confidence 0`을 달고 남아 있고, 이들로 들어오던 `supports` 엣지도 그대로다. 역량 질문 CQ3가 "철회된 근거가 철회되지 않은 노드로 이어지는가"를 감시한다. 현재 이어지는 곳은 `lev-cctv-mobile` 하나이고 그 판정 엣지가 철회 상태라 공백 0.
 
-**통계 연관은 인과가 아니다.** `predicts`·`contributes_to`·`constrains`는 β 또는 ρ를 싣는 조건부 연관이다. 정의 문장에 "인과를 뜻하지 않는다"를 박아 두었고 질의응답 프롬프트 규칙 1이 같은 말을 한다.
+**통계 연관은 인과가 아니다.** `predicts`·`contributes_to`·`constrains`는 β 또는 ρ를 싣는 조건부 연관이다. 주장이 지표의 운용 규칙을 정하는 것은 `governs`로 따로 둔다(2라운드에서 `constrains`에서 분리). 정의 문장에 "인과를 뜻하지 않는다"를 박아 두었고 질의응답 프롬프트 규칙 1이 같은 말을 한다.
 
 **계보는 엣지로.** `Dataset -contains/derived_from-> Evidence -supports-> Claim`. CQ6가 이 사슬이 끊긴 증거를 찾는다(2026-09-05 재수출 후 0건. 서울 층 신규 노드 20개는 `source`·`asof`·`derived_by`까지 갖는다). 상세 카드의 "근거 계보"는 `lineageOf`로 이 사슬을 거꾸로 오른다.
 
-## 4. 결함 목록과 처리 상태 (2026-09-05 재수출에서 3~8 해결)
+## 4. 결함 목록과 처리 상태 (2026-09-05 재수출에서 3~8 해결, 2라운드에서 1·2·8 해결)
 
 | # | 결함 | 왜 문제인가 | 고칠 곳 |
 |---|---|---|---|
-| 1 | `kpi-dump-rate` 하나에 격자 회귀 β(종속=과태료 건수)와 행정동 상관 ρ(종속=과태료/천명)가 같이 들어온다 | 이름은 "천명당 발생률"인데 β의 종속변수는 건수다. 지표 정의가 둘이다 | export 주석 레이어에서 `kpi-dump-count-cell`을 분리하고 β 엣지를 그쪽으로 |
-| 2 | `constrains`가 "β<0 요인"과 "지표 운용 규칙(claim-two-phenomena)"에 같이 쓰인다 | 관계 하나에 뜻이 둘 | 규칙 쪽은 `governs`류로 분리 |
+| 1 | ~~`kpi-dump-rate` 하나에 격자 회귀 β와 행정동 상관 ρ가 같이 들어온다~~ | 해결(2라운드): export가 `kpi-dump-count-cell`을 세우고 β 엣지 6개를 옮김. `operationalizes`로 상위 지표에 연결. 코드는 `OUTCOMES` 집합으로 둘 다 본다 | 테스트가 β 도착 노드를 핀 |
+| 2 | ~~`constrains`가 β<0 요인과 지표 운용 규칙에 같이 쓰인다~~ | 해결(2라운드): 규칙 쪽은 `governs`(Claim→KPI, governance). `constrains` 도메인은 요인만 | 스키마 테스트가 Claim 출발 constrains를 위반으로 잡음 |
 | 3 | ~~`ev-hotspot-backtest`·`ev-permits`에 출처 데이터셋이 없다~~ | 해결: `ds-complaints`·`ds-fines -derived_from->`, `ds-archhub-permits` 추가 | CQ6 = 0 |
 | 4 | ~~사전등록 원칙 `restricts`가 제안 6건 중 1건에만 연결~~ | 해결: 내보내기가 status=제안 전부에 연결 | CQ7 공백 0 |
 | 5 | ~~`cls-cell`이 고아 노드~~ | 해결: `ev-grid-sensitivity -describes-> cls-cell`(격자 민감도 증거가 분석 단위를 서술) | 주의 0 |
 | 6 | ~~`ev-fines -supports-> claim-bias` note "과태료는 1.1배"~~ | 해결: export가 enforcement.json 실측(1,578→1,059→555)으로 생성. 정오표 ERR-001 내림 | errata 빈 목록 |
 | 7 | ~~자리표시 속성~~ | 해결: export에서 제거 | |
-| 8 | 노드에 `source/asof/hash`가 없다 | 부분 해결: 서울 층 신규 노드 20개에 `source`·`asof`·`derived_by` 부착. 기존 59노드는 ontology.db 잠금이라 미부착 | 다음 재구축 때 |
+| 8 | ~~노드에 `source/asof/derived_by`가 없다~~ | 해결(2라운드): export `PROV_BASE`가 기존 Dataset 7·Evidence 8에 부착, 결정 레이어 증거는 decision_layer 출처로 자동. 검증기 `PROV_MISSING`(주의)와 CQ8이 감시 | 공백 0 |
 
 ## 5. 역량 질문 목록
 
-코드: `runCompetencyQuestions(graph)`. 화면: 온톨로지 탭 "온톨로지에 묻기".
+코드: `runCompetencyQuestions(graph)`. 2라운드에서 `ev-fines` 라벨을 원자료 route 실측(신고 유래 83%)으로 정정하고 `ev-fines-route` 증거를 더했다. 화면: 온톨로지 탭 "온톨로지에 묻기".
 
 | id | 질문 | 현재 답 |
 |---|---|---|
@@ -65,5 +65,6 @@ RDF·OWL로 옮기는 일은 어렵지 않다(클래스와 관계가 이미 닫�
 | cq-basis | 실행 근거 조례 없는 개입 | 4 |
 | cq-lineage | 출처 데이터셋 끊긴 증거 | 0 |
 | cq-prereg | 사전등록 원칙이 연결된 제안 | 6 중 6 |
+| cq-prov | 출처·기준 시점·산출 스크립트 없는 데이터셋·증거 | 0 |
 
 답이 바뀌면 [tests/onto-queries.test.ts](../tests/onto-queries.test.ts)가 먼저 깨진다. 의도한 변화면 테스트를 같이 고친다.

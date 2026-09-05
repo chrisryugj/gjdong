@@ -1,4 +1,5 @@
 import type { InfraLayerId, MapMode, OntoEdge, OntoGraph, OntoNode } from "@/lib/dumping/types"
+import { OUTCOMES } from "@/lib/dumping/queries"
 
 // 개입수단(Lever) 파생 로직 — 정책 제안 보드와 제안이유 모달이 함께 쓴다.
 // 표시 문구는 graph.json의 노드·엣지에서 만들어내고, 별도 원고는 두지 않는다.
@@ -111,7 +112,7 @@ export function vizForLever(lv: LeverView): LeverViz | null {
 }
 
 // ─── 요인 강도 ────────────────────────────────────────────────
-// kpi-dump-rate(발생률)로 들어오는 엣지에서 β(격자 회귀)·ρ(행정동 비교)를 뽑는다.
+// 결과지표로 들어오는 엣지에서 β(격자 회귀 → kpi-dump-count-cell)·ρ(행정동 비교 → kpi-dump-rate)를 뽑는다.
 
 export interface FactorStat {
   id: string
@@ -158,7 +159,7 @@ export function factorStats(graph: OntoGraph): FactorStat[] {
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]))
   const out: FactorStat[] = []
   for (const e of graph.edges) {
-    if (e.t !== "kpi-dump-rate" || !e.props) continue
+    if (!OUTCOMES.has(e.t) || !e.props) continue
     const easy = easyFactor(e.f, shortTarget(nodeById.get(e.f)?.label ?? e.f))
     const num = (v: unknown) => (typeof v === "number" ? v : parseFloat(String(v)))
     if (e.props.beta !== undefined)

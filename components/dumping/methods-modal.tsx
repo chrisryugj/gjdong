@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, finesDirection, fmtRatio, graphSize, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, graphSize, regressionBetas, sampleSizes, summarize } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
 // 데이터·분석 방법 안내 — 두 섹션으로 구성.
@@ -30,7 +30,7 @@ const provided = (data: DumpingMapData): Dataset[] => {
     {
       name: "과태료 부과 내역",
       scale: `${n(data.decision.fines.totalN)}건 · ${s.finesPeriod.label} 위반분`,
-      use: "신고 편향 없는 단속 실측. 회귀분석의 결과지표, 품목 분해·징수 퍼널",
+      use: `단속 적발 기록(적발 경로 신고 유래 ${100 - channelGrowth(data).patrolSharePct}% · 순찰 ${channelGrowth(data).patrolSharePct}%). 회귀분석의 결과지표, 품목 분해·징수 퍼널`,
     },
     {
       name: "CCTV 현황 (고정·이동식)",
@@ -56,10 +56,10 @@ const provided = (data: DumpingMapData): Dataset[] => {
 }
 
 // 공개 데이터에서 분석팀이 직접 수집
-const collected = (data: DumpingMapData, topBeta: string): Dataset[] => [
+const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): Dataset[] => [
   {
     name: "건축물대장 표제부",
-    scale: "24,520동 · 국토부 건축HUB",
+    scale: `${Number.isFinite(ledgerRows) ? n(ledgerRows) : "—"}동 · 국토부 건축HUB`,
     use: `무관리 주거단위 밀도 계산 — 최강 예측변수(β ${topBeta})의 원천`,
   },
   {
@@ -105,7 +105,7 @@ const seoulOpen = (data: DumpingMapData): Dataset[] => {
     { name: "광진구 의류수거함 위치", scale: `공공데이터포털 15109594 · ${data.infra.clothBins.length}곳`, use: "\"수거함 옆이 온상\" 통념 검증(v2 회귀), 지도 레이어" },
     { name: "자치구 목적별 CCTV 설치현황", scale: `OA-2722 · ${sx.cctv.asof}`, use: "25개 구 무단투기 CCTV 비교(연계분), 운영 탭 서울 맥락" },
     { name: "스마트 불편신고 분야별 신고 현황", scale: `OA-12051 · 2012-08~ 월별`, use: "서울 전체 앱 청소 신고 추세 — 앱 확산이 광진만의 현상이 아님을 확인" },
-    { name: "가로쓰레기통 설치정보", scale: `OA-15069 · 2025-11`, use: "구청 장부(64개 위치) 교차검증" },
+    { name: "가로쓰레기통 설치정보", scale: `OA-15069 · 2025-11`, use: `구청 장부(${data.meta?.binSites ?? "—"}개 위치) 교차검증` },
   ]
 }
 
@@ -129,17 +129,19 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
   const fc = data.decision.forecast.backtest
   const g = graph ? graphSize(graph) : null
   const cg = channelGrowth(data)
+  const sz = graph ? sampleSizes(data, graph) : { gridN: data.grid.length, ledgerRows: NaN, dongN: data.dong.length }
+  const col = graph ? collinearRange(graph) : "0.85~0.97"
   return [
     {
       name: "100m 격자 결합",
-      easy: "구 전체를 100m 바둑판(1,062칸)으로 나누고, 민원·과태료·건축물대장·도로·생활인구를 모두 같은 칸 위에 얹었습니다. 서로 다른 자료를 한 지도에서 비교할 수 있게 만드는 기초 작업입니다.",
-      here: `자료마다 칸에 넣는 방식이 다릅니다. 민원 ${n(s.complaints)}건·과태료 ${n(data.decision.fines.totalN)}건은 건별 주소를 좌표로 바꿔 점이 속한 칸에, 건축물대장 24,520동은 대지 지번 좌표로, 도로·건물 형태는 OSM 선·면을 칸 경계로 잘라, 서울시 생활인구는 250m 격자를 면적 비례로 나눠 넣었습니다. 등록인구는 동 단위뿐이라 격자 회귀에는 들어가지 않고 동별 지표에만 씁니다.`,
+      easy: `구 전체를 100m 바둑판(회귀 표본 ${n(sz.gridN)}칸)으로 나누고, 민원·과태료·건축물대장·도로·생활인구를 모두 같은 칸 위에 얹었습니다. 서로 다른 자료를 한 지도에서 비교할 수 있게 만드는 기초 작업입니다.`,
+      here: `자료마다 칸에 넣는 방식이 다릅니다. 민원 ${n(s.complaints)}건·과태료 ${n(data.decision.fines.totalN)}건은 건별 주소를 좌표로 바꿔 점이 속한 칸에, 건축물대장 ${Number.isFinite(sz.ledgerRows) ? n(sz.ledgerRows) : "—"}동은 대지 지번 좌표로, 도로·건물 형태는 OSM 선·면을 칸 경계로 잘라, 서울시 생활인구는 250m 격자를 면적 비례로 나눠 넣었습니다. 등록인구는 동 단위뿐이라 격자 회귀에는 들어가지 않고 동별 지표에만 씁니다.`,
       caution: `"100m로 나눠서 그런 결과가 나온 것 아니냐"는 물음에는 격자를 200m로 합쳐 다시 적합한 결과로 답합니다(격자 검증 카드). 판정 유지 ${data.decision.regressionV2 ? `${Object.values(data.decision.regressionV2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(data.decision.regressionV2.gridSensitivity.v2).length}` : "—"} 변수. 격자는 통계청 EPSG:5179 정렬이라 SGIS 인구격자·서울시 250m 격자와 좌표로 바로 이어집니다.`,
     },
     {
       name: "다중회귀 분석 (표준화 β)",
       easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
-      here: `격자 1,062칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
+      here: `격자 ${n(sz.gridN)}칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
         `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고, v2 모형은 서울시 250m 생활인구를 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "—"}, 무관리주거는 그대로). 관리주체 없는 주거는 건축물대장 대리변수이고, 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
     },
@@ -152,8 +154,8 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "신고 채널 분해",
       easy: "민원이 늘었다고 해서 발생이 는 것은 아닙니다. 신고 창구(앱·120·직접)별로 나눠 보면 무엇이 늘었는지가 드러납니다.",
-      here: `민원 ${fmtRatio(cg.total)} 증가를 나눠 보니 앱만 ${fmtRatio(cg.app)}였고 120·직접은 ${fmtRatio(cg.fixed)}였습니다. 신고 성향과 무관한 과태료 부과는 ${fmtRatio(cg.fines)}로 오히려 ${finesDirection(cg)}으니, 늘어난 부분은 대부분 앱 보급 효과로 봅니다.`,
-      caution: `배율은 ${cg.basis}한 값입니다.`,
+      here: `민원 ${fmtRatio(cg.total)} 증가를 나눠 보니 앱만 ${fmtRatio(cg.app)}였고 120·직접은 ${fmtRatio(cg.fixed)}였습니다. 과태료 부과는 ${fmtRatio(cg.fines)}로 오히려 ${finesDirection(cg)}고, 신고와 무관한 순찰(수시) 적발만 봐도 ${fmtRatio(cg.finesPatrol)}이니, 늘어난 부분은 대부분 앱 보급 효과로 봅니다.`,
+      caution: `배율은 ${cg.basis}한 값입니다. 과태료의 ${100 - cg.patrolSharePct}%는 신고를 받아 나간 것이라 "신고와 무관한 실측"은 아닙니다. ${finesCensorNote(data)}.`,
     },
     {
       name: "핫스팟 점수와 백테스트",
@@ -164,7 +166,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
       name: "홀트윈터스 수요 전망",
       easy: "월별 접수의 수준과 추세, 계절 반복(여름에 많고 겨울에 적은 흐름)을 학습해 다음 달을 내다보는 시계열 모형입니다.",
       here: `매달 그 이전 자료로만 모수를 고르고 다음 달을 맞히는 롤링 원점 검증(${fc.window})에서 평균 오차 ${fc.mapePct}%, 전년 동월로 찍는 기준모형은 ${fc.naiveMapePct ?? "—"}%였습니다. 80% 예측구간 적중률은 ${fc.coverage80Pct ?? "—"}%입니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
-      caution: "신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 평가 구간을 분리했으므로 오차에 낙관 편향은 없습니다.",
+      caution: `신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 평가 구간을 분리해 모수 선택에서 오는 낙관 편향은 제거했지만, 평가 표본이 ${fc.rows?.length ?? "—"}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.`,
     },
     {
       name: "온톨로지 (지식그래프)",
@@ -174,7 +176,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "검증 하네스와 한계 공개",
       easy: "결론을 내기 전에 통계의 전제 조건이 실제로 성립하는지 따로 검사하고, 어긋난 것은 숨기지 않고 적었습니다.",
-      here: "잔차 정규성·등분산성·공간 독립성 위배를 확인해 보정 모형을 함께 돌렸고, 청년·외국인·1인세대·무관리주거가 상관 0.85~0.97로 얽혀 있어 무엇이 진짜 요인인지 갈라낼 수 없다는 한계를 밝혀 두었습니다. 어느 하나를 원인으로 지목하는 해석은 피해야 합니다.",
+      here: `잔차 정규성·등분산성·공간 독립성 위배를 확인해 보정 모형을 함께 돌렸고, 청년·외국인·1인세대·무관리주거가 상관 ${col}로 얽혀 있어 무엇이 진짜 요인인지 갈라낼 수 없다는 한계를 밝혀 두었습니다. 어느 하나를 원인으로 지목하는 해석은 피해야 합니다.`,
     },
   ]
 }
@@ -231,6 +233,8 @@ export default function MethodsModal({
   if (!open || !data) return null
   const betas = graph ? regressionBetas(graph) : []
   const topBeta = betas[0] ? signed(betas[0].beta) : "+0.312"
+  const ledgerRows = graph ? sampleSizes(data, graph).ledgerRows : NaN
+  const rp = data.meta?.reproduce
   return (
     <ModalShell
       title="데이터·분석 방법"
@@ -271,9 +275,9 @@ export default function MethodsModal({
           <DatasetGroup
             badge="직접 수집"
             badgeCls="bg-[#0c6155]/12 text-[#0c6155]"
-            title={`공개 데이터 직접 수집 ${collected(data, topBeta).length}종`}
+            title={`공개 데이터 직접 수집 ${collected(data, topBeta, ledgerRows).length}종`}
             desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
-            items={collected(data, topBeta)}
+            items={collected(data, topBeta, ledgerRows)}
           />
           {seoulOpen(data).length > 0 && (
             <DatasetGroup
@@ -285,8 +289,9 @@ export default function MethodsModal({
             />
           )}
           <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            원자료의 컬럼 사전·파일 해시(SHA-256) 83개는 재현 패키지(REPRODUCE)에 고정돼 있으며, verify.py로 해시 대조와
-            핵심 수치 재계산을 언제든 확인하실 수 있습니다.
+            원자료의 컬럼 사전과 입력·산출물·코드 파일 해시(SHA-256) {rp?.hashes ?? "—"}개는 재현 패키지(REPRODUCE)에 고정돼 있으며,
+            verify.py가 해시 대조와 핵심 수치 {rp?.numbers ?? "—"}개 재계산을 합니다. 회귀·DID·전망 오차의 재추정은 개별 스크립트로 가능하지만
+            verify.py의 범위는 아닙니다.
           </p>
         </div>
       ) : (
@@ -313,8 +318,8 @@ export default function MethodsModal({
             </section>
           ))}
           <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            상세 수식·검증 절차는 내부 분석 저장소 gwangjin-dumping(비공개)의 README와 REPRODUCE/MODEL_SPEC.md에 있으며,
-            모든 수치는 해시 검증(verify.py)으로 재현이 고정돼 있습니다.
+            상세 수식·검증 절차는 내부 분석 저장소 gwangjin-dumping(비공개)의 README와 REPRODUCE/MODEL_SPEC.md에 있습니다.
+            고정 산출물의 무결성은 해시로, 핵심 수치는 verify.py 재계산으로 확인하며, 모형 재추정은 각 스크립트로 합니다.
           </p>
         </div>
       )}

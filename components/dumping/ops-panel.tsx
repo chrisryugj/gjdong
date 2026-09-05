@@ -95,7 +95,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             <p className="text-[12px] text-[var(--cp-text-dim)]">집중관리 상습격자</p>
             <p className="font-mono text-[20px] font-bold text-[#a8322a]">{d.kpi.criticalCellsNow}</p>
             <p className="text-[11px] text-[var(--cp-text-faint)]">
-              12개월 10건+ {prevCritical != null && ` · 전분기 ${prevCritical}`}
+              {d.kpi.thresholds?.months ?? 12}개월 {d.kpi.thresholds?.critical ?? 10}건+ {prevCritical != null && ` · 전분기 ${prevCritical}`}
             </p>
             <p className="text-[11px] font-medium text-[var(--cp-text-muted)]">앱 제외 {d.kpi.criticalCellsNowNoApp}곳</p>
             <p className="mt-0.5 text-[11px] font-semibold text-[#a8322a]">
@@ -177,8 +177,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           ))}
         </div>
         <p className="mt-1 text-[12px] text-[var(--cp-text-faint)]">
-          점수는 민원 1점에 과태료 2점을 더하고, 최근일수록 가중치를 높인 값입니다(반감기 90일).
-          행정수요 예측이지 발생의 인과를 예측하는 것은 아닙니다.
+          점수는 {d.hotspots.method}입니다. 행정수요 예측이지 발생의 인과를 예측하는 것은 아닙니다.
         </p>
       </section>
 
@@ -341,7 +340,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               })}
             </div>
             <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[13.5px] font-semibold leading-snug text-[#0a4a41]">
-              가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가 구의·자양·중곡에
+              가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가{" "}
+              {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
               몰려 공급되고 있습니다. 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보
               지역입니다.
             </p>

@@ -1,5 +1,5 @@
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { channelGrowth, finesDirection, fmtKrw, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtKrw, fmtRatio, regressionBetas, sampleSizes } from "@/lib/dumping/facts"
 
 // 핵심 발견 10장 — 문장은 여기, 숫자는 map.json·graph.json에서 파생한다.
 // 예전엔 README 확정치를 손으로 옮겨 적었는데, 재수출 때 "과태료 1.1배"처럼 데이터와 어긋난 문장이 남았다.
@@ -28,8 +28,8 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
   const apt = beta("cov-apt")
   const alley = beta("cov-alley")
   const arterial = beta("cov-arterial")
-  const unmEdge = graph.edges.find((e) => e.f === "con-unmanaged" && e.t === "kpi-dump-rate")
-  const gridN = Number(unmEdge?.props?.n ?? data.grid.length)
+  const { gridN, dongN } = sampleSizes(data, graph)
+  const col = collinearRange(graph)
   const rho = (id: string) => Number(graph.nodes.find((x) => x.id === id)?.props.rho ?? NaN)
   const rhoYouth = rho("cov-youth")
   const rhoForeign = rho("cov-foreign")
@@ -86,7 +86,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
     {
       tag: "연관 미확인",
       title: "공동주택 세대수는 연관이 확인되지 않음",
-      body: `β ${apt ? signed(apt.beta) : "−0.011"}, p=${apt ? pText(apt.p) : "0.708"}. 어느 모형에서도 연관을 확인하지 못했습니다. 같은 세대수라도 아파트라면 발생이 늘지 않았습니다.`,
+      body: `β ${apt ? signed(apt.beta) : "−0.011"}, p=${apt ? pText(apt.p) : "0.708"}. 표준오차를 어떻게 잡아도 연관을 확인하지 못했습니다(같은 점추정에 표준오차만 바꾼 것이라 독립된 반복 증거는 아닙니다). 같은 세대수라도 아파트라면 발생이 늘지 않았습니다.`,
       detail: [
         `공동주택(아파트) 세대수는 무단투기 발생과의 연관을 통계적으로 확인하지 못했습니다(연관이 없다는 증명은 아닙니다. β ${apt ? signed(apt.beta) : "−0.011"}, p=${apt ? pText(apt.p) : "0.708"}). 같은 수의 사람이 살아도 관리사무소와 경비, 공동 배출장이 있는 주거에서는 발생이 늘지 않았습니다.`,
         `해석: 무관리 주거(${unm ? signed(unm.beta) : "+0.312"})와 정확히 대비되는 결과입니다. "사람이 많아서 버린다"는 통념은 이 자료에서 뒷받침되지 않고, "관리할 주체가 없어서 버려진다"는 설명이 힘을 얻습니다.`,
@@ -94,7 +94,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       numbers: [
         { k: "β", v: apt ? signed(apt.beta) : "−0.011" },
         { k: "p값", v: apt ? pText(apt.p) : "0.708" },
-        { k: "판정", v: "4개 모형 모두 비유의" },
+        { k: "판정", v: "표준오차 4방식 모두 비유의" },
       ],
       takeaway: "\"사람이 많아서 버린다\"는 통념 위에 정책을 세우면 안 됩니다.",
       viz: { mode: "overlay" },
@@ -124,8 +124,8 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       body: `앱 신고가 ${fmtRatio(g.app)}로 늘어나는 동안 120·직접 신고는 ${fmtRatio(g.fixed)}였습니다. 늘어난 부분은 대부분 앱 보급 효과로, 발생 증가로 보기 어렵습니다.`,
       detail: [
         `${g.baseYear}년 대비 ${g.lastYear}년 민원이 ${fmtRatio(g.total)}로 늘어(${g.basis}), 무단투기가 두 배로 나빠졌다고 읽기 쉽습니다. 그런데 채널별로 나눠 보면 앱 신고만 ${fmtRatio(g.app)}로 늘었고 120·직접 신고는 ${fmtRatio(g.fixed)}로 거의 그대로였습니다.`,
-        `해석: 신고 성향과 무관한 과태료 부과(단속 실측)는 같은 기준으로 ${fmtRatio(g.fines)}, 오히려 ${finesDirection(g)}습니다. 늘어난 부분은 발생 증가보다 신고 채널의 변화로 설명되는 몫이 큽니다. 앱 이용자 수·중복 신고 자료가 없어 발생 증가를 완전히 배제하지는 못합니다. 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
-        `주의: 과태료 감소가 발생 감소를 뜻하지도 않습니다. 단속 인력과 순찰 패턴이 섞인 수치라, 발생 추세는 채널고정 민원과 상습격자 수로 함께 읽어야 합니다.`,
+        `해석: 과태료 부과는 같은 기준으로 ${fmtRatio(g.fines)}, 오히려 ${finesDirection(g)}습니다. 다만 과태료의 ${100 - g.patrolSharePct}%는 신고를 받아 나간 것이라 신고 성향과 무관하지 않습니다. 신고와 상관없는 순찰(수시) 적발만 따로 봐도 ${fmtRatio(g.finesPatrol)}로 줄었습니다. 늘어난 부분은 발생 증가보다 신고 채널의 변화로 설명되는 몫이 큽니다. 앱 이용자 수·중복 신고 자료가 없어 발생 증가를 완전히 배제하지는 못합니다. 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
+        `주의: 과태료 감소가 발생 감소를 뜻하지도 않습니다. 단속 인력과 순찰 패턴이 섞인 수치이고, ${finesCensorNote(data)}. 발생 추세는 채널고정 민원과 상습격자 수로 함께 읽어야 합니다.`,
         ...(seoul
           ? [`서울시 스마트불편신고 청소 분야도 ${cleanYears[cleanYears.length - 3] ?? cleanYears[0]}년 대비 ${cleanYears[cleanYears.length - 1]}년 ${Number.isFinite(seoulApp) ? seoulApp.toFixed(2) : "—"}배로 늘었습니다(서울 열린데이터광장 OA-12051). 앱 확산은 광진만의 일이 아니라 25개 구 공통의 착시입니다. 집중관리 상습격자도 앱 민원을 포함하면 ${k.criticalCellsNow}곳, 빼면 ${k.criticalCellsNowNoApp}곳입니다.`]
           : []),
@@ -134,9 +134,10 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         { k: "민원 전체", v: fmtRatio(g.total) },
         { k: "앱 신고", v: fmtRatio(g.app) },
         { k: "120·직접", v: fmtRatio(g.fixed) },
-        { k: "과태료(단속)", v: fmtRatio(g.fines) },
+        { k: "과태료 전체", v: fmtRatio(g.fines) },
+        { k: "순찰 적발만", v: fmtRatio(g.finesPatrol) },
       ],
-      takeaway: "연도별 민원 건수로 성과를 평가하면 안 됩니다. 채널고정 민원과 단속 실측을 함께 보셔야 합니다.",
+      takeaway: "연도별 민원 건수로 성과를 평가하면 안 됩니다. 채널고정 민원과 순찰 적발 계열을 함께 보셔야 합니다.",
       viz: { mode: "comp" },
       vizLabel: "지도에서 민원 분포 보기",
     },
@@ -165,7 +166,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       detail: [
         `온톨로지에 "발생과 연관된 요인 목록"과 "각 요인을 겨냥하는 개입수단"을 함께 넣고 맞춰 보면, 청년(ρ ${rhoYouth.toFixed(3)})·외국인(ρ ${rhoForeign.toFixed(2)})·1인세대 요인에 대응하는 수단이 하나도 없다는 사실이 기계적으로 드러납니다. 표만 봐서는 던질 수 없는 질문입니다.`,
         `이 공백에서 다국어 배출안내(${topFrn.d} 외국인 ${topFrn.frn}%), 전입·임대차 시점 배출안내(1인세대가 들어오는 길목), 수거 시간대 조정(무예산) 세 가지가 새 대책으로 나왔습니다.`,
-        "주의: 청년·외국인·1인세대·무관리주거는 상관 0.85~0.97로 얽혀 있어 개별 효과를 갈라낼 수 없습니다(행정동 n=15). 어느 하나를 원인으로 지목하는 해석은 피해야 합니다.",
+        `주의: 청년·외국인·1인세대·무관리주거는 상관 ${col}로 얽혀 있어 개별 효과를 갈라낼 수 없습니다(행정동 n=${dongN}). 어느 하나를 원인으로 지목하는 해석은 피해야 합니다.`,
       ],
       numbers: [
         { k: "청년 상관 ρ", v: rhoYouth.toFixed(3) },
@@ -215,7 +216,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       title: "다음 분기 핫스팟은 미리 알 수 있습니다",
       body: `최근성을 가중한 점수 상위 20개 격자를 지난 ${bt.windows.length}개 분기로 검증해 보면, 평균 ${bt.avgPrecision20 ?? "—"}%에서 다음 분기에 실제로 발생했습니다. 무작위보다 ${bt.avgCapture20 && bt.avgRandomCapture ? Math.round(bt.avgCapture20 / bt.avgRandomCapture) : "—"}배 높은 포착률입니다.`,
       detail: [
-        `민원 1점, 과태료 2점을 주고 최근일수록 가중치를 높여(반감기 90일) 격자에 순위를 매긴 뒤, ${bt.windows.length}개 분기 시점마다 상위 20곳을 뽑아 이후 90일의 실제 발생과 맞춰 봤습니다.`,
+        `${data.decision.hotspots.method}으로 격자에 순위를 매긴 뒤, ${bt.windows.length}개 분기 시점마다 상위 20곳을 뽑아 이후 90일의 실제 발생과 맞춰 봤습니다.`,
         `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "—"}%에서 다음 분기 실제 발생이 있었고, 구 전체 발생의 ${bt.avgCapture20 ?? "—"}%가 이 20곳 안에서 일어났습니다(무작위로 20곳을 고르면 ${bt.avgRandomCapture ?? "—"}%). 같은 자리에서 반복되는 성질(재발률 ${recur}%)이 강해, 복잡한 모형 없이도 예측이 성립합니다.`,
         "활용: 순찰·점검·재배치 대상을 고르는 자원 배분입니다. 인과를 예측하는 것이 아니므로, 개입 효과 판정은 반드시 조치 대장의 사전등록 설계로 하셔야 합니다.",
       ],
@@ -245,7 +246,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `"인구가 통제되지 않았다"는 지적에 서울 열린데이터광장 250m 격자 생활인구(${seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눠 회귀에 넣었습니다(v2, n=${n(r2.v2_100.n)}).`,
           `체류 인구가 많은 칸일수록 적발이 조금 늘지만(β ${signed(lp.beta)}), 관리주체 없는 주거의 계수는 ${signed(unm2.beta)}로 바뀌지 않았습니다. 설명력은 R² ${r2.base100.r2}→${r2.v2_100.r2}입니다.`,
           "해석: 무단투기는 사람이 많이 오가는 만큼 생기는 현상이 아니라, 배출을 관리할 주체가 없는 주거가 몰린 곳에서 생기는 현상이라는 결론이 노출을 통제한 뒤에도 유지됩니다.",
-          "주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고, 2026년 7월 한 달 평균입니다. 관측 기간 전체의 노출과 다를 수 있습니다.",
+          `주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고, ${seoul?.livingPop250Month ?? "2026-07"} 한 달 평균입니다. 관측 기간 전체의 노출과 다를 수 있습니다.`,
         ],
         numbers: [
           { k: "무관리주거 β(v2)", v: signed(unm2.beta) },
@@ -277,7 +278,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       {
         tag: "격자 검증",
         title: "100m로 잘라서 나온 결과가 아닙니다",
-        body: `격자를 200m로 네 배 키워 다시 적합해도 ${total}개 변수 중 ${held}개의 판정이 유지됐습니다. 관리주체 없는 주거·골목·간선 이격은 그대로이고, ${notHeld.length ? `경계에 걸린 것은 ${notHeld.map((kk) => (kk === "living_pop" ? "생활인구" : kk)).join("·")}뿐입니다` : "달라진 변수가 없습니다"}.`,
+        body: `격자를 200m로 네 배 키워 다시 적합해도 ${total}개 변수 중 ${held}개의 판정이 유지됐습니다. ${["unmanaged_units", "alley_ratio", "dist_arterial"].every((kk) => r2.gridSensitivity.v2[kk]) ? "관리주체 없는 주거·골목·간선 이격은 그대로이고, " : ""}${notHeld.length ? `경계에 걸린 것은 ${notHeld.map((kk) => (kk === "living_pop" ? "생활인구" : kk)).join("·")}뿐입니다` : "달라진 변수가 없습니다"}.`,
         detail: [
           "\"데이터가 100m 단위로 구분되느냐\"는 질문에 대한 답입니다. 민원·과태료는 건별 주소를 좌표로 바꿔 점으로 찍고, 건축물대장은 대지 지번으로 점을 찍어 그 점이 속한 칸에 셉니다. 도로·건물 형태는 OSM 선·면을 칸에 잘라 넣고, 생활인구는 서울시 250m 격자를 면적 비례로 나눕니다. 등록인구는 동 단위뿐이라 격자 회귀에 넣지 않았습니다.",
           `칸을 100m에서 200m로 합쳐 같은 모형을 다시 돌리면(n=${n(r2.v2_200.n)}) 관리주체 없는 주거 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}, 간선 이격 β ${signed(r2.v2_200.coef.dist_arterial.beta)}로 방향과 유의성이 유지됩니다. 설명력은 R² ${r2.v2_100.r2}→${r2.v2_200.r2}로 올라가는데, 칸이 커지면 점 하나가 경계 바깥 칸으로 떨어지는 잡음이 줄기 때문입니다.`,

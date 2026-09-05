@@ -64,7 +64,8 @@ export const RELATIONS: RelDef[] = [
   // 요인 → 결과 (통계 연관 — 인과 아님)
   { rel: "predicts", en: "predicts", kind: "association", def: "요인이 결과지표와 양의 조건부 연관을 갖는다(β 또는 ρ). 인과를 뜻하지 않는다", domain: FACTOR, range: ["KPI", "Risk"] },
   { rel: "contributes_to", en: "contributes to", kind: "association", def: "요인이 결과지표를 늘리는 방향의 약한 연관", domain: FACTOR, range: ["KPI"] },
-  { rel: "constrains", en: "constrains", kind: "association", def: "요인은 결과지표와 음의 연관(β<0). 주장이면 지표 운용의 제약 규칙", domain: [...FACTOR, "Claim"], range: ["KPI"] },
+  { rel: "constrains", en: "constrains", kind: "association", def: "요인이 결과지표와 음의 연관(β<0)을 갖는다. 인과를 뜻하지 않는다", domain: FACTOR, range: ["KPI"] },
+  { rel: "operationalizes", en: "operationalizes", kind: "association", def: "격자 지표가 상위 결과지표의 조작적 정의다(격자 β의 종속변수 ≠ 동 천명당 ρ의 종속변수)", domain: ["KPI"], range: ["KPI"] },
   { rel: "degrades", en: "degrades", kind: "association", def: "이론이 결과지표를 악화시키는 기제를 설명한다", domain: ["Topic"], range: ["KPI"] },
   // 개입 → 결과·요인
   { rel: "lowers", en: "targets (lower)", kind: "intervention", def: "개입이 낮추려는 지표. 효과를 단언하지 않으며 판정(제안·미검증·효과없음·측정불가·철회)은 엣지 status에 있다", domain: ["Lever"], range: ["KPI"] },
@@ -74,7 +75,12 @@ export const RELATIONS: RelDef[] = [
   { rel: "classifies", en: "classifies", kind: "governance", def: "법령이 데이터셋의 분류 기준이다", domain: ["Policy"], range: ["Dataset"] },
   { rel: "restricts", en: "restricts", kind: "governance", def: "정책·절차가 데이터셋 운용이나 개입 실행을 제한한다(사전등록 대상)", domain: ["Policy"], range: ["Dataset", "Lever"] },
   { rel: "governed_by", en: "governed by", kind: "governance", def: "개입의 실행 근거 법령·조례", domain: ["Lever"], range: ["Policy"] },
+  { rel: "governs", en: "governs", kind: "governance", def: "주장이 지표의 운용 규칙을 정한다(예: 품목 분리 없는 총량 관리 금지). 통계 연관이 아니다", domain: ["Claim"], range: ["KPI"] },
 ]
+
+// PROV 최소 속성 — 데이터셋·증거는 출처·기준시점·산출 스크립트를 가져야 재현 패키지와 맞물린다
+export const PROV_KEYS = ["source", "asof", "derived_by"] as const
+export const PROV_TYPES = new Set(["Dataset", "Evidence"])
 
 export const LEVER_VERDICT_RELS = new Set(["lowers", "stabilizes"])
 
@@ -94,6 +100,7 @@ export interface SchemaIssue {
     | "VERDICT_MISSING_STATUS"
     | "CLAIM_UNSUPPORTED"
     | "LABEL_MISSING"
+    | "PROV_MISSING"
   level: "error" | "warn"
   ref: string // 노드 id 또는 "f -rel-> t"
   msg: string
@@ -117,6 +124,10 @@ export function validateGraph(graph: OntoGraph): SchemaIssue[] {
     if (!TYPE_KO[n.type]) issues.push({ code: "LABEL_MISSING", level: "warn", ref: n.id, msg: `클래스 ${n.type}의 한글 표시명 없음` })
     if (n.props.retracted !== undefined && Number(n.props.confidence ?? 0) !== 0)
       issues.push({ code: "RETRACTED_CONFIDENCE", level: "error", ref: n.id, msg: "철회된 노드의 신뢰도는 0이어야 한다" })
+    if (PROV_TYPES.has(n.type)) {
+      const missing = PROV_KEYS.filter((k) => n.props[k] === undefined || n.props[k] === "")
+      if (missing.length) issues.push({ code: "PROV_MISSING", level: "warn", ref: n.id, msg: `출처 속성 없음: ${missing.join("·")}` })
+    }
   }
 
   for (const e of graph.edges) {

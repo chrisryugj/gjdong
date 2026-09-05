@@ -22,12 +22,18 @@ const BASE_LABEL: Record<BaseMode, string> = {
   lp: "생활인구",
 }
 
-// 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음)
-const BASE_DESC: Record<BaseMode, string> = {
-  unm: "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 발생과 무관해(β −0.011) 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다.",
-  comp: "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다.",
-  enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와는 무관하지만 순찰·근무 패턴이 섞인 적발 실측이라, 발생 그 자체는 아닙니다.",
-  lp: "바탕색은 서울시 250m 격자 생활인구(2026년 7월 시간·일 평균)를 100m 칸에 면적 비례로 나눈 체류 인구입니다. 사람이 많이 머무는 곳인지, 즉 노출을 보는 바탕입니다.",
+// 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음). 수치는 데이터에서
+const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
+  switch (m) {
+    case "unm":
+      return "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 연관이 확인되지 않아 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다."
+    case "comp":
+      return "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다."
+    case "enf":
+      return "바탕색은 단속으로 부과한 과태료 건수입니다. 대부분 신고를 받아 적발한 것이고 순찰·근무 패턴도 섞여 있어, 발생 그 자체는 아닙니다."
+    case "lp":
+      return `바탕색은 서울시 250m 격자 생활인구(${data?.decision.seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눈 체류 인구입니다. 사람이 많이 머무는 곳인지, 즉 노출을 보는 바탕입니다.`
+  }
 }
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -66,9 +72,10 @@ interface Props {
   onChange: (next: MapView) => void // 사용자가 칩을 만졌을 때 — 부모는 "반영 중" 배지를 내린다
   active: { label: string; onClear: () => void } | null // 지도에 반영 중인 발견·정책 수단
   onFocusCandidate: (f: CandidateFocus) => void
+  selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
 }
 
-export default function MapControls({ data, view, onChange, active, onFocusCandidate }: Props) {
+export default function MapControls({ data, view, onChange, active, onFocusCandidate, selectedDong = null }: Props) {
   const [showHelp, setShowHelp] = useState(false) // 지도 읽는 법 — 좁은 화면에서 지도를 덮지 않도록 기본 접힘
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
 
@@ -184,7 +191,7 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
         </div>
         {showHelp && (
           <p className="max-w-md rounded-lg border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[var(--cp-text-muted)] shadow-sm backdrop-blur">
-            {BASE_DESC[view.base]}
+            {baseDesc(view.base, data)}
             {view.circles.length > 0 &&
               ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원(${c === "comp" ? "빨강" : "보라"})`).join("과 ")}은 바탕과 비교해 보시라고 올린 결과 지표입니다.`}
           </p>
@@ -219,6 +226,46 @@ export default function MapControls({ data, view, onChange, active, onFocusCandi
         ))}
         <span className="ml-1">칸=100m</span>
       </div>
+
+      {/* 격자 대체 표 — 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸을 표로 */}
+      {data && (
+        <details className="absolute bottom-10 left-2 z-[1000] max-w-[calc(100%-6rem)] rounded-lg border border-[var(--cp-border)] bg-white/95 text-[12.5px] shadow-sm backdrop-blur print:hidden">
+          <summary className="cursor-pointer px-2.5 py-1 text-[var(--cp-text-muted)]">
+            격자 표로 보기 · {BASE_DEF[view.base].legend} 상위 20
+          </summary>
+          <div className="max-h-[30dvh] overflow-y-auto px-1 pb-1">
+            <table className="w-full">
+              <caption className="sr-only">
+                {BASE_DEF[view.base].legend} 상위 20개 100m 격자. 행정동, 값, 민원, 과태료 순
+              </caption>
+              <thead>
+                <tr className="text-left text-[var(--cp-text-dim)]">
+                  <th scope="col" className="px-1.5 py-0.5">순위</th>
+                  <th scope="col" className="px-1.5 py-0.5">행정동</th>
+                  <th scope="col" className="px-1.5 py-0.5 text-right">{BASE_DEF[view.base].legend}({BASE_DEF[view.base].unit})</th>
+                  <th scope="col" className="px-1.5 py-0.5 text-right">민원</th>
+                  <th scope="col" className="px-1.5 py-0.5 text-right">과태료</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...data.grid]
+                  .filter((c) => selectedDong === null || c[7] === selectedDong)
+                  .sort((a, b) => b[BASE_DEF[view.base].idx] - a[BASE_DEF[view.base].idx])
+                  .slice(0, 20)
+                  .map((c, i) => (
+                    <tr key={`${c[0]}-${c[1]}`} className="border-t border-[var(--cp-border-faint)]">
+                      <td className="px-1.5 py-0.5 font-mono">{i + 1}</td>
+                      <td className="px-1.5 py-0.5">{c[7] || "광진구"}</td>
+                      <td className="px-1.5 py-0.5 text-right font-mono">{c[BASE_DEF[view.base].idx].toLocaleString()}</td>
+                      <td className="px-1.5 py-0.5 text-right font-mono">{c[4]}</td>
+                      <td className="px-1.5 py-0.5 text-right font-mono">{c[5]}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
 
       {/* 재배치 후보 주소 목록 — 데스크톱은 "지도 읽는 법" 버튼 아래(top-12)에 둬 겹치지 않는다 */}
       {view.candidates && data && (

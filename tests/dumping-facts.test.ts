@@ -3,7 +3,7 @@ import assert from "node:assert"
 import { existsSync, readFileSync } from "node:fs"
 import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
-import { channelGrowth, finesDirection, fmtRatio, periodOf, partialYearSuffix, regressionBetas } from "../lib/dumping/facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, periodOf, partialYearSuffix, regressionBetas, sampleSizes } from "../lib/dumping/facts"
 import { buildFindings } from "../components/dumping/findings-data"
 import { applyErrata, EDGE_ERRATA } from "../lib/dumping/errata"
 
@@ -25,6 +25,27 @@ test("channelGrowth — 실데이터: 마지막 해가 부분 연도면 연환�
   assert.ok(Math.abs(g.fixed - 1.11) < 0.011, `fixed=${g.fixed}`)
   assert.ok(g.fines < 0.6, `fines=${g.fines} — "과태료 1.1배"는 데이터와 맞지 않는다`)
   assert.strictEqual(finesDirection(g), "줄었")
+})
+
+test("적발 경로 — 과태료 대부분이 신고 유래(순찰 17%)이고, 신고와 독립인 순찰 적발도 절반 이하로 줄었다", withMap, () => {
+  const g = channelGrowth(map!)
+  assert.strictEqual(g.patrolSharePct, 17)
+  assert.ok(g.finesPatrol < 0.6 && g.finesReported < 0.6, `patrol=${g.finesPatrol} reported=${g.finesReported}`)
+  assert.match(finesCensorNote(map!), /과소 집계/)
+  // 화면 어디에도 "신고 성향과 무관한 실측"류 문장이 남으면 안 된다
+  const fs = JSON.stringify(buildFindings(map!, graph))
+  assert.ok(!/신고 성향과 무관한 과태료/.test(fs) && !/신고편향 없는/.test(fs), "과태료를 신고와 독립인 실측으로 서술한다")
+  assert.ok(fs.includes("순찰"), "순찰 적발 계열 언급 없음")
+})
+
+test("collinearRange·sampleSizes — 문장에 박혀 있던 수치를 그래프·데이터에서 읽는다", withMap, () => {
+  assert.strictEqual(collinearRange(graph), "0.85~0.97")
+  const sz = sampleSizes(map!, graph)
+  assert.strictEqual(sz.gridN, 1062)
+  assert.strictEqual(sz.ledgerRows, 24520)
+  assert.strictEqual(sz.dongN, 15)
+  assert.strictEqual(map!.meta?.reproduce.hashes, 102)
+  assert.strictEqual(map!.meta?.binSites, 64)
 })
 
 test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", withMap, () => {

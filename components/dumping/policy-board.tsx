@@ -102,7 +102,7 @@ export default function PolicyBoard({ graph, onShowMap, activeLeverId }: PolicyB
   const proposals = levers.filter((l) => l.status === "제안").sort((a, b) => costRank(a) - costRank(b))
   const existing = levers.filter((l) => l.status !== "제안")
   const kpis = graph.nodes.filter((n) => n.type === "KPI")
-  // 성과 평가에 쓰는 지표(신고편향과 무관한 3종)를 앞으로
+  // 성과 평가에 쓰는 지표(신고편향에 덜 민감한 3종)를 앞으로
   const KPI_ORDER = ["kpi-fixed-channel", "kpi-critical-cells", "kpi-collection"]
   const kpisSorted = [...kpis].sort((a, b) => {
     const ia = KPI_ORDER.indexOf(a.id)

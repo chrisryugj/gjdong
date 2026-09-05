@@ -1,10 +1,14 @@
 import type { OntoGraph, OntoNode } from "./types"
+import { PROV_KEYS, PROV_TYPES } from "./schema"
 
 // 역량 질문(competency questions) — "이 온톨로지는 무엇에 답할 수 있는가"를 코드로 고정한다.
 // 전부 graph.json 위의 순수 함수라 데이터가 바뀌면 답도 따라오고, 테스트가 현재 답을 핀으로 박는다.
 // 화면(온톨로지 탭 "온톨로지에 묻기")과 문서가 같은 함수를 쓴다.
 
+// 결과지표 둘: 동 천명당 발생률(ρ·개입이 겨냥)과 격자 적발 건수(격자 회귀 β의 종속변수). 후자가 전자를 operationalizes
 export const OUTCOME = "kpi-dump-rate"
+export const OUTCOME_CELL = "kpi-dump-count-cell"
+export const OUTCOMES = new Set([OUTCOME, OUTCOME_CELL])
 const FACTOR_RELS = new Set(["predicts", "contributes_to", "constrains"])
 const VERDICT_RELS = new Set(["lowers", "stabilizes"])
 // 도로 형태·생활인구(노출)는 관측 통제용이지 개입으로 바꿀 대상이 아니다 — 공백으로 세지 않되 답에는 표시한다
@@ -31,12 +35,12 @@ function byId(graph: OntoGraph): Map<string, OntoNode> {
 // CQ1 — 발생과 연관된 요인 가운데 겨냥하는 개입이 없는 것
 export function cqUntargetedFactors(graph: OntoGraph): CqResult {
   const nodes = byId(graph)
-  const factors = [...new Set(graph.edges.filter((e) => e.t === OUTCOME && FACTOR_RELS.has(e.rel) && nodes.get(e.f)?.type === "Concept").map((e) => e.f))]
+  const factors = [...new Set(graph.edges.filter((e) => OUTCOMES.has(e.t) && FACTOR_RELS.has(e.rel) && nodes.get(e.f)?.type === "Concept").map((e) => e.f))]
   const targeted = new Set(graph.edges.filter((e) => e.rel === "affects").map((e) => e.t))
   const hits = factors
     .filter((f) => !targeted.has(f))
     .map((id) => {
-      const edge = graph.edges.find((e) => e.f === id && e.t === OUTCOME)
+      const edge = graph.edges.find((e) => e.f === id && OUTCOMES.has(e.t))
       const beta = edge?.props?.beta !== undefined ? `β ${Number(edge.props.beta) > 0 ? "+" : ""}${edge.props.beta}` : edge?.props?.rho !== undefined ? `ρ ${edge.props.rho}` : ""
       return {
         id,
@@ -168,6 +172,23 @@ export function cqPreregistrationCoverage(graph: OntoGraph): CqResult {
   }
 }
 
+// CQ8 — 출처(source)·기준 시점(asof)·산출 스크립트(derived_by)가 없는 데이터셋·증거 (PROV 최소형 커버리지)
+export function cqProvenanceGaps(graph: OntoGraph): CqResult {
+  const hits = graph.nodes
+    .filter((n) => PROV_TYPES.has(n.type))
+    .map((n) => ({ id: n.id, missing: PROV_KEYS.filter((k) => n.props[k] === undefined || n.props[k] === "") }))
+    .filter((x) => x.missing.length)
+    .map((x) => ({ id: x.id, note: `없음: ${x.missing.join("·")}` }))
+  return {
+    id: "cq-prov",
+    q: "출처·기준 시점·산출 스크립트가 기록되지 않은 데이터셋·증거는?",
+    why: "증거 노드마다 어느 원천을 언제 어떤 스크립트로 가공했는지가 붙어 있어야 재현 패키지(해시·verify.py)와 한 줄로 이어진다. W3C PROV의 Entity·Activity 최소형이다",
+    hits,
+    gaps: hits.length,
+    empty: "없음. 모든 데이터셋·증거에 출처·기준 시점·산출 스크립트가 있다",
+  }
+}
+
 export function runCompetencyQuestions(graph: OntoGraph): CqResult[] {
   return [
     cqUntargetedFactors(graph),
@@ -177,12 +198,13 @@ export function runCompetencyQuestions(graph: OntoGraph): CqResult[] {
     cqLeversWithoutBasis(graph),
     cqEvidenceWithoutLineage(graph),
     cqPreregistrationCoverage(graph),
+    cqProvenanceGaps(graph),
   ]
 }
 
 // ─── 근거 계보 ────────────────────────────────────────────────
 // 노드 하나에서 거슬러 올라가 "어떤 증거 → 어떤 데이터셋 → 누가 관리"인지 모은다. 상세 카드 "근거 계보"용.
-const UPSTREAM_RELS = new Set(["supports", "describes", "contains", "derived_from", "manages", "owns", "exemplifies", "mentions"])
+const UPSTREAM_RELS = new Set(["supports", "describes", "contains", "derived_from", "manages", "owns", "exemplifies", "mentions", "operationalizes"])
 
 export interface Lineage {
   evidence: string[]

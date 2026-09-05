@@ -7,9 +7,30 @@ import { REL_KO, TYPE_KO } from "../lib/dumping/labels"
 
 const graph = graphJson as unknown as OntoGraph
 
-test("현재 graph.json은 스키마 오류 0 · 주의 0 (cls-cell 고아는 격자 민감도 증거가 서술해 해소)", () => {
+test("현재 graph.json은 스키마 오류 0 · 주의 0 (고아·PROV 누락 포함)", () => {
   const issues = validateGraph(graph)
   assert.deepStrictEqual(issues, [], JSON.stringify(issues, null, 1))
+})
+
+test("PROV 속성 없는 데이터셋·증거는 주의로 잡힌다 · constrains 출발에 Claim은 도메인 위반", () => {
+  const bad: OntoGraph = {
+    nodes: [
+      { id: "d", type: "Dataset", space: "resource", label: "d", props: { rows: 1 } },
+      { id: "c", type: "Claim", space: "claim", label: "c", props: {} },
+      { id: "e", type: "Evidence", space: "evidence", label: "e", props: { source: "x", asof: "y", derived_by: "z" } },
+      { id: "k", type: "KPI", space: "outcome", label: "k", props: {} },
+    ],
+    edges: [
+      { f: "d", rel: "contains", t: "e" },
+      { f: "e", rel: "supports", t: "c" },
+      { f: "c", rel: "constrains", t: "k" },
+    ],
+  }
+  const issues = validateGraph(bad)
+  assert.ok(issues.some((i) => i.code === "PROV_MISSING" && i.ref === "d"))
+  assert.ok(!issues.some((i) => i.code === "PROV_MISSING" && i.ref === "e"))
+  assert.ok(issues.some((i) => i.code === "DOMAIN_VIOLATION" && i.ref.startsWith("c -constrains->")))
+  assert.ok(RELATIONS.some((r) => r.rel === "governs") && RELATIONS.some((r) => r.rel === "operationalizes"))
 })
 
 test("스키마의 모든 클래스·관계에 한글 표시명이 있다 (labels.ts가 정본)", () => {

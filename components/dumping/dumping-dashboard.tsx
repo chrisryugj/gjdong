@@ -252,6 +252,7 @@ export default function DumpingDashboard() {
                 }}
                 active={active}
                 onFocusCandidate={setFocusCandidate}
+                selectedDong={selectedDong}
               />
             </>
           ) : (

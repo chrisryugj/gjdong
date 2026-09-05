@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
+import { channelGrowth, collinearRange, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 
@@ -66,8 +66,14 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "민원이 늘었다",
       beforeTag: "통념",
       before: `${g.baseYear}년보다 민원이 ${fmtRatio(g.total)}. 무단투기가 두 배로 나빠졌다.`,
-      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 단속 적발은 ${fmtRatio(g.fines)}로 오히려 줄었다. 늘어난 건 신고 창구다.`,
+      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 과태료는 ${fmtRatio(g.fines)}, 신고와 무관한 순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}로 오히려 줄었다. 늘어난 건 신고 창구다.`,
       chart: "yearly",
+    },
+    {
+      k: "과태료는 실측인가",
+      beforeTag: "초기 분석",
+      before: "과태료는 신고 성향과 무관한 단속 실측이다.",
+      after: `원자료 적발 경로를 보니 ${100 - g.patrolSharePct}%가 신고 유래. 신고와 독립인 건 순찰(수시) ${g.patrolSharePct}%뿐이고, 그 계열도 ${fmtRatio(g.finesPatrol)}. 문구를 고쳤다.`,
     },
     {
       k: "CCTV 효과",
@@ -94,7 +100,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "대책의 방향",
       beforeTag: "통념",
       before: `청년·외국인·1인세대가 많이 버린다(ρ ${rhoY.toFixed(2)}). 사람을 계도하면 된다.`,
-      after: "네 요인은 상관 0.85~0.97로 한 덩어리라 누구를 지목할 수 없다. 겨냥할 것은 사람이 아니라 배출 환경(공동 배출·관리주체).",
+      after: `네 요인은 상관 ${collinearRange(graph)}로 한 덩어리라 누구를 지목할 수 없다. 겨냥할 것은 사람이 아니라 배출 환경(공동 배출·관리주체).`,
     },
     {
       k: "원자료 그대로",

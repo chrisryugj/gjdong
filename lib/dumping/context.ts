@@ -2,7 +2,7 @@ import rawGraph from "@/data/dumping/graph.json"
 import mapData from "@/data/dumping/map.json"
 import type { DumpingMapData, OntoGraph } from "./types"
 import { applyErrata } from "./errata"
-import { channelGrowth, finesDirection, fmtKrw, fmtRatio, summarize } from "./facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtKrw, fmtRatio, regressionBetas, sampleSizes, summarize } from "./facts"
 import { TYPE_KO } from "./labels"
 
 // 온톨로지 전체 + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
@@ -14,6 +14,13 @@ const S = summarize(MAP)
 const G = channelGrowth(MAP)
 // 화면(데이터 라우트)과 같은 정오표를 거친 그래프 — 프롬프트와 UI가 다른 진술을 하지 않게
 const graph = applyErrata(rawGraph as unknown as OntoGraph)
+const SZ = sampleSizes(MAP, graph)
+const COL = collinearRange(graph)
+const BETA = Object.fromEntries(regressionBetas(graph).map((b) => [b.id, b]))
+const bt = (id: string, fallback: string) => (BETA[id] ? `${BETA[id].beta > 0 ? "+" : "−"}${Math.abs(BETA[id].beta).toFixed(3)}` : fallback)
+const cctvVerdict = graph.edges.find((e) => e.f === "lev-cctv-mobile" && e.rel === "lowers")?.props ?? {}
+const didOld = graph.nodes.find((n) => n.id === "cov-did-cctv")?.props ?? {}
+const ROUTE = MAP.decision.fines.byRoute
 
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
@@ -63,28 +70,31 @@ export function buildSystemPrompt(): string {
 아래 온톨로지(지식그래프)와 동별 수치가 근거의 전부다. 여기에 없는 내용은 지어내지 말고 "이 분석에는 없는 내용"이라고 답하라.
 
 ## 분석 개요
-민원 ${S.complaints.toLocaleString()}건(${S.period.label})·과태료 ${S.enforcement.toLocaleString()}건·건축물대장 24,520동·주민등록 인구를 100m 격자 1,062개에 결합해
+민원 ${S.complaints.toLocaleString()}건(${S.period.label})·과태료 ${S.enforcement.toLocaleString()}건·건축물대장 ${SZ.ledgerRows.toLocaleString()}동·주민등록 인구를 100m 격자 ${SZ.gridN.toLocaleString()}개에 결합해
 무단투기 발생 구조를 추정한 데이터기반행정 분석이다. 온톨로지는 분석 노드·엣지에
 의사결정 레이어(품목·퍼널·KPI·핫스팟·전망)를 더해 ${graph.nodes.length}노드·${graph.edges.length}엣지.
 
 ## 해석 규칙 (반드시 지켜라 — 독립 검토로 확정된 사항)
 1. 인과 표현 금지: "원인이다"가 아니라 "조건부 연관"으로 말하라. 회귀계수는 통제 후 연관이지 인과 증명이 아니다.
-2. 이동식 CCTV 효과는 확인되지 않았다. 초기 분석의 감소 효과(−0.772~−0.785, p=0.0485)는 평균회귀 오염으로 철회됐다.
-   대칭 설계 DID +0.221(p>0.5), 이벤트 스터디(처치 77·대조 667) 전 시점 비유의. "CCTV가 효과 있다"고 절대 말하지 마라.
+2. 이동식 CCTV 효과는 확인되지 않았다. 초기 분석의 감소 효과(${didOld.coefficient ?? "−0.772"}, p=${didOld.p_value ?? "0.0485"})는 선택 규칙과 대조군 정의에 민감해(평균회귀) 철회됐다.
+   대칭 설계 DID ${Number(cctvVerdict.did_symmetric ?? 0.221) > 0 ? "+" : ""}${cctvVerdict.did_symmetric ?? 0.221}(p${cctvVerdict.p ?? ">0.5"}), 이벤트 스터디(처치 77·대조 667) 전 시점 비유의. "CCTV가 효과 있다"고 절대 말하지 마라.
+   "효과가 없음이 증명됐다"도 아니다. "현재 설계에서 차이를 확인하지 못했다"가 정확하다.
    온톨로지에 retracted 속성이 붙은 노드(ev-did-cctv·claim-cctv-conditional·cov-did-cctv)의 원 수치는
    철회 전 것이니 근거로 인용 금지 — "조건부 효과" 표현도 철회됐다.
    재배치 권고는 통계 근거가 아니라 자원 배분 논리로만 유지된다.
-3. 민원 ${fmtRatio(G.total)} 증가는 발생 증가가 아니라 앱 보급에 따른 신고 편향이다(앱 ${fmtRatio(G.app)} vs 120·직접 ${fmtRatio(G.fixed)}).
-   배율 기준: ${G.basis}. 단속 실측인 과태료 부과는 같은 기준으로 ${fmtRatio(G.fines)}, 즉 오히려 ${finesDirection(G)}다 — "과태료도 늘었다"고 말하지 마라.
-4. 1인세대·청년·외국인·무관리주거는 상관 0.85~0.97로 얽혀 개별 효과 분리가 불가하다(행정동 n=15).
+3. 민원 ${fmtRatio(G.total)} 증가는 발생 증가로 보기 어렵고 앱 보급에 따른 신고 채널 변화로 설명되는 몫이 크다(앱 ${fmtRatio(G.app)} vs 120·직접 ${fmtRatio(G.fixed)}).
+   배율 기준: ${G.basis}. 과태료 부과는 같은 기준으로 ${fmtRatio(G.fines)}, 즉 오히려 ${finesDirection(G)}다. "과태료도 늘었다"고 말하지 마라.
+   단, 과태료의 ${100 - G.patrolSharePct}%는 신고 유래라 "신고 성향과 무관한 실측"이 아니다. 신고와 독립인 순찰(수시) 적발만 봐도 ${fmtRatio(G.finesPatrol)}로 줄었다.
+   앱 이용자 수·중복 신고·단속 인력 자료가 없어 발생 증가를 완전히 배제하지는 못한다. ${finesCensorNote(MAP)}.
+4. 1인세대·청년·외국인·무관리주거는 상관 ${COL}로 얽혀 개별 효과 분리가 불가하다(행정동 n=${SZ.dongN}).
    단일 잠재요인으로 다뤄야 하며 어느 하나를 "범인"으로 지목하지 마라.
-5. 골목 비율(β −0.222)·간선 이격거리(β −0.139)는 음수 — "으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않는다. "반증했다"고 단정하지 마라.
-6. 공동주택 세대수는 연관이 확인되지 않았다(β −0.011, p=0.708) — 연관 없음의 증명이 아니라 "확인하지 못함"이다.
-   최강 예측변수는 관리주체 없는 주거단위 밀도(표준화 β +0.312, p<0.001, n=1,062). 이 변수는 건축물대장의
+5. 골목 비율(β ${bt("cov-alley", "−0.222")})·간선 이격거리(β ${bt("cov-arterial", "−0.139")})는 음수 — "으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않는다. "반증했다"고 단정하지 마라.
+6. 공동주택 세대수는 연관이 확인되지 않았다(β ${bt("cov-apt", "−0.011")}, p=${BETA["cov-apt"]?.p.toFixed(3) ?? "0.708"}) — 연관 없음의 증명이 아니라 "확인하지 못함"이다.
+   최강 예측변수는 관리주체 없는 주거단위 밀도(표준화 β ${bt("cov-unmanaged", "+0.312")}, p<0.001, n=${SZ.gridN.toLocaleString()}). 이 변수는 건축물대장의
    다가구 가구수+단독주택 동수를 합친 대리변수이지 관리자 부재를 직접 관측한 값이 아니다.
    격자 회귀에 인구 변수는 없다 — "인구를 통제했다"고 말하지 마라(인구 대비 비교는 행정동 천명당 지표뿐).
 7. 민원 접수 시각은 투기 시각이 아니라 발견 시각이다. 과태료는 발생×발견×단속×처분의 결과라 "실제 발생"이라 부르지 말고
-   "단속 적발 실측"이라 하라. 재활용정거장은 설치·철거 변이가 없어 효과 측정 불가.
+   "단속 적발"이라 하라. "신고 성향과 무관한 실측"이라고도 부르지 마라(신고 유래가 대부분). 재활용정거장은 설치·철거 변이가 없어 효과 측정 불가.
 8. 확실하지 않으면 한계를 함께 말하라. 관측 독립성 위배(공간 자기상관) 등 진단 결과도 온톨로지에 있다.
 9. 대책 효과 시뮬레이션(what-if) 금지: "이 대책을 하면 몇 건 줄어든다"는 계산을 절대 하지 마라.
    회귀계수는 관측 연관이라 개입 효과 예측에 쓸 수 없다. 효과는 조치 대장에 사전등록한 대조군 설계로만 판정한다.
@@ -124,8 +134,12 @@ ${serializeDong()}
 ## 월별 민원 건수 (YYYY-MM: 건수)
 ${Object.entries(mapData.yearly.complaintsMonthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
 
-## 월별 과태료 부과 건수 (위반일시 기준 — 신고편향 없는 단속 실측)
+## 월별 과태료 부과 건수 (위반일시 기준. ${finesCensorNote(MAP)})
 ${Object.entries(mapData.decision.fines.monthly).map(([m, n]) => `${m}: ${n}`).join(", ")}
+
+## 과태료 적발 경로별 연도 (원자료 route. 신고 유래=주민·앱·120 등 신고를 받아 적발, 수시=단속반 순찰 적발)
+${ROUTE ? Object.entries(ROUTE.yearly).map(([rt, ys]) => `${rt}: ${Object.entries(ys).filter(([y]) => y >= "2024").map(([y, n]) => `${y}년 ${n}`).join(" · ")}`).join("\n") : "(미산출)"}
+순찰(수시) 적발 비중 ${G.patrolSharePct}%. 순찰 적발은 신고와 독립인데 같은 기준으로 ${fmtRatio(G.finesPatrol)}. ${ROUTE?.note ?? ""}
 
 ## 과태료 품목 분해 (${mapData.decision.fines.totalN.toLocaleString()}건, 금액=과세금액 합)
 ${mapData.decision.fines.categories.map((c) => `${c.cat}: ${c.n}건 ${fmtKrw(c.amount)}`).join(" · ")}
@@ -141,7 +155,7 @@ ${Object.entries(mapData.decision.channels.yearly).map(([ch, ys]) => `${ch}: ${O
 ${Object.entries(mapData.decision.sla.byYear).map(([y, s]) => `${y}년: 중앙값 ${s.medianH}시간 · 상위10% ${s.p90H}시간 · 3일내 처리 ${s.within3dPct}% (${s.n}건)`).join("\n")}
 
 ## 운영 KPI (기준 ${mapData.decision.asof})
-- 집중관리 상습격자(12개월 10건 이상): ${mapData.decision.kpi.criticalCellsNow}곳 · 관리대상(5건 이상): ${mapData.decision.kpi.watchCellsNow}곳
+- 집중관리 상습격자(${MAP.decision.kpi.thresholds?.months ?? 12}개월 ${MAP.decision.kpi.thresholds?.critical ?? 10}건 이상): ${mapData.decision.kpi.criticalCellsNow}곳 · 관리대상(${MAP.decision.kpi.thresholds?.watch ?? 5}건 이상): ${mapData.decision.kpi.watchCellsNow}곳
 - 분기 추이: ${mapData.decision.kpi.persistentQuarterly.map((r) => `${r.asof.slice(0, 7)} 집중 ${r.critical}·관리 ${r.watch}`).join(" · ")}
 
 ## 핫스팟 예측 (자원 배분용 — 인과 예측 아님)
@@ -150,7 +164,7 @@ ${Object.entries(mapData.decision.sla.byYear).map(([y, s]) => `${y}년: 중앙�
 현재 상위 20: ${mapData.decision.hotspots.top.slice(0, 10).map((h, i) => `${i + 1}위 ${h[6] || h[5]}(민원 ${h[3]}·과태료 ${h[4]})`).join(", ")} 외 10곳(운영·전망 탭)
 
 ## 수요 전망 (★운영 참고 — 행정수요이지 발생 예측 아님)
-홀트윈터스 계절 모형, 직전 8개월 백테스트 오차 ${mapData.decision.forecast.backtest.mapePct}%.
+홀트윈터스 계절 모형, 백테스트(${mapData.decision.forecast.backtest.window}) 오차 ${mapData.decision.forecast.backtest.mapePct}%.
 ${mapData.decision.forecast.fc.map((p) => `${p.m}: ${p.yhat}건(80% 구간 ${p.lo}~${p.hi})`).join(" · ")}
 
 ## 구조 전망 (건축HUB 인허가 파이프라인, 법정동 기준)
@@ -168,7 +182,7 @@ ${Object.entries(MAP.decision.regressionV2.v2_100.coef).map(([k, c]) => `${k} β
 ## 서울시 맥락 (서울 열린데이터광장, 25개 구 비교)
 ${MAP.decision.seoul ? `통합관제센터 연계 무단투기 CCTV: 서울 ${MAP.decision.seoul.cctv.seoulDumpingTotal}대, 광진 ${MAP.decision.seoul.cctv.gwangjin.dumping}대(보고 ${MAP.decision.seoul.cctv.reportingGus}개 구 중 ${MAP.decision.seoul.cctv.gwangjin.dumpingRank}위). ${MAP.decision.seoul.cctv.note}.
 서울 전체 스마트불편신고 청소 분야 연도별: ${Object.entries(MAP.decision.seoul.smartReport.cleaningByYear).filter(([y]) => y >= "2020").map(([y, v]) => `${y}년 ${v.toLocaleString()}건`).join(" · ")} (${S.period.lastYear}년은 부분).
-가로쓰레기통(서울시 원천 2025-11): 광진 ${MAP.decision.seoul.streetBins.gwangjin202511.sites}지점, 구청 장부 64개 위치와 일치.
+가로쓰레기통(서울시 원천 2025-11): 광진 ${MAP.decision.seoul.streetBins.gwangjin202511.sites}지점, 구청 장부 ${MAP.meta?.binSites ?? "—"}개 위치와 ${MAP.meta?.binSites === MAP.decision.seoul.streetBins.gwangjin202511.sites ? "일치" : "대조"}.
 생활인구 창: 행정동 ${MAP.decision.seoul.livingPopWindow} 평균, 250m 격자 ${MAP.decision.seoul.livingPop250Month}.` : "(미수집)"}
 
 ## 조치 대장 원칙

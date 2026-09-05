@@ -7,10 +7,13 @@ import {
   cqLeversByVerdict,
   cqLeversWithoutBasis,
   cqPreregistrationCoverage,
+  cqProvenanceGaps,
   cqRetractedCitations,
   cqUnsupportedClaims,
   cqUntargetedFactors,
   lineageOf,
+  OUTCOME,
+  OUTCOME_CELL,
   runCompetencyQuestions,
 } from "../lib/dumping/queries"
 
@@ -58,15 +61,33 @@ test("CQ7 사전등록 연결 — 제안 6건 전부 restricts로 연결 (내보
   assert.strictEqual(r.gaps, 0)
 })
 
-test("runCompetencyQuestions는 7문항, id 중복 없음", () => {
+test("CQ8 PROV 공백 — 기존 59노드도 내보내기 주석 레이어가 출처·시점·스크립트를 붙여 0건", () => {
+  const r = cqProvenanceGaps(graph)
+  assert.deepStrictEqual(ids(r), [])
+  assert.strictEqual(r.gaps, 0)
+  const ev = graph.nodes.find((n) => n.id === "ev-fines")!
+  assert.ok(ev.props.source && ev.props.asof && ev.props.derived_by)
+})
+
+test("결함 1·2 해소 — 격자 β는 kpi-dump-count-cell로, ρ·개입은 kpi-dump-rate로, 주장→지표 규칙은 governs", () => {
+  const betaTargets = new Set(graph.edges.filter((e) => e.props?.beta !== undefined).map((e) => e.t))
+  assert.deepStrictEqual([...betaTargets], [OUTCOME_CELL])
+  const rhoTargets = new Set(graph.edges.filter((e) => e.props?.rho !== undefined && e.props?.level === "행정동").map((e) => e.t))
+  assert.deepStrictEqual([...rhoTargets], [OUTCOME])
+  assert.ok(graph.edges.some((e) => e.f === OUTCOME_CELL && e.rel === "operationalizes" && e.t === OUTCOME))
+  assert.ok(graph.edges.some((e) => e.f === "claim-two-phenomena" && e.rel === "governs"))
+  assert.ok(!graph.edges.some((e) => e.rel === "constrains" && e.f.startsWith("claim-")))
+})
+
+test("runCompetencyQuestions는 8문항, id 중복 없음", () => {
   const rs = runCompetencyQuestions(graph)
-  assert.strictEqual(rs.length, 7)
-  assert.strictEqual(new Set(rs.map((r) => r.id)).size, 7)
+  assert.strictEqual(rs.length, 8)
+  assert.strictEqual(new Set(rs.map((r) => r.id)).size, 8)
 })
 
 test("lineageOf — 주장에서 증거·데이터셋·기관까지 거슬러 올라간다", () => {
   const l = lineageOf(graph, "claim-bias")
-  assert.ok(l.evidence.includes("ev-channel") && l.evidence.includes("ev-fines"))
+  assert.ok(l.evidence.includes("ev-channel") && l.evidence.includes("ev-fines") && l.evidence.includes("ev-fines-route"))
   assert.ok(l.datasets.includes("ds-complaints") && l.datasets.includes("ds-fines"))
   assert.ok(l.owners.includes("org-gwangjin"))
 })

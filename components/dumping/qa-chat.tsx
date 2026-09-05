@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { channelGrowth, fmtRatio, partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, finesCensorNote, fmtRatio, partialYearSuffix, regressionBetas, summarize } from "@/lib/dumping/facts"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
@@ -107,9 +107,9 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       answer: `민원 숫자만 보면 늘었지만, 실제로 나빠졌다고 보기는 어렵습니다.
 
 - 민원 접수: ${comp}
-- 단속 실측인 과태료 부과는 ${y0}년 ${n(enf0)}건에서 ${y1}년 ${n(enf1)}건으로 ${enf1 < enf0 ? "오히려 줄었습니다" : "늘었습니다"}
+- 과태료 부과는 ${y0}년 ${n(enf0)}건에서 ${y1}년 ${n(enf1)}건으로 ${enf1 < enf0 ? "오히려 줄었습니다" : "늘었습니다"}. 신고와 무관한 순찰(수시) 적발만 봐도 같은 기준으로 ${fmtRatio(g.finesPatrol)}입니다
 
-민원 증가분의 대부분은 스마트폰 앱 보급으로 신고가 쉬워진 효과입니다(${g.basis}하면 앱 신고만 ${fmtRatio(g.app)}, 전화·직접 신고는 ${fmtRatio(g.fixed)}). 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
+민원 증가분의 대부분은 스마트폰 앱 보급으로 신고가 쉬워진 효과입니다(${g.basis}하면 앱 신고만 ${fmtRatio(g.app)}, 전화·직접 신고는 ${fmtRatio(g.fixed)}). 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다. 다만 과태료의 ${100 - g.patrolSharePct}%도 신고를 받아 나간 것이라 "신고와 무관한 실측"은 아니고, 앱 이용자 수 자료가 없어 발생 증가를 완전히 배제하지는 못합니다.`,
       chart: "yearly",
       viz: { mode: "comp" },
       vizNote: "지도를 민원 분포로 전환했습니다. 민원 수치는 신고 편향이 섞여 있음에 주의하세요.",
@@ -204,7 +204,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
 - 민원: ${comp}
 - 과태료: ${enf}
 
-${period.lastYear}년은 ${lastMonths}개월 집계인데도 민원이 작년 연간치를 ${(data.yearly.complaints[period.lastYear] ?? 0) > (data.yearly.complaints[y1] ?? 0) ? "이미 넘었지만" : "따라잡고 있지만"}, 이 증가분의 대부분은 앱 신고 확산(연환산 앱만 ${fmtRatio(g.app)}) 때문입니다. 단속 적발 실측인 과태료는 ${enf1 < enf0 ? "줄고 있어" : "함께 늘고 있어"}, 상황이 악화됐다고 단정할 수 없습니다. 월별 흐름은 차트를 참고하세요.`,
+${period.lastYear}년은 ${lastMonths}개월 집계인데도 민원이 작년 연간치를 ${(data.yearly.complaints[period.lastYear] ?? 0) > (data.yearly.complaints[y1] ?? 0) ? "이미 넘었지만" : "따라잡고 있지만"}, 이 증가분의 대부분은 앱 신고 확산(연환산 앱만 ${fmtRatio(g.app)}) 때문입니다. 과태료는 ${enf1 < enf0 ? "줄고 있어" : "함께 늘고 있어"}(순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}), 상황이 악화됐다고 단정할 수 없습니다. ${finesCensorNote(data)}. 월별 흐름은 차트를 참고하세요.`,
       chart: "monthly",
     },
     ...seoulSeeds,
