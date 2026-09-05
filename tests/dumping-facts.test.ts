@@ -1,17 +1,20 @@
 import { test } from "node:test"
 import assert from "node:assert"
-import mapJson from "../data/dumping/map.json" with { type: "json" }
+import { existsSync, readFileSync } from "node:fs"
 import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
 import { channelGrowth, finesDirection, fmtRatio, periodOf, partialYearSuffix, regressionBetas } from "../lib/dumping/facts"
 import { buildFindings } from "../components/dumping/findings-data"
 import { applyErrata, EDGE_ERRATA } from "../lib/dumping/errata"
 
-const map = mapJson as unknown as DumpingMapData
+// map.json은 공개 레포에 암호문만 있다(scripts/dumping-data.mjs). 평문이 없는 환경(키 없는 CI)은 실데이터 테스트를 건너뛴다
+const MAP_PATH = new URL("../data/dumping/map.json", import.meta.url)
+const map: DumpingMapData | null = existsSync(MAP_PATH) ? (JSON.parse(readFileSync(MAP_PATH, "utf8")) as DumpingMapData) : null
 const graph = graphJson as unknown as OntoGraph
+const withMap = { skip: map ? false : "data/dumping/map.json 없음 — `npm run dumping:decrypt`" }
 
-test("channelGrowth — 실데이터: 마지막 해가 부분 연도면 연환산하고 기준을 문장으로 돌려준다", () => {
-  const g = channelGrowth(map)
+test("channelGrowth — 실데이터: 마지막 해가 부분 연도면 연환산하고 기준을 문장으로 돌려준다", withMap, () => {
+  const g = channelGrowth(map!)
   assert.strictEqual(g.baseYear, "2024")
   assert.strictEqual(g.lastYear, "2026")
   assert.strictEqual(g.annualized, true)
@@ -24,18 +27,18 @@ test("channelGrowth — 실데이터: 마지막 해가 부분 연도면 연환�
   assert.strictEqual(finesDirection(g), "줄었")
 })
 
-test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", () => {
+test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", withMap, () => {
   const synthetic = {
-    ...map,
+    ...map!,
     yearly: {
-      ...map.yearly,
+      ...map!.yearly,
       complaints: { "2024": 100, "2025": 150 },
       enforcement: { "2024": 50, "2025": 55 },
       complaintsMonthly: Object.fromEntries(
         [..."2024 2025".split(" ")].flatMap((y) => Array.from({ length: 12 }, (_, i) => [`${y}-${String(i + 1).padStart(2, "0")}`, 10])),
       ),
     },
-    decision: { ...map.decision, channels: { ...map.decision.channels, yearly: { app: { "2024": 50, "2025": 100 }, c120: { "2024": 20, "2025": 20 }, direct: { "2024": 30, "2025": 30 } } } },
+    decision: { ...map!.decision, channels: { ...map!.decision.channels, yearly: { app: { "2024": 50, "2025": 100 }, c120: { "2024": 20, "2025": 20 }, direct: { "2024": 30, "2025": 30 } } } },
   } as DumpingMapData
   const g = channelGrowth(synthetic)
   assert.strictEqual(g.annualized, false)
@@ -47,8 +50,8 @@ test("channelGrowth — 완결 연도끼리면 연환산하지 않는다", () =>
   assert.strictEqual(fmtRatio(g.total), "1.50배")
 })
 
-test("periodOf·partialYearSuffix — 마지막 달이 12월 미만일 때만 꼬리표", () => {
-  const p = periodOf(map.yearly.complaintsMonthly)
+test("periodOf·partialYearSuffix — 마지막 달이 12월 미만일 때만 꼬리표", withMap, () => {
+  const p = periodOf(map!.yearly.complaintsMonthly)
   assert.strictEqual(p.from, "2024-01")
   assert.strictEqual(p.lastMonth, 8)
   assert.strictEqual(partialYearSuffix(p, "2026"), " (1~8월)")
@@ -62,9 +65,10 @@ test("regressionBetas — 철회된 DID 계수는 빠지고 |β| 내림차순", 
   for (let i = 1; i < b.length; i++) assert.ok(Math.abs(b[i - 1].beta) >= Math.abs(b[i].beta))
 })
 
-test("buildFindings — 10장, 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", () => {
-  const fs = buildFindings(map, graph)
-  assert.strictEqual(fs.length, 10)
+test("buildFindings — 13장(서울 데이터 3장 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
+  const fs = buildFindings(map!, graph)
+  assert.strictEqual(fs.length, 13)
+  assert.ok(fs.some((f) => f.tag === "격자 검증") && fs.some((f) => f.tag === "통념 검증") && fs.some((f) => f.tag === "노출 통제"))
   const all = JSON.stringify(fs)
   assert.ok(!/과태료[^.]{0,20}1\.1배/.test(all), "'과태료 1.1배' 오류 문구가 남아 있다")
   assert.ok(all.includes("연환산"), "연환산 기준 미고지")
@@ -75,12 +79,11 @@ test("buildFindings — 10장, 배율은 연환산 기준을 밝히고 과태료
   assert.strictEqual(new Set(fs.map((f) => f.title)).size, fs.length)
 })
 
-test("applyErrata — 낡은 엣지 note를 정정하고 erratum id를 남긴다 (ERR-001)", () => {
+test("applyErrata — 정오표가 비어 있으면 그래프를 그대로 돌려주고, 정본이 고쳐진 ERR-001은 데이터에 남아 있지 않다", () => {
+  assert.strictEqual(EDGE_ERRATA.length, 0)
   const fixed = applyErrata(graph)
-  const e = fixed.edges.find((x) => x.f === "ev-fines" && x.rel === "supports" && x.t === "claim-bias")
-  assert.ok(e?.props?.erratum === "ERR-001")
-  assert.ok(!String(e?.props?.note).includes("1.1배"))
-  // 다른 엣지·노드는 손대지 않는다
-  assert.strictEqual(fixed.nodes, graph.nodes)
-  assert.strictEqual(fixed.edges.filter((x) => x.props?.erratum).length, EDGE_ERRATA.length)
+  assert.strictEqual(fixed, graph)
+  const e = graph.edges.find((x) => x.f === "ev-fines" && x.rel === "supports" && x.t === "claim-bias")
+  assert.ok(!String(e?.props?.note).includes("1.1배"), "정본 export가 다시 낡은 note를 내보냈다")
+  assert.match(String(e?.props?.note), /감소/)
 })

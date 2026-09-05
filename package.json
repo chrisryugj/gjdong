@@ -3,8 +3,10 @@
   "version": "3.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
+    "build": "node scripts/dumping-data.mjs decrypt && next build",
+    "dev": "node scripts/dumping-data.mjs decrypt && next dev",
+    "dumping:encrypt": "node scripts/dumping-data.mjs encrypt",
+    "dumping:decrypt": "node scripts/dumping-data.mjs decrypt",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
     "start": "next start"

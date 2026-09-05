@@ -63,6 +63,42 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
   const summerWinter = (S["여름"].compPerDay / S["겨울"].compPerDay).toFixed(1)
   const hot = data.env.temp["더움(25도+)"]
   const rain = data.env.rain
+  const r2 = data.decision.regressionV2
+  const sx = data.decision.seoul
+  const k = data.decision.kpi
+  const seoulSeeds: Seed[] = r2 && sx
+    ? [
+        {
+          q: "의류수거함 옆이 무단투기 온상 아닌가?",
+          hint: "단속 자료로는 아닙니다. 신고만 조금 더 들어옵니다",
+          answer: `단속 적발 자료로는 그렇지 않습니다. 광진구 의류수거함 ${n(data.infra.clothBins.length)}곳(공공데이터포털)을 100m 격자에 얹어 회귀에 넣어 보니 과태료 적발과 연관이 없었습니다(β ${signed(r2.v2_100.coef.clothbin_n.beta)}, ${pText(r2.v2_100.coef.clothbin_n.p)}).
+
+신고 민원 기준으로는 약한 양의 연관이 있습니다(β ${signed(r2.v2_100_complaints.coef.clothbin_n.beta)}, ${pText(r2.v2_100_complaints.coef.clothbin_n.p)}). 수거함 주변이 눈에 잘 띄어 신고가 늘었을 수도 있고 실제 배출이 더 많은데 단속이 못 잡는 것일 수도 있습니다. 지금 자료로는 가를 수 없어서, 수거함 밀집 격자 시범 정비를 사전등록 설계로 해 보는 것을 검토 항목으로 남겼습니다.`,
+          viz: { mode: "comp", layers: ["clothBins"] },
+          vizNote: "지도에 의류수거함(청록 점)을 민원 분포 위에 표시했습니다.",
+        },
+        {
+          q: "100m 격자로 나누는 게 말이 되나?",
+          hint: `200m로 합쳐도 판정 유지 ${Object.values(r2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(r2.gridSensitivity.v2).length}`,
+          answer: `됩니다. 자료마다 칸에 넣는 방식이 다르고, 칸 크기를 바꿔도 결론이 같았습니다.
+
+- 민원·과태료는 건별 주소를 좌표로 바꿔 그 점이 속한 칸에, 건축물대장은 대지 지번 좌표로, 도로·건물은 OSM 선·면을 칸 경계로 잘라 넣습니다
+- 등록인구는 동 단위뿐이라 격자 회귀에 넣지 않았고, 대신 서울시 250m 격자 생활인구를 면적 비례로 나눠 노출 변수로 썼습니다
+- 칸을 200m로 네 배 키워 다시 적합하면 관리주체 없는 주거 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}로 방향과 유의성이 그대로입니다(R² ${r2.v2_100.r2}→${r2.v2_200.r2})
+
+격자는 통계청 좌표계(EPSG:5179)에 맞춰 SGIS 인구격자·서울시 250m 격자와 좌표로 바로 이어집니다.`,
+          viz: { mode: "overlay" },
+          vizNote: "지도의 칸 하나가 100m입니다. 칸 위에 마우스를 올리면 그 칸의 민원·과태료·무관리주거·생활인구가 보입니다.",
+        },
+        {
+          q: "다른 구도 앱 때문에 민원이 늘었나?",
+          hint: "서울 전체 앱 청소 신고가 해마다 증가",
+          answer: `그렇습니다. 서울시 스마트불편신고 청소 분야 접수는 ${Object.entries(sx.smartReport.cleaningByYear).filter(([y]) => y >= "2022" && y < period.lastYear).map(([y, v]) => `${y}년 ${v.toLocaleString()}건`).join(", ")}으로 서울 전체에서 늘고 있습니다(서울 열린데이터광장).
+
+광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 차원에서도 성립합니다. 25개 구가 같은 착시에 노출돼 있으니, 앱을 뺀 채널고정 지표로 성과를 재는 원칙은 서울시 전체에 제안할 수 있습니다. 상습격자 수도 앱을 빼면 ${k.criticalCellsNow}곳에서 ${k.criticalCellsNowNoApp}곳으로 줄어듭니다.`,
+        },
+      ]
+    : []
 
   return [
     {
@@ -171,6 +207,7 @@ function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
 ${period.lastYear}년은 ${lastMonths}개월 집계인데도 민원이 작년 연간치를 ${(data.yearly.complaints[period.lastYear] ?? 0) > (data.yearly.complaints[y1] ?? 0) ? "이미 넘었지만" : "따라잡고 있지만"}, 이 증가분의 대부분은 앱 신고 확산(연환산 앱만 ${fmtRatio(g.app)}) 때문입니다. 단속 적발 실측인 과태료는 ${enf1 < enf0 ? "줄고 있어" : "함께 늘고 있어"}, 상황이 악화됐다고 단정할 수 없습니다. 월별 흐름은 차트를 참고하세요.`,
       chart: "monthly",
     },
+    ...seoulSeeds,
   ]
 }
 

@@ -94,6 +94,21 @@ const collected = (data: DumpingMapData, topBeta: string): Dataset[] => [
   },
 ]
 
+// 서울 열린데이터광장·공공데이터포털에서 직접 수집 — 25개 구 어디서나 같은 원천으로 재현된다
+const seoulOpen = (data: DumpingMapData): Dataset[] => {
+  const sx = data.decision.seoul
+  const r2 = data.decision.regressionV2
+  if (!sx) return []
+  return [
+    { name: "행정동 생활인구 (내국인·장기체류 외국인)", scale: `OA-14991·14992 · ${sx.livingPopWindow} 월별`, use: "동별 체류 인구 대비 발생률(발견 탭·브리핑). 등록인구가 놓치는 유동 인구 노출" },
+    { name: "250M격자 생활인구 + 격자 SHP", scale: `OA-22784 · ${sx.livingPop250Month} 일별 31일`, use: `100m 격자 노출 변수(v2 회귀 β ${r2 ? (r2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + r2.v2_100.coef.living_pop.beta : "—"}), 지도 바탕 "생활인구"` },
+    { name: "광진구 의류수거함 위치", scale: `공공데이터포털 15109594 · ${data.infra.clothBins.length}곳`, use: "\"수거함 옆이 온상\" 통념 검증(v2 회귀), 지도 레이어" },
+    { name: "자치구 목적별 CCTV 설치현황", scale: `OA-2722 · ${sx.cctv.asof}`, use: "25개 구 무단투기 CCTV 비교(연계분), 운영 탭 서울 맥락" },
+    { name: "스마트 불편신고 분야별 신고 현황", scale: `OA-12051 · 2012-08~ 월별`, use: "서울 전체 앱 청소 신고 추세 — 앱 확산이 광진만의 현상이 아님을 확인" },
+    { name: "가로쓰레기통 설치정보", scale: `OA-15069 · 2025-11`, use: "구청 장부(64개 위치) 교차검증" },
+  ]
+}
+
 interface Method {
   name: string
   easy: string // 쉽게 말하면 — 비유 중심 한두 문장
@@ -117,15 +132,16 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
   return [
     {
       name: "100m 격자 결합",
-      easy: "구 전체를 100m 바둑판(1,062칸)으로 나누고, 민원·과태료·건축물대장·인구를 모두 같은 칸 위에 얹었습니다. 서로 다른 자료를 한 지도에서 비교할 수 있게 만드는 기초 작업입니다.",
-      here: `민원 ${n(s.complaints)}건과 과태료 ${n(data.decision.fines.totalN)}건을 주소로 좌표화해 격자에 배정했고, 건축물대장 24,520동으로 칸마다 무관리 주거단위 수를 셌습니다.`,
+      easy: "구 전체를 100m 바둑판(1,062칸)으로 나누고, 민원·과태료·건축물대장·도로·생활인구를 모두 같은 칸 위에 얹었습니다. 서로 다른 자료를 한 지도에서 비교할 수 있게 만드는 기초 작업입니다.",
+      here: `자료마다 칸에 넣는 방식이 다릅니다. 민원 ${n(s.complaints)}건·과태료 ${n(data.decision.fines.totalN)}건은 건별 주소를 좌표로 바꿔 점이 속한 칸에, 건축물대장 24,520동은 대지 지번 좌표로, 도로·건물 형태는 OSM 선·면을 칸 경계로 잘라, 서울시 생활인구는 250m 격자를 면적 비례로 나눠 넣었습니다. 등록인구는 동 단위뿐이라 격자 회귀에는 들어가지 않고 동별 지표에만 씁니다.`,
+      caution: `"100m로 나눠서 그런 결과가 나온 것 아니냐"는 물음에는 격자를 200m로 합쳐 다시 적합한 결과로 답합니다(격자 검증 카드). 판정 유지 ${data.decision.regressionV2 ? `${Object.values(data.decision.regressionV2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(data.decision.regressionV2.gridSensitivity.v2).length}` : "—"} 변수. 격자는 통계청 EPSG:5179 정렬이라 SGIS 인구격자·서울시 250m 격자와 좌표로 바로 이어집니다.`,
     },
     {
       name: "다중회귀 분석 (표준화 β)",
       easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
       here: `격자 1,062칸에서 과태료 건수를 종속변수로 놓고 분석해 보니, 관리주체 없는 주거 밀도가 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
-        "표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 격자 회귀에 인구 변수는 들어 있지 않고, 관리주체 없는 주거는 건축물대장 대리변수입니다. 조건부 연관이지 인과를 증명한 것은 아닙니다.",
+        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고, v2 모형은 서울시 250m 생활인구를 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "—"}, 무관리주거는 그대로). 관리주체 없는 주거는 건축물대장 대리변수이고, 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
     },
     {
       name: "이중차분(DID)과 이벤트 스터디",
@@ -147,8 +163,8 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "홀트윈터스 수요 전망",
       easy: "월별 접수의 수준과 추세, 계절 반복(여름에 많고 겨울에 적은 흐름)을 학습해 다음 달을 내다보는 시계열 모형입니다.",
-      here: `최근 달을 하나씩 제외하고 예측해 보는 검증(${fc.window})에서 평균 오차가 ${fc.mapePct}%였습니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
-      caution: "신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 오차 측정 구간이 같아 오차는 낙관적일 수 있습니다.",
+      here: `매달 그 이전 자료로만 모수를 고르고 다음 달을 맞히는 롤링 원점 검증(${fc.window})에서 평균 오차 ${fc.mapePct}%, 전년 동월로 찍는 기준모형은 ${fc.naiveMapePct ?? "—"}%였습니다. 80% 예측구간 적중률은 ${fc.coverage80Pct ?? "—"}%입니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
+      caution: "신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 평가 구간을 분리했으므로 오차에 낙관 편향은 없습니다.",
     },
     {
       name: "온톨로지 (지식그래프)",
@@ -259,6 +275,15 @@ export default function MethodsModal({
             desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
             items={collected(data, topBeta)}
           />
+          {seoulOpen(data).length > 0 && (
+            <DatasetGroup
+              badge="서울시"
+              badgeCls="bg-[#1c4f96]/12 text-[#1c4f96]"
+              title={`서울 열린데이터광장·공공데이터포털 ${seoulOpen(data).length}종`}
+              desc="서울시가 공개한 원천으로, 25개 자치구 어디서나 같은 방식으로 재현할 수 있는 층입니다. 2026-09-05 수집."
+              items={seoulOpen(data)}
+            />
+          )}
           <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
             원자료의 컬럼 사전·파일 해시(SHA-256) 83개는 재현 패키지(REPRODUCE)에 고정돼 있으며, verify.py로 해시 대조와
             핵심 수치 재계산을 언제든 확인하실 수 있습니다.

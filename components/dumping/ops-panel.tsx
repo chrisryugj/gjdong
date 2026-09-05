@@ -97,6 +97,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             <p className="text-[11px] text-[var(--cp-text-faint)]">
               12개월 10건+ {prevCritical != null && ` · 전분기 ${prevCritical}`}
             </p>
+            <p className="text-[11px] font-medium text-[var(--cp-text-muted)]">앱 제외 {d.kpi.criticalCellsNowNoApp}곳</p>
             <p className="mt-0.5 text-[11px] font-semibold text-[#a8322a]">
               {showCritical ? "지도 표시 중 · 눌러서 끄기" : "누르면 지도에 표시"}
             </p>
@@ -132,8 +133,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         </div>
         <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
           민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
-          채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하므로 편향이 제거된
-          지표가 아니라 관리수요 지표로 읽어 주세요.
+          채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하면 {d.kpi.criticalCellsNow}곳,
+          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 두세요.
           {period.lastMonth < 12 && ` 채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
         </p>
       </section>
@@ -199,9 +200,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </p>
           <ForecastChart data={data} />
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
-            홀트윈터스 계절 모형이며, 직전 8개월 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(모수 선택과
-            같은 구간에서 잰 값이라 낙관적일 수 있습니다). 신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰
-            배치 참고용이고, 발생 예측은 아닙니다.
+            홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월로
+            찍는 기준모형 {d.forecast.backtest.naiveMapePct ?? "—"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "—"}%).
+            신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
       </section>
@@ -343,6 +344,44 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               가장 강한 예측변수(관리주체 없는 주거)와 같은 성격의 소형 주거가 구의·자양·중곡에
               몰려 공급되고 있습니다. 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보
               지역입니다.
+            </p>
+          </DetailCard>
+        </section>
+      )}
+
+      {/* 서울시 맥락 — 25개 구 비교·서울 전체 앱 추세 */}
+      {d.seoul && (
+        <section>
+          <SectionTitle>서울시 안에서 광진은 어디쯤인가 (열린데이터광장)</SectionTitle>
+          <DetailCard onOpen={() => setModal("seoul")}>
+            <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
+              <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
+                <p className="text-[12px] text-[var(--cp-text-dim)]">무단투기 CCTV</p>
+                <p className="font-mono text-[16px] font-semibold text-[var(--cp-text-strong)]">{d.seoul.cctv.gwangjin.dumping}대</p>
+                <p className="text-[11px] text-[var(--cp-text-faint)]">연계 25구 중 {d.seoul.cctv.gwangjin.dumpingRank}위</p>
+              </div>
+              <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
+                <p className="text-[12px] text-[var(--cp-text-dim)]">서울 앱 청소신고</p>
+                <p className="font-mono text-[16px] font-semibold text-[var(--cp-text-strong)]">
+                  {(() => {
+                    const ys = Object.keys(d.seoul!.smartReport.cleaningByYear).sort()
+                    const full = ys.filter((y) => y < period.lastYear)
+                    const a = d.seoul!.smartReport.cleaningByYear[full[full.length - 2]] ?? 0
+                    const b = d.seoul!.smartReport.cleaningByYear[full[full.length - 1]] ?? 0
+                    return a ? `${(b / a).toFixed(2)}배` : "—"
+                  })()}
+                </p>
+                <p className="text-[11px] text-[var(--cp-text-faint)]">최근 완결 2개년</p>
+              </div>
+              <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
+                <p className="text-[12px] text-[var(--cp-text-dim)]">가로쓰레기통</p>
+                <p className="font-mono text-[16px] font-semibold text-[var(--cp-text-strong)]">{d.seoul.streetBins.gwangjin202511.sites}곳</p>
+                <p className="text-[11px] text-[var(--cp-text-faint)]">서울시 원천 · 구청 장부와 일치</p>
+              </div>
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+              앱 신고 확산은 서울 전체 현상입니다. 25개 구가 같은 착시에 노출돼 있어 채널고정 지표는 서울시 차원의
+              제안이 됩니다.
             </p>
           </DetailCard>
         </section>

@@ -7,8 +7,8 @@ import type { OntoGraph, OntoNode } from "./types"
 export const OUTCOME = "kpi-dump-rate"
 const FACTOR_RELS = new Set(["predicts", "contributes_to", "constrains"])
 const VERDICT_RELS = new Set(["lowers", "stabilizes"])
-// 도로 형태 변수는 관측 통제용이지 개입으로 바꿀 대상이 아니다 — 공백으로 세지 않되 답에는 표시한다
-export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist"])
+// 도로 형태·생활인구(노출)는 관측 통제용이지 개입으로 바꿀 대상이 아니다 — 공백으로 세지 않되 답에는 표시한다
+export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist", "con-living-pop"])
 
 export interface CqHit {
   id: string
@@ -40,7 +40,9 @@ export function cqUntargetedFactors(graph: OntoGraph): CqResult {
       const beta = edge?.props?.beta !== undefined ? `β ${Number(edge.props.beta) > 0 ? "+" : ""}${edge.props.beta}` : edge?.props?.rho !== undefined ? `ρ ${edge.props.rho}` : ""
       return {
         id,
-        note: STRUCTURAL_FACTORS.has(id) ? `${beta} · 도로 형태 통제변수, 개입 대상 아님` : `${beta} · 겨냥하는 개입 없음`,
+        note: STRUCTURAL_FACTORS.has(id)
+          ? `${beta} · ${id === "con-living-pop" ? "노출(체류 인구) 통제변수" : "도로 형태 통제변수"}, 개입 대상 아님`
+          : `${beta} · 겨냥하는 개입 없음`,
       }
     })
   return {

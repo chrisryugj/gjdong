@@ -53,6 +53,13 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
   const pm = data.decision.permits
   const kpi = graph.nodes.find((x) => x.id === "kpi-recurrence")
   const recur = Math.round(Number(kpi?.props.current ?? 0.22) * 100)
+  const r2 = data.decision.regressionV2
+  const seoul = data.decision.seoul
+  const k = data.decision.kpi
+  const cleanYears = seoul ? Object.keys(seoul.smartReport.cleaningByYear).sort().filter((y) => y < g.lastYear) : []
+  const seoulApp = seoul && cleanYears.length >= 2
+    ? (seoul.smartReport.cleaningByYear[cleanYears[cleanYears.length - 1]] / seoul.smartReport.cleaningByYear[cleanYears[cleanYears.length - 3] ?? cleanYears[0]])
+    : NaN
 
   const findings: Finding[] = [
     {
@@ -119,6 +126,9 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         `${g.baseYear}년 대비 ${g.lastYear}년 민원이 ${fmtRatio(g.total)}로 늘어(${g.basis}), 무단투기가 두 배로 나빠졌다고 읽기 쉽습니다. 그런데 채널별로 나눠 보면 앱 신고만 ${fmtRatio(g.app)}로 늘었고 120·직접 신고는 ${fmtRatio(g.fixed)}로 거의 그대로였습니다.`,
         `해석: 신고 성향과 무관한 과태료 부과(단속 실측)는 같은 기준으로 ${fmtRatio(g.fines)}, 오히려 ${finesDirection(g)}습니다. 늘어난 부분은 발생 증가보다 신고 채널의 변화로 설명되는 몫이 큽니다. 앱 이용자 수·중복 신고 자료가 없어 발생 증가를 완전히 배제하지는 못합니다. 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
         `주의: 과태료 감소가 발생 감소를 뜻하지도 않습니다. 단속 인력과 순찰 패턴이 섞인 수치라, 발생 추세는 채널고정 민원과 상습격자 수로 함께 읽어야 합니다.`,
+        ...(seoul
+          ? [`서울시 스마트불편신고 청소 분야도 ${cleanYears[cleanYears.length - 3] ?? cleanYears[0]}년 대비 ${cleanYears[cleanYears.length - 1]}년 ${Number.isFinite(seoulApp) ? seoulApp.toFixed(2) : "—"}배로 늘었습니다(서울 열린데이터광장 OA-12051). 앱 확산은 광진만의 일이 아니라 25개 구 공통의 착시입니다. 집중관리 상습격자도 앱 민원을 포함하면 ${k.criticalCellsNow}곳, 빼면 ${k.criticalCellsNowNoApp}곳입니다.`]
+          : []),
       ],
       numbers: [
         { k: "민원 전체", v: fmtRatio(g.total) },
@@ -217,6 +227,73 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       takeaway: "순찰·점검 대상은 운영·전망 탭의 예측 핫스팟 20을 기본값으로 삼아 주세요.",
     },
   ]
+
+  if (r2) {
+    const lp = r2.v2_100.coef.living_pop
+    const unm2 = r2.v2_100.coef.unmanaged_units
+    const cb = r2.v2_100.coef.clothbin_n
+    const cbc = r2.v2_100_complaints.coef.clothbin_n
+    const held = Object.entries(r2.gridSensitivity.v2).filter(([, v]) => v).length
+    const total = Object.keys(r2.gridSensitivity.v2).length
+    const notHeld = Object.entries(r2.gridSensitivity.v2).filter(([, v]) => !v).map(([kk]) => kk)
+    findings.push(
+      {
+        tag: "노출 통제",
+        title: "사람이 많이 머무는 곳이라서가 아닙니다",
+        body: `서울시 250m 격자 생활인구를 노출 변수로 넣어도 관리주체 없는 주거 β ${signed(unm2.beta)} 그대로. 생활인구 자체는 β ${signed(lp.beta)}(p=${pText(lp.p)})로 약한 연관입니다.`,
+        detail: [
+          `"인구가 통제되지 않았다"는 지적에 서울 열린데이터광장 250m 격자 생활인구(${seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눠 회귀에 넣었습니다(v2, n=${n(r2.v2_100.n)}).`,
+          `체류 인구가 많은 칸일수록 적발이 조금 늘지만(β ${signed(lp.beta)}), 관리주체 없는 주거의 계수는 ${signed(unm2.beta)}로 바뀌지 않았습니다. 설명력은 R² ${r2.base100.r2}→${r2.v2_100.r2}입니다.`,
+          "해석: 무단투기는 사람이 많이 오가는 만큼 생기는 현상이 아니라, 배출을 관리할 주체가 없는 주거가 몰린 곳에서 생기는 현상이라는 결론이 노출을 통제한 뒤에도 유지됩니다.",
+          "주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고, 2026년 7월 한 달 평균입니다. 관측 기간 전체의 노출과 다를 수 있습니다.",
+        ],
+        numbers: [
+          { k: "무관리주거 β(v2)", v: signed(unm2.beta) },
+          { k: "생활인구 β", v: `${signed(lp.beta)} (p=${pText(lp.p)})` },
+          { k: "R²", v: `${r2.base100.r2} → ${r2.v2_100.r2}` },
+        ],
+        takeaway: "노출을 통제해도 결론은 같습니다. 대책의 겨냥점은 사람 수가 아니라 관리 구조입니다.",
+        viz: { mode: "lp" },
+        vizLabel: "지도에서 생활인구 바탕에 과태료 겹쳐 보기",
+      },
+      {
+        tag: "통념 검증",
+        title: "의류수거함 옆이 온상이라는 말은 단속 자료와 맞지 않습니다",
+        body: `광진구 의류수거함 ${n(data.infra.clothBins.length)}곳을 격자에 얹어 보니 단속 적발과는 연관이 없었습니다(β ${signed(cb.beta)}, p=${pText(cb.p)}). 신고 민원과는 약한 양의 연관(β ${signed(cbc.beta)}, p=${pText(cbc.p)})만 있습니다.`,
+        detail: [
+          `공공데이터포털의 광진구 의류수거함 위치(2026-03, ${n(data.infra.clothBins.length)}곳)를 100m 격자에 배정해 회귀 변수로 넣었습니다. 수거함이 몰린 칸이라고 과태료 적발이 더 많지는 않았습니다.`,
+          `신고 민원 기준으로는 β ${signed(cbc.beta)}로 조금 더 들어옵니다. 수거함 주변이 눈에 잘 띄어 신고가 늘었을 수 있고, 실제 배출이 더 많은데 단속이 못 잡는 것일 수도 있습니다. 지금 자료로는 둘을 가를 수 없습니다.`,
+          "해석: 통념을 데이터로 재 봤을 때 뒷받침되지 않으면 우선순위를 낮추는 것이 맞습니다. 다만 수거함 밀집 격자에서 시범 정비를 사전등록 설계로 해 보면 어느 쪽인지 판정할 수 있습니다.",
+        ],
+        numbers: [
+          { k: "의류수거함", v: `${n(data.infra.clothBins.length)}곳` },
+          { k: "과태료 β", v: `${signed(cb.beta)} (p=${pText(cb.p)})` },
+          { k: "민원 β", v: `${signed(cbc.beta)} (p=${pText(cbc.p)})` },
+        ],
+        takeaway: "의류수거함 정비는 우선순위가 낮습니다. 하려면 시범 격자를 사전등록해 판정부터 하세요.",
+        viz: { mode: "comp", layers: ["clothBins"] },
+        vizLabel: "지도에서 의류수거함과 민원 분포 보기",
+      },
+      {
+        tag: "격자 검증",
+        title: "100m로 잘라서 나온 결과가 아닙니다",
+        body: `격자를 200m로 네 배 키워 다시 적합해도 ${total}개 변수 중 ${held}개의 판정이 유지됐습니다. 관리주체 없는 주거·골목·간선 이격은 그대로이고, ${notHeld.length ? `경계에 걸린 것은 ${notHeld.map((kk) => (kk === "living_pop" ? "생활인구" : kk)).join("·")}뿐입니다` : "달라진 변수가 없습니다"}.`,
+        detail: [
+          "\"데이터가 100m 단위로 구분되느냐\"는 질문에 대한 답입니다. 민원·과태료는 건별 주소를 좌표로 바꿔 점으로 찍고, 건축물대장은 대지 지번으로 점을 찍어 그 점이 속한 칸에 셉니다. 도로·건물 형태는 OSM 선·면을 칸에 잘라 넣고, 생활인구는 서울시 250m 격자를 면적 비례로 나눕니다. 등록인구는 동 단위뿐이라 격자 회귀에 넣지 않았습니다.",
+          `칸을 100m에서 200m로 합쳐 같은 모형을 다시 돌리면(n=${n(r2.v2_200.n)}) 관리주체 없는 주거 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}, 간선 이격 β ${signed(r2.v2_200.coef.dist_arterial.beta)}로 방향과 유의성이 유지됩니다. 설명력은 R² ${r2.v2_100.r2}→${r2.v2_200.r2}로 올라가는데, 칸이 커지면 점 하나가 경계 바깥 칸으로 떨어지는 잡음이 줄기 때문입니다.`,
+          "주의: 100m 격자는 통계청 EPSG:5179 정렬이라 SGIS 인구격자와 좌표로 바로 이어집니다. 격자를 더 잘게(50m) 자르는 검증은 주소 정밀도 한계로 하지 않았습니다.",
+        ],
+        numbers: [
+          { k: "판정 유지", v: `${held}/${total} 변수` },
+          { k: "무관리주거 β(200m)", v: signed(r2.v2_200.coef.unmanaged_units.beta) },
+          { k: "R² 100m→200m", v: `${r2.v2_100.r2} → ${r2.v2_200.r2}` },
+        ],
+        takeaway: "격자 크기를 바꿔도 결론이 같습니다. 100m는 분석 단위이지 결론의 원인이 아닙니다.",
+        viz: { mode: "overlay" },
+        vizLabel: "지도에서 100m 격자 보기",
+      },
+    )
+  }
 
   if (pm) {
     const top3 = pm.byDong.slice(0, 3)

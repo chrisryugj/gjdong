@@ -43,3 +43,6 @@ next-env.d.ts
 out-data/
 out-data-jeju/
 .env*
+
+# /dumping 격자 데이터 평문 — 공개 레포에는 map.json.enc만 (scripts/dumping-data.mjs)
+data/dumping/map.json

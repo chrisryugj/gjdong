@@ -19,6 +19,7 @@ const BASE_LABEL: Record<BaseMode, string> = {
   unm: "무관리주거",
   comp: "민원",
   enf: "과태료",
+  lp: "생활인구",
 }
 
 // 선택된 바탕이 뭘 보여주는지 — 칩 아래 한 줄 설명 (원 중첩 시 조합 설명 덧붙음)
@@ -26,6 +27,7 @@ const BASE_DESC: Record<BaseMode, string> = {
   unm: "바탕색은 관리주체 없는 주거(다가구·단독)의 밀도입니다. 아파트는 발생과 무관해(β −0.011) 따로 레이어를 두지 않았고, 색이 옅은 주거지가 사실상 관리가 되고 있는 지역입니다.",
   comp: "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다.",
   enf: "바탕색은 단속으로 부과한 과태료 건수입니다. 신고 여부와는 무관하지만 순찰·근무 패턴이 섞인 적발 실측이라, 발생 그 자체는 아닙니다.",
+  lp: "바탕색은 서울시 250m 격자 생활인구(2026년 7월 시간·일 평균)를 100m 칸에 면적 비례로 나눈 체류 인구입니다. 사람이 많이 머무는 곳인지, 즉 노출을 보는 바탕입니다.",
 }
 
 const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
@@ -36,6 +38,7 @@ export const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> 
   unm: { base: "unm", circles: [] },
   comp: { base: "comp", circles: [] },
   enf: { base: "enf", circles: [] },
+  lp: { base: "lp", circles: ["enf"] },
 }
 
 // "지도에서 확인"을 누르기 전에 지도가 어떻게 바뀌는지 한 줄로 — 칩·범례와 같은 낱말을 쓴다

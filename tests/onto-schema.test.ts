@@ -7,12 +7,9 @@ import { REL_KO, TYPE_KO } from "../lib/dumping/labels"
 
 const graph = graphJson as unknown as OntoGraph
 
-test("현재 graph.json은 스키마 오류 0 — 주의는 고아 노드 cls-cell 하나뿐", () => {
+test("현재 graph.json은 스키마 오류 0 · 주의 0 (cls-cell 고아는 격자 민감도 증거가 서술해 해소)", () => {
   const issues = validateGraph(graph)
-  const errors = issues.filter((i) => i.level === "error")
-  assert.deepStrictEqual(errors, [], JSON.stringify(errors, null, 1))
-  const warns = issues.filter((i) => i.level === "warn")
-  assert.deepStrictEqual(warns.map((w) => `${w.code}:${w.ref}`), ["ORPHAN_NODE:cls-cell"])
+  assert.deepStrictEqual(issues, [], JSON.stringify(issues, null, 1))
 })
 
 test("스키마의 모든 클래스·관계에 한글 표시명이 있다 (labels.ts가 정본)", () => {

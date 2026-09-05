@@ -86,6 +86,7 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
           { k: "1인세대", v: `${row.one}%`, u: `${row.hh.toLocaleString()}세대 중` },
           { k: "청년 20-34", v: `${row.yth}%`, u: "2025년" },
           { k: "외국인", v: `${row.frn}%`, u: "2025년" },
+          ...(row.lp ? [{ k: "생활인구", v: row.lp.toLocaleString(), u: `체류 기준 · 천명당 과태료 ${row.erl ?? "—"}` }] : []),
         ].map((f) => (
           <div key={f.k} className="rounded-lg bg-[var(--cp-hover)] py-1.5">
             <dt className="text-[12px] text-[var(--cp-text-dim)]">{f.k}</dt>

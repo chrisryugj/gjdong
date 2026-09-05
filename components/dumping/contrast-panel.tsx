@@ -30,6 +30,37 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
   const pOld = Number(cov?.p_value ?? 0.0485)
   const unmUnits = /관리주체 없는 단위 ([\d,]+)/.exec(String(graph.nodes.find((x) => x.id === "ev-ledger")?.label ?? ""))?.[1] ?? "43,871"
   const rhoY = Number(graph.nodes.find((n) => n.id === "cov-youth")?.props.rho ?? 0.846)
+  const r2 = data.decision.regressionV2
+  const k = data.decision.kpi
+  const extra: Pair[] = r2
+    ? [
+        {
+          k: "인구 노출",
+          beforeTag: "통념",
+          before: "사람이 많이 오가는 곳이니 많이 생긴다. 인구를 넣으면 결론이 바뀔 것이다.",
+          after: `서울시 250m 생활인구를 넣어도 관리주체 없는 주거 β ${s(r2.v2_100.coef.unmanaged_units.beta)} 그대로. 생활인구 자체는 β ${s(r2.v2_100.coef.living_pop.beta)}(p=${r2.v2_100.coef.living_pop.p.toFixed(3)}).`,
+          chart: "beta",
+        },
+        {
+          k: "의류수거함",
+          beforeTag: "통념",
+          before: "의류수거함 옆이 무단투기 온상이다. 수거함부터 정비하자.",
+          after: `수거함 ${data.infra.clothBins.length}곳을 격자에 얹어 보니 단속 적발과 연관 없음(β ${s(r2.v2_100.coef.clothbin_n.beta)}, p=${r2.v2_100.coef.clothbin_n.p.toFixed(2)}). 신고만 약간 더 들어온다(β ${s(r2.v2_100_complaints.coef.clothbin_n.beta)}).`,
+        },
+        {
+          k: "격자 크기",
+          beforeTag: "통념",
+          before: "100m로 잘게 잘라서 그런 결과가 나온 것 아닌가.",
+          after: `200m로 합쳐 다시 돌려도 무관리주거 β ${s(r2.v2_200.coef.unmanaged_units.beta)}, 골목 β ${s(r2.v2_200.coef.alley_ratio.beta)}. 판정 유지 ${Object.values(r2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(r2.gridSensitivity.v2).length} 변수.`,
+        },
+        {
+          k: "상습 지역 수",
+          beforeTag: "초기 분석",
+          before: `집중관리 상습격자 ${k.criticalCellsNow}곳. 신고편향과 무관한 성과지표.`,
+          after: `앱 민원을 빼고 세면 ${k.criticalCellsNowNoApp}곳. 앱 보급이 KPI도 부풀린다. 앱 제외판을 성과 기준으로.`,
+        },
+      ]
+    : []
   return [
     {
       k: "민원이 늘었다",
@@ -71,6 +102,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       before: "대장에 '다가구'라 적힌 건만 세면 무관리 주거단위 41,633.",
       after: `'단독주택'으로 적혔지만 가구수 2 이상인 562동을 교차검증으로 찾아 ${unmUnits}(+5.4%). 계수 변화는 ±0.007.`,
     },
+    ...extra,
   ]
 }
 

@@ -17,10 +17,11 @@ import {
 const graph = graphJson as unknown as OntoGraph
 const ids = (r: { hits: { id: string }[] }) => r.hits.map((h) => h.id).sort()
 
-test("CQ1 대책 없는 요인 — 상권 밀집만 실제 공백, 도로 형태 둘은 구조 변수", () => {
+test("CQ1 대책 없는 요인 — 상권 밀집만 실제 공백, 도로 형태·생활인구 노출은 통제변수", () => {
   const r = cqUntargetedFactors(graph)
-  assert.deepStrictEqual(ids(r), ["con-alley", "con-arterial-dist", "con-commercial"])
+  assert.deepStrictEqual(ids(r), ["con-alley", "con-arterial-dist", "con-commercial", "con-living-pop"])
   assert.strictEqual(r.gaps, 1)
+  assert.match(r.hits.find((h) => h.id === "con-living-pop")!.note!, /노출/)
   assert.match(r.hits.find((h) => h.id === "con-commercial")!.note!, /β \+0\.086/)
 })
 
@@ -36,9 +37,9 @@ test("CQ3 철회된 근거의 연결 — 도착이 철회 노드거나 판정이
   assert.strictEqual(r.gaps, 0)
 })
 
-test("CQ4 개입 판정 분포 — 10건 전부 판정 엣지 보유", () => {
+test("CQ4 개입 판정 분포 — 11건(의류수거함 검토 포함) 전부 판정 엣지 보유", () => {
   const r = cqLeversByVerdict(graph)
-  assert.strictEqual(r.hits.length, 10)
+  assert.strictEqual(r.hits.length, 11)
   assert.strictEqual(r.gaps, 0)
   assert.strictEqual(r.hits.filter((h) => h.note === "제안").length, 6)
 })
@@ -47,14 +48,14 @@ test("CQ5 실행 근거 없는 개입 4건", () => {
   assert.deepStrictEqual(ids(cqLeversWithoutBasis(graph)), ["lev-bin", "lev-cctv-fixed", "lev-cctv-relocate", "lev-recycling"])
 })
 
-test("CQ6 계보 끊긴 증거 — 결정 레이어 2건 (내보내기 시 데이터셋 노드 보강 대상)", () => {
-  assert.deepStrictEqual(ids(cqEvidenceWithoutLineage(graph)), ["ev-hotspot-backtest", "ev-permits"])
+test("CQ6 계보 끊긴 증거 — 0건 (결정 레이어·서울 레이어 전부 데이터셋에 닿는다)", () => {
+  assert.deepStrictEqual(ids(cqEvidenceWithoutLineage(graph)), [])
 })
 
-test("CQ7 사전등록 연결 — 제안 6건 중 1건(공동배출)만 restricts로 연결, 5건 공백 (말과 구조의 어긋남)", () => {
+test("CQ7 사전등록 연결 — 제안 6건 전부 restricts로 연결 (내보내기가 정책 문구와 그래프를 맞춤)", () => {
   const r = cqPreregistrationCoverage(graph)
   assert.strictEqual(r.hits.length, 6)
-  assert.strictEqual(r.gaps, 5)
+  assert.strictEqual(r.gaps, 0)
 })
 
 test("runCompetencyQuestions는 7문항, id 중복 없음", () => {

@@ -51,9 +51,9 @@ function serializeOntology(): string {
 function serializeDong(): string {
   const rows = mapData.dong.map(
     (d) =>
-      `${d.d}: 민원 ${d.comp}건(천명당 ${d.cr}) · 과태료 ${d.enf}건(천명당 ${d.er}) · ` +
+      `${d.d}: 민원 ${d.comp}건(등록인구 천명당 ${d.cr}, 생활인구 천명당 ${d.crl ?? "—"}) · 과태료 ${d.enf}건(등록인구 천명당 ${d.er}, 생활인구 천명당 ${d.erl ?? "—"}) · ` +
       `1인세대 ${d.one}% · 청년20-34 ${d.yth}% · 외국인 ${d.frn}% · 무관리주거 ${d.unm}%(다가구 ${d.mf}가구) · ` +
-      `세대수 ${d.hh} · 공동주택 ${d.apt}세대`,
+      `세대수 ${d.hh} · 공동주택 ${d.apt}세대 · 생활인구 ${d.lp ?? "—"}명(장기체류 외국인 ${d.lpf ?? "—"})`,
   )
   return rows.join("\n")
 }
@@ -94,7 +94,10 @@ export function buildSystemPrompt(): string {
    성과 평가 지표는 민원 총건수가 아니라 채널고정 민원(120·직접)·집중관리 상습격자 수·징수율이다.
    단, 상습격자 수는 앱 민원을 포함하므로 "신고편향이 제거된" 지표가 아니라 "덜 민감한 관리수요 지표"다.
    징수율은 확정 처분 건(감면·진행 제외) 중 납부완료 비율이며 금액 기준 징수율이 아니다.
-12. 수요 전망의 오차 ${mapData.decision.forecast.backtest.mapePct}%는 모수 선택 구간과 같은 구간에서 잰 값이라 낙관적일 수 있다. 정확도를 보증하듯 말하지 마라.
+12. 수요 전망 오차 ${mapData.decision.forecast.backtest.mapePct}%는 롤링 원점(그 달 이전 자료로만 모수 선택) 검증값이고, 전년 동월 기준모형은 ${mapData.decision.forecast.backtest.naiveMapePct ?? "—"}%다. 80% 구간 적중률 ${mapData.decision.forecast.backtest.coverage80Pct ?? "—"}%. 정확도를 보증하듯 말하지 마라.
+13. 서울시 공개데이터(아래 "서울시 맥락"·"v2 회귀")로 확인된 것: 생활인구 노출을 넣어도 무관리주거 β는 그대로다. 의류수거함은 단속 적발과 연관이 없고 신고 민원과만 약한 양의 연관이다 —
+   "의류수거함이 온상"이라고 단정하지 마라. 격자를 200m로 합쳐도 핵심 판정은 유지된다 — "100m라서 나온 결과"가 아니다.
+   앱 청소 신고 증가는 서울 전체 현상이다. 상습격자 KPI는 앱 포함 ${mapData.decision.kpi.criticalCellsNow}곳·앱 제외 ${mapData.decision.kpi.criticalCellsNowNoApp}곳 — 두 값을 같이 말하라.
 
 ## 답변 형식 (독자는 통계를 모르는 일반 직원·어르신이다)
 - 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게.
@@ -154,6 +157,19 @@ ${mapData.decision.forecast.fc.map((p) => `${p.m}: ${p.yhat}건(80% 구간 ${p.l
 ${mapData.decision.permits ? `최근 12개월 소형 공동주택(150세대 미만, 의무관리 기준 미달=관리주체 취약) 신축 허가 ${mapData.decision.permits.guTotal.smallAptPermits12m}건 ${mapData.decision.permits.guTotal.smallAptUnits12m.toLocaleString()}세대 + 단독·다가구 ${mapData.decision.permits.guTotal.detachedPermits12m}건.
 동별: ${mapData.decision.permits.byDong.map((r) => `${r.dong} ${r.smallAptPermits}건 ${r.smallAptUnits}세대`).join(" · ")}
 해석: 인과 예측이 아니라 주거 스톡 변화의 방향. 준공 시점 선제 배출안내 후보 지역 판단용.` : "(미수집)"}
+
+## v2 회귀 (서울시 250m 생활인구·의류수거함 추가, ${MAP.decision.regressionV2?.spec ?? ""})
+${MAP.decision.regressionV2 ? `n=${MAP.decision.regressionV2.v2_100.n}, R² ${MAP.decision.regressionV2.base100.r2}→${MAP.decision.regressionV2.v2_100.r2}.
+${Object.entries(MAP.decision.regressionV2.v2_100.coef).map(([k, c]) => `${k} β ${c.beta > 0 ? "+" : ""}${c.beta} (p=${c.p})`).join(" · ")}
+민원 종속 v2: 의류수거함 β ${MAP.decision.regressionV2.v2_100_complaints.coef.clothbin_n.beta} (p=${MAP.decision.regressionV2.v2_100_complaints.coef.clothbin_n.p})
+200m 재집계(n=${MAP.decision.regressionV2.v2_200.n}, R² ${MAP.decision.regressionV2.v2_200.r2}): ${Object.entries(MAP.decision.regressionV2.v2_200.coef).map(([k, c]) => `${k} ${c.beta > 0 ? "+" : ""}${c.beta}(p=${c.p})`).join(" · ")}
+격자 민감도(판정 유지): ${Object.entries(MAP.decision.regressionV2.gridSensitivity.v2).map(([k, v]) => `${k}=${v ? "유지" : "경계"}`).join(", ")}` : "(미산출)"}
+
+## 서울시 맥락 (서울 열린데이터광장, 25개 구 비교)
+${MAP.decision.seoul ? `통합관제센터 연계 무단투기 CCTV: 서울 ${MAP.decision.seoul.cctv.seoulDumpingTotal}대, 광진 ${MAP.decision.seoul.cctv.gwangjin.dumping}대(보고 ${MAP.decision.seoul.cctv.reportingGus}개 구 중 ${MAP.decision.seoul.cctv.gwangjin.dumpingRank}위). ${MAP.decision.seoul.cctv.note}.
+서울 전체 스마트불편신고 청소 분야 연도별: ${Object.entries(MAP.decision.seoul.smartReport.cleaningByYear).filter(([y]) => y >= "2020").map(([y, v]) => `${y}년 ${v.toLocaleString()}건`).join(" · ")} (${S.period.lastYear}년은 부분).
+가로쓰레기통(서울시 원천 2025-11): 광진 ${MAP.decision.seoul.streetBins.gwangjin202511.sites}지점, 구청 장부 64개 위치와 일치.
+생활인구 창: 행정동 ${MAP.decision.seoul.livingPopWindow} 평균, 250m 격자 ${MAP.decision.seoul.livingPop250Month}.` : "(미수집)"}
 
 ## 조치 대장 원칙
 새 개입은 실행 전 대상 격자·기간·대칭 대조군·판정 지표를 등록하고, 평가는 등록된 설계로만 한다.

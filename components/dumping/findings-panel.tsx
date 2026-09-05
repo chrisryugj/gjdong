@@ -130,6 +130,12 @@ export default function FindingsPanel({
                 </div>
               ))}
             </dl>
+            {sel.lp != null && (
+              <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--cp-text-dim)]">
+                서울시 생활인구(체류 기준) {sel.lp.toLocaleString()}명 · 생활인구 천명당 민원 {sel.crl ?? "—"} · 과태료 {sel.erl ?? "—"}.
+                등록인구 천명당({sel.cr.toFixed(1)}/{sel.er.toFixed(1)})과 견줘 사람이 머무는 만큼 생기는지 볼 수 있습니다.
+              </p>
+            )}
             {tsClean.length >= 2 && (
               <div className="mt-3">
                 <p className="mb-1 text-[12px] text-[var(--cp-text-dim)]">

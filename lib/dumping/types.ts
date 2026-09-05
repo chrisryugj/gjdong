@@ -1,7 +1,7 @@
 // /dumping 대시보드 공유 타입 — 데이터 산출은 내부 저장소 gwangjin-dumping(비공개)/scripts/export_dashboard.py
 
-// [s, w, n, e, 민원, 과태료, 무관리주거, 행정동]
-export type GridCell = [number, number, number, number, number, number, number, string]
+// [s, w, n, e, 민원, 과태료, 무관리주거, 행정동, 생활인구(서울시 250m 격자 → 100m 면적 배분, 2026-07 평균)]
+export type GridCell = [number, number, number, number, number, number, number, string, number]
 
 export interface DongRow {
   d: string // 행정동
@@ -17,12 +17,18 @@ export interface DongRow {
   mf: number // 다가구 가구
   apt: number // 공동주택 세대
   o: number // 표시 순서
+  // 서울시 생활인구(행정동, 2024-01~2026-07 시간·일 평균) — 등록인구가 아니라 체류 인구 기준 노출
+  lp: number | null // 총 생활인구(내국인)
+  lpf: number | null // 장기체류 외국인 생활인구
+  crl: number | null // 민원 생활인구 천명당
+  erl: number | null // 과태료 생활인구 천명당
 }
 
 // [lat, lng, 라벨, 행정동]
 export type InfraPoint = [number, number, string, string]
 
 export interface InfraLayers {
+  clothBins: InfraPoint[] // 의류수거함 479 (공공데이터포털 15109594, 2026-03)
   cctvFixed: InfraPoint[]
   cctvMobile: InfraPoint[]
   recycling: InfraPoint[]
@@ -92,9 +98,11 @@ export interface DecisionLayer {
   kpi: {
     watchCellsNow: number
     criticalCellsNow: number
+    criticalCellsNowNoApp: number // 앱 민원 제외(120·직접+과태료) 집중관리 격자 수
+    criticalNoAppOverlap: number
     // [s, w, n, e, 12개월 건수, 행정동] — 지도 강조 레이어용 격자 사각형
     criticalCells: [number, number, number, number, number, string][]
-    persistentQuarterly: { asof: string; watch: number; critical: number }[]
+    persistentQuarterly: { asof: string; watch: number; critical: number; criticalNoApp?: number }[]
     definition: string
   }
   hotspots: {
@@ -110,9 +118,23 @@ export interface DecisionLayer {
   forecast: {
     series: Record<string, number>
     fc: { m: string; yhat: number; lo: number; hi: number }[]
-    backtest: { mapePct: number; rmse: number; window: string }
+    backtest: {
+      mapePct: number // 롤링 원점(각 달마다 그 이전 자료로만 모수 선택) 1스텝 MAPE
+      rmse: number
+      window: string
+      naiveMapePct?: number // 기준모형 = 전년 동월(계절 나이브)
+      maeHw?: number
+      maeNaive?: number
+      coverage80Pct?: number // 80% 예측구간 경험적 적중률
+      rows?: { m: string; y: number; hw: number; naive: number }[]
+      note?: string
+    }
     note: string
   }
+  // 서울시 공개데이터 맥락 (build_seoul_layers.py) — 25구 비교·서울 전체 앱 추세
+  seoul?: SeoulContext
+  // v2 격자 회귀 (regression_v2.py) — 생활인구 노출·의류수거함 추가, 200m 민감도
+  regressionV2?: RegressionV2
   // 구조 전망 — 건축HUB 인허가 파이프라인 (fetch_permits.py, 없으면 null)
   permits: {
     asof: string
@@ -133,6 +155,46 @@ export interface DecisionLayer {
       detached: number
     }[]
   } | null
+}
+
+export interface SeoulContext {
+  sources: { id: string; name: string; org: string; window: string }[]
+  cctv: {
+    asof: string
+    source: string
+    rows: { gu: string; total: number; crime: number; dumping: number }[]
+    gwangjin: { gu: string; total: number; crime: number; dumping: number; dumpingRank: number; of: number; dumpingShareOfTotalPct: number }
+    seoulDumpingTotal: number
+    reportingGus: number
+    note: string
+  }
+  streetBins: {
+    source: string
+    years: string[]
+    gwangjinByYear: number[] | null
+    seoulByYear: number[] | null
+    gwangjin202511: { rows: number; sites: number }
+  }
+  smartReport: { monthly: { ym: string; cleaning: number; total: number }[]; cleaningByYear: Record<string, number> }
+  livingPopWindow: string
+  livingPop250Month: string
+}
+
+export interface RegCoef {
+  beta: number
+  p: number
+  p_hc3: number
+  nb_beta: number | null
+  nb_p: number | null
+}
+
+export interface RegressionV2 {
+  spec: string
+  base100: { n: number; r2: number }
+  v2_100: { n: number; r2: number; coef: Record<string, RegCoef> }
+  v2_100_complaints: { r2: number; coef: Record<string, RegCoef> }
+  v2_200: { n: number; r2: number; coef: Record<string, RegCoef> }
+  gridSensitivity: { base: Record<string, boolean>; v2: Record<string, boolean>; note: string }
 }
 
 // 조치 대장 (data/dumping/interventions.json — 인증 API /api/dumping/data/interventions 로 서빙)
@@ -186,8 +248,8 @@ export interface OntoGraph {
   edges: OntoEdge[]
 }
 
-export type MapMode = "overlay" | "unm" | "comp" | "enf"
+export type MapMode = "overlay" | "unm" | "comp" | "enf" | "lp"
 
-// 지도 레이어 분해: 바탕(면)은 하나만, 원(점)은 자유 중첩
-export type BaseMode = "unm" | "comp" | "enf"
+// 지도 레이어 분해: 바탕(면)은 하나만, 원(점)은 자유 중첩. lp = 서울시 생활인구(노출)
+export type BaseMode = "unm" | "comp" | "enf" | "lp"
 export type CircleId = "comp" | "enf"

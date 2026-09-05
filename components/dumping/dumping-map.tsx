@@ -23,10 +23,13 @@ const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">Open
 const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
 const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
 const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
+const PAL_SLATE = ["#eef0f3", "#d9dee6", "#b7c0cf", "#8b98af", "#5b6b8a", "#2f3e5e"] // 생활인구(노출) — 결과·원인 색과 겹치지 않게
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
+const LP_STOPS = [0, 100, 300, 600, 1000, 2000] // 100m 격자 생활인구(명, 시간·일 평균)
 
 export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }> = {
+  clothBins: { color: "#0e7490", label: "의류수거함" },
   cctvFixed: { color: "#b45309", label: "고정 CCTV" },
   cctvMobile: { color: "#7c3aed", label: "이동식 CCTV" },
   recycling: { color: "#059669", label: "재활용정거장" },
@@ -36,11 +39,12 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
 // 바탕(면)은 하나만 — 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
 export const BASE_DEF: Record<
   BaseMode,
-  { idx: 4 | 5 | 6; stops: number[]; unit: string; pal: string[]; legend: string }
+  { idx: 4 | 5 | 6 | 8; stops: number[]; unit: string; pal: string[]; legend: string }
 > = {
   unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "무관리주거" },
   comp: { idx: 4, stops: CNT_STOPS, unit: "건", pal: PAL_BLUE, legend: "민원" },
   enf: { idx: 5, stops: CNT_STOPS, unit: "건", pal: PAL_AMBER, legend: "과태료" },
+  lp: { idx: 8, stops: LP_STOPS, unit: "명", pal: PAL_SLATE, legend: "생활인구" },
 }
 
 // 원(점) 오버레이는 바탕 위에 자유 중첩
@@ -62,7 +66,8 @@ function escapeHtml(s: string): string {
 
 function cellTooltip(cell: GridCell): string {
   const dong = escapeHtml(cell[7] || "광진구")
-  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>무관리주거 ${cell[6]}세대`
+  const lp = cell[8] ? `<br/>생활인구 ${cell[8].toLocaleString()}명 <span style="color:#64748b">(서울시 250m 격자 배분)</span>` : ""
+  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>무관리주거 ${cell[6]}세대${lp}`
 }
 
 function candidateTooltip(rank: number, c: CctvCandidate): string {

@@ -103,6 +103,7 @@ export const LEVER_VIZ: Record<string, LeverViz> = {
   "lev-cctv-fixed": { mode: "enf", layers: ["cctvFixed"], label: "지도에서 고정식 CCTV 위치 보기" },
   "lev-cctv-mobile": { mode: "enf", layers: ["cctvMobile"], label: "지도에서 이동식 CCTV 위치 보기" },
   "lev-bin": { mode: "enf", layers: ["bins"], label: "지도에서 가로쓰레기통 위치 보기" },
+  "lev-clothbin-manage": { mode: "comp", layers: ["clothBins"], label: "지도에서 의류수거함과 민원 분포 보기" },
 }
 
 export function vizForLever(lv: LeverView): LeverViz | null {
@@ -131,6 +132,8 @@ export const FACTOR_EASY: Record<string, string> = {
   "con-alley": "골목이 많은 정도",
   "con-arterial-dist": "큰길에서 떨어진 거리",
   "con-latent-fragmentation": "1인·소형 주거가 몰린 동네 성격",
+  "con-living-pop": "머무는 사람 수(서울시 생활인구)",
+  "con-clothbin": "의류수거함이 몰린 정도",
 }
 
 // 흐름도 박스용 짧은 이름 — 긴 설명은 막대 그래프 쪽에서 읽는다
@@ -143,6 +146,8 @@ export const FACTOR_SHORT: Record<string, string> = {
   "con-alley": "골목 많음",
   "con-arterial-dist": "큰길에서 먼 거리",
   "con-latent-fragmentation": "1인·소형 주거 밀집",
+  "con-living-pop": "생활인구 노출",
+  "con-clothbin": "의류수거함 밀집",
 }
 
 export function easyFactor(id: string, fallback: string): string {

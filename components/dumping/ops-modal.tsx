@@ -7,7 +7,7 @@ import ModalShell from "./modal-shell"
 // 운영·전망 탭 상세 모달 — 지도로 표현할 수 없는 지표는 여기서 표·차트·해설로 자세히 보여준다.
 // 공용 조각(KRW·ForecastChart)은 methods-modal·ops-panel이 함께 쓴다. 셸은 modal-shell.tsx.
 
-export type OpsModalId = "funnel" | "channels" | "forecast" | "fines" | "sla" | "permits"
+export type OpsModalId = "funnel" | "channels" | "forecast" | "fines" | "sla" | "permits" | "seoul"
 
 export const KRW = fmtKrw
 
@@ -244,10 +244,20 @@ export default function OpsModal({
           패턴)을 학습하는 홀트윈터스 계절 모형을 썼습니다. 최근 달을 하나씩 제외하고 예측해 보는
           백테스트({d.forecast.backtest.window})에서 평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
         </p>
-        <Note>
-          모수(수준·추세·계절 가중치)를 고른 구간과 오차를 잰 구간이 같은 8개월이라 이 오차는 낙관적일 수 있습니다.
-          기준모형(전년 동월·최근 평균) 대비 검증과 예측구간 적중률 확인은 아직 하지 않았습니다.
-        </Note>
+        {d.forecast.backtest.rows && (
+          <>
+            <H>롤링 원점 백테스트 · 그 달 이전 자료로만 모수를 골라 맞힌 결과</H>
+            <Table
+              head={["월", "실제", "홀트윈터스", "전년 동월"]}
+              rows={d.forecast.backtest.rows.map((r) => [r.m, r.y, r.hw, r.naive])}
+            />
+            <Note>
+              평균 오차 홀트윈터스 {d.forecast.backtest.mapePct}% vs 전년 동월 {d.forecast.backtest.naiveMapePct ?? "—"}%
+              (MAE {d.forecast.backtest.maeHw ?? "—"} vs {d.forecast.backtest.maeNaive ?? "—"}건). 80% 구간 적중률{" "}
+              {d.forecast.backtest.coverage80Pct ?? "—"}%. 모수 선택 구간과 평가 구간을 분리했으므로 낙관 편향이 없습니다.
+            </Note>
+          </>
+        )}
         <Callout>
           이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고,
           대책 효과를 계산하는 용도로도 쓰실 수 없습니다.
@@ -311,6 +321,56 @@ export default function OpsModal({
             : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄고 있다는 뜻입니다."}
         </p>
         <Note>{d.sla.note}. 주민이 체감하는 "현장 수거까지 걸린 시간"을 재려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).</Note>
+      </ModalShell>
+    )
+  }
+
+  if (id === "seoul" && d.seoul) {
+    const sc = d.seoul.cctv
+    const sr = d.seoul.smartReport
+    const years = Object.keys(sr.cleaningByYear).sort().filter((y) => y >= "2019")
+    const maxY = Math.max(...years.map((y) => sr.cleaningByYear[y]))
+    return (
+      <ModalShell size="xl" title="서울시 안에서 본 광진" sub="서울 열린데이터광장 원천으로 25개 구 맥락을 붙였습니다" onClose={onClose}>
+        <H>서울 전체 스마트불편신고 · 청소 분야 연도별 (건)</H>
+        <div className="flex flex-col gap-1">
+          {years.map((y) => (
+            <div key={y} className="flex items-center gap-2">
+              <span className="w-12 shrink-0 font-mono text-[12px] text-[var(--cp-text-dim)]">{y}{y === period.lastYear ? "*" : ""}</span>
+              <span className="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--cp-track,rgba(100,116,139,.18))]">
+                <i className="absolute inset-y-0 left-0 rounded-full bg-[#1c4f96]" style={{ width: `${(sr.cleaningByYear[y] / maxY) * 100}%` }} />
+              </span>
+              <span className="w-16 shrink-0 text-right font-mono text-[12px] text-[var(--cp-text-muted)]">{sr.cleaningByYear[y].toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+        <Callout>
+          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 차원에서도
+          성립하고, 25개 구 모두 채널고정 지표가 필요합니다.
+        </Callout>
+        <Note>*{period.lastYear}년은 {sr.monthly[sr.monthly.length - 1].ym.slice(5)}월까지 부분 집계. 출처 OA-12051(서울시 스마트 불편신고 분야별 신고 현황).</Note>
+
+        <H>자치구 목적별 CCTV 가운데 쓰레기 무단투기용 ({sc.asof} 기준, 통합관제센터 연계분)</H>
+        <Table
+          head={["순위", "자치구", "무단투기 CCTV", "CCTV 총계", "비중"]}
+          align={["r", "l", "r", "r", "r"]}
+          rows={sc.rows.filter((r) => r.dumping > 0).map((r, i) => [i + 1, r.gu === "광진구" ? "광진구 ◀" : r.gu, r.dumping, r.total, `${((r.dumping / r.total) * 100).toFixed(1)}%`])}
+        />
+        <Note>
+          {sc.note}. 보고 구 {sc.reportingGus}개 중 광진 {sc.gwangjin.dumpingRank}위({sc.gwangjin.dumping}대). 이 표의 광진 수치는 연계분이고, 이 분석이
+          쓴 청소과 장부는 고정 72개소·이동식 276대입니다. 출처 OA-2722.
+        </Note>
+
+        <H>가로쓰레기통 · 서울시 원천으로 교차검증</H>
+        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+          서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 64개 위치와 일치합니다.
+          연도별로는 {d.seoul.streetBins.years.slice(-3).map((y, i) => `${y}년 ${d.seoul!.streetBins.gwangjinByYear?.slice(-3)[i] ?? "—"}`).join(" · ")}. 출처 OA-15069.
+        </p>
+        <H>생활인구</H>
+        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+          행정동 생활인구(내국인·장기체류 외국인, {d.seoul.livingPopWindow} 평균)는 발견 탭 동 상세와 브리핑에 등록인구 지표 옆에 실었고,
+          250m 격자 생활인구({d.seoul.livingPop250Month})는 지도 바탕 &quot;생활인구&quot;와 v2 회귀의 노출 변수로 썼습니다. 출처 OA-14991·OA-14992·OA-22784.
+        </p>
       </ModalShell>
     )
   }
