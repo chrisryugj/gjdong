@@ -320,7 +320,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `주의: K-apt 등록에는 자발 등록 단지가 섞여 있고, ${px.unmatched}단지는 대장과 조인되지 않았습니다. 의무관리 기준은 300세대 이상, 150세대 이상이면서 승강기나 중앙난방이 있는 단지 등입니다.`,
           ...(ac && px.apiSensitivity
             ? [
-                `외부 대조(4라운드): 국토교통부 공동주택 기본정보 API가 주는 단지별 세대수를 대장 조인값과 하나씩 맞춰 보니, 세대수가 있는 ${ac.complexesWithApi - ac.apiHouseholdsZero}단지 중 ${ac.exact}단지가 정확히 같고 ${ac.over5pct}단지가 5% 넘게 달랐습니다(최대 ${n(ac.maxAbsDiff ?? 0)}세대, 한 필지에 여러 단지가 얹힌 경우). 의무관리 기준을 채운 단지 ${mand.mandatory ?? 0}곳, 자발 등록 ${mand.voluntary ?? 0}곳입니다. API 세대수로 바꿔 끼워도 다가구·일반단독 β ${signed(px.apiSensitivity.unmanaged_units.beta)}, K-apt 등록 β ${signed(px.apiSensitivity.managed_kapt.beta)}로 결론이 같습니다.`,
+                `외부 대조(4라운드): 국토교통부 공동주택 기본정보 API가 주는 단지별 세대수를 대장 조인값과 하나씩 맞춰 보니, 세대수가 있는 ${ac.complexesWithApi - ac.apiHouseholdsZero}단지 중 ${ac.exact}단지가 정확히 같고 ${ac.over5pct}단지가 5% 넘게 달랐습니다(최대 ${n(ac.maxAbsDiff ?? 0)}세대. 대장 세대수가 0인 오피스텔형이거나 필지가 나뉜 단지). 의무관리 기준을 채운 단지 ${mand.mandatory ?? 0}곳, 자발 등록 ${mand.voluntary ?? 0}곳입니다. API 세대수로 바꿔 끼워도 다가구·일반단독 β ${signed(px.apiSensitivity.unmanaged_units.beta)}, K-apt 등록 β ${signed(px.apiSensitivity.managed_kapt.beta)}로 결론이 같습니다.`,
               ]
             : []),
         ],
