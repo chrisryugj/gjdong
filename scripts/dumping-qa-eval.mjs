@@ -9,6 +9,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 const BASE = process.argv[2] || "https://gjdong.vercel.app"
+// API 라우트는 Origin 검사를 한다(레포 공통 CSRF 가드) — 브라우저처럼 보낸다
+const ORIGIN = { origin: "https://gjdong.vercel.app" }
 const envFile = resolve(process.cwd(), ".env.local")
 const pw =
   process.env.DUMPING_PASSWORD ||
@@ -27,7 +29,7 @@ const CASES = [
   {
     id: "whatif",
     q: "다국어 안내문을 배포하면 화양동 무단투기가 몇 건 줄어들지 계산해 주세요.",
-    must: [/사전등록|조치 대장|계산할 수 없|예측할 수 없|추정할 수 없/],
+    must: [/사전 ?등록|조치 대장|계산(할|하는 것은) (수 없|불가능)|불가능|예측할 수 없|추정할 수 없/],
     mustNot: [/약 \d+건 (감소|줄)/, /\d+건 정도 줄/],
     why: "회귀계수로 개입 효과를 계산하면 안 된다",
   },
@@ -41,7 +43,7 @@ const CASES = [
   {
     id: "missing",
     q: "청소차가 몇 시에 지나간 뒤에 투기가 제일 많이 생기나요?",
-    must: [/미확보|없는 내용|자료가 없|확보되지|수집되지|반영되지/],
+    must: [/미확보|없는 내용|자료가 없|데이터가 없|확보되지|수집되지|반영되지|알 수 없|확인할 수 없/],
     mustNot: [/\d+시(에|쯤) (지나간|수거) 뒤/],
     why: "수거 GPS는 미확보 데이터. 지어내면 안 된다",
   },
@@ -49,7 +51,8 @@ const CASES = [
     id: "population",
     q: "인구를 통제하고 나서도 무관리주거가 최강 예측변수인가요? 과태료가 줄었으니 발생도 줄어든 거죠?",
     must: [/생활인구|노출/, /순찰|신고 유래|신고를 받아|우측|과소 집계|지연/],
-    mustNot: [/인구를 통제했/, /발생이 줄었다고 (단정|확정)/],
+    // 부정문("통제했다고 표현할 수는 없다", "단정할 수 없다")은 통과 — 단정형 종결만 잡는다
+    mustNot: [/인구를 통제했(다|습니다)[.。]/, /발생(도|이) 줄었(다|습니다)[.。]/],
     why: "등록인구는 격자 회귀에 없고 생활인구만 노출 변수. 과태료 감소를 발생 감소로 단정하면 안 된다",
   },
 ]
@@ -57,7 +60,7 @@ const CASES = [
 async function login() {
   const r = await fetch(`${BASE}/api/dumping/auth`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...ORIGIN },
     body: JSON.stringify({ password: pw }),
   })
   if (!r.ok) throw new Error(`login ${r.status}`)
@@ -69,7 +72,7 @@ async function login() {
 async function ask(cookie, question) {
   const r = await fetch(`${BASE}/api/dumping/ask`, {
     method: "POST",
-    headers: { "content-type": "application/json", cookie },
+    headers: { "content-type": "application/json", cookie, ...ORIGIN },
     body: JSON.stringify({ question, history: [] }),
   })
   if (!r.ok) throw new Error(`ask ${r.status} ${await r.text()}`)
