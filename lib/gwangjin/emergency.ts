@@ -52,24 +52,19 @@ export function upstreamStatus(): Record<string, SourceStatus> {
   return { ...lastStatus }
 }
 
-// E-Gen(B552657)은 응답이 느려 12초 예산으로는 자주 끊긴다 (2026-09-07 실측: 프로드에서
-// 응급실·약국 모두 krgov timeout). 예산을 늘리고 한 번 더 시도한다.
-const EGEN_TIMEOUT_MS = 20000
+// E-Gen(B552657) 장애 상태 (2026-09-07 실측): 20초를 줘도 timeout 이거나 게이트웨이 504.
+// 예산을 늘려도 자료가 오지 않고 카드 스켈레톤만 길어진다 — 짧게 끊고 상태를 UI에 넘긴다.
+// 재시도도 넣지 않는다(504 는 즉시 재시도로 풀리지 않고 대기만 두 배가 된다).
+const EGEN_TIMEOUT_MS = 9000
 
 async function egenFetch(slot: string, url: string): Promise<string> {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      return await krgovFetch(url, { timeoutMs: EGEN_TIMEOUT_MS })
-    } catch (e) {
-      const msg = (e as Error).message
-      note(slot, `fetch 실패(${attempt}차): ${msg}`)
-      if (attempt === 2) {
-        lastStatus[slot] = "upstream"
-        return ""
-      }
-    }
+  try {
+    return await krgovFetch(url, { timeoutMs: EGEN_TIMEOUT_MS })
+  } catch (e) {
+    note(slot, `fetch 실패: ${(e as Error).message}`)
+    lastStatus[slot] = "upstream"
+    return ""
   }
-  return ""
 }
 
 export interface ErRoom {
