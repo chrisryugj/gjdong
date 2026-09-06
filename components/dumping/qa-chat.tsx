@@ -175,13 +175,13 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             placeholder="무단투기에 대해 무엇이든 물어보세요"
             aria-label="질문"
             maxLength={500}
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[15.5px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[16.5px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:outline-none"
           />
           {busy ? (
             <button
               type="button"
               onClick={() => abortRef.current?.abort()}
-              className="shrink-0 rounded-full border border-[var(--cp-border)] px-3 py-1.5 text-[13.5px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+              className="shrink-0 rounded-full border border-[var(--cp-border)] px-3 py-1.5 text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
             >
               중단
             </button>
@@ -199,7 +199,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             </button>
           )}
         </div>
-        <p className="mt-1.5 px-2 text-[12.5px] leading-snug text-[var(--cp-text-faint)]">
+        <p className="mt-1.5 px-2 text-[14px] leading-snug text-[var(--cp-text-faint)]">
           답은 이 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다.
         </p>
       </form>
@@ -208,7 +208,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         {error && (
           <p
             role="alert"
-            className="mb-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-[14px] text-red-600"
+            className="mb-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-[15.5px] text-red-600"
           >
             {error}
           </p>
@@ -217,16 +217,16 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         {/* 직접 질문 결과. 검색바 바로 아래, 최신순 */}
         {results.length > 0 && (
           <section className="mb-4 flex flex-col gap-2" aria-live="polite">
-            <h3 className="text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">내가 물어본 것</h3>
+            <h3 className="text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">내가 물어본 것</h3>
             {results.map((ex) => (
               <div key={ex.q} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
-                <p className="mb-1.5 flex items-start gap-1.5 text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">
-                  <span className="mt-0.5 shrink-0 rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#0c6155]">
+                <p className="mb-1.5 flex items-start gap-1.5 text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">
+                  <span className="mt-0.5 shrink-0 rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[12.5px] font-bold text-[#0c6155]">
                     Q
                   </span>
                   {ex.q}
                 </p>
-                <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--cp-text)]">
+                <div className="whitespace-pre-wrap text-[16px] leading-relaxed text-[var(--cp-text)]">
                   {renderAnswer(ex.a) || (ex.pending ? "생각 중…" : "")}
                 </div>
               </div>
@@ -236,10 +236,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
 
         {/* 핵심 질의응답 아코디언. 첫 항목 펼침, 나머지 접힘 */}
         <section>
-          <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+          <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
             핵심 질의응답 {seeds.length > 0 ? seeds.length : ""} · 누르면 펼쳐집니다
           </h3>
-          {seeds.length === 0 && <p className="text-[14px] text-[var(--cp-text-dim)]">데이터를 불러오는 중…</p>}
+          {seeds.length === 0 && <p className="text-[15.5px] text-[var(--cp-text-dim)]">데이터를 불러오는 중…</p>}
           <div className="flex flex-col gap-1.5">
             {seeds.map((s, i) => {
               const open = isOpen(s.q, i)
@@ -258,26 +258,26 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-[var(--cp-hover)]"
                   >
                     <span
-                      className={`shrink-0 text-[11px] text-[var(--cp-text-dim)] transition-transform ${open ? "rotate-90" : ""}`}
+                      className={`shrink-0 text-[12.5px] text-[var(--cp-text-dim)] transition-transform ${open ? "rotate-90" : ""}`}
                       aria-hidden
                     >
                       ▶
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">
+                      <span className="block text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">
                         {s.q}
                       </span>
-                      {!open && <span className="block truncate text-[13px] text-[var(--cp-text-dim)]">{s.hint}</span>}
+                      {!open && <span className="block truncate text-[14.5px] text-[var(--cp-text-dim)]">{s.hint}</span>}
                     </span>
                     {onMap && (
-                      <span className="shrink-0 rounded bg-[#0c6155] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                      <span className="shrink-0 rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">
                         지도 반영 중
                       </span>
                     )}
                   </button>
                   {open && (
                     <div className="flex flex-col gap-2 border-t border-[var(--cp-border-faint)] px-3 pb-3 pt-2.5">
-                      <div className="whitespace-pre-wrap text-[14.5px] leading-relaxed text-[var(--cp-text)]">
+                      <div className="whitespace-pre-wrap text-[16px] leading-relaxed text-[var(--cp-text)]">
                         {renderAnswer(s.answer)}
                       </div>
                       {s.chart && data && (
@@ -287,8 +287,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                           className="rounded-lg border border-[var(--cp-border)] bg-white p-2.5 text-left transition-shadow hover:border-[#0c6155]/60"
                         >
                           <span className="mb-1 flex items-baseline justify-between">
-                            <b className="text-[13px] text-[var(--cp-text-strong)]">{chartTitle(s.chart, data)}</b>
-                            <span className="text-[12px] text-[#0c6155]">크게 보기 +</span>
+                            <b className="text-[14.5px] text-[var(--cp-text-strong)]">{chartTitle(s.chart, data)}</b>
+                            <span className="text-[13.5px] text-[#0c6155]">크게 보기 +</span>
                           </span>
                           <QaChart kind={s.chart} data={data} graph={graph} />
                         </button>
@@ -304,13 +304,13 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                               onMap ? "border border-[#0c6155]/30 bg-[#0c6155]/8 text-[#0c6155]" : "border border-[#0c6155] text-[#0c6155] hover:bg-[#0c6155]/8"
                             }`}
                           >
-                            <span className="text-[14px] font-semibold">{onMap ? "✓ 지도에 반영됨" : "지도에서 확인"}</span>
+                            <span className="text-[15.5px] font-semibold">{onMap ? "✓ 지도에 반영됨" : "지도에서 확인"}</span>
                             {!onMap && vizDesc && (
-                              <span className="text-[12px] font-normal leading-snug opacity-85">{vizDesc}</span>
+                              <span className="text-[13.5px] font-normal leading-snug opacity-85">{vizDesc}</span>
                             )}
                           </button>
                           {onMap && s.vizNote && (
-                            <p className="rounded-lg border border-dashed border-[#0c6155]/40 bg-[#0c6155]/5 px-2.5 py-1.5 text-[13px] leading-snug text-[#0c6155]">
+                            <p className="rounded-lg border border-dashed border-[#0c6155]/40 bg-[#0c6155]/5 px-2.5 py-1.5 text-[14.5px] leading-snug text-[#0c6155]">
                               {s.vizNote}
                             </p>
                           )}
@@ -322,7 +322,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               )
             })}
           </div>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+          <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             준비된 답의 수치는 독립 검토를 거친 확정치입니다. 더 깊은 근거는 발견·데이터 탭에서 볼 수 있습니다.
           </p>
         </section>

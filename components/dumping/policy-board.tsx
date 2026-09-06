@@ -9,33 +9,26 @@ import {
   deriveLevers,
   easyVerdict,
   FACTOR_SHORT,
+  joinParen,
   proposalRows,
   STATUS_FALLBACK,
   STATUS_STYLE,
   type LeverView,
 } from "./lever-view"
 import LeverModal from "./lever-modal"
-import { PolicyPrintModal, ProposalTable, type Headline } from "./policy-table"
+import { PolicyPrintModal, type Headline } from "./policy-table"
 import type { MethodsSection } from "./methods-modal"
 
 // 정책 제안 탭. 지식그래프를 관리자 관점("무엇을 해야 하나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
-// 두 독자의 진입점을 나눈다. 결재선은 결론 한 줄, 쉬운 수치 3, 제안 표, 결재용 인쇄.
-// 평가자는 "데이터 → 방법 → 결론 → 한계 → 재현" 링크 줄. 둘 다 1440에서 스크롤 없이 시작한다.
+// 첫 화면에 보이는 것은 넷뿐이다. 결론 한 줄, 쉬운 수치 3, 결재용 인쇄와 평가자 근거 경로, 제안 카드.
+// 기존 수단 판정·성과지표는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다).
 // 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 지도로 이어진다.
 
 // 해설서 원문(공개 레포). 방법 모달이 다루지 않는 한계·검정 세부는 여기로 보낸다
 const EXPLAINER_URL = "https://github.com/chrisryugj/gjdong/blob/main/docs/dumping-stats-explainer.md"
 
-function LeverCard({
-  lv,
-  graph,
-  onOpen,
-}: {
-  lv: LeverView
-  graph: OntoGraph
-  onOpen: (lv: LeverView) => void
-}) {
+function LeverCard({ lv, graph, onOpen }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
   const cost = costBadge(lv.costNote)
   const proposal = lv.status === "제안"
@@ -45,20 +38,20 @@ function LeverCard({
   return (
     <button
       onClick={() => onOpen(lv)}
-      className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60"
+      className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
     >
-      <span className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-bold ${status.cls}`}>{status.label}</span>
-        {cost && <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+      <span className="flex flex-wrap items-center gap-1.5">
+        <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-bold ${status.cls}`}>{status.label}</span>
+        {cost && <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
         {lv.preRegistered && (
-          <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[11px] text-[var(--cp-text-dim)]">
+          <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[12px] text-[var(--cp-text-dim)]">
             사전등록 후 평가
           </span>
         )}
       </span>
-      <h4 className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">{lv.node.label}</h4>
+      <h4 className="mt-2 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">{lv.node.label}</h4>
       {lv.targets.length > 0 && (
-        <p className="mt-1 flex flex-wrap items-center gap-1 text-[12.5px] text-[var(--cp-text-dim)]">
+        <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[13.5px] text-[var(--cp-text-dim)]">
           겨냥
           {lv.targets.map((t) => (
             <span key={t.id} className="rounded-full bg-[var(--cp-hover2)] px-2 py-0.5 text-[var(--cp-text-muted)]">
@@ -67,23 +60,25 @@ function LeverCard({
           ))}
         </p>
       )}
-      {note && <p className="mt-1.5 line-clamp-3 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">{note}</p>}
-      <dl className="mt-1.5 flex flex-col gap-0.5 text-[13px] text-[var(--cp-text-dim)]">
-        {lv.owner && (
-          <div className="flex gap-1.5">
-            <dt className="shrink-0 font-medium">담당</dt>
-            <dd>{lv.owner}</dd>
-          </div>
-        )}
-        {lv.verificationPlan && (
-          <div className="flex gap-1.5">
-            <dt className="shrink-0 font-medium">검증</dt>
-            <dd>{lv.verificationPlan}</dd>
-          </div>
-        )}
-      </dl>
-      <span className="mt-1.5 inline-block rounded-md bg-[#0c6155]/10 px-2 py-1 text-[12.5px] font-semibold text-[#0c6155]">
-        {proposal ? "제안 이유 보기 →" : "검증 결과 자세히 보기 →"}
+      {note && <p className="mt-2 line-clamp-3 text-[15px] leading-relaxed text-[var(--cp-text-muted)]">{note}</p>}
+      {(lv.owner || lv.verificationPlan) && (
+        <dl className="mt-2 flex flex-col gap-0.5 text-[14px] leading-snug text-[var(--cp-text-dim)]">
+          {lv.owner && (
+            <div className="flex gap-2">
+              <dt className="w-8 shrink-0 font-medium">담당</dt>
+              <dd className="text-[var(--cp-text-muted)]">{joinParen(lv.owner)}</dd>
+            </div>
+          )}
+          {lv.verificationPlan && (
+            <div className="flex gap-2">
+              <dt className="w-8 shrink-0 font-medium">검증</dt>
+              <dd className="text-[var(--cp-text-muted)]">{joinParen(lv.verificationPlan)}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      <span className="mt-2.5 inline-block text-[14px] font-semibold text-[#0c6155]">
+        {proposal ? "제안 이유와 지도 보기 →" : "검증 결과 자세히 →"}
       </span>
     </button>
   )
@@ -98,13 +93,32 @@ interface PolicyBoardProps {
   onGoFindings: () => void // 평가자 링크 줄: 발견 탭
 }
 
-// 섹션 번호. 위계는 색이 아니라 번호와 hairline으로
-function SectionHead({ n, children }: { n: string; children: React.ReactNode }) {
+// 섹션 제목. 위계는 색이 아니라 번호와 hairline으로
+function SectionHead({ n, children, sub }: { n: string; children: React.ReactNode; sub?: string }) {
   return (
-    <h3 className="mb-2 flex items-baseline gap-2 border-t border-[var(--cp-border)] pt-3 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
-      <span className="font-mono text-[11px] text-[var(--cp-text-faint)]">{n}</span>
-      <span>{children}</span>
-    </h3>
+    <div className="mb-3 border-t border-[var(--cp-border)] pt-4">
+      <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
+        <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">{n}</span>
+        <span>{children}</span>
+      </h3>
+      {sub && <p className="mt-0.5 pl-6 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
+    </div>
+  )
+}
+
+// 접힌 섹션. 첫 화면 밖으로 밀어 두되 한 번의 클릭으로 열린다
+function Folded({ n, title, sub, children }: { n: string; title: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <details className="group border-t border-[var(--cp-border)] pt-4">
+      <summary className="flex cursor-pointer list-none items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
+        <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">{n}</span>
+        <span className="flex-1">{title}</span>
+        <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
+        <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
+      </summary>
+      {sub && <p className="mt-0.5 pl-6 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
+      <div className="mt-3">{children}</div>
+    </details>
   )
 }
 
@@ -115,7 +129,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
   const [showPrint, setShowPrint] = useState(false)
 
   if (!graph) {
-    return <div className="p-4 text-base text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다…</div>
+    return <div className="p-4 text-[16px] text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다…</div>
   }
 
   // 제안은 돈이 덜 드는 순. 무예산 → 저비용 → 예산 필요 (같은 등급 안에서는 그래프 순서 유지)
@@ -166,50 +180,53 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
   ]
 
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div className="flex flex-col gap-5 px-4 py-4">
       {/* 결론 한 줄 + 핵심 수치 3개. 첫 화면에서 답이 먼저 보이게 */}
       <section>
-        <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
-        <h2 className="mt-1 text-[17px] font-bold leading-snug text-[var(--cp-text-strong)]">{conclusion}</h2>
-        <dl className="mt-3 grid grid-cols-3 gap-2">
+        <p className="font-mono text-[12px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
+        <h2 className="mt-1.5 text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]">{conclusion}</h2>
+        {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다 */}
+        <dl className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
           {headline.map((h) => (
-            <div key={h.k} className="min-w-0 border-l border-[var(--cp-border-strong)] pl-2.5">
-              <dt className="text-[11.5px] leading-tight text-[var(--cp-text-muted)]">{h.k}</dt>
-              <dd className="mt-0.5 font-mono text-[20px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">{h.v}</dd>
-              <dd className="mt-1 text-[11px] leading-snug text-[var(--cp-text-faint)]">{h.sub}</dd>
+            <div key={h.k} className="min-w-0 border-l border-[var(--cp-border-strong)] pl-3">
+              <dt className="text-[13px] leading-tight text-[var(--cp-text-muted)] break-keep">{h.k}</dt>
+              <dd className="mt-1 font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">{h.v}</dd>
+              <dd className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{h.sub}</dd>
             </div>
           ))}
         </dl>
-        {/* 두 독자의 진입점. 왼쪽은 평가자 경로, 오른쪽은 결재용 인쇄 */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1.5 text-[12.5px]">
-          <span className="text-[var(--cp-text-dim)]">근거 경로</span>
-          {path.map((p, i) => (
-            <span key={p.k} className="inline-flex items-center gap-1">
-              {p.ext ? (
-                <a href={p.ext} target="_blank" rel="noreferrer" className="font-semibold text-[#0c6155] hover:underline">
-                  {p.k}
-                </a>
-              ) : (
-                <button onClick={p.go} className="font-semibold text-[#0c6155] hover:underline">
-                  {p.k}
-                </button>
-              )}
-              {i < path.length - 1 && <span className="text-[var(--cp-text-faint)]">→</span>}
-            </span>
-          ))}
+        {/* 두 독자의 진입점. 결재선은 인쇄, 평가자는 근거 경로 */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
           <button
             onClick={() => setShowPrint(true)}
-            className="ml-auto rounded-md border border-[var(--cp-border-strong)] px-2 py-1 text-[12.5px] font-semibold text-[var(--cp-text-strong)] hover:bg-[var(--cp-hover)]"
+            className="rounded-lg border border-[var(--cp-border-strong)] bg-white px-3.5 py-2 text-[14px] font-semibold text-[var(--cp-text-strong)] hover:bg-[var(--cp-hover)]"
           >
             결재용 한 장 인쇄
           </button>
+          <span className="flex flex-wrap items-center gap-x-1.5 text-[13.5px]">
+            <span className="text-[var(--cp-text-dim)]">근거 경로</span>
+            {path.map((p, i) => (
+              <span key={p.k} className="inline-flex items-center gap-1.5">
+                {p.ext ? (
+                  <a href={p.ext} target="_blank" rel="noreferrer" className="font-semibold text-[#0c6155] hover:underline">
+                    {p.k}
+                  </a>
+                ) : (
+                  <button onClick={p.go} className="font-semibold text-[#0c6155] hover:underline">
+                    {p.k}
+                  </button>
+                )}
+                {i < path.length - 1 && <span className="text-[var(--cp-text-faint)]">→</span>}
+              </span>
+            ))}
+          </span>
         </div>
       </section>
 
       {/* 정책 논리. 확인·공백·제안 세 단계. 한 문단으로 이으면 좁은 패널에서 읽히지 않는다 */}
-      <section className="border-t border-[var(--cp-border)] pt-3">
-        <h3 className="mb-2 flex items-baseline gap-2 text-[13px] font-bold tracking-wide text-[var(--cp-text-strong)]"><span className="font-mono text-[11px] font-normal text-[var(--cp-text-faint)]">02</span>정책 논리</h3>
-        <dl className="flex flex-col gap-2">
+      <section>
+        <SectionHead n="02">왜 이런 제안인가</SectionHead>
+        <dl className="flex flex-col gap-2.5">
           {[
             {
               k: "확인",
@@ -224,27 +241,21 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
               k: "공백",
               v: (
                 <>
-                  다가구·단독 밀집 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이{" "}
-                  <b className="text-[var(--cp-text-strong)]">사람</b>에게 배출 안내를 전하는 대책은 비어 있었습니다. 네 조건은
-                  같은 동네에 겹쳐 있어 어느 쪽을 겨냥해도 같은 골목에 닿습니다.
+                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이 <b className="text-[var(--cp-text-strong)]">사람</b>에게 배출 안내를
+                  전하는 대책은 비어 있었습니다. 네 조건은 같은 동네에 겹쳐 있어 어느 쪽을 겨냥해도 같은 골목에 닿습니다.
                 </>
               ),
             },
             {
               k: "제안",
-              v: (
-                <>
-                  아래 {proposals.length}건이 이 두 공백을 메웁니다. 모두 실행 전에 조치 대장에 설계를
-                  등록한 뒤 평가합니다.
-                </>
-              ),
+              v: <>아래 {proposals.length}건이 이 두 공백을 메웁니다. 모두 실행 전에 조치 대장에 설계를 등록한 뒤 평가합니다.</>,
             },
           ].map((row) => (
-            <div key={row.k} className="flex gap-2">
-              <dt className="mt-0.5 h-fit shrink-0 rounded bg-[#0c6155]/15 px-1.5 py-0.5 text-[11.5px] font-bold text-[#0a4a41]">
+            <div key={row.k} className="flex gap-2.5">
+              <dt className="mt-0.5 h-fit shrink-0 rounded bg-[#0c6155]/15 px-1.5 py-0.5 text-[12.5px] font-bold text-[#0a4a41]">
                 {row.k}
               </dt>
-              <dd className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-[var(--cp-text)]">{row.v}</dd>
+              <dd className="min-w-0 flex-1 text-[15px] leading-relaxed text-[var(--cp-text)]">{row.v}</dd>
             </div>
           ))}
         </dl>
@@ -252,50 +263,43 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
 
       {/* 지도 연동 상태. 어떤 사업을 지도에 띄워 두었는지 */}
       {active && (
-        <p className="rounded-lg border border-[#0c6155]/40 bg-[#0c6155]/8 px-3 py-2 text-[13px] leading-relaxed text-[#0a4a41]">
+        <p className="rounded-lg border border-[#0c6155]/40 bg-[#0c6155]/8 px-3 py-2 text-[14px] leading-relaxed text-[#0a4a41]">
           지도에 <b>{active.node.label}</b> 관련 화면을 표시하고 있습니다.
         </p>
       )}
 
-      {/* 신규 제안. 표가 먼저, 카드는 그 아래 */}
+      {/* 신규 제안 카드. 예산 등급 순 */}
       <section>
-        <SectionHead n="03">검토 요청 제안 {proposals.length}건 · 예산·담당·검증</SectionHead>
-        <ProposalTable rows={rows} onOpen={setOpenLever} />
-        <p className="mb-2 mt-2 text-[12.5px] text-[var(--cp-text-dim)]">카드를 누르면 제안 이유와 지도가 나옵니다.</p>
-        <div className="flex flex-col gap-2">
+        <SectionHead n="03" sub="돈이 안 드는 것부터. 카드를 누르면 이유와 지도가 나옵니다">
+          제안 {proposals.length}건
+        </SectionHead>
+        <div className="flex flex-col gap-2.5">
           {proposals.map((lv) => (
             <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
           ))}
         </div>
       </section>
 
-      {/* 기존 수단 판정 */}
-      <section>
-        <SectionHead n="04">이미 쓰고 있는 수단의 검증 결과 {existing.length}건</SectionHead>
-        <div className="flex flex-col gap-2">
+      {/* 기존 수단 판정. 접어 둔다 */}
+      <Folded n="04" title={`이미 쓰고 있는 수단 ${existing.length}건의 검증 결과`} sub="CCTV 효과 철회 등. 카드를 누르면 판정 근거가 나옵니다">
+        <div className="flex flex-col gap-2.5">
           {existing.map((lv) => (
             <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
           ))}
         </div>
-      </section>
+      </Folded>
 
       {/* 성과지표. 무엇으로 성과를 재는가 */}
-      <section>
-        <SectionHead n="05">성과는 이 지표로 측정합니다</SectionHead>
+      <Folded n="05" title="성과는 이 지표로 잽니다" sub="민원 총건수는 앱 보급 편향이 섞여 성과 평가에 쓰지 않습니다">
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
             return (
-              <div
-                key={k.id}
-                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left"
-              >
-                <i
-                  className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#a8322a]" : "bg-[var(--cp-text-faint)]"}`}
-                />
-                <span className="min-w-0 flex-1 text-[14px] text-[var(--cp-text)]">{k.label}</span>
+              <div key={k.id} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+                <i className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#a8322a]" : "bg-[var(--cp-text-faint)]"}`} />
+                <span className="min-w-0 flex-1 text-[15px] text-[var(--cp-text)]">{k.label}</span>
                 {main && (
-                  <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#a8322a]">
+                  <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12px] font-semibold text-[#a8322a]">
                     성과 평가용
                   </span>
                 )}
@@ -303,18 +307,21 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
             )
           })}
         </div>
-        <p className="mt-1.5 px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          민원 총건수에는 앱 보급에 따른 신고 편향이 섞여 있어 성과 평가에는 쓰지 않습니다. 빨간
-          점으로 표시한 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 편향에 덜 민감하게 성과를 재는
-          지표입니다. 상습격자 수는 앱 민원을 포함하므로 관리수요 지표로 함께 읽어 주세요.
+        <p className="mt-2 px-2 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
+          빨간 점 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 신고 편향에 덜 민감하게 성과를 재는 지표입니다. 상습격자 수는
+          앱 민원을 포함하므로 관리수요 지표로 함께 읽어 주세요.
         </p>
-      </section>
+      </Folded>
 
       {/* 원칙. CCTV 철회의 교훈 */}
-      <section className="border-t border-[var(--cp-border)] pt-3">
-        <h3 className="flex items-baseline gap-2 text-[14px] font-bold text-[var(--cp-text-strong)]"><span className="font-mono text-[11px] font-normal text-[var(--cp-text-faint)]">06</span>원칙 · 개입 사전등록(조치 대장)</h3>
-        <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
-          새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고 평가는 등록한 설계 그대로만 합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류(평균회귀)로 철회된 뒤에 만든 재발 방지 장치입니다. 진행 상황은 운영·전망 탭의 조치 대장에서 보실 수 있습니다.
+      <section className="border-t border-[var(--cp-border)] pt-4">
+        <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
+          <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">06</span>원칙 · 개입 사전등록(조치 대장)
+        </h3>
+        <p className="mt-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
+          새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고 평가는 등록한 설계 그대로만 합니다. 이동식 CCTV의
+          효과 주장이 비교 방법 오류(평균회귀)로 철회된 뒤에 만든 재발 방지 장치입니다. 진행 상황은 운영·전망 탭의 조치 대장에서 보실 수
+          있습니다.
         </p>
       </section>
 

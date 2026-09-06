@@ -18,7 +18,7 @@ function GapBadge({ r }: { r: CqResult }) {
   const ok = r.gaps === 0
   return (
     <span
-      className={`shrink-0 rounded px-1.5 py-0.5 text-[11.5px] font-bold ${
+      className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-bold ${
         ok ? "bg-[#0c6155]/12 text-[#0a4a41]" : "bg-[#8a530e]/12 text-[#8a530e]"
       }`}
     >
@@ -39,10 +39,10 @@ export default function OntoQueries({ graph, onSelect }: Props) {
   return (
     <section className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <h3 className="text-[14px] font-bold text-[var(--cp-text-strong)]">온톨로지에 묻기 · 역량 질문 {results.length}</h3>
-        <span className="shrink-0 text-[12px] text-[var(--cp-text-dim)]">공백 {gapTotal}건</span>
+        <h3 className="text-[15.5px] font-bold text-[var(--cp-text-strong)]">온톨로지에 묻기 · 역량 질문 {results.length}</h3>
+        <span className="shrink-0 text-[13.5px] text-[var(--cp-text-dim)]">공백 {gapTotal}건</span>
       </div>
-      <p className="mb-2 text-[12.5px] leading-relaxed text-[var(--cp-text-dim)]">
+      <p className="mb-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
         표를 따로 보면 안 보이고 관계를 따라가야 나오는 질문들입니다. 답은 지금 그래프에서 바로 계산합니다.
       </p>
       <div className="flex flex-col gap-1">
@@ -55,17 +55,17 @@ export default function OntoQueries({ graph, onSelect }: Props) {
                 aria-expanded={on}
                 className="flex w-full items-start gap-2 px-2.5 py-2 text-left hover:bg-[var(--cp-hover)]"
               >
-                <span className={`mt-0.5 shrink-0 text-[10px] text-[var(--cp-text-dim)] transition-transform ${on ? "rotate-90" : ""}`} aria-hidden>
+                <span className={`mt-0.5 shrink-0 text-[12px] text-[var(--cp-text-dim)] transition-transform ${on ? "rotate-90" : ""}`} aria-hidden>
                   ▶
                 </span>
-                <span className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-[var(--cp-text)]">{r.q}</span>
+                <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-[var(--cp-text)]">{r.q}</span>
                 <GapBadge r={r} />
               </button>
               {on && (
                 <div className="border-t border-[var(--cp-border-faint)] px-2.5 pb-2.5 pt-2">
-                  <p className="mb-2 text-[12.5px] leading-relaxed text-[var(--cp-text-dim)]">{r.why}</p>
+                  <p className="mb-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">{r.why}</p>
                   {r.hits.length === 0 ? (
-                    <p className="text-[13px] text-[#0a4a41]">{r.empty}</p>
+                    <p className="text-[14.5px] text-[#0a4a41]">{r.empty}</p>
                   ) : (
                     <div className="flex flex-col gap-1">
                       {r.hits.map((h) => {
@@ -76,9 +76,9 @@ export default function OntoQueries({ graph, onSelect }: Props) {
                             onClick={() => onSelect(h.id)}
                             className="rounded-md border border-[var(--cp-border-faint)] px-2 py-1.5 text-left hover:bg-[var(--cp-hover)]"
                           >
-                            <span className="text-[13px] text-[var(--cp-text-strong)]">{node?.label ?? h.id}</span>
-                            <span className="ml-1.5 text-[11.5px] text-[var(--cp-text-faint)]">{node ? typeLabel(node.type) : ""}</span>
-                            {h.note && <span className="block text-[12px] leading-snug text-[var(--cp-text-dim)]">{h.note}</span>}
+                            <span className="text-[14.5px] text-[var(--cp-text-strong)]">{node?.label ?? h.id}</span>
+                            <span className="ml-1.5 text-[13px] text-[var(--cp-text-faint)]">{node ? typeLabel(node.type) : ""}</span>
+                            {h.note && <span className="block text-[13.5px] leading-snug text-[var(--cp-text-dim)]">{h.note}</span>}
                           </button>
                         )
                       })}
@@ -91,7 +91,7 @@ export default function OntoQueries({ graph, onSelect }: Props) {
         })}
       </div>
       {/* 스키마 검증. 도메인·레인지·철회 규약을 그래프가 지키는지. 오류 0이어야 정상 */}
-      <p className="mt-2 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+      <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
         스키마 검증: 오류 {errors.length}건 · 주의 {warns.length}건
         {warns.length > 0 && ` (${warns.map((w) => `${w.ref}: ${w.msg}`).join(" · ")})`}
         {errors.length > 0 && ` · ${errors.map((e) => `${e.ref}: ${e.msg}`).join(" · ")}`}

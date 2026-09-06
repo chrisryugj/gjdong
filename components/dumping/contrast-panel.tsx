@@ -129,34 +129,34 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
   const [chart, setChart] = useState<ChartKind | null>(null)
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+      <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
         기존 해석 vs 이 분석 · 데이터가 뒤집은 것 {pairs.length}
       </h3>
       <div className="flex flex-col gap-1.5">
         {pairs.map((p) => (
           <div key={p.k} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5">
-            <p className="mb-1.5 text-[12.5px] font-bold text-[var(--cp-text-strong)]">{p.k}</p>
+            <p className="mb-1.5 text-[14px] font-bold text-[var(--cp-text-strong)]">{p.k}</p>
             <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5">
               <div className="rounded-lg border border-dashed border-[var(--cp-border)] px-2 py-1.5">
-                <span className="mb-0.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--cp-text-dim)]">
+                <span className="mb-0.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12px] font-semibold text-[var(--cp-text-dim)]">
                   {p.beforeTag}
                 </span>
-                <p className="text-[12.5px] leading-snug text-[var(--cp-text-muted)] line-through decoration-[var(--cp-border-strong)] decoration-1">
+                <p className="text-[14px] leading-snug text-[var(--cp-text-muted)] line-through decoration-[var(--cp-border-strong)] decoration-1">
                   {p.before}
                 </p>
               </div>
-              <span className="self-center text-[14px] text-[var(--cp-text-faint)]" aria-hidden>
+              <span className="self-center text-[15.5px] text-[var(--cp-text-faint)]" aria-hidden>
                 →
               </span>
               <div className="rounded-lg bg-[#0c6155]/8 px-2 py-1.5">
-                <span className="mb-0.5 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[10.5px] font-semibold text-white">이 분석</span>
-                <p className="text-[12.5px] font-medium leading-snug text-[#0a4a41]">{p.after}</p>
+                <span className="mb-0.5 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[12px] font-semibold text-white">이 분석</span>
+                <p className="text-[14px] font-medium leading-snug text-[#0a4a41]">{p.after}</p>
               </div>
             </div>
             {p.chart && (
               <button
                 onClick={() => setChart(p.chart!)}
-                className="mt-1.5 text-[12px] font-medium text-[#0c6155] hover:underline"
+                className="mt-1.5 text-[13.5px] font-medium text-[#0c6155] hover:underline"
               >
                 차트로 보기 +
               </button>

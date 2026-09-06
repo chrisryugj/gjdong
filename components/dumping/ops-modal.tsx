@@ -13,16 +13,16 @@ export const KRW = fmtKrw
 
 // 소제목·해설·표 공용 스타일. 모달 안 가독성 통일
 export function H({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-1.5 mt-4 text-[13px] font-semibold tracking-wide text-[var(--cp-text-dim)] first:mt-0">{children}</h3>
+  return <h3 className="mb-1.5 mt-4 text-[14.5px] font-semibold tracking-wide text-[var(--cp-text-dim)] first:mt-0">{children}</h3>
 }
 
 function Note({ children }: { children: React.ReactNode }) {
-  return <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">{children}</p>
+  return <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">{children}</p>
 }
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-3 py-2 text-[14px] font-semibold leading-relaxed text-[#0a4a41]">
+    <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-3 py-2 text-[15.5px] font-semibold leading-relaxed text-[#0a4a41]">
       {children}
     </p>
   )
@@ -33,7 +33,7 @@ function Table({ head, rows, align }: { head: string[]; rows: (string | number)[
   const right = (i: number) => (align ? align[i] === "r" : i > 0)
   return (
     <div className="overflow-x-auto rounded-lg border border-[var(--cp-border)]">
-      <table className="w-full text-[13px]">
+      <table className="w-full text-[14.5px]">
         <thead>
           <tr className="border-b border-[var(--cp-border)] bg-[var(--cp-hover)] text-left">
             {head.map((h, i) => (
@@ -145,7 +145,7 @@ function CategoryTrendChart({ data }: { data: DumpingMapData }) {
           </text>
         ))}
       </svg>
-      <p className="mt-1 flex gap-4 text-[12px] text-[var(--cp-text-dim)]">
+      <p className="mt-1 flex gap-4 text-[13.5px] text-[var(--cp-text-dim)]">
         <span><i className="mr-1 inline-block h-0.5 w-4 bg-[#0c6155] align-middle" />생활쓰레기 계열(음식물·봉투·이동·시간외 등)</span>
         <span><i className="mr-1 inline-block h-0.5 w-4 bg-[#b45309] align-middle" />담배꽁초(차량)</span>
       </p>
@@ -187,7 +187,7 @@ export default function OpsModal({
           금액 기준·가산금 포함 징수율과는 다릅니다.
         </Callout>
         <H>읽는 법</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           징수율은 감면·진행 건을 뺀 나머지 가운데 납부 완료 비율입니다. 체납 {f.arrearsN}건{" "}
           {KRW(f.arrearsAmount)}은 금액보다도, 상습 체납 지점과 상습 투기 지점이 겹치는지가 다음
           분석 과제입니다(지금 데이터에는 체납자 위치가 담겨 있지 않습니다).
@@ -233,7 +233,7 @@ export default function OpsModal({
           </>
         )}
         <H>그래서 어떻게 쓰나</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           연도끼리 견주거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 쓰셔야 합니다.
           과태료 부과는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다. 다만 과태료의 {100 - g.patrolSharePct}%는
           신고를 받아 나간 것이라 신고 성향과 무관하지 않습니다. 신고와 상관없는 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}이니,
@@ -257,7 +257,7 @@ export default function OpsModal({
           rows={d.forecast.fc.map((p) => [p.m, `${p.yhat}건`, `${p.lo}건`, `${p.hi}건`])}
         />
         <H>어떻게 계산했나</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           지난 {Object.keys(d.forecast.series).length}개월의 월별 접수에서 수준·추세·계절 반복(여름에 많고 겨울에 적은
           패턴)을 학습하는 홀트윈터스 계절 모형을 썼습니다. 최근 달을 하나씩 제외하고 예측해 보는
           백테스트({d.forecast.backtest.window})에서 평균 오차는 {d.forecast.backtest.mapePct}%였습니다.
@@ -331,7 +331,7 @@ export default function OpsModal({
           ])}
         />
         <H>읽는 법</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.
           {best && last && best[0] !== last[0]
             ? `${best[0]}년에 크게 좋아졌다가 ${last[0]}년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.`
@@ -357,11 +357,11 @@ export default function OpsModal({
         <div className="flex flex-col gap-1">
           {years.map((y) => (
             <div key={y} className="flex items-center gap-2">
-              <span className="w-12 shrink-0 font-mono text-[12px] text-[var(--cp-text-dim)]">{y}{y === period.lastYear ? "*" : ""}</span>
+              <span className="w-12 shrink-0 font-mono text-[13.5px] text-[var(--cp-text-dim)]">{y}{y === period.lastYear ? "*" : ""}</span>
               <span className="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--cp-track,rgba(100,116,139,.18))]">
                 <i className="absolute inset-y-0 left-0 rounded-full bg-[#1c4f96]" style={{ width: `${(sr.cleaningByYear[y] / maxY) * 100}%` }} />
               </span>
-              <span className="w-16 shrink-0 text-right font-mono text-[12px] text-[var(--cp-text-muted)]">{sr.cleaningByYear[y].toLocaleString()}</span>
+              <span className="w-16 shrink-0 text-right font-mono text-[13.5px] text-[var(--cp-text-muted)]">{sr.cleaningByYear[y].toLocaleString()}</span>
             </div>
           ))}
         </div>
@@ -382,13 +382,13 @@ export default function OpsModal({
         </Note>
 
         <H>가로쓰레기통 · 서울시 원천으로 교차검증</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           서울시 가로쓰레기통 설치정보(2025-11) 광진 {d.seoul.streetBins.gwangjin202511.sites}지점은 구청 장부 {data.meta?.binSites ?? "미산출"}개 위치와{" "}
           {data.meta?.binSites === d.seoul.streetBins.gwangjin202511.sites ? "일치합니다" : "대조했습니다"}.
           연도별로는 {d.seoul.streetBins.years.slice(-3).map((y, i) => `${y}년 ${d.seoul!.streetBins.gwangjinByYear?.slice(-3)[i] ?? "미산출"}`).join(" · ")}. 출처 OA-15069.
         </p>
         <H>생활인구</H>
-        <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           행정동 생활인구(내국인·장기체류 외국인, {d.seoul.livingPopWindow} 평균)는 발견 탭 동 상세와 브리핑에 등록인구 지표 옆에 실었고,
           250m 격자 생활인구({d.seoul.livingPop250Month})는 지도 바탕 &quot;생활인구&quot;와 v2 회귀의 노출 변수로 썼습니다. 출처 OA-14991·OA-14992·OA-22784.
         </p>
@@ -407,7 +407,7 @@ export default function OpsModal({
         rows={pm.byDong.map((r) => [r.dong, r.inProgress, r.smallAptPermits, r.smallAptUnits, r.detached])}
       />
       <H>왜 무단투기 대시보드에 건축 허가가 나오나</H>
-      <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+      <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
         이 분석에서 가장 강한 예측변수는 다가구·단독주택 밀집입니다. 150세대 미만 공동주택은
         공동주택관리법상 의무관리 대상이 아니어서 관리사무소와 경비, 공동 배출장이 없는 경우가
         많지만, K-apt로 나눈 세 갈래 모형에서 미등록 공동주택(다세대·연립·소형)은 과태료와 연관이

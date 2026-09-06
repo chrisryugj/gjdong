@@ -5,7 +5,7 @@ import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
 import { buildFindings, FINDING_ORDER } from "../components/dumping/findings-data"
 import { buildSeeds } from "../components/dumping/qa-seeds"
-import { proposalRows } from "../components/dumping/lever-view"
+import { joinParen, proposalRows } from "../components/dumping/lever-view"
 import { requestSentence } from "../components/dumping/policy-table"
 import { buildSystemPrompt } from "../lib/dumping/context"
 
@@ -71,4 +71,13 @@ test("제안 표는 6건, 비용 등급 순이고 담당·검증은 레버 노�
   assert.strictEqual(rows.find((r) => r.lever.node.id === "lev-cctv-relocate")!.owner, "청소과·동주민센터(276대 보유)")
   assert.match(requestSentence(rows), /^아래 6건의 검토와 시행을 요청합니다\./)
   assert.match(requestSentence(rows), /무예산 \d건은 .*저비용 \d건과 예산 필요 \d건은/)
+})
+
+// 7라운드. "청소과(대행업체 계약)"이 좁은 칸에서 "(" 앞에서 꺾이던 것. 카드·모달·인쇄가 같은 헬퍼로 잇는다
+test("괄호 붙은 담당·비용 문구는 ' · '로 이어 한 줄로 읽힌다", () => {
+  assert.strictEqual(joinParen("청소과(대행업체 계약)"), "청소과 · 대행업체 계약")
+  assert.strictEqual(joinParen("0원(노선 조정)"), "0원 · 노선 조정")
+  assert.strictEqual(joinParen("동주민센터"), "동주민센터")
+  const cctv = proposalRows(graph).find((r) => r.lever.node.id === "lev-cctv-relocate")!
+  assert.strictEqual(joinParen(cctv.owner), "청소과·동주민센터 · 276대 보유")
 })

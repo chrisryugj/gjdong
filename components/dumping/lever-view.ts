@@ -74,6 +74,18 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
     })
 }
 
+// "청소과(대행업체 계약)"처럼 괄호가 붙은 담당 문구. 좁은 칸에서 "(" 앞에서 줄이 꺾여 읽기 나쁘다.
+// 본문과 괄호 안을 갈라 "청소과 · 대행업체 계약"으로 잇는다
+export function splitParen(s: string): { main: string; note: string | null } {
+  const m = s.match(/^(.*?)\s*\((.+)\)\s*$/)
+  return m ? { main: m[1].trim(), note: m[2].trim() } : { main: s, note: null }
+}
+
+export function joinParen(s: string): string {
+  const { main, note } = splitParen(s)
+  return note ? `${main} · ${note}` : main
+}
+
 // ─── 결재선용 제안 표 ─────────────────────────────────────────
 // 제안 6건을 표 한 장으로. 새 판단을 쓰지 않고 레버 노드 속성(cost·owner·verification_plan)만 펼친다.
 // 비용 등급 순(무예산 → 저비용 → 예산 필요), 같은 등급 안에서는 그래프 순서.

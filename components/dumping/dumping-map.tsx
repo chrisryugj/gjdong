@@ -27,6 +27,7 @@ const PAL_SLATE = ["#eef0f3", "#d9dee6", "#b7c0cf", "#8b98af", "#5b6b8a", "#2f3e
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 const LP_STOPS = [0, 100, 300, 600, 1000, 2000] // 100m 격자 생활인구(명, 시간·일 평균)
+export const ZERO_CELL = "#94a3b8" // 값 0인 칸의 옅은 테두리. 범례와 같은 색
 
 export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }> = {
   clothBins: { color: "#0e7490", label: "의류수거함" },
@@ -178,7 +179,8 @@ export default function DumpingMap({
       dongPane.style.zIndex = "350"
       dongPane.style.pointerEvents = "none"
       // 모바일 분할 핸들 등으로 컨테이너 높이가 바뀌면 Leaflet에 알림
-      map.on("zoomend", () => setZoomedOut(map.getZoom() < 14))
+      // 패널을 넓힌 뒤 구 전체보기가 13.75 근처라 14 기준이면 데스크톱에서도 순위가 사라진다(7라운드)
+      map.on("zoomend", () => setZoomedOut(map.getZoom() < 13.5))
       const observer = new ResizeObserver(() => mapRef.current?.invalidateSize())
       observer.observe(boxRef.current)
       resizeObsRef.current = observer
@@ -260,21 +262,37 @@ export default function DumpingMap({
       for (const cell of data.grid) {
         const v = cell[def.idx]
         const dimmed = isDimmed(cell)
+        const bounds: [[number, number], [number, number]] = [
+          [cell[0], cell[1]],
+          [cell[2], cell[3]],
+        ]
         if (v > 0) {
-          L.rectangle(
-            [
-              [cell[0], cell[1]],
-              [cell[2], cell[3]],
-            ],
-            {
-              pane: "dumpGrid",
-              renderer,
-              stroke: false,
-              fillColor: colorOf(v, def.stops, def.pal),
-              fillOpacity: dimmed ? (muted ? 0.25 : 0.18) : 0.8,
-            },
-          )
+          L.rectangle(bounds, {
+            pane: "dumpGrid",
+            renderer,
+            stroke: false,
+            fillColor: colorOf(v, def.stops, def.pal),
+            fillOpacity: dimmed ? (muted ? 0.25 : 0.18) : 0.8,
+          })
             .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
+            .addTo(group)
+        } else if (!dimmed) {
+          // 값이 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다.
+          // 그래도 흰 바탕으로 남는 곳은 민원·과태료·다가구·단독이 모두 0이라 격자 자료 자체에 없는 칸이다(범례에 적음)
+          L.rectangle(bounds, {
+            pane: "dumpGrid",
+            renderer,
+            color: ZERO_CELL,
+            weight: 0.8,
+            opacity: 0.55,
+            fillColor: ZERO_CELL,
+            fillOpacity: 0.12,
+          })
+            .bindTooltip(`${cellTooltip(cell)}<br/><span style="color:#64748b">${def.legend} 0${def.unit}인 칸</span>`, {
+              sticky: true,
+              direction: "top",
+              opacity: 1,
+            })
             .addTo(group)
         }
       }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
 import { summarize } from "@/lib/dumping/facts"
 import DumpingMap, { type CandidateFocus } from "./dumping-map"
-import MapControls, { DEFAULT_VIEW, MODE_MAP, type MapView } from "./map-controls"
+import { DEFAULT_VIEW, MapOverlays, MapToolbar, MODE_MAP, type MapView } from "./map-controls"
 import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
 import FindingsPanel from "./findings-panel"
@@ -18,6 +18,7 @@ import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
 import { vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
+import { useSidebarWidth } from "./use-sidebar-width"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
@@ -62,6 +63,7 @@ export default function DumpingDashboard() {
   const [focusCandidate, setFocusCandidate] = useState<CandidateFocus | null>(null)
   const [resetSeq, setResetSeq] = useState(0)
   const split = useSplitPane({ mapBelow: true }) // 모바일: 패널이 위, 지도가 아래. 핸들은 패널 바닥(crowd 패턴 재사용)
+  const side = useSidebarWidth() // 데스크톱: 패널 폭. 경계선 드래그
 
   const clearActive = () => {
     setActiveFinding(null)
@@ -187,28 +189,28 @@ export default function DumpingDashboard() {
 
   return (
     <div className="crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)]">
-      {/* 헤더 */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-3 py-2">
+      {/* 헤더. 처음 온 사람이 5초 안에 "무엇을 분석한 화면인지" 읽어야 한다. 부제가 대상·자료·목적을 한 문장으로 */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-4 py-2.5">
         <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
-          <h1 className="truncate text-[17px] font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
-          <p className="truncate text-[13px] text-[var(--cp-text-dim)]">
-            무단투기가 왜 어디에서 생기는지 · 물어보시면 데이터로 답합니다
+          <h1 className="truncate text-[19px] font-bold leading-tight text-[var(--cp-text-strong)]">클린광진 상황실</h1>
+          <p className="line-clamp-2 text-[14px] leading-snug text-[var(--cp-text-muted)] md:line-clamp-1">
+            광진구 쓰레기 무단투기{stats ? ` 민원 ${stats.complaints.toLocaleString()}건` : ""}이 어디서 왜 생기는지 100m 격자로 분석한 결과와 대책 제안
           </p>
         </button>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-5">
           {/* 기간·민원·과태료만. 그래프 규모(노드·엣지)는 근거 그래프 탭 안으로 옮겼다(결재선에게 뜻이 없다) */}
           {[
             { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? `${stats.complaints.toLocaleString()}건` : "미산출" },
             { k: `과태료 ${stats?.finesPeriod.label ?? ""}`.trim(), v: stats ? `${stats.enforcement.toLocaleString()}건` : "미산출" },
           ].map((s) => (
-            <div key={s.k} className="hidden text-right sm:block">
-              <p className="text-[12px] text-[var(--cp-text-dim)]">{s.k}</p>
-              <p className="font-mono text-[14px] font-semibold text-[var(--cp-text-strong)]">{s.v}</p>
+            <div key={s.k} className="hidden text-right lg:block">
+              <p className="text-[12.5px] text-[var(--cp-text-dim)]">{s.k}</p>
+              <p className="font-mono text-[15px] font-semibold leading-tight text-[var(--cp-text-strong)]">{s.v}</p>
             </div>
           ))}
           <button
             onClick={() => openMethods("data")}
-            className="shrink-0 rounded-lg border border-[var(--cp-border)] px-2.5 py-1.5 text-[13px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+            className="shrink-0 rounded-lg border border-[var(--cp-border)] px-3 py-2 text-[14px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
           >
             데이터·방법
           </button>
@@ -227,29 +229,16 @@ export default function DumpingDashboard() {
         </div>
       )}
 
-      {/* 본문 스플릿. 모바일: 위 패널 + 아래 지도/그래프(결론이 지도보다 먼저), 데스크톱: 좌 패널 고정폭 + 우 지도 */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* 본문 스플릿. 모바일: 위 패널 + 아래 지도/그래프(결론이 지도보다 먼저), 데스크톱: 좌 패널(드래그 폭) + 우 지도 */}
+      <div className={`flex min-h-0 flex-1 flex-col md:flex-row ${side.dragging ? "select-none" : ""}`}>
         <div
           ref={split.mapBoxRef}
           style={split.mapH != null ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties) : undefined}
-          className="relative order-last h-[var(--dump-map-h,42dvh)] shrink-0 md:h-auto md:flex-1"
+          className="order-last flex h-[var(--dump-map-h,42dvh)] shrink-0 flex-col md:h-auto md:min-w-0 md:flex-1"
         >
           {rightPane === "map" ? (
             <>
-              <DumpingMap
-                data={mapData}
-                base={view.base}
-                circles={view.circles}
-                selectedDong={selectedDong}
-                layers={view.layers}
-                showCandidates={view.candidates}
-                showHotspots={tab === "ops"}
-                showCritical={showCritical && tab === "ops"}
-                focusCandidate={focusCandidate}
-                showRoutes={view.routes}
-                resetSeq={resetSeq}
-              />
-              <MapControls
+              <MapToolbar
                 key={resetSeq}
                 data={mapData}
                 view={view}
@@ -258,16 +247,57 @@ export default function DumpingDashboard() {
                   clearActive()
                 }}
                 active={active}
-                onFocusCandidate={setFocusCandidate}
-                selectedDong={selectedDong}
               />
+              {/* 드래그 중에는 Leaflet이 포인터를 가로채지 않게 */}
+              <div className={`relative min-h-0 flex-1 ${side.dragging ? "pointer-events-none" : ""}`}>
+                <DumpingMap
+                  data={mapData}
+                  base={view.base}
+                  circles={view.circles}
+                  selectedDong={selectedDong}
+                  layers={view.layers}
+                  showCandidates={view.candidates}
+                  showHotspots={tab === "ops"}
+                  showCritical={showCritical && tab === "ops"}
+                  focusCandidate={focusCandidate}
+                  showRoutes={view.routes}
+                  resetSeq={resetSeq}
+                />
+                <MapOverlays data={mapData} view={view} onFocusCandidate={setFocusCandidate} selectedDong={selectedDong} />
+              </div>
             </>
           ) : (
-            <OntologyGraph graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />
+            <div className="relative min-h-0 flex-1">
+              <OntologyGraph graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />
+            </div>
           )}
         </div>
 
-        <aside className="flex min-h-0 flex-1 flex-col border-b border-[var(--cp-border)] md:w-[420px] md:flex-none md:border-b-0 md:border-r xl:w-[480px]">
+        {/* 데스크톱 폭 조절 핸들. 패널 오른쪽 경계. 더블클릭 = 기본 폭 */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="패널 폭 조절"
+          onPointerDown={side.onDown}
+          onPointerMove={side.onMove}
+          onPointerUp={side.onUp}
+          onPointerCancel={side.onUp}
+          onDoubleClick={side.reset}
+          className="group relative z-10 hidden w-2 shrink-0 cursor-col-resize touch-none md:block md:order-2"
+        >
+          <span
+            className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
+              side.dragging ? "bg-[#0c6155]" : "bg-[var(--cp-border)] group-hover:bg-[var(--cp-border-strong)]"
+            }`}
+          />
+          <span className="absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--cp-border-strong)] opacity-60 group-hover:opacity-100" />
+        </div>
+
+        <aside
+          // 폭은 CSS 변수로. 인라인 width를 직접 주면 모바일 세로 배치에서도 폭이 고정돼 버린다
+          style={side.width != null ? ({ "--dump-side-w": `${side.width}px` } as React.CSSProperties) : undefined}
+          className="flex min-h-0 flex-1 flex-col border-b border-[var(--cp-border)] md:order-1 md:w-[var(--dump-side-w,480px)] md:flex-none md:border-b-0"
+        >
           <nav
             role="tablist"
             className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--cp-border)] px-2 pt-2 [scrollbar-width:none]"
@@ -278,7 +308,7 @@ export default function DumpingDashboard() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => switchTab(t.id)}
-                className={`shrink-0 whitespace-nowrap rounded-t-lg px-2.5 py-2 text-[14px] font-medium transition-colors md:px-3.5 md:text-[15px] ${
+                className={`shrink-0 whitespace-nowrap rounded-t-lg px-3 py-2.5 text-[15px] font-medium transition-colors md:px-4 md:text-[16px] ${
                   tab === t.id
                     ? "border border-b-0 border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-strong)]"
                     : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
@@ -345,7 +375,7 @@ export default function DumpingDashboard() {
       </div>
 
       {/* 초기 분석 고지 푸터. 모바일은 첫 문장만 (지도·패널 공간이 우선) */}
-      <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-1.5 text-center text-[12px] leading-snug text-[var(--cp-text-dim)]">
+      <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2 text-center text-[13px] leading-snug text-[var(--cp-text-dim)]">
         이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다.{" "}
         <span className="hidden md:inline">
           실제로 정책에 적용하시기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을

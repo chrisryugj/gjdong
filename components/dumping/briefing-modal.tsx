@@ -52,11 +52,11 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
       onClose={onClose}
       header={
         <>
-          <p className="text-[12px] font-medium tracking-wide text-[var(--cp-text-dim)]">
+          <p className="text-[13.5px] font-medium tracking-wide text-[var(--cp-text-dim)]">
             무단투기 동별 브리핑 · {period.label} · 기준 {data.decision.asof}
           </p>
           <h2 className="mt-0.5 text-xl font-bold text-[var(--cp-text-strong)]">{dong}</h2>
-          <p className="mt-1 text-[14px] text-[var(--cp-text-muted)]">
+          <p className="mt-1 text-[15.5px] text-[var(--cp-text-muted)]">
             과태료 발생률(천명당) {data.dong.length}개 동 중{" "}
             <b className={rank <= 3 ? "text-[#a8322a]" : ""}>{rank}위</b>
           </p>
@@ -66,13 +66,13 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
         <div className="flex gap-2">
           <button
             onClick={() => window.print()}
-            className="flex-1 rounded-lg bg-[#0c6155] py-2 text-[14px] font-semibold text-white hover:bg-[#0a5449]"
+            className="flex-1 rounded-lg bg-[#0c6155] py-2 text-[15.5px] font-semibold text-white hover:bg-[#0a5449]"
           >
             인쇄 / PDF 저장
           </button>
           <button
             onClick={onClose}
-            className="rounded-lg border border-[var(--cp-border)] px-4 py-2 text-[14px] text-[var(--cp-text)] hover:bg-[var(--cp-hover)]"
+            className="rounded-lg border border-[var(--cp-border)] px-4 py-2 text-[15.5px] text-[var(--cp-text)] hover:bg-[var(--cp-hover)]"
           >
             닫기
           </button>
@@ -90,21 +90,21 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
           ...(row.lp ? [{ k: "생활인구", v: row.lp.toLocaleString(), u: `체류 기준 · 천명당 과태료 ${row.erl ?? "미산출"}` }] : []),
         ].map((f) => (
           <div key={f.k} className="rounded-lg bg-[var(--cp-hover)] py-1.5">
-            <dt className="text-[12px] text-[var(--cp-text-dim)]">{f.k}</dt>
-            <dd className="font-mono text-[16px] font-semibold text-[var(--cp-text-strong)]">{f.v}</dd>
-            <dd className="text-[11px] text-[var(--cp-text-faint)]">{f.u}</dd>
+            <dt className="text-[13.5px] text-[var(--cp-text-dim)]">{f.k}</dt>
+            <dd className="font-mono text-[17px] font-semibold text-[var(--cp-text-strong)]">{f.v}</dd>
+            <dd className="text-[12.5px] text-[var(--cp-text-faint)]">{f.u}</dd>
           </div>
         ))}
       </dl>
 
       {hotspots.length > 0 && (
         <section className="mt-4">
-          <h3 className="text-[13px] font-semibold text-[var(--cp-text-dim)]">
+          <h3 className="text-[14.5px] font-semibold text-[var(--cp-text-dim)]">
             이 동의 예측 핫스팟 · 구 전체 상위 {data.decision.hotspots.top.length}곳 가운데 이 동에 있고 주소가 확인된 {hotspots.length}곳
           </h3>
           <ul className="mt-1 flex flex-col gap-1">
             {hotspots.map((h, i) => (
-              <li key={i} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5 text-[13px]">
+              <li key={i} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5 text-[14.5px]">
                 <span className="font-medium text-[var(--cp-text-strong)]">{h[6]}</span>
                 <span className="ml-1.5 text-[var(--cp-text-dim)]">
                   최근 180일 민원 {h[3]} · 과태료 {h[4]}
@@ -117,18 +117,18 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
       )}
 
       <section className="mt-4">
-        <h3 className="text-[13px] font-semibold text-[var(--cp-text-dim)]">권고 검토 대책</h3>
+        <h3 className="text-[14.5px] font-semibold text-[var(--cp-text-dim)]">권고 검토 대책</h3>
         <ul className="mt-1 flex flex-col gap-1">
           {recs.map((r) => (
-            <li key={r.t} className="rounded-lg bg-[#0c6155]/8 px-2.5 py-1.5 text-[13px] leading-snug">
+            <li key={r.t} className="rounded-lg bg-[#0c6155]/8 px-2.5 py-1.5 text-[14.5px] leading-snug">
               <span className="font-medium text-[#0a4a41]">{r.t}</span>
-              <span className="ml-1 text-[12px] text-[var(--cp-text-dim)]">근거: {r.why}</span>
+              <span className="ml-1 text-[13.5px] text-[var(--cp-text-dim)]">근거: {r.why}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--cp-text-faint)]">
+      <p className="mt-3 text-[13px] leading-relaxed text-[var(--cp-text-faint)]">
         수치는 조건부 연관이며 인과를 증명한 것은 아닙니다. 다가구·단독 밀집·1인세대·청년·외국인은 서로 얽혀 있어(상관{" "}
         {graph ? collinearRange(graph) : "0.85~0.97"}) 어느 하나를 원인으로 지목할 수 없습니다. 개입은 실행 전에 조치 대장에 사전등록하고 비교 대상을 정한
         뒤 평가해 주세요.

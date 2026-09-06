@@ -9,7 +9,8 @@ import { useEffect, useId, useRef } from "react"
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-const SIZE = { md: "max-w-lg", lg: "max-w-xl", xl: "max-w-3xl" } as const
+// 본문 글자를 15~16px로 올리면서 폭도 같이 넓혔다. 좁은 폭에 큰 글자는 줄이 짧아져 더 빽빽해 보인다
+const SIZE = { md: "max-w-xl", lg: "max-w-2xl", xl: "max-w-4xl" } as const
 
 interface ModalShellProps {
   onClose: () => void
@@ -100,12 +101,12 @@ export default function ModalShell({
         // --cp-panel은 라이트 테마에서 비치는 틴트. 떠 있는 모달은 불투명 흰색이어야 한다
         className={`flex max-h-[88dvh] w-full ${SIZE[size]} flex-col overflow-hidden rounded-2xl border border-[var(--cp-border)] bg-white shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200`}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-[var(--cp-border)] px-5 py-3.5">
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--cp-border)] px-6 py-4">
           <div id={titleId} className="min-w-0">
             {header ?? (
               <>
-                <h2 className="text-[17px] font-bold leading-snug text-[var(--cp-text-strong)]">{title}</h2>
-                {sub && <p className="mt-0.5 text-[13px] text-[var(--cp-text-dim)]">{sub}</p>}
+                <h2 className="text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]">{title}</h2>
+                {sub && <p className="mt-1 text-[14.5px] leading-snug text-[var(--cp-text-dim)]">{sub}</p>}
               </>
             )}
           </div>
@@ -118,8 +119,8 @@ export default function ModalShell({
             ✕
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="border-t border-[var(--cp-border)] px-5 py-3 print:hidden">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {footer && <div className="border-t border-[var(--cp-border)] px-6 py-3 print:hidden">{footer}</div>}
       </div>
     </div>
   )

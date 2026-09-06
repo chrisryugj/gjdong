@@ -38,7 +38,7 @@ export default function FindingsPanel({
     <div className="flex flex-col gap-4 p-3">
       {/* 핵심 발견 카드가 먼저. 평가자가 결론과 근거를 카드 순서대로 읽는다 */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+        <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
           핵심 발견 {findings.length} · 결론, 근거, 한계 순서 · 카드를 누르면 자세히 볼 수 있습니다
         </h3>
         <div className="flex flex-col gap-2">
@@ -56,25 +56,25 @@ export default function FindingsPanel({
                       : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
                 }`}
               >
-                <span className="mb-1 mr-1.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12px] font-medium text-[var(--cp-text-muted)]">
+                <span className="mb-1 mr-1.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[13.5px] font-medium text-[var(--cp-text-muted)]">
                   {f.tag}
                 </span>
                 {active && (
-                  <span className="mb-1 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[12px] font-semibold text-white">
+                  <span className="mb-1 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[13.5px] font-semibold text-white">
                     ✓ 지도 반영 중
                   </span>
                 )}
-                <h4 className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
-                <p className="mt-1 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
-                <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[14px] font-medium leading-snug text-[var(--cp-text-strong)]">
+                <h4 className="text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
+                <p className="mt-1 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
+                <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
                   {f.takeaway}
                 </p>
-                <span className="mt-1.5 inline-block text-[13px] font-medium text-[#0c6155]">자세히 보기 →</span>
+                <span className="mt-1.5 inline-block text-[14.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
               </button>
             )
           })}
         </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-[var(--cp-text-faint)]">
+        <p className="mt-2 text-[14.5px] leading-relaxed text-[var(--cp-text-faint)]">
           회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 상세 방법론과 검증은 내부 분석
           저장소(gwangjin-dumping, 비공개)의 docs를 참고해 주세요.
         </p>
@@ -82,7 +82,7 @@ export default function FindingsPanel({
 
       {/* 동별 랭킹 */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+        <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
           동별 민원 (천명당 · {periodLabel}) · 누르면 지도가 그 동에 맞춰집니다
         </h3>
         <div className="flex flex-col gap-1">
@@ -99,9 +99,9 @@ export default function FindingsPanel({
                     : "border-transparent hover:bg-[var(--cp-hover)]"
                 }`}
               >
-                <span className="flex w-[5.5rem] shrink-0 items-center gap-1 text-[15px] font-medium text-[var(--cp-text)]">
+                <span className="flex w-[5.5rem] shrink-0 items-center gap-1 text-[16px] font-medium text-[var(--cp-text)]">
                   {top3 && (
-                    <i className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#a8322a] text-[12px] font-bold not-italic text-white">
+                    <i className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#a8322a] text-[13.5px] font-bold not-italic text-white">
                       {rank + 1}
                     </i>
                   )}
@@ -114,7 +114,7 @@ export default function FindingsPanel({
                   />
                 </span>
                 <span
-                  className={`w-10 shrink-0 text-right font-mono text-[14px] ${
+                  className={`w-10 shrink-0 text-right font-mono text-[15.5px] ${
                     top3 ? "font-bold text-[#a8322a]" : "text-[var(--cp-text-muted)]"
                   }`}
                 >
@@ -128,23 +128,23 @@ export default function FindingsPanel({
         {sel && (
           <div className="mt-2 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
             <div className="mb-2 flex items-baseline justify-between gap-2">
-              <h4 className="text-sm font-semibold text-[var(--cp-text-strong)]">{sel.d}</h4>
+              <h4 className="text-[15px] font-semibold text-[var(--cp-text-strong)]">{sel.d}</h4>
               <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => onOpenBriefing(sel.d)}
-                  className="rounded-md bg-[#0c6155] px-2 py-0.5 text-[13px] font-medium text-white"
+                  className="rounded-md bg-[#0c6155] px-2 py-0.5 text-[14.5px] font-medium text-white"
                 >
                   동 브리핑 인쇄
                 </button>
                 <button
                   onClick={() => onSelectDong(null)}
-                  className="text-[13px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+                  className="text-[14.5px] text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
                 >
                   선택 해제
                 </button>
               </div>
             </div>
-            <p className="mb-2 text-[13px] font-medium text-[var(--cp-text-muted)]">
+            <p className="mb-2 text-[14.5px] font-medium text-[var(--cp-text-muted)]">
               민원 발생률 15개 동 중{" "}
               <b className={dongs.findIndex((x) => x.d === sel.d) < 3 ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}>
                 {dongs.findIndex((x) => x.d === sel.d) + 1}위
@@ -160,26 +160,26 @@ export default function FindingsPanel({
                 { k: "외국인", v: `${sel.frn}%`, u: "2025년", hi: sel.frn >= T.frn },
               ].map((f) => (
                 <div key={f.k} className={f.hi ? "rounded-lg bg-[#a8322a]/8 py-1" : "py-1"}>
-                  <dt className="text-[12px] text-[var(--cp-text-dim)]">
+                  <dt className="text-[13.5px] text-[var(--cp-text-dim)]">
                     {f.k}
-                    {f.hi && <b className="ml-1 text-[11px] text-[#a8322a]">높음</b>}
+                    {f.hi && <b className="ml-1 text-[12.5px] text-[#a8322a]">높음</b>}
                   </dt>
-                  <dd className={`font-mono text-[17px] font-semibold ${f.hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
+                  <dd className={`font-mono text-[18px] font-semibold ${f.hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
                     {f.v}
                   </dd>
-                  <dd className="text-[12px] text-[var(--cp-text-faint)]">{f.u}</dd>
+                  <dd className="text-[13.5px] text-[var(--cp-text-faint)]">{f.u}</dd>
                 </div>
               ))}
             </dl>
             {sel.lp != null && (
-              <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--cp-text-dim)]">
+              <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
                 서울시 생활인구(체류 기준) {sel.lp.toLocaleString()}명 · 생활인구 천명당 민원 {sel.crl ?? "미산출"} · 과태료 {sel.erl ?? "미산출"}.
                 등록인구 천명당({sel.cr.toFixed(1)}/{sel.er.toFixed(1)})과 견줘 사람이 머무는 만큼 생기는지 볼 수 있습니다.
               </p>
             )}
             {tsClean.length >= 2 && (
               <div className="mt-3">
-                <p className="mb-1 text-[12px] text-[var(--cp-text-dim)]">
+                <p className="mb-1 text-[13.5px] text-[var(--cp-text-dim)]">
                   청년 20-34세 추이 2015→2025 ({tsClean[0]}% → {tsClean[tsClean.length - 1]}%)
                 </p>
                 <svg viewBox="0 0 200 36" className="h-9 w-full">
@@ -206,7 +206,7 @@ export default function FindingsPanel({
       {/* 환경요인. 계절·날씨·기온 일평균 (export env 집계) */}
       {data && (
         <section>
-          <h3 className="mb-2 text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+          <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
             계절·날씨 요인 (일평균, {periodLabel})
           </h3>
           <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
@@ -216,23 +216,23 @@ export default function FindingsPanel({
                 const hi = v.compPerDay === max
                 return (
                   <div key={k} className={`rounded-lg py-1.5 ${hi ? "bg-[#a8322a]/8" : ""}`}>
-                    <p className="text-[12px] text-[var(--cp-text-dim)]">
+                    <p className="text-[13.5px] text-[var(--cp-text-dim)]">
                       {k}
-                      {hi && <b className="ml-1 text-[11px] text-[#a8322a]">최다</b>}
+                      {hi && <b className="ml-1 text-[12.5px] text-[#a8322a]">최다</b>}
                     </p>
-                    <p className={`font-mono text-[16px] font-semibold ${hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
+                    <p className={`font-mono text-[17px] font-semibold ${hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
                       {v.compPerDay}
                     </p>
-                    <p className="text-[11px] text-[var(--cp-text-faint)]">민원/일</p>
+                    <p className="text-[12.5px] text-[var(--cp-text-faint)]">민원/일</p>
                   </div>
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[13.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
+            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               여름과 더운 날(25도 이상)에는 민원이 겨울의 {(data.env.seasons["여름"].compPerDay / Math.max(data.env.seasons["겨울"].compPerDay, 0.01)).toFixed(1)}배입니다. 비 오는 날에는 단속 적발이
               {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
               관찰된 상관일 뿐 인과는 아닙니다. 과태료의 시간대와 요일(평일 오전 집중)에는 단속 근무 패턴이 섞여
               있어 투기가 일어난 시각으로 읽으시면 안 됩니다. 자세한 수치는 물어보기 탭에서 질문해 주세요.
             </p>
@@ -243,7 +243,7 @@ export default function FindingsPanel({
       {/* 기존 해석 vs 이 분석. 결론이 어디서 뒤집혔는지 보는 대비 보드. 카드 뒤에 접어 둔다 */}
       {data && graph && (
         <details className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
-          <summary className="cursor-pointer text-sm font-semibold tracking-wide text-[var(--cp-text-dim)]">
+          <summary className="cursor-pointer text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
             기존 해석 vs 이 분석 · 데이터가 뒤집은 것 · 펼치기
           </summary>
           <div className="mt-2">

@@ -30,42 +30,42 @@ export default function OntoSchemaModal({ graph, onClose }: { graph: OntoGraph; 
       sub={`클래스 ${CLASSES.length} · 관계 ${RELATIONS.length} · 지금 그래프는 지식 ${graph.nodes.length}개 연결 ${graph.edges.length}개`}
       onClose={onClose}
     >
-      <h3 className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--cp-text-dim)]">클래스 (노드 종류)</h3>
+      <h3 className="mb-1.5 text-[14.5px] font-semibold tracking-wide text-[var(--cp-text-dim)]">클래스 (노드 종류)</h3>
       <div className="mb-4 flex flex-col gap-1">
         {CLASSES.map((c) => (
           <div key={c.type} className="flex items-start gap-2 rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5">
             <i className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: SPACE_COLOR[c.space] }} />
             <div className="min-w-0 flex-1">
-              <p className="text-[13.5px]">
+              <p className="text-[15px]">
                 <b className="text-[var(--cp-text-strong)]">{typeLabel(c.type)}</b>
-                <span className="ml-1.5 font-mono text-[12px] text-[var(--cp-text-faint)]">{c.type}</span>
-                <span className="ml-1.5 text-[12px] text-[var(--cp-text-dim)]">{SPACE_KO[c.space]}</span>
-                <span className="ml-1.5 font-mono text-[12px] text-[var(--cp-text-dim)]">×{countByType.get(c.type) ?? 0}</span>
+                <span className="ml-1.5 font-mono text-[13.5px] text-[var(--cp-text-faint)]">{c.type}</span>
+                <span className="ml-1.5 text-[13.5px] text-[var(--cp-text-dim)]">{SPACE_KO[c.space]}</span>
+                <span className="ml-1.5 font-mono text-[13.5px] text-[var(--cp-text-dim)]">×{countByType.get(c.type) ?? 0}</span>
               </p>
-              <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-muted)]">{c.def}</p>
+              <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">{c.def}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <h3 className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--cp-text-dim)]">관계 (엣지 종류) · 출발 → 도착</h3>
+      <h3 className="mb-1.5 text-[14.5px] font-semibold tracking-wide text-[var(--cp-text-dim)]">관계 (엣지 종류) · 출발 → 도착</h3>
       <div className="flex flex-col gap-1">
         {RELATIONS.map((r) => (
           <div key={r.rel} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5">
-            <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13.5px]">
+            <p className="flex flex-wrap items-baseline gap-x-1.5 text-[15px]">
               <b className="text-[var(--cp-text-strong)]">{relLabel(r.rel)}</b>
-              <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{r.rel}</span>
-              <span className="rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[11px] text-[var(--cp-text-dim)]">{KIND_KO[r.kind]}</span>
-              <span className="font-mono text-[12px] text-[var(--cp-text-dim)]">×{countByRel.get(r.rel) ?? 0}</span>
+              <span className="font-mono text-[13.5px] text-[var(--cp-text-faint)]">{r.rel}</span>
+              <span className="rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12.5px] text-[var(--cp-text-dim)]">{KIND_KO[r.kind]}</span>
+              <span className="font-mono text-[13.5px] text-[var(--cp-text-dim)]">×{countByRel.get(r.rel) ?? 0}</span>
             </p>
-            <p className="font-mono text-[11.5px] text-[var(--cp-text-dim)]">
+            <p className="font-mono text-[13px] text-[var(--cp-text-dim)]">
               {r.domain.map(typeLabel).join("|")} → {r.range.map(typeLabel).join("|")}
             </p>
-            <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-muted)]">{r.def}</p>
+            <p className="text-[14px] leading-relaxed text-[var(--cp-text-muted)]">{r.def}</p>
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+      <p className="mt-3 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
         개입의 효과는 노드가 아니라 판정 엣지(lowers·stabilizes)의 status에 두고, 철회된 항목은 지우지 않고 retracted
         사유와 신뢰도 0으로 남깁니다. 그래프가 &quot;효과 있다&quot;를 단언하지 않게 만든 규약입니다.
       </p>

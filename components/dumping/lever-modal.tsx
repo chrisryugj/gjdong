@@ -9,6 +9,7 @@ import {
   evidenceFor,
   factorStats,
   FACTOR_SHORT,
+  joinParen,
   primaryStat,
   reasonSentences,
   STATUS_FALLBACK,
@@ -36,18 +37,18 @@ function StatRow({ s, max, highlight }: { s: FactorStat; max: number; highlight:
     <div className={`rounded-lg px-2 py-1.5 ${highlight ? "bg-[#0c6155]/8" : ""}`}>
       <div className="flex items-baseline gap-2">
         <span
-          className={`min-w-0 flex-1 text-[13.5px] leading-snug ${
+          className={`min-w-0 flex-1 text-[15px] leading-snug ${
             highlight ? "font-bold text-[#0a4a41]" : "text-[var(--cp-text-muted)]"
           }`}
         >
           {s.easy}
           {highlight && (
-            <span className="ml-1.5 whitespace-nowrap rounded bg-[#0c6155] px-1.5 py-0.5 text-[11px] font-bold text-white">
+            <span className="ml-1.5 whitespace-nowrap rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-bold text-white">
               이 사업이 겨냥
             </span>
           )}
         </span>
-        <span className="shrink-0 font-mono text-[12px] text-[var(--cp-text-faint)]">
+        <span className="shrink-0 font-mono text-[13.5px] text-[var(--cp-text-faint)]">
           {s.value > 0 ? "+" : ""}
           {s.value.toFixed(3)}
         </span>
@@ -89,8 +90,8 @@ function StatGroup({
   const sorted = [...stats].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
   return (
     <div className="rounded-xl border border-[var(--cp-border)] p-2.5">
-      <p className="px-1 text-[13.5px] font-bold text-[var(--cp-text-strong)]">{title}</p>
-      <p className="mb-1.5 px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-dim)]">{caption}</p>
+      <p className="px-1 text-[15px] font-bold text-[var(--cp-text-strong)]">{title}</p>
+      <p className="mb-1.5 px-1 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">{caption}</p>
       <div className="flex flex-col gap-0.5">
         {sorted.map((s) => (
           <StatRow key={`${s.kind}-${s.id}`} s={s} max={max} highlight={targeted.has(s.id)} />
@@ -103,13 +104,13 @@ function StatGroup({
 // 인과 흐름. [사업] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
 function FlowDiagram({ lever, target }: { lever: string; target: string | null }) {
   const box = (text: string, cls: string) => (
-    <span className={`flex-1 rounded-lg px-2.5 py-2 text-center text-[13px] font-semibold leading-snug ${cls}`}>
+    <span className={`flex-1 rounded-lg px-2.5 py-2 text-center text-[14.5px] font-semibold leading-snug ${cls}`}>
       {text}
     </span>
   )
   const arrow = (caption: string) => (
-    <span className="flex shrink-0 flex-row items-center justify-center gap-1 text-[11px] text-[var(--cp-text-faint)] sm:flex-col sm:gap-0">
-      <span className="rotate-90 text-[15px] leading-none text-[var(--cp-text-dim)] sm:rotate-0">→</span>
+    <span className="flex shrink-0 flex-row items-center justify-center gap-1 text-[12.5px] text-[var(--cp-text-faint)] sm:flex-col sm:gap-0">
+      <span className="rotate-90 text-[16px] leading-none text-[var(--cp-text-dim)] sm:rotate-0">→</span>
       {caption}
     </span>
   )
@@ -159,26 +160,26 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       header={
         <>
           <span className="mb-1 flex flex-wrap items-center gap-1.5">
-            <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-bold ${status.cls}`}>{status.label}</span>
+            <span className={`rounded px-1.5 py-0.5 text-[13px] font-bold ${status.cls}`}>{status.label}</span>
             {cost && (
-              <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>
+              <span className={`rounded px-1.5 py-0.5 text-[13px] font-semibold ${cost.cls}`}>{cost.label}</span>
             )}
           </span>
-          <h2 className="text-[18.5px] font-bold leading-snug text-[var(--cp-text-strong)]">{lever.node.label}</h2>
+          <h2 className="text-[19px] font-bold leading-snug text-[var(--cp-text-strong)]">{lever.node.label}</h2>
         </>
       }
       footer={
         viz ? (
           <button
             onClick={() => onShowMap(lever)}
-            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[15px] font-semibold text-white hover:bg-[#0a5449]"
+            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
           >
             {viz.label}
           </button>
         ) : undefined
       }
     >
-      <h4 className="mb-2 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
+      <h4 className="mb-2 text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
         {proposal ? "제안 이유" : "검증 결과"}
       </h4>
 
@@ -196,8 +197,8 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
                 key={i}
                 className={
                   i === 0
-                    ? "text-[16px] font-bold leading-[1.6] text-[#0a4a41]"
-                    : "text-[15px] leading-[1.75] text-[var(--cp-text)]"
+                    ? "text-[17px] font-bold leading-[1.6] text-[#0a4a41]"
+                    : "text-[16px] leading-[1.75] text-[var(--cp-text)]"
                 }
               >
                 {p}
@@ -207,12 +208,12 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </>
       ) : (
         <div className="mb-4">
-          <p className="rounded-lg bg-[var(--cp-hover)] px-3 py-2.5 text-[15px] leading-[1.75] text-[var(--cp-text)]">
+          <p className="rounded-lg bg-[var(--cp-hover)] px-3 py-2.5 text-[16px] leading-[1.75] text-[var(--cp-text)]">
             {easy ?? lever.verdictNote ?? STATUS_FALLBACK[lever.status] ?? "판정 근거가 아직 기록되지 않았습니다."}
           </p>
           {/* 쉬운 말을 본문으로 올렸을 때만 원문을 아래에 남긴다 */}
           {easy && lever.verdictNote && (
-            <p className="mt-1.5 px-1 text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+            <p className="mt-1.5 px-1 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
               분석 원문 · {lever.verdictNote}
             </p>
           )}
@@ -220,7 +221,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       )}
 
       {caveat && (
-        <p className="mb-4 rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[14px] font-semibold leading-[1.7] text-[#7c2620]">
+        <p className="mb-4 rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[15.5px] font-semibold leading-[1.7] text-[#7c2620]">
           주의 · {caveat}
         </p>
       )}
@@ -228,29 +229,29 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
       <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
-          { k: "드는 돈", v: lever.costNote },
-          { k: "맡을 곳", v: lever.owner },
-          { k: "효과 확인 방법", v: lever.verificationPlan },
+          { k: "드는 돈", v: lever.costNote && joinParen(lever.costNote) },
+          { k: "맡을 곳", v: lever.owner && joinParen(lever.owner) },
+          { k: "효과 확인 방법", v: lever.verificationPlan && joinParen(lever.verificationPlan) },
         ]
           .filter((d) => d.v)
           .map((d) => (
             <div key={d.k} className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-2">
-              <p className="text-[12px] text-[var(--cp-text-dim)]">{d.k}</p>
-              <p className="text-[13.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{d.v}</p>
+              <p className="text-[13.5px] text-[var(--cp-text-dim)]">{d.k}</p>
+              <p className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)]">{d.v}</p>
             </div>
           ))}
       </div>
 
       {evidence.length > 0 && (
         <div className="mb-4">
-          <h4 className="mb-1.5 text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
+          <h4 className="mb-1.5 text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
             실측으로 확인한 수치
           </h4>
           <ul className="flex flex-col gap-1">
             {evidence.map((e, i) => (
               <li
                 key={i}
-                className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text)]"
+                className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-1.5 text-[15px] leading-relaxed text-[var(--cp-text)]"
               >
                 {e}
               </li>
@@ -262,7 +263,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 그래프에 통계 엣지가 하나도 없으면 제목·주석만 덩그러니 남는다. 통째로 숨김 */}
       {(betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
-          <h4 className="text-[12.5px] font-bold tracking-wide text-[var(--cp-text-dim)]">
+          <h4 className="text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
             무단투기를 키우는 조건과 이 사업이 겨냥하는 지점
           </h4>
           <StatGroup
@@ -277,23 +278,23 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
             stats={rhos}
             targeted={targeted}
           />
-          <p className="px-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+          <p className="px-1 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 갈라낼 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
           </p>
         </div>
       )}
 
       {lever.preRegistered && (
-        <p className="mt-1 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
+        <p className="mt-1 rounded-lg border border-dashed border-[var(--cp-border-strong)] px-3 py-2 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
           <b className="text-[var(--cp-text-strong)]">실행 전 등록 대상</b> · 어디에·얼마 동안·무엇과 비교해 판단할지를
           먼저 조치 대장에 적어 두고 시작합니다. 이동식 CCTV의 효과 주장이 비교 방법 오류로 철회된 뒤 만든 장치입니다.
         </p>
       )}
       {lever.ordinance && (
-        <p className="mt-2 px-1 text-[12.5px] text-[var(--cp-text-faint)]">실행 근거 · {lever.ordinance}</p>
+        <p className="mt-2 px-1 text-[14px] text-[var(--cp-text-faint)]">실행 근거 · {lever.ordinance}</p>
       )}
       {lever.rationale && (
-        <p className="mt-2 px-1 font-mono text-[12px] leading-relaxed text-[var(--cp-text-faint)]">
+        <p className="mt-2 px-1 font-mono text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
           분석 메모 · {lever.rationale}
         </p>
       )}

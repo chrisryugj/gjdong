@@ -35,17 +35,17 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
       onClose={onClose}
       header={
         <>
-          <span className="mb-1 inline-block rounded bg-[#0c6155]/10 px-2 py-0.5 text-[12px] font-semibold text-[#0c6155]">
+          <span className="mb-1 inline-block rounded bg-[#0c6155]/10 px-2 py-0.5 text-[13.5px] font-semibold text-[#0c6155]">
             {finding.tag}
           </span>
-          <h2 className="text-[19px] font-bold leading-snug text-[var(--cp-text-strong)]">{finding.title}</h2>
+          <h2 className="text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]">{finding.title}</h2>
         </>
       }
       footer={
         finding.viz ? (
           <button
             onClick={() => onApplyViz(finding)}
-            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[15px] font-semibold text-white hover:bg-[#0a5449]"
+            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
           >
             {finding.vizLabel ?? "지도에서 확인"}
           </button>
@@ -53,15 +53,15 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
       }
     >
       {/* 한 줄 결론. 의사결정 포인트를 맨 위에 */}
-      <p className="mb-4 rounded-lg bg-[#0c6155]/10 px-3 py-2.5 text-[15.5px] font-bold leading-snug text-[#0a4a41]">
+      <p className="mb-4 rounded-lg bg-[#0c6155]/10 px-3 py-2.5 text-[16.5px] font-bold leading-snug text-[#0a4a41]">
         {finding.takeaway}
       </p>
       {finding.numbers && (
         <dl className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {finding.numbers.map((n) => (
             <div key={n.k} className="rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2.5 py-2">
-              <dt className="text-[12px] text-[var(--cp-text-dim)]">{n.k}</dt>
-              <dd className="font-mono text-[15px] font-semibold text-[var(--cp-text-strong)]">{n.v}</dd>
+              <dt className="text-[13.5px] text-[var(--cp-text-dim)]">{n.k}</dt>
+              <dd className="font-mono text-[16px] font-semibold text-[var(--cp-text-strong)]">{n.v}</dd>
             </div>
           ))}
         </dl>
@@ -72,18 +72,18 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
           // "해석:"은 의사결정 포인트, "주의:"는 오독 방지. 본문과 구분되게 하이라이트
           if (p.startsWith("해석:"))
             return (
-              <p key={i} className="rounded-lg bg-[#0c6155]/8 px-3 py-2 text-[15px] font-semibold leading-[1.7] text-[#0a4a41]">
+              <p key={i} className="rounded-lg bg-[#0c6155]/8 px-3 py-2 text-[16px] font-semibold leading-[1.7] text-[#0a4a41]">
                 {p}
               </p>
             )
           if (p.startsWith("주의:"))
             return (
-              <p key={i} className="rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[15px] font-semibold leading-[1.7] text-[#7c2620]">
+              <p key={i} className="rounded-lg bg-[#a8322a]/8 px-3 py-2 text-[16px] font-semibold leading-[1.7] text-[#7c2620]">
                 {p}
               </p>
             )
           return (
-            <p key={i} className="text-[15px] leading-[1.7] text-[var(--cp-text)]">
+            <p key={i} className="text-[16px] leading-[1.7] text-[var(--cp-text)]">
               {p}
             </p>
           )
@@ -92,9 +92,9 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
 
       {helps.length > 0 && (
         <div className="mt-4 rounded-lg border border-dashed border-[var(--cp-border)] px-3 py-2.5">
-          <p className="mb-1 text-[12px] font-semibold text-[var(--cp-text-dim)]">쉬운 풀이</p>
+          <p className="mb-1 text-[13.5px] font-semibold text-[var(--cp-text-dim)]">쉬운 풀이</p>
           {helps.map(([term, desc]) => (
-            <p key={term} className="text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
+            <p key={term} className="text-[15px] leading-relaxed text-[var(--cp-text-muted)]">
               <b className="text-[var(--cp-text)]">{term}</b> · {desc}
             </p>
           ))}

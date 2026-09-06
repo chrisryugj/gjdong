@@ -210,18 +210,18 @@ function DatasetGroup({
   return (
     <section className="rounded-xl border border-[var(--cp-border)] p-3">
       <div className="mb-1 flex items-center gap-2">
-        <span className={`rounded px-1.5 py-0.5 text-[12px] font-bold ${badgeCls}`}>{badge}</span>
-        <h3 className="text-[15px] font-bold text-[var(--cp-text-strong)]">{title}</h3>
+        <span className={`rounded px-1.5 py-0.5 text-[13.5px] font-bold ${badgeCls}`}>{badge}</span>
+        <h3 className="text-[16px] font-bold text-[var(--cp-text-strong)]">{title}</h3>
       </div>
-      <p className="mb-2.5 text-[13px] leading-relaxed text-[var(--cp-text-dim)]">{desc}</p>
+      <p className="mb-2.5 text-[14.5px] leading-relaxed text-[var(--cp-text-dim)]">{desc}</p>
       <div className="flex flex-col">
         {items.map((d) => (
           <div key={d.name} className="border-t border-[var(--cp-border-faint)] py-2 first:border-t-0">
-            <p className="flex flex-wrap items-baseline gap-x-2 text-[14px]">
+            <p className="flex flex-wrap items-baseline gap-x-2 text-[15.5px]">
               <b className="text-[var(--cp-text-strong)]">{d.name}</b>
-              <span className="font-mono text-[12.5px] text-[var(--cp-text-dim)]">{d.scale}</span>
+              <span className="font-mono text-[14px] text-[var(--cp-text-dim)]">{d.scale}</span>
             </p>
-            <p className="mt-0.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">{d.use}</p>
+            <p className="mt-0.5 text-[15px] leading-relaxed text-[var(--cp-text-muted)]">{d.use}</p>
           </div>
         ))}
       </div>
@@ -272,7 +272,7 @@ export default function MethodsModal({
           <button
             key={s.id}
             onClick={() => setSection(s.id)}
-            className={`flex-1 rounded-md py-1.5 text-[14px] font-semibold transition-colors ${
+            className={`flex-1 rounded-md py-1.5 text-[15.5px] font-semibold transition-colors ${
               section === s.id
                 ? "bg-white text-[var(--cp-text-strong)] shadow-sm"
                 : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
@@ -310,7 +310,7 @@ export default function MethodsModal({
           )}
           <p
             ref={reproRef}
-            className={`rounded-lg px-2.5 py-2 text-[12.5px] leading-relaxed ${
+            className={`rounded-lg px-2.5 py-2 text-[14px] leading-relaxed ${
               initialSection === "reproduce" ? "border border-[#0c6155]/40 bg-[#0c6155]/5 text-[var(--cp-text)]" : "text-[var(--cp-text-faint)]"
             }`}
           >
@@ -324,26 +324,26 @@ export default function MethodsModal({
         <div className="flex flex-col gap-3">
           {methods(data, graph).map((m, i) => (
             <section key={m.name} className="rounded-xl border border-[var(--cp-border)] p-3">
-              <h3 className="flex items-baseline gap-2 text-[15px] font-bold text-[var(--cp-text-strong)]">
-                <span className="font-mono text-[13px] text-[var(--cp-text-faint)]">
+              <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
+                <span className="font-mono text-[14.5px] text-[var(--cp-text-faint)]">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 {m.name}
               </h3>
-              <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+              <p className="mt-1.5 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
                 <b className="text-[#0a4a41]">쉽게 말하면</b> · {m.easy}
               </p>
-              <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--cp-text-muted)]">
+              <p className="mt-1.5 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
                 <b className="text-[var(--cp-text-strong)]">이 분석에서는</b> · {m.here}
               </p>
               {m.caution && (
-                <p className="mt-1.5 rounded-lg bg-[#a8322a]/8 px-2.5 py-1.5 text-[13.5px] leading-relaxed text-[#7a2620]">
+                <p className="mt-1.5 rounded-lg bg-[#a8322a]/8 px-2.5 py-1.5 text-[15px] leading-relaxed text-[#7a2620]">
                   주의 · {m.caution}
                 </p>
               )}
             </section>
           ))}
-          <p className="text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+          <p className="text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             상세 수식·검증 절차는 내부 분석 저장소 gwangjin-dumping(비공개)의 README와 REPRODUCE/MODEL_SPEC.md에 있습니다. 고정 산출물의 무결성은 해시로, 핵심 수치는 verify.py 재계산으로 확인하며 모형 재추정은 각 스크립트로 합니다.
           </p>
         </div>
