@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server"
-import { fetchErRooms, fetchPharmacies } from "@/lib/gwangjin/emergency"
+import { fetchErRooms, fetchPharmacies, upstreamDiag } from "@/lib/gwangjin/emergency"
 
 export const dynamic = "force-dynamic"
 
 // 응급실 병상은 분 단위로 변한다 — 2분 캐시. 약국은 같은 응답에 실어도 손해 없음(신고 기반)
 const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=180" }
 
-export async function GET() {
+export async function GET(request: Request) {
   const [er, pharmacies] = await Promise.all([fetchErRooms(), fetchPharmacies()])
-  return NextResponse.json({ er, pharmacies }, { headers: CACHE_HEADERS })
+  // ?diag=1 은 상위 응답 원인만 덧붙인다 (인증키는 upstreamDiag 에서 이미 지워진 상태)
+  const diag = new URL(request.url).searchParams.get("diag") === "1"
+  return NextResponse.json(diag ? { er, pharmacies, diag: upstreamDiag() } : { er, pharmacies }, {
+    headers: CACHE_HEADERS,
+  })
 }

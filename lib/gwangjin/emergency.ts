@@ -27,6 +27,24 @@ import { kstNow } from "@/lib/gwangjin/seoul-open"
 const KEY = () => process.env.DATA_GO_KR_KEY ?? ""
 const BASE = "https://apis.data.go.kr/B552657"
 
+// 상위(E-Gen) 응답이 비었을 때 원인을 잃지 않기 위한 마지막 응답 기록.
+// 인증키는 절대 담지 않는다 — 기록 전 scrub() 으로 지운다. /api/gwangjin/care?diag=1 로만 노출.
+const lastUpstream: Record<string, string> = {}
+function scrub(text: string): string {
+  const key = KEY()
+  const out = key ? text.split(key).join("***") : text
+  return out
+    .replace(/serviceKey=[^&\s]*/g, "serviceKey=***")
+    .replace(/\s+/g, " ")
+    .slice(0, 400)
+}
+function note(slot: string, value: string): void {
+  lastUpstream[slot] = scrub(value)
+}
+export function upstreamDiag(): Record<string, string> {
+  return { ...lastUpstream }
+}
+
 export interface ErRoom {
   name: string
   tel: string
@@ -76,8 +94,15 @@ export async function fetchErRooms(): Promise<ErRoom[] | null> {
   const key = KEY()
   if (!key) return null
   const url = `${BASE}/ErmctInfoInqireService/getEmrrmRltmUsefulSckbdInfoInqire?serviceKey=${key}&STAGE1=${encodeURIComponent("서울특별시")}&STAGE2=${encodeURIComponent("광진구")}&numOfRows=20`
-  const xml = await krgovFetch(url).catch(() => "")
-  if (!xml.includes("<item>")) return []
+  const xml = await krgovFetch(url).catch((e: Error) => {
+    note("er", `fetch 실패: ${e.message}`)
+    return ""
+  })
+  if (!xml.includes("<item>")) {
+    note("er", xml ? `item 없음: ${xml}` : lastUpstream.er ?? "빈 응답")
+    return []
+  }
+  note("er", "ok")
   return parseItems(xml).map((it) => ({
     name: it.dutyName ?? "",
     tel: it.dutyTel3 ?? "",
@@ -143,8 +168,15 @@ export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
   const key = KEY()
   if (!key) return null
   const url = `${BASE}/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${key}&Q0=${encodeURIComponent("서울특별시")}&Q1=${encodeURIComponent("광진구")}&numOfRows=300`
-  const xml = await krgovFetch(url, { timeoutMs: 15000 }).catch(() => "")
-  if (!xml.includes("<item>")) return []
+  const xml = await krgovFetch(url, { timeoutMs: 15000 }).catch((e: Error) => {
+    note("pharmacy", `fetch 실패: ${e.message}`)
+    return ""
+  })
+  if (!xml.includes("<item>")) {
+    note("pharmacy", xml ? `item 없음: ${xml}` : lastUpstream.pharmacy ?? "빈 응답")
+    return []
+  }
+  note("pharmacy", "ok")
 
   const { day, hhmm } = kstNow()
   const idx = dutyDayIndex(day)
