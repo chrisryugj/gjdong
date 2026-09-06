@@ -329,7 +329,13 @@ export function CareCard({
         er === null || er === undefined ? (
           care === null ? <Skeleton rows={4} /> : <NeedKeyNote guide={KEY_GUIDES.egen} />
         ) : er.length === 0 ? (
-          <Empty text="응답 없음 — 활용신청 승인 대기 중일 수 있어요" />
+          <Empty
+            text={
+              care?.status?.er === "upstream"
+                ? "국립중앙의료원 응급의료정보 서버가 응답하지 않습니다. 잠시 뒤 다시 확인해 주세요."
+                : "지금 조회되는 응급실이 없습니다."
+            }
+          />
         ) : (
           <ul className="space-y-1.5">
             {er.map((h) => (
@@ -365,6 +371,8 @@ export function CareCard({
         )
       ) : pharmacies === null || pharmacies === undefined ? (
         care === null ? <Skeleton rows={4} /> : <NeedKeyNote guide={KEY_GUIDES.pharmacy} />
+      ) : pharmacies.length === 0 && care?.status?.pharmacy === "upstream" ? (
+        <Empty text="국립중앙의료원 약국 정보 서버가 응답하지 않습니다. 잠시 뒤 다시 확인해 주세요." />
       ) : (
         <PharmacyList
           pharmacies={pharmacies}

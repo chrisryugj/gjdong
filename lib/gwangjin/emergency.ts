@@ -45,6 +45,33 @@ export function upstreamDiag(): Record<string, string> {
   return { ...lastUpstream }
 }
 
+/** 원천 상태 — ok(자료 있음) · empty(자료 없음) · upstream(상위 무응답·오류) */
+export type SourceStatus = "ok" | "empty" | "upstream"
+const lastStatus: Record<string, SourceStatus> = {}
+export function upstreamStatus(): Record<string, SourceStatus> {
+  return { ...lastStatus }
+}
+
+// E-Gen(B552657)은 응답이 느려 12초 예산으로는 자주 끊긴다 (2026-09-07 실측: 프로드에서
+// 응급실·약국 모두 krgov timeout). 예산을 늘리고 한 번 더 시도한다.
+const EGEN_TIMEOUT_MS = 20000
+
+async function egenFetch(slot: string, url: string): Promise<string> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await krgovFetch(url, { timeoutMs: EGEN_TIMEOUT_MS })
+    } catch (e) {
+      const msg = (e as Error).message
+      note(slot, `fetch 실패(${attempt}차): ${msg}`)
+      if (attempt === 2) {
+        lastStatus[slot] = "upstream"
+        return ""
+      }
+    }
+  }
+  return ""
+}
+
 export interface ErRoom {
   name: string
   tel: string
@@ -94,15 +121,16 @@ export async function fetchErRooms(): Promise<ErRoom[] | null> {
   const key = KEY()
   if (!key) return null
   const url = `${BASE}/ErmctInfoInqireService/getEmrrmRltmUsefulSckbdInfoInqire?serviceKey=${key}&STAGE1=${encodeURIComponent("서울특별시")}&STAGE2=${encodeURIComponent("광진구")}&numOfRows=20`
-  const xml = await krgovFetch(url).catch((e: Error) => {
-    note("er", `fetch 실패: ${e.message}`)
-    return ""
-  })
+  const xml = await egenFetch("er", url)
   if (!xml.includes("<item>")) {
-    note("er", xml ? `item 없음: ${xml}` : lastUpstream.er ?? "빈 응답")
+    if (xml) {
+      note("er", `item 없음: ${xml}`)
+      lastStatus.er = "empty"
+    }
     return []
   }
   note("er", "ok")
+  lastStatus.er = "ok"
   return parseItems(xml).map((it) => ({
     name: it.dutyName ?? "",
     tel: it.dutyTel3 ?? "",
@@ -168,15 +196,16 @@ export async function fetchPharmacies(): Promise<Pharmacy[] | null> {
   const key = KEY()
   if (!key) return null
   const url = `${BASE}/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${key}&Q0=${encodeURIComponent("서울특별시")}&Q1=${encodeURIComponent("광진구")}&numOfRows=300`
-  const xml = await krgovFetch(url, { timeoutMs: 15000 }).catch((e: Error) => {
-    note("pharmacy", `fetch 실패: ${e.message}`)
-    return ""
-  })
+  const xml = await egenFetch("pharmacy", url)
   if (!xml.includes("<item>")) {
-    note("pharmacy", xml ? `item 없음: ${xml}` : lastUpstream.pharmacy ?? "빈 응답")
+    if (xml) {
+      note("pharmacy", `item 없음: ${xml}`)
+      lastStatus.pharmacy = "empty"
+    }
     return []
   }
   note("pharmacy", "ok")
+  lastStatus.pharmacy = "ok"
 
   const { day, hhmm } = kstNow()
   const idx = dutyDayIndex(day)

@@ -73,6 +73,8 @@ export interface LiveBundle {
 export interface CareBundle {
   er: ErRoom[] | null
   pharmacies: Pharmacy[] | null
+  /** 원천 상태 — 빈 배열이 "자료 없음"인지 "상위 무응답"인지 구분한다 */
+  status?: Record<string, "ok" | "empty" | "upstream">
 }
 export interface DailyBundle {
   events: GjEvent[] | null
