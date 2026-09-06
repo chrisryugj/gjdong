@@ -57,12 +57,25 @@ export function upstreamStatus(): Record<string, SourceStatus> {
 // 재시도도 넣지 않는다(504 는 즉시 재시도로 풀리지 않고 대기만 두 배가 된다).
 const EGEN_TIMEOUT_MS = 9000
 
+// 회로차단기 — 상위 장애가 이어지는 동안 매 요청마다 9초를 버리지 않는다.
+// 한 번 실패하면 이 인스턴스에서는 2분간 호출을 건너뛰고 곧바로 upstream 을 돌려준다.
+// (서버리스 인스턴스 수명만큼만 유지되지만, 그동안 카드가 즉시 안내로 바뀐다)
+const BREAKER_MS = 120_000
+const skipUntil: Record<string, number> = {}
+
 async function egenFetch(slot: string, url: string): Promise<string> {
+  if (Date.now() < (skipUntil[slot] ?? 0)) {
+    lastStatus[slot] = "upstream"
+    return ""
+  }
   try {
-    return await krgovFetch(url, { timeoutMs: EGEN_TIMEOUT_MS })
+    const xml = await krgovFetch(url, { timeoutMs: EGEN_TIMEOUT_MS })
+    delete skipUntil[slot]
+    return xml
   } catch (e) {
     note(slot, `fetch 실패: ${(e as Error).message}`)
     lastStatus[slot] = "upstream"
+    skipUntil[slot] = Date.now() + BREAKER_MS
     return ""
   }
 }
