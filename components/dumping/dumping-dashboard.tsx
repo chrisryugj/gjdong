@@ -136,6 +136,7 @@ export default function DumpingDashboard() {
       ...(viz.mode ? MODE_MAP[viz.mode] : {}),
       ...(viz.layers ? { layers: viz.layers } : {}),
       ...(viz.candidates !== undefined ? { candidates: viz.candidates } : {}),
+      ...(viz.binRecos !== undefined ? { binRecos: viz.binRecos } : {}),
       ...(viz.routes !== undefined ? { routes: viz.routes } : {}),
     }))
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
@@ -166,6 +167,7 @@ export default function DumpingDashboard() {
         mode: viz.mode,
         layers: viz.layers ?? [],
         candidates: viz.candidates ?? false,
+        binRecos: false, // 정책 수단은 이 레이어를 겨냥하지 않는다. 이전 선택이 남지 않게 끈다
         routes: viz.routes ?? false,
         dong,
       })
@@ -257,6 +259,7 @@ export default function DumpingDashboard() {
                   selectedDong={selectedDong}
                   layers={view.layers}
                   showCandidates={view.candidates}
+                  showBinRecos={view.binRecos}
                   showHotspots={tab === "ops"}
                   showCritical={showCritical && tab === "ops"}
                   focusCandidate={focusCandidate}

@@ -1,7 +1,41 @@
-import type { DumpingMapData, OntoGraph } from "./types"
+import type { DumpingMapData, InfraPoint, OntoGraph } from "./types"
 
 // map.json·graph.json에서 파생하는 표시용 사실. 헤더·프롬프트·모달이 같은 값을 쓰도록 한 곳에 모은다.
 // 데이터가 갱신되면 여기서 뽑는 숫자·기간이 함께 바뀌어야 하므로 문구에 숫자를 박아 두지 않는다.
+
+// 인프라 원자료는 세 층이 다르다. 가로쓰레기통이 가장 심한데 128행이 전부 64곳을 두 번씩 적은 것이고,
+// 그 64곳도 지오코딩이 서로 다른 설치장소를 한 좌표에 뭉쳐 51지점으로 겹친다(강변역 한 점에 6곳).
+// 그래서 지도는 좌표당 한 점만 그리고, 칩은 행이 아니라 고유 기록을 센다. 다른 레이어에도 중복 행이 있다.
+export interface InfraSpot {
+  lat: number
+  lng: number
+  at: InfraPoint[] // 이 좌표에 겹친 서로 다른 기록. 길이 1이면 흔한 경우
+}
+
+export interface InfraTally {
+  rows: number // 원자료 행 수 (중복 포함)
+  records: InfraPoint[] // 완전히 같은 행을 하나로 접은 것
+  spots: InfraSpot[] // 좌표별 묶음. 지도 마커 하나가 이 묶음 하나
+}
+
+export function tallyInfra(points: InfraPoint[]): InfraTally {
+  const seen = new Set<string>()
+  const records: InfraPoint[] = []
+  for (const p of points) {
+    const k = JSON.stringify(p)
+    if (seen.has(k)) continue
+    seen.add(k)
+    records.push(p)
+  }
+  const byCoord = new Map<string, InfraSpot>()
+  for (const p of records) {
+    const k = `${p[0]},${p[1]}`
+    const spot = byCoord.get(k)
+    if (spot) spot.at.push(p)
+    else byCoord.set(k, { lat: p[0], lng: p[1], at: [p] })
+  }
+  return { rows: points.length, records, spots: [...byCoord.values()] }
+}
 
 export function sumValues(o: Record<string, number>): number {
   return Object.values(o).reduce((a, b) => a + b, 0)

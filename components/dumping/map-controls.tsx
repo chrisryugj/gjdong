@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction } from "@/lib/dumping/types"
-import { BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./dumping-map"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./dumping-map"
+import { BIN_RECOS } from "@/lib/dumping/bin-recos"
+import { tallyInfra } from "@/lib/dumping/facts"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
 export interface MapView {
@@ -10,10 +12,11 @@ export interface MapView {
   circles: CircleId[]
   layers: InfraLayerId[]
   candidates: boolean
+  binRecos: boolean
   routes: boolean
 }
 
-export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, routes: false }
+export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, binRecos: false, routes: false }
 
 const BASE_LABEL: Record<BaseMode, string> = {
   unm: "다가구·단독",
@@ -65,6 +68,7 @@ export function vizDescription(viz: VizAction): string {
   }
   if (viz.layers?.length) parts.push(viz.layers.map((l) => INFRA_STYLE[l].label).join("·"))
   if (viz.candidates) parts.push("재배치 후보")
+  if (viz.binRecos) parts.push(BIN_RECO_LABEL)
   if (viz.routes) parts.push("청소차 노선")
   if (viz.dong) parts.push(`${viz.dong} 확대`)
   return parts.join(" · ")
@@ -86,7 +90,8 @@ interface ToolbarProps {
 export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
   const [layersOpen, setLayersOpen] = useState(false)
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
-  const layerCount = view.layers.length + (view.routes ? 1 : 0) + (view.candidates ? 1 : 0)
+  const layerCount =
+    view.layers.length + (view.routes ? 1 : 0) + (view.candidates ? 1 : 0) + (view.binRecos ? 1 : 0)
 
   return (
     <div className="shrink-0 border-b border-[var(--cp-border)] bg-[var(--cp-bg)]">
@@ -170,7 +175,8 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
               >
                 <i className="h-2.5 w-2.5 rounded-full" style={{ background: INFRA_STYLE[id].color, opacity: on ? 1 : 0.45 }} />
                 {INFRA_STYLE[id].label}
-                {data ? ` ${data.infra[id].length}` : ""}
+                {/* 원자료 행이 아니라 중복을 뺀 기록 수. 가로쓰레기통은 128행이 실은 64곳이다 */}
+                {data ? ` ${tallyInfra(data.infra[id]).records.length}` : ""}
               </button>
             )
           })}
@@ -189,6 +195,15 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           >
             <i className="h-2.5 w-2.5 rounded-full border border-dashed border-red-500" />
             CCTV 재배치 후보 {data ? data.cctvCandidates.length : 20}
+          </button>
+          <button
+            aria-pressed={view.binRecos}
+            onClick={() => patch({ binRecos: !view.binRecos })}
+            className={`${CHIP} ${view.binRecos ? "bg-white font-semibold" : CHIP_OFF}`}
+            style={view.binRecos ? { borderColor: BIN_RECO_COLOR, color: BIN_RECO_COLOR } : undefined}
+          >
+            <i className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: BIN_RECO_COLOR }} />
+            {BIN_RECO_LABEL} {BIN_RECOS.items.length}
           </button>
         </div>
       )}

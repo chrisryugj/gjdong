@@ -3,7 +3,7 @@ import assert from "node:assert"
 import { existsSync, readFileSync } from "node:fs"
 import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
-import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, periodOf, partialYearSuffix, regressionBetas, sampleSizes } from "../lib/dumping/facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, periodOf, partialYearSuffix, regressionBetas, sampleSizes, tallyInfra } from "../lib/dumping/facts"
 import { buildFindings } from "../components/dumping/findings-data"
 import { applyErrata, EDGE_ERRATA } from "../lib/dumping/errata"
 
@@ -46,6 +46,24 @@ test("collinearRange·sampleSizes. 문장에 박혀 있던 수치를 그래프·
   assert.strictEqual(sz.dongN, 15)
   assert.strictEqual(map!.meta?.reproduce.hashes, 113)
   assert.strictEqual(map!.meta?.binSites, 64)
+})
+
+test("tallyInfra. 인프라 원자료의 중복 행과 좌표 겹침을 갈라 센다", withMap, () => {
+  // 가로쓰레기통이 이 문제의 표본이다. 128행은 전부 64곳을 두 번씩 적은 것이고,
+  // 그 64곳도 지오코딩이 뭉쳐 51지점으로만 찍힌다(강변역 한 좌표에 6곳). 세 숫자가 다 다르다.
+  const bins = tallyInfra(map!.infra.bins)
+  assert.strictEqual(bins.rows, 128)
+  assert.strictEqual(bins.records.length, 64)
+  assert.strictEqual(bins.spots.length, 51)
+  assert.strictEqual(bins.records.length, map!.meta?.binSites, "설치장소 수는 export가 센 binSites와 같아야 한다")
+  assert.strictEqual(bins.spots.reduce((a, s) => a + s.at.length, 0), 64, "좌표 묶음을 다 펴면 기록 수로 돌아온다")
+  assert.strictEqual(Math.max(...bins.spots.map((s) => s.at.length)), 6)
+
+  // 중복 행은 다른 레이어에도 있다. 칩·자료표가 행이 아니라 기록을 세는 이유
+  assert.strictEqual(tallyInfra(map!.infra.recycling).records.length, 859)
+  assert.strictEqual(tallyInfra(map!.infra.clothBins).records.length, 475)
+  assert.strictEqual(tallyInfra(map!.infra.cctvFixed).records.length, 71)
+  assert.strictEqual(tallyInfra(map!.infra.cctvMobile).records.length, 276)
 })
 
 test("channelGrowth. 완결 연도끼리면 연환산하지 않는다", withMap, () => {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import type { LayerGroup, Map as LeafletMap, Renderer } from "leaflet"
 import type {
   BaseMode,
+  BinReco,
   CctvCandidate,
   CircleId,
   DumpingMapData,
@@ -11,6 +12,8 @@ import type {
   HotspotRow,
   InfraLayerId,
 } from "@/lib/dumping/types"
+import { BIN_RECOS } from "@/lib/dumping/bin-recos"
+import { tallyInfra, type InfraSpot } from "@/lib/dumping/facts"
 
 // 100m 격자 choropleth. 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
 // 타일: OSM 표준 + CSS grayscale 뮤트(globals.css .dumping-map). CARTO는 무키 워터마크,
@@ -36,6 +39,10 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
   recycling: { color: "#059669", label: "재활용정거장" },
   bins: { color: "#475569", label: "가로쓰레기통" },
 }
+
+// 배치 추천은 설치 현황이 아니라 제안이라 인프라 레이어와 색·모양을 갈라 둔다(점선 원 = 아직 없는 것)
+export const BIN_RECO_COLOR = "#be185d"
+export const BIN_RECO_LABEL = "가로쓰레기통 배치추천(데이터팀)"
 
 // 바탕(면)은 하나만. 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
 export const BASE_DEF: Record<
@@ -80,6 +87,25 @@ function candidateTooltip(rank: number, c: CctvCandidate): string {
   )
 }
 
+// 한 좌표에 여러 설치장소가 겹칠 때 전부 보여준다. 점 하나가 곧 한 곳이라는 오해를 여기서 끊는다
+function infraTooltip(id: InfraLayerId, spot: InfraSpot): string {
+  const { label } = INFRA_STYLE[id]
+  const head = spot.at.length > 1 ? `<b>${label}</b> · 이 지점에 ${spot.at.length}곳` : `<b>${label}</b>`
+  const body = spot.at
+    .map((p) => `${escapeHtml(p[2])}${p[3] ? ` <span style="color:#64748b">${escapeHtml(p[3])}</span>` : ""}`)
+    .join("<br/>")
+  return `${head}<br/>${body}`
+}
+
+function binRecoTooltip(seq: number, r: BinReco): string {
+  return (
+    `<b>${BIN_RECO_LABEL} ${seq}번</b> · ${escapeHtml(r[2])}<br/>` +
+    `<b>${escapeHtml(r[3] || r[4])}</b><br/>` +
+    (r[3] && r[4] ? `${escapeHtml(r[4])}<br/>` : "") +
+    `<span style="color:#be185d">데이터팀 격자분석 제안. 번호는 자료 순서이지 우선순위가 아니고, 설치 지점은 현장 확인이 필요합니다</span>`
+  )
+}
+
 function hotspotTooltip(rank: number, h: HotspotRow): string {
   return (
     `<b>예측 핫스팟 ${rank}위</b> · ${escapeHtml(h[5] || "광진구")}<br/>` +
@@ -102,6 +128,7 @@ interface DumpingMapProps {
   selectedDong: string | null
   layers: InfraLayerId[]
   showCandidates: boolean
+  showBinRecos: boolean // 가로쓰레기통 배치추천(데이터팀) 50지점
   showHotspots: boolean // 운영·전망 탭의 예측 핫스팟 20 순위 배지
   showCritical: boolean // 집중관리 상습격자(12개월 10건+) 외곽선 강조
   focusCandidate: CandidateFocus | null
@@ -123,6 +150,7 @@ export default function DumpingMap({
   selectedDong,
   layers,
   showCandidates,
+  showBinRecos,
   showHotspots,
   showCritical,
   focusCandidate,
@@ -251,7 +279,7 @@ export default function DumpingMap({
       const group = L.layerGroup()
       const def = BASE_DEF[base]
       // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
-      const muted = layers.length > 0 || showCandidates || showHotspots || showCritical
+      const muted = layers.length > 0 || showCandidates || showBinRecos || showHotspots || showCritical
 
       // 동을 골랐으면 그 동 안은 항상 또렷하게. 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
       const isDimmed = (cell: GridCell) => {
@@ -332,7 +360,7 @@ export default function DumpingMap({
       }
     }
     void draw()
-  }, [data, base, circles, selectedDong, ready, layers, showCandidates, showHotspots, showCritical])
+  }, [data, base, circles, selectedDong, ready, layers, showCandidates, showBinRecos, showHotspots, showCritical])
 
   // 동 경계 레이어. 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
   useEffect(() => {
@@ -386,7 +414,7 @@ export default function DumpingMap({
     void draw()
   }, [data, selectedDong, ready])
 
-  // 인프라 + 재배치 후보 레이어
+  // 인프라 + 재배치 후보 + 배치추천 레이어
   useEffect(() => {
     const draw = async () => {
       const map = mapRef.current
@@ -398,20 +426,18 @@ export default function DumpingMap({
 
       for (const id of layers) {
         const { color } = INFRA_STYLE[id]
-        for (const p of data.infra[id]) {
-          L.circleMarker([p[0], p[1]], {
+        // 완전히 같은 행을 두 번 그리지 않는다. 같은 좌표에 겹친 서로 다른 곳은 점 하나에 모아 툴팁으로 편다
+        for (const spot of tallyInfra(data.infra[id]).spots) {
+          L.circleMarker([spot.lat, spot.lng], {
             pane: "dumpInfra",
             renderer,
-            radius: 5,
+            radius: spot.at.length > 1 ? 6 : 5,
             color: "#ffffff",
             weight: 2,
             fillColor: color,
             fillOpacity: 1,
           })
-            .bindTooltip(
-              `<b>${INFRA_STYLE[id].label}</b><br/>${escapeHtml(p[2])}${p[3] ? ` · ${escapeHtml(p[3])}` : ""}`,
-              { sticky: true, direction: "top", opacity: 1 },
-            )
+            .bindTooltip(infraTooltip(id, spot), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
         }
       }
@@ -433,11 +459,29 @@ export default function DumpingMap({
         })
       }
 
+      if (showBinRecos) {
+        // 점선 원 = 아직 없는 것(제안). 설치 현황(bins)의 채운 점과 한눈에 갈린다
+        BIN_RECOS.items.forEach((r, i) => {
+          L.circleMarker([r[0], r[1]], {
+            pane: "dumpInfra",
+            renderer,
+            radius: 6,
+            color: BIN_RECO_COLOR,
+            weight: 2,
+            dashArray: "3 3",
+            fillColor: BIN_RECO_COLOR,
+            fillOpacity: 0.25,
+          })
+            .bindTooltip(binRecoTooltip(i + 1, r), { sticky: true, direction: "top", opacity: 1 })
+            .addTo(group)
+        })
+      }
+
       group.addTo(map)
       infraLayerRef.current = group
     }
     void draw()
-  }, [data, layers, showCandidates, ready])
+  }, [data, layers, showCandidates, showBinRecos, ready])
 
   // 청소차 관리노선 레이어. road-links.json 동적 임포트(번들 제외), 도로명으로 필터
   useEffect(() => {

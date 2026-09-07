@@ -41,6 +41,17 @@ export type InfraLayerId = keyof InfraLayers
 // 대표주소 = 해당 격자에 지오코딩된 민원 중 최빈 주소
 export type CctvCandidate = [number, number, number, number, string, string]
 
+// [lat, lng, 행정동, 도로명주소, 지번주소, 격자ID]. 가로쓰레기통 배치 추천(데이터팀 별도 산출)
+// 좌표는 격자 대표점, 주소는 그 점의 역지오코딩 결과라 실제 설치 지점은 현장 확인이 필요하다
+export type BinReco = [number, number, string, string, string, string]
+
+export interface BinRecoData {
+  asof: string
+  source: string
+  note: string
+  items: BinReco[]
+}
+
 export interface DumpingMapData {
   grid: GridCell[]
   ring: [number, number][]
@@ -314,6 +325,7 @@ export interface VizAction {
   mode?: MapMode
   layers?: InfraLayerId[]
   candidates?: boolean
+  binRecos?: boolean // 가로쓰레기통 배치추천(데이터팀) 레이어
   routes?: boolean // 청소차 관리노선 레이어
   dong?: string | null
 }

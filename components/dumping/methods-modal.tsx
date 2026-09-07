@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, graphSize, regressionBetas, sampleSizes, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, graphSize, regressionBetas, sampleSizes, summarize, tallyInfra } from "@/lib/dumping/facts"
 import ModalShell from "./modal-shell"
 
 // 데이터·분석 방법 안내. 두 섹션으로 구성.
@@ -22,6 +22,11 @@ const n = (v: number) => v.toLocaleString()
 // 구청 내부 행정자료 (청소과·동주민센터 제공)
 const provided = (data: DumpingMapData): Dataset[] => {
   const s = summarize(data)
+  // 인프라 원자료에는 완전히 같은 행이 섞여 있다. 표에 적는 규모는 지도 칩과 같은 기준(중복 뺀 기록)으로 센다
+  const bins = tallyInfra(data.infra.bins)
+  const recycling = tallyInfra(data.infra.recycling)
+  const cctvFixed = tallyInfra(data.infra.cctvFixed)
+  const cctvMobile = tallyInfra(data.infra.cctvMobile)
   return [
     {
       name: "민원 접수 내역",
@@ -35,18 +40,18 @@ const provided = (data: DumpingMapData): Dataset[] => {
     },
     {
       name: "CCTV 현황 (고정·이동식)",
-      scale: `고정 ${data.infra.cctvFixed.length}개소 · 이동식 ${data.infra.cctvMobile.length}대`,
+      scale: `고정 ${cctvFixed.records.length}개소 · 이동식 ${cctvMobile.records.length}대`,
       use: "배치 지도 레이어, 이동식 CCTV 효과 검증(DID)의 설치 정보",
     },
     {
       name: "재활용정거장 설치현황",
-      scale: `${n(data.infra.recycling.length)}곳`,
+      scale: `${n(recycling.records.length)}곳`,
       use: "배치 지도 레이어. 설치·철거 변이가 없어 효과 판정은 불가",
     },
     {
       name: "가로쓰레기통 설치현황",
-      scale: `${data.infra.bins.length}개 · ${data.meta?.binSites ?? "미산출"}개 위치`,
-      use: "배치 지도 레이어. 한 위치에 통이 두 개씩이라 지도 점 수는 위치 수의 두 배",
+      scale: `${bins.records.length}곳 · 원자료 ${bins.rows}행`,
+      use: `배치 지도 레이어. 원자료 ${bins.rows}행은 같은 기록을 두 번씩 담은 것이고 설치장소는 ${bins.records.length}곳입니다. 지오코딩이 서로 다른 장소를 한 좌표로 묶어 지도 점은 ${bins.spots.length}개이며, 겹친 점은 누르면 몇 곳인지 펼쳐집니다`,
     },
     {
       name: "도로청소 종합계획 (2026)",
@@ -113,7 +118,7 @@ const seoulOpen = (data: DumpingMapData): Dataset[] => {
   return [
     { name: "행정동 생활인구 (내국인·장기체류 외국인)", scale: `OA-14991·14992 · ${sx.livingPopWindow} 월별`, use: "동별 체류 인구 대비 발생률(발견 탭·브리핑). 등록인구가 놓치는 유동 인구 노출" },
     { name: "250M격자 생활인구 + 격자 SHP", scale: `OA-22784 · ${sx.livingPop250Month} 일별 31일`, use: `100m 격자 노출 변수(v2 회귀 β ${r2 ? (r2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + r2.v2_100.coef.living_pop.beta : "미산출"}), 지도 바탕 "생활인구"` },
-    { name: "광진구 의류수거함 위치", scale: `공공데이터포털 15109594 · ${data.infra.clothBins.length}곳`, use: "\"수거함 옆이 온상\" 통념 검증(v2 회귀), 지도 레이어" },
+    { name: "광진구 의류수거함 위치", scale: `공공데이터포털 15109594 · ${tallyInfra(data.infra.clothBins).records.length}곳`, use: "\"수거함 옆이 온상\" 통념 검증(v2 회귀), 지도 레이어" },
     { name: "자치구 목적별 CCTV 설치현황", scale: `OA-2722 · ${sx.cctv.asof}`, use: "25개 구 무단투기 CCTV 비교(연계분), 운영 탭 서울 맥락" },
     { name: "스마트 불편신고 분야별 신고 현황", scale: `OA-12051 · 2012-08~ 월별`, use: "서울 전체 앱 청소 신고 추세. 앱 확산이 광진만의 현상이 아님을 확인" },
     { name: "가로쓰레기통 설치정보", scale: `OA-15069 · 2025-11`, use: `구청 장부(${data.meta?.binSites ?? "미산출"}개 위치) 교차검증` },
