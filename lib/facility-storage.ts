@@ -19,7 +19,7 @@ export type Facility = {
   createdAt: number
 }
 
-export const STORAGE_KEY = "gjdong_facilities_v1"
+export const STORAGE_KEY = "gjdong_facilities_v1" // gitleaks:allow (localStorage 키 이름, 비밀 아님)
 
 // 분류별로 자동 배정되는 마커 색상 (분류 문자열 해시 → 팔레트 인덱스)
 export const CATEGORY_PALETTE = [

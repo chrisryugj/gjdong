@@ -16,7 +16,7 @@ export type FacilitySet = {
 export const SET_FILE_FORMAT = "gjdong.facility-set"
 const SET_FILE_VERSION = 1
 
-const SETS_KEY = "gjdong_facility_sets_v1"
+const SETS_KEY = "gjdong_facility_sets_v1" // gitleaks:allow (localStorage 키 이름, 비밀 아님)
 
 function newId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {

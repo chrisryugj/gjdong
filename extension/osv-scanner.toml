@@ -1,0 +1,9 @@
+# OSV-Scanner 무시 목록 (정부 GitLab push 훅 · 로컬 스캔 공용). 사유가 사라지면 항목을 지운다. (2026-09-12)
+
+[[IgnoredVulns]]
+id = "GHSA-4r6h-8v6p-xvw6"
+reason = "xlsx: GitHub 권고 취약 범위 <0.19.3. 벤더 CDN 배포판 0.20.3 을 쓰고 있어 범위 밖. OSV npm 레코드는 npm 발행이 끊겨 fixed 이벤트가 없을 뿐"
+
+[[IgnoredVulns]]
+id = "GHSA-5pgg-2g8v-p4x9"
+reason = "xlsx: GitHub 권고 취약 범위 <0.20.2. 위와 같이 0.20.3 은 범위 밖"
