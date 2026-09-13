@@ -38,7 +38,8 @@ test("CQ1 대책 없는 요인. 상권 밀집만 실제 공백, 도로 형태·�
   assert.match(r.hits.find((h) => h.id === "con-living-pop")!.note!, /노출/)
   assert.match(r.hits.find((h) => h.id === "con-resident-pop")!.note!, /상주/)
   assert.match(r.hits.find((h) => h.id === "con-managed-kapt")!.note!, /K-apt/)
-  assert.match(r.hits.find((h) => h.id === "con-commercial")!.note!, /β \+0\.086/)
+  // 8라운드: 폴백 제외 재적합(base100)으로 음식점 β +0.086 → +0.087. export가 DB 엣지 β를 덮어쓴다
+  assert.match(r.hits.find((h) => h.id === "con-commercial")!.note!, /β \+0\.087/)
 })
 
 test("CQ2 증거 없는 주장. 0건", () => {

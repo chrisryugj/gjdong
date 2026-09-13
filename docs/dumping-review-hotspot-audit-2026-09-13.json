@@ -1,0 +1,342 @@
+{
+  "audit_date": "2026-09-13",
+  "read_only": true,
+  "source_files": [
+    "data/derived/enforcement.json",
+    "data/derived/complaints_geo.json",
+    "data/derived/geo_extra_resolved.json"
+  ],
+  "reference_implementation": "scripts/build_decision_layer.py:150-238",
+  "method": {
+    "budget_cells": 20,
+    "future_days": 90,
+    "half_life_days": 90,
+    "current_weights": {
+      "complaint": 1,
+      "enforcement": 2
+    },
+    "evaluation": "Unweighted future administrative-record capture; arithmetic mean across windows.",
+    "recent90_boundary": "Includes history from cutoff minus 90 days through cutoff, inclusive.",
+    "ties": "Stable descending score sort, preserving first insertion in sorted event stream.",
+    "deduplication": "None; matches existing model. Administrative records need not be unique incidents.",
+    "random_support": "Uniform sample of 20 historically active cells; future events outside support cannot be captured."
+  },
+  "limitations": [
+    "Retrospective alternative-model comparison, not a preregistered independent test.",
+    "Eight windows do not establish statistically significant differences between models.",
+    "Alternative models have deterministic ties; tie-breaking sensitivity is not evaluated.",
+    "No source data, coordinates, addresses, or cell identifiers are emitted."
+  ],
+  "window_count": 8,
+  "event_records": 6709,
+  "windows": [
+    {
+      "cutoff": "2024-07-01",
+      "end_inclusive": "2024-09-29",
+      "future_events": 639,
+      "future_cells": 309,
+      "historical_active_cells": 532,
+      "future_share_in_historical_active_cells": 0.7668231611893583,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 69,
+          "capture_pct": 10.7981220657277,
+          "precision20_pct": 75.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 66,
+          "capture_pct": 10.328638497652582,
+          "precision20_pct": 60.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 66,
+          "capture_pct": 10.328638497652582,
+          "precision20_pct": 75.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 67,
+          "capture_pct": 10.485133020344287,
+          "precision20_pct": 70.0
+        }
+      },
+      "random_reported_capture_pct": 3.7593984962406015,
+      "random_historical_support_expected_capture_pct": 2.8827938390577383
+    },
+    {
+      "cutoff": "2024-10-01",
+      "end_inclusive": "2024-12-30",
+      "future_events": 559,
+      "future_cells": 291,
+      "historical_active_cells": 631,
+      "future_share_in_historical_active_cells": 0.8568872987477638,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 65,
+          "capture_pct": 11.627906976744185,
+          "precision20_pct": 60.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 71,
+          "capture_pct": 12.701252236135957,
+          "precision20_pct": 75.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 53,
+          "capture_pct": 9.481216457960643,
+          "precision20_pct": 75.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 65,
+          "capture_pct": 11.627906976744185,
+          "precision20_pct": 60.0
+        }
+      },
+      "random_reported_capture_pct": 3.1695721077654517,
+      "random_historical_support_expected_capture_pct": 2.7159660816093942
+    },
+    {
+      "cutoff": "2025-01-01",
+      "end_inclusive": "2025-04-01",
+      "future_events": 464,
+      "future_cells": 247,
+      "historical_active_cells": 688,
+      "future_share_in_historical_active_cells": 0.9094827586206896,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 52,
+          "capture_pct": 11.206896551724139,
+          "precision20_pct": 60.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 58,
+          "capture_pct": 12.5,
+          "precision20_pct": 75.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 51,
+          "capture_pct": 10.991379310344827,
+          "precision20_pct": 65.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 54,
+          "capture_pct": 11.637931034482758,
+          "precision20_pct": 65.0
+        }
+      },
+      "random_reported_capture_pct": 2.9069767441860463,
+      "random_historical_support_expected_capture_pct": 2.6438452285485163
+    },
+    {
+      "cutoff": "2025-04-01",
+      "end_inclusive": "2025-06-30",
+      "future_events": 585,
+      "future_cells": 291,
+      "historical_active_cells": 723,
+      "future_share_in_historical_active_cells": 0.8905982905982905,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 70,
+          "capture_pct": 11.965811965811966,
+          "precision20_pct": 70.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 68,
+          "capture_pct": 11.623931623931623,
+          "precision20_pct": 60.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 58,
+          "capture_pct": 9.914529914529915,
+          "precision20_pct": 35.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 68,
+          "capture_pct": 11.623931623931623,
+          "precision20_pct": 65.0
+        }
+      },
+      "random_reported_capture_pct": 2.7662517289073305,
+      "random_historical_support_expected_capture_pct": 2.4636190611294344
+    },
+    {
+      "cutoff": "2025-07-01",
+      "end_inclusive": "2025-09-29",
+      "future_events": 572,
+      "future_cells": 288,
+      "historical_active_cells": 767,
+      "future_share_in_historical_active_cells": 0.9108391608391608,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 66,
+          "capture_pct": 11.538461538461538,
+          "precision20_pct": 60.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 81,
+          "capture_pct": 14.160839160839162,
+          "precision20_pct": 80.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 62,
+          "capture_pct": 10.839160839160838,
+          "precision20_pct": 55.00000000000001
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 68,
+          "capture_pct": 11.888111888111888,
+          "precision20_pct": 65.0
+        }
+      },
+      "random_reported_capture_pct": 2.607561929595828,
+      "random_historical_support_expected_capture_pct": 2.3750695197892067
+    },
+    {
+      "cutoff": "2025-10-01",
+      "end_inclusive": "2025-12-30",
+      "future_events": 486,
+      "future_cells": 259,
+      "historical_active_cells": 799,
+      "future_share_in_historical_active_cells": 0.9403292181069959,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 73,
+          "capture_pct": 15.020576131687244,
+          "precision20_pct": 70.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 55,
+          "capture_pct": 11.316872427983538,
+          "precision20_pct": 65.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 66,
+          "capture_pct": 13.580246913580247,
+          "precision20_pct": 65.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 85,
+          "capture_pct": 17.48971193415638,
+          "precision20_pct": 75.0
+        }
+      },
+      "random_reported_capture_pct": 2.5031289111389237,
+      "random_historical_support_expected_capture_pct": 2.35376525183228
+    },
+    {
+      "cutoff": "2026-01-01",
+      "end_inclusive": "2026-04-01",
+      "future_events": 561,
+      "future_cells": 297,
+      "historical_active_cells": 822,
+      "future_share_in_historical_active_cells": 0.9554367201426025,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 54,
+          "capture_pct": 9.62566844919786,
+          "precision20_pct": 55.00000000000001
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 68,
+          "capture_pct": 12.121212121212121,
+          "precision20_pct": 80.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 47,
+          "capture_pct": 8.377896613190732,
+          "precision20_pct": 55.00000000000001
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 51,
+          "capture_pct": 9.090909090909092,
+          "precision20_pct": 55.00000000000001
+        }
+      },
+      "random_reported_capture_pct": 2.4330900243309004,
+      "random_historical_support_expected_capture_pct": 2.3246635526584005
+    },
+    {
+      "cutoff": "2026-04-01",
+      "end_inclusive": "2026-06-30",
+      "future_events": 792,
+      "future_cells": 397,
+      "historical_active_cells": 839,
+      "future_share_in_historical_active_cells": 0.9343434343434344,
+      "models": {
+        "current_decay_weighted": {
+          "selected_cells": 20,
+          "captured_events": 84,
+          "capture_pct": 10.606060606060606,
+          "precision20_pct": 70.0
+        },
+        "cumulative_equal": {
+          "selected_cells": 20,
+          "captured_events": 78,
+          "capture_pct": 9.848484848484848,
+          "precision20_pct": 85.0
+        },
+        "recent90_equal": {
+          "selected_cells": 20,
+          "captured_events": 77,
+          "capture_pct": 9.722222222222223,
+          "precision20_pct": 80.0
+        },
+        "decay_equal": {
+          "selected_cells": 20,
+          "captured_events": 86,
+          "capture_pct": 10.85858585858586,
+          "precision20_pct": 75.0
+        }
+      },
+      "random_reported_capture_pct": 2.3837902264600714,
+      "random_historical_support_expected_capture_pct": 2.227278746945016
+    }
+  ],
+  "mean_metrics": {
+    "current_decay_weighted": {
+      "capture_pct": 11.548688035676905,
+      "precision20_pct": 65.0
+    },
+    "cumulative_equal": {
+      "capture_pct": 11.825153864529979,
+      "precision20_pct": 72.5
+    },
+    "recent90_equal": {
+      "capture_pct": 10.40441134608025,
+      "precision20_pct": 63.125
+    },
+    "decay_equal": {
+      "capture_pct": 11.837777678408258,
+      "precision20_pct": 66.25
+    }
+  },
+  "mean_random_reported_capture_pct": 2.816221271078144,
+  "mean_random_historical_support_expected_capture_pct": 2.4983751601962485
+}

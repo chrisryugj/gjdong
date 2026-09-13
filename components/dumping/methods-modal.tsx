@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, graphSize, regressionBetas, sampleSizes, summarize, tallyInfra } from "@/lib/dumping/facts"
+import { binRecoOverlap, channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtRatio, graphSize, regressionBetas, sampleSizes, summarize, tallyInfra } from "@/lib/dumping/facts"
+import { BIN_RECOS } from "@/lib/dumping/bin-recos"
 import ModalShell from "./modal-shell"
 
 // 데이터·분석 방법 안내. 두 섹션으로 구성.
@@ -57,6 +58,15 @@ const provided = (data: DumpingMapData): Dataset[] => {
       name: "도로청소 종합계획 (2026)",
       scale: "청소차 17대 · 노선 39.3km",
       use: "청소차 관리노선 레이어(집중 10.6km·일반 28.7km), 운영 주기 정보",
+    },
+    {
+      // 8라운드: 외부 산출물임을 표에 못 박는다. 이 분석의 핫스팟·회귀와 독립이고 산출 방법은 미확인
+      name: `가로쓰레기통 배치추천 (데이터팀, 외부 산출물)`,
+      scale: `${BIN_RECOS.items.length}지점 · ${BIN_RECOS.asof}`,
+      use: (() => {
+        const o = binRecoOverlap(data, BIN_RECOS.items)
+        return `지도 레이어(기본 꺼짐). 데이터팀이 따로 만든 격자 분석 결과이며 산출 방법은 이 화면에서 확인되지 않았습니다. 이 분석의 집중관리 상습격자 ${data.decision.kpi.criticalCellsNow}칸과 겹치는 지점 ${o.inCritical}곳, 예측 핫스팟 20과 겹치는 지점 ${o.inHotspot}곳. 두 산출물은 독립이라 순위·근거를 섞어 읽지 않습니다`
+      })(),
     },
   ]
 }
@@ -125,6 +135,26 @@ const seoulOpen = (data: DumpingMapData): Dataset[] => {
   ]
 }
 
+// 8라운드: 원천별 지오코딩 품질. 법정동 없는 결과(구 중심 폴백)는 격자에 넣지 않았다는 사실과 그 규모를 표로 보인다
+const GEOCODE_KO: Record<string, string> = {
+  complaints: "민원 접수 내역", enforcement: "과태료 부과 내역", ledger: "건축물대장 표제부",
+  recycling: "재활용정거장", cctvMobile: "이동식 CCTV", bins: "가로쓰레기통",
+}
+const geocodeRows = (data: DumpingMapData): Dataset[] => {
+  const q = data.meta?.geocode
+  if (!q) return []
+  return Object.entries(GEOCODE_KO)
+    .filter(([k]) => q[k as keyof typeof q])
+    .map(([k, name]) => {
+      const s = q[k as "complaints"]!
+      return {
+        name,
+        scale: `격자 부여 ${n(s.geocoded)} / ${n(s.rows)}`,
+        use: `폴백 제외 ${n(s.fallbackExcluded)}건${s.failed ? ` · 미지오코딩 ${n(s.failed)}건` : ""}${s.outsideGrid ? ` · 격자 밖 ${n(s.outsideGrid)}건` : ""}${s.fallbackExcluded ? ". 제외분은 건수 집계에는 포함, 지도·순위·회귀에서만 제외" : ""}`,
+      }
+    })
+}
+
 interface Method {
   name: string
   easy: string // 쉽게 말하면. 비유 중심 한두 문장
@@ -159,7 +189,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
       easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 갈라내는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 재는 것이고, β는 그 영향의 크기입니다.',
       here: `격자 ${n(sz.gridN)}칸에서 과태료 건수를 종속변수로 놓고 분석해 보니 다가구·단독 밀집(건축물대장 다가구 가구+일반단독 동을 합친 밀도)이 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
-        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고 v2 모형은 서울시 250m 생활인구를, v3 모형은 SGIS 100m 상주인구까지 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "·"}, 상주인구 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}, 다가구·단독 밀집은 그대로). 이 변수는 건축물대장 대리변수입니다. K-apt 등록 세대로 다시 나눠 보면 연관은 다가구·일반단독에 몰려 있고 관리사무소가 없는 다세대·연립은 연관이 없습니다. 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
+        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고 v2 모형은 서울시 250m 생활인구를, v3 모형은 SGIS 100m 상주인구까지 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "·"}, 상주인구 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}, 다가구·단독 밀집은 그대로). 이 변수는 건축물대장 대리변수입니다. K-apt 등록 세대로 다시 나눠 보면 연관은 다가구·일반단독에 몰려 있고 관리사무소가 없는 다세대·연립은 연관을 확인하지 못했습니다. 차량 담배꽁초를 뺀 생활쓰레기만으로 다시 적합해도 다가구·단독 β는 유지됩니다(발견 탭 품목 분리). 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
     },
     {
       name: "이중차분(DID)과 이벤트 스터디",
@@ -170,13 +200,18 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "신고 채널 분해",
       easy: "민원이 늘었다고 해서 발생이 는 것은 아닙니다. 신고 창구(앱·120·직접)별로 나눠 보면 무엇이 늘었는지 보입니다.",
-      here: `민원 ${fmtRatio(cg.total)} 증가를 나눠 보니 앱만 ${fmtRatio(cg.app)}였고 120·직접은 ${fmtRatio(cg.fixed)}였습니다. 과태료 부과는 ${fmtRatio(cg.fines)}로 오히려 ${finesDirection(cg)}고 신고와 독립인 순찰(수시) 적발만 봐도 ${fmtRatio(cg.finesPatrol)}이니 늘어난 부분은 대부분 앱 보급 효과로 봅니다.`,
+      here: `민원 ${fmtRatio(cg.total)} 증가를 나눠 보니 앱만 ${fmtRatio(cg.app)}였고 120·직접은 ${fmtRatio(cg.fixed)}였습니다. 과태료 부과는 ${fmtRatio(cg.fines)}로 오히려 ${finesDirection(cg)}고 신고와 독립인 순찰(수시) 적발만 봐도 ${fmtRatio(cg.finesPatrol)}이니 늘어난 부분은 앱 채널에 몰려 있습니다. 채널별 관측 증가분을 나눈 것이지 앱이 원인이라고 식별한 것은 아니고, 발생 증가를 배제하지도 못합니다.`,
       caution: `배율은 ${cg.basis}한 값입니다. 과태료의 ${100 - cg.patrolSharePct}%는 신고를 받아 나간 것이라 신고와 독립인 실측으로 볼 수 없습니다. ${finesCensorNote(data)}.`,
     },
     {
       name: "핫스팟 점수와 백테스트",
       easy: `최근에 생긴 일일수록 가중치를 높여(90일이 지나면 절반) 격자마다 점수를 매기고 점수가 높은 지역을 다음 분기 관리 대상으로 뽑습니다. 믿을 만한지는 과거 시점으로 돌아가 확인합니다. 작년 이맘때 이 방법으로 뽑았다면 실제로 맞았을지를 ${bt.windows.length}개 분기에 걸쳐 반복 채점했습니다.`,
-      here: `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기 실제 발생이 있었습니다. 구 전체 발생의 ${bt.avgCapture20 ?? "미산출"}%가 이 20곳 안에서 일어났습니다. 아무 곳이나 20곳을 찍으면 ${bt.avgRandomCapture ?? "미산출"}%입니다.`,
+      here: `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기 실제 발생이 있었습니다. 구 전체 발생의 ${bt.avgCapture20 ?? "미산출"}%가 이 20곳 안에서 일어났습니다. 아무 곳이나 20곳을 찍으면 ${bt.avgRandomCapture ?? "미산출"}%입니다.${
+        bt.baselines ? ` 담당자가 원래 쓰는 방식과도 같은 창·같은 20곳으로 비교했습니다. ${Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(", ")}.` : ""
+      }`,
+      caution: bt.baselines
+        ? "최근성 가중 점수는 단순 누적 빈도 목록과 동급이며 우열을 확정하지 않습니다. 이 점수식이 실무 목록보다 낫다는 주장은 하지 않고, 매 분기 같은 규칙으로 뽑아 사후 채점한다는 점만 내세웁니다."
+        : undefined,
     },
     {
       name: "홀트윈터스 수요 전망",
@@ -313,6 +348,15 @@ export default function MethodsModal({
               items={seoulOpen(data)}
             />
           )}
+          {geocodeRows(data).length > 0 && (
+            <DatasetGroup
+              badge="품질"
+              badgeCls="bg-[#8a530e]/12 text-[#8a530e]"
+              title="지오코딩 품질과 폴백 제외"
+              desc={`주소를 좌표로 바꿀 때 못 푼 결과는 법정동 없이 구 중심 한 점에 놓입니다. 그 결과를 격자에 넣지 않았습니다(2026-09-13 정정). ${data.meta?.geocode?.rule ?? ""}`}
+              items={geocodeRows(data)}
+            />
+          )}
           <p
             ref={reproRef}
             className={`rounded-lg px-2.5 py-2 text-[14px] leading-relaxed ${
@@ -322,7 +366,9 @@ export default function MethodsModal({
             <b className="text-[var(--cp-text-strong)]">재현.</b> 원자료의 컬럼 사전과 입력·산출물·코드 파일 해시(SHA-256) {rp?.hashes ?? "미산출"}개는 재현 패키지(REPRODUCE)에 고정돼 있고,
             verify.py가 해시 대조와 핵심 수치 {rp?.numbers ?? "미산출"}개 재계산을 합니다. 회귀·DID·전망 오차의 재추정은 개별 스크립트로 가능하지만
             verify.py의 범위는 아닙니다. 원자료에 건별 민원·과태료 기록이 있어 재현 패키지는 비공개 저장소(gwangjin-dumping)에 있고,
-            서울시·공공데이터포털 층은 위 목록의 원천에서 25개 구 어디서나 같은 방식으로 다시 만들 수 있습니다.
+            서울시·공공데이터포털 층은 위 목록의 원천에서 25개 구 어디서나 같은 방식으로 다시 만들 수 있습니다. 격자 집계 3종(지도 페이로드·격자별
+            민원·격자별 시설)은 생성 코드가 없던 것을 2026-09-13에 복원해 재현 순서 안에서 다시 만들어집니다. 원자료부터 지도까지 전체를 깨끗한 환경에서
+            처음부터 재생성하는 검증은 아직 하지 않았습니다.
           </p>
         </div>
       ) : (

@@ -197,6 +197,81 @@ export function fmtRatio(r: number): string {
   return Number.isFinite(r) ? `${r.toFixed(2)}배` : "미산출"
 }
 
+// ─── 8라운드(2026-09-13 출품 재검토) 파생값 ────────────────────────
+// 앱 민원의 계단. 한 달 배율이 가장 큰 달(직전 달 20건 이상만). 서울 전체 청소 신고의 같은 달 배율을 같이 준다.
+// "앱 보급 효과"가 점진적 확산이 아니라 한 달 계단이면 그 달의 사건(캠페인·제도·연계)을 특정해야 한다
+export interface AppStep {
+  month: string // "2026-03"
+  prev: string // "2026-02"
+  from: number
+  to: number
+  ratio: number
+  seoulRatio: number | null // 서울 스마트불편신고 청소 분야 같은 달 배율
+}
+
+export function appStep(data: DumpingMapData): AppStep | null {
+  const app = data.decision.channels.monthly.app ?? {}
+  const keys = Object.keys(app).sort()
+  let best: AppStep | null = null
+  for (let i = 1; i < keys.length; i++) {
+    const from = app[keys[i - 1]] ?? 0
+    const to = app[keys[i]] ?? 0
+    if (from < 20) continue
+    const ratio = to / from
+    if (!best || ratio > best.ratio) best = { month: keys[i], prev: keys[i - 1], from, to, ratio: Math.round(ratio * 100) / 100, seoulRatio: null }
+  }
+  if (!best || best.ratio < 2) return null
+  const sm = data.decision.seoul?.smartReport.monthly ?? []
+  const a = sm.find((m) => m.ym === best!.prev)?.cleaning
+  const b = sm.find((m) => m.ym === best!.month)?.cleaning
+  if (a && b) best.seoulRatio = Math.round((b / a) * 100) / 100
+  return best
+}
+
+// 지오코딩 폴백 제외 건수. 지도·핫스팟·상습격자·회귀에서 뺀 기록의 규모. 없으면 null
+export function geocodeExcluded(data: DumpingMapData): { complaints: number; enforcement: number; ledger: number; cctvMobile: number } | null {
+  const g = data.meta?.geocode
+  if (!g) return null
+  return {
+    complaints: g.complaints?.fallbackExcluded ?? 0,
+    enforcement: g.enforcement?.fallbackExcluded ?? 0,
+    ledger: g.ledger?.fallbackExcluded ?? 0,
+    cctvMobile: g.cctvMobile?.fallbackExcluded ?? 0,
+  }
+}
+
+// 외부 산출물(데이터팀 배치추천)이 이 분석의 집중관리 격자·핫스팟 20과 얼마나 겹치는가. 두 산출물이 독립임을 숫자로 보인다
+export function binRecoOverlap(data: DumpingMapData, items: [number, number, ...unknown[]][]): { total: number; inCritical: number; inHotspot: number } {
+  const crit = data.decision.kpi.criticalCells
+  const top = data.decision.hotspots.top
+  let inCritical = 0
+  let inHotspot = 0
+  for (const [lat, lng] of items) {
+    if (crit.some((c) => lat >= c[0] && lat < c[2] && lng >= c[1] && lng < c[3])) inCritical++
+    if (top.some((h) => Math.abs(h[0] - lat) < 0.00046 && Math.abs(h[1] - lng) < 0.00058)) inHotspot++
+  }
+  return { total: items.length, inCritical, inHotspot }
+}
+
+// 처리 소요의 연도 변화. 마지막 두 해(마지막 해는 부분 연도)
+export interface SlaShift {
+  prevYear: string
+  lastYear: string
+  prev: { medianH: number; p90H: number; within3dPct: number; n: number }
+  last: { medianH: number; p90H: number; within3dPct: number; n: number }
+  slower: boolean // 상위 10% 소요가 길어졌고 3일 내 처리 비율이 떨어졌다
+}
+
+export function slaShift(data: DumpingMapData): SlaShift | null {
+  const years = Object.keys(data.decision.sla.byYear).sort()
+  if (years.length < 2) return null
+  const prevYear = years[years.length - 2]
+  const lastYear = years[years.length - 1]
+  const prev = data.decision.sla.byYear[prevYear]
+  const last = data.decision.sla.byYear[lastYear]
+  return { prevYear, lastYear, prev, last, slower: last.p90H > prev.p90H && last.within3dPct < prev.within3dPct }
+}
+
 // 과태료가 늘었나 줄었나. 문장 조립용 (배율 1 미만이면 감소)
 export function finesDirection(g: ChannelGrowth): "줄었" | "늘었" | "비슷했" {
   if (!Number.isFinite(g.fines)) return "비슷했"

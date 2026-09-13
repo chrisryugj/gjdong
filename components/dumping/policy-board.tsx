@@ -151,8 +151,9 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
   const kpi = data?.decision.kpi
   const th = kpi?.thresholds
   const period = data ? summarize(data).period : null
+  // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 첫 문장에 담는다. 검토서 A1
   const conclusion =
-    "무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에서 더 생깁니다. 늘어난 것은 발생이 아니라 신고 창구입니다."
+    "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가는 앱 신고 창구에 몰려 있어 발생이 늘었다고 읽기 어렵습니다."
   const headline: Headline[] = [
     {
       k: "다가구·단독 밀집 β",
@@ -232,8 +233,9 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
               k: "확인",
               v: (
                 <>
-                  무단투기 발생과 가장 강하게 연관된 조건은{" "}
-                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 연관이 없었습니다.
+                  단속 적발과 가장 강하게 연관된 조건은{" "}
+                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 이 자료에서 연관을 확인하지
+                  못했고, 차량 담배꽁초를 뺀 생활쓰레기만 봐도 같습니다.
                 </>
               ),
             },
@@ -241,8 +243,9 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
               k: "공백",
               v: (
                 <>
-                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이 <b className="text-[var(--cp-text-strong)]">사람</b>에게 배출 안내를
-                  전하는 대책은 비어 있었습니다. 네 조건은 같은 동네에 겹쳐 있어 어느 쪽을 겨냥해도 같은 골목에 닿습니다.
+                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이번에 모은 정책 목록에는 이{" "}
+                  <b className="text-[var(--cp-text-strong)]">사람</b>에게 배출 안내를 전하는 대책이 연결돼 있지 않았습니다. 네 조건은 같은 동네에 겹쳐
+                  있어 어느 쪽을 겨냥해도 같은 골목에 닿습니다.
                 </>
               ),
             },

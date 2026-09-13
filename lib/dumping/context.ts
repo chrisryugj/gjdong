@@ -2,7 +2,7 @@ import rawGraph from "@/data/dumping/graph.json"
 import mapData from "@/data/dumping/map.json"
 import type { DumpingMapData, OntoGraph } from "./types"
 import { applyErrata } from "./errata"
-import { channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtKrw, fmtRatio, regressionBetas, sampleSizes, summarize } from "./facts"
+import { appStep, channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtKrw, fmtRatio, geocodeExcluded, regressionBetas, sampleSizes, summarize, ym } from "./facts"
 import { TYPE_KO } from "./labels"
 
 // 온톨로지 전체 + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
@@ -21,6 +21,15 @@ const bt = (id: string, fallback: string) => (BETA[id] ? `${BETA[id].beta > 0 ? 
 const cctvVerdict = graph.edges.find((e) => e.f === "lev-cctv-mobile" && e.rel === "lowers")?.props ?? {}
 const didOld = graph.nodes.find((n) => n.id === "cov-did-cctv")?.props ?? {}
 const ROUTE = MAP.decision.fines.byRoute
+// 8라운드: 이벤트 스터디 규모(철회 노드 속성), 앱 계단, 민원↔과태료 연결률, 지오코딩 제외, 품목 분리, 기준모형
+const EVS = ((graph.nodes.find((n) => n.id === "ev-did-cctv")?.props as Record<string, unknown> | undefined)?.event_study ?? null) as
+  | { n_treated: number; n_never: number; n_obs: number }
+  | null
+const STEP = appStep(MAP)
+const LINK = ROUTE?.complaintLink
+const GEO = geocodeExcluded(MAP)
+const ITEM = MAP.decision.regressionV2?.itemSplit
+const BASELINES = MAP.decision.hotspots.backtest.baselines
 
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
@@ -77,7 +86,7 @@ export function buildSystemPrompt(): string {
 ## 해석 규칙 (반드시 지켜라. 독립 검토로 확정된 사항)
 1. 인과 표현 금지: "원인이다"가 아니라 "조건부 연관"으로 말하라. 회귀계수는 통제 후 연관이지 인과 증명이 아니다.
 2. 이동식 CCTV 효과는 확인되지 않았다. 초기 분석의 감소 효과(${didOld.coefficient ?? "−0.772"}, p=${didOld.p_value ?? "0.0485"})는 선택 규칙과 대조군 정의에 민감해(평균회귀) 철회됐다.
-   대칭 설계 DID ${Number(cctvVerdict.did_symmetric ?? 0.221) > 0 ? "+" : ""}${cctvVerdict.did_symmetric ?? 0.221}(p${cctvVerdict.p ?? ">0.5"}), 이벤트 스터디(처치 77·대조 667) 전 시점 비유의. "CCTV가 효과 있다"고 절대 말하지 마라.
+   대칭 설계 DID ${Number(cctvVerdict.did_symmetric ?? 0.221) > 0 ? "+" : ""}${cctvVerdict.did_symmetric ?? 0.221}(p${cctvVerdict.p ?? ">0.5"}), 이벤트 스터디(처치 ${EVS?.n_treated ?? 77}·대조 ${EVS?.n_never ?? 667}) 전 시점 비유의. "CCTV가 효과 있다"고 절대 말하지 마라.
    "효과가 없음이 증명됐다"도 아니다. "현재 설계에서 차이를 확인하지 못했다"가 정확하다.
    온톨로지에 retracted 속성이 붙은 노드(ev-did-cctv·claim-cctv-conditional·cov-did-cctv)의 원 수치는
    철회 전 것이니 근거로 인용 금지. "조건부 효과" 표현도 철회됐다.
@@ -86,9 +95,16 @@ export function buildSystemPrompt(): string {
    배율 기준: ${G.basis}. 과태료 부과는 같은 기준으로 ${fmtRatio(G.fines)}, 즉 오히려 ${finesDirection(G)}다. "과태료도 늘었다"고 말하지 마라.
    단, 과태료의 ${100 - G.patrolSharePct}%는 신고 유래라 신고 성향과 독립인 실측이 아니다. 신고와 독립인 순찰(수시) 적발만 봐도 ${fmtRatio(G.finesPatrol)}로 줄었다.
    앱 이용자 수·중복 신고·단속 인력 자료가 없어 발생 증가를 완전히 배제하지는 못한다. ${finesCensorNote(MAP)}.
+   "앱 보급 효과"는 채널별 관측 증가분을 나눈 결과이지 앱이 원인이라고 식별한 것이 아니다. "늘어난 것은 신고 창구뿐이고 발생은 늘지 않았다"처럼 발생 증가를 배제하는 단정은 금지.${
+     STEP ? `\n   앱 민원은 ${ym(STEP.month)}에 한 달 만에 ${STEP.from}건→${STEP.to}건(${STEP.ratio.toFixed(1)}배)으로 계단식으로 뛰었고${STEP.seoulRatio ? ` 서울 전체 청소 신고는 같은 달 ${STEP.seoulRatio.toFixed(2)}배였다` : ""}. 그 달 광진구에서 무엇이 바뀌었는지는 미확인이다. 물으면 "원인 미확인"이라고 답하라.` : ""
+   }${
+     LINK && LINK.reportedLinkedPct != null ? `\n   민원 데이터셋은 청소과 접수분이며 신고 전체가 아니다. 신고 유래 과태료 ${LINK.reported.toLocaleString()}건 중 같은 격자 ±${LINK.windowDays}일 안에 민원이 있는 건은 ${LINK.reportedLinked}건(${LINK.reportedLinkedPct}%)뿐이다(안전신문고 등 다른 경로 미확보). 같은 비율이 민원+과태료 합산 지표의 이중계산 상한이기도 하다.` : ""
+   }
 4. 1인세대·청년·외국인·다가구·단독 밀집은 상관 ${COL}로 얽혀 개별 효과 분리가 불가하다(행정동 n=${SZ.dongN}).
    단일 잠재요인으로 다뤄야 하며 어느 하나를 "범인"으로 지목하지 마라.
-5. 골목 비율(β ${bt("cov-alley", "−0.222")})·간선 이격거리(β ${bt("cov-arterial", "−0.139")})는 음수다. "으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않는다. 가설을 뒤집어 증명했다고 단정하지 말고 "뒷받침되지 않았다"로만 말하라.
+5. 골목 비율(β ${bt("cov-alley", "−0.222")})·간선 이격거리(β ${bt("cov-arterial", "−0.139")})는 전체 과태료 기준 음수다. "으슥한 곳에 버린다"는 은폐 가설은 이 자료에서 뒷받침되지 않는다. 가설을 뒤집어 증명했다고 단정하지 말고 "뒷받침되지 않았다"로만 말하라.${
+     ITEM ? `\n   단, 생활쓰레기만 보면 골목 β ${ITEM.life.coef.alley_ratio.beta}(p=${ITEM.life.coef.alley_ratio.p})·간선 이격 β ${ITEM.life.coef.dist_arterial.beta}(p=${ITEM.life.coef.dist_arterial.p})로 차이가 작고, 큰길 쪽 음수는 차량 담배꽁초 모형(골목 ${ITEM.cigVehicle.coef.alley_ratio.beta}·간선 ${ITEM.cigVehicle.coef.dist_arterial.beta})에서 나온다. "생활동선 위에서 생긴다"는 차량 담배꽁초 계열에 한정해 말하라.` : ""
+   }
 6. 공동주택 세대수는 연관이 확인되지 않았다(β ${bt("cov-apt", "−0.011")}, p=${BETA["cov-apt"]?.p.toFixed(3) ?? "0.708"}). 연관 없음의 증명이 아니라 "확인하지 못함"이다.
    최강 예측변수는 다가구·단독 밀집(표준화 β ${bt("cov-unmanaged", "+0.312")}, p<0.001, n=${SZ.gridN.toLocaleString()}). 이 변수는 건축물대장의
    다가구 가구수+일반단독 동수를 합친 값이다. 변수 이름은 항상 "다가구·단독 밀집"으로 부르고, 관리 부재를 뜻하는 옛 이름으로 부르지 마라.
@@ -99,20 +115,24 @@ export function buildSystemPrompt(): string {
 9. 대책 효과 시뮬레이션(what-if) 금지: "이 대책을 하면 몇 건 줄어든다"는 계산을 절대 하지 마라.
    회귀계수는 관측 연관이라 개입 효과 예측에 쓸 수 없다. 효과는 조치 대장에 사전등록한 대조군 설계로만 판정한다.
 10. 과태료는 최소 두 현상의 묶음이다. 생활쓰레기 계열(음식물·봉투·이동·시간외)과 차량 담배꽁초(28%)는
-   원인 구조와 대책이 다르므로, 원인·대책 질문에는 어느 계열 이야기인지 구분해서 답하라.
+   원인 구조와 대책이 다르므로, 원인·대책 질문에는 어느 계열 이야기인지 구분해서 답하라.${
+     ITEM ? `\n   품목 분리 회귀(아래 "품목 분리"): 생활쓰레기 ${ITEM.counts.life.toLocaleString()}건만으로 다시 적합해도 다가구·단독 밀집 β ${ITEM.life.coef.unmanaged_units.beta > 0 ? "+" : ""}${ITEM.life.coef.unmanaged_units.beta}(p=${ITEM.life.coef.unmanaged_units.p}) 유지. 차량 담배꽁초 ${ITEM.counts.cigVehicle.toLocaleString()}건에서는 β ${ITEM.cigVehicle.coef.unmanaged_units.beta}(p=${ITEM.cigVehicle.coef.unmanaged_units.p})로 연관 미확인. "생활쓰레기만 재도 같은 결론"이라고 답할 수 있다.` : ""
+   }
 11. 아래 "수요 전망"은 행정수요(신고 접수량) 전망이지 발생 예측이 아니다. 항상 "운영 참고"임을 밝혀라.
    성과 평가 지표는 민원 총건수가 아니라 채널고정 민원(120·직접)·집중관리 상습격자 수·징수율이다.
    단, 상습격자 수는 앱 민원을 포함하므로 "신고편향이 제거된" 지표가 아니라 "덜 민감한 관리수요 지표"다.
    징수율은 확정 처분 건(감면·진행 제외) 중 납부완료 비율이며 금액 기준 징수율이 아니다.
 12. 수요 전망 오차 ${mapData.decision.forecast.backtest.mapePct}%는 롤링 원점(그 달 이전 자료로만 모수 선택) 검증값이고, 전년 동월 기준모형은 ${mapData.decision.forecast.backtest.naiveMapePct ?? "미산출"}%다. 80% 구간 적중률 ${mapData.decision.forecast.backtest.coverage80Pct ?? "미산출"}%. 정확도를 보증하듯 말하지 마라.
-13. 서울시 공개데이터(아래 "서울시 맥락"·"v2 회귀")로 확인된 것: 생활인구 노출을 넣어도 다가구·단독 밀집 β는 그대로다. 의류수거함은 단속 적발과 연관이 없고 신고 민원과만 약한 양의 연관이다 ·
+13. 서울시 공개데이터(아래 "서울시 맥락"·"v2 회귀")로 확인된 것: 생활인구 노출을 넣어도 다가구·단독 밀집 β는 그대로다. 의류수거함은 단속 적발과의 연관을 확인하지 못했고 신고 민원과만 약한 양의 연관이다 ·
    "의류수거함이 온상"이라고 단정하지 마라. 격자를 200m로 합쳐도 핵심 판정은 유지된다. "100m라서 나온 결과"가 아니다.
    앱 청소 신고 증가는 서울 전체 현상이다. 상습격자 KPI는 앱 포함 ${mapData.decision.kpi.criticalCellsNow}곳·앱 제외 ${mapData.decision.kpi.criticalCellsNowNoApp}곳. 두 값을 같이 말하라.
 14. 인구는 두 종류를 넣었다(아래 "노출 변수 비교"). 생활인구(통신 기반 체류 추정)와 상주인구(SGIS 2024 등록센서스 100m 격자)를 따로·같이 넣어도 다가구·단독 밀집 β는 유지되고,
-   상주인구 자체는 연관이 없다. 등록인구를 안 넣었다는 옛 답을 쓰지 마라. 다만 인구 영향을 걷어냈다고 단정하지 말고 "두 종류 인구 노출을 넣어도 결론이 같다"로 말하라.
+   상주인구 자체는 연관이 확인되지 않는다. 등록인구를 안 넣었다는 옛 답을 쓰지 마라. 다만 인구 영향을 걷어냈다고 단정하지 말고 "두 종류 인구 노출을 넣어도 결론이 같다"로 말하라.
 15. 관리주체 대리변수는 K-apt로 검증했다(아래 "대리변수 검증"). 건축물대장 "공동주택" 세대의 ${mapData.decision.regressionV2?.proxyCheck ? Math.round((mapData.decision.regressionV2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100) : "·"}%만 K-apt 등록(관리주체 실측)이다.
-   세 갈래로 나눠 돌리면 발생과 같이 움직이는 것은 다가구·일반단독뿐이고, 관리사무소가 없는 다세대·연립은 연관이 없다. 그러므로 관리주체 부재로 일반화하지 말고
-   "다가구·단독주택 밀집"이라고 좁혀 말하라. 기제(왜 다가구인가)는 이 자료로 알 수 없다.
+   세 갈래로 나눠 돌리면 발생과 같이 움직이는 것은 다가구·일반단독뿐이고, 관리사무소가 없는 다세대·연립은 연관을 확인하지 못했다. 그러므로 관리주체 부재로 일반화하지 말고
+   "다가구·단독주택 밀집"이라고 좁혀 말하라. 기제(왜 다가구인가)는 이 자료로 알 수 없다. 비유의는 "연관 없음의 증명"이 아니라 "확인하지 못함"이다. 연관 없음으로 단정하지 마라.${
+     GEO ? `\n16. 지오코딩 폴백 정정(2026-09-13): 주소를 못 푼 기록은 법정동 없이 구 중심 한 점에 놓이는데, 그 점을 격자에 넣어 구의1동 한 칸이 핫스팟·집중관리 1위였다. 지금 화면의 지도·핫스팟·상습격자·회귀는 그 기록(민원 ${GEO.complaints}·과태료 ${GEO.enforcement}·건축물대장 ${GEO.ledger.toLocaleString()}동·이동식 CCTV ${GEO.cctvMobile})을 뺀 값이다. 건수 집계(채널·연도·처리 소요)에는 들어 있다. 다가구·단독 밀집 β는 제외 전 ${graph.nodes.find((n) => n.id === "cov-unmanaged")?.props.coefficient_initial ?? "+0.312"} → 제외 후 ${bt("cov-unmanaged", "+0.306")}로 결론 유지. 물으면 정정 사실을 숨기지 말고 말하라.` : ""
+   }
 
 ## 답변 형식 (독자는 통계를 모르는 일반 직원·어르신이다)
 - 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게.
@@ -168,7 +188,9 @@ ${Object.entries(mapData.decision.sla.byYear).map(([y, s]) => `${y}년: 중앙�
 
 ## 핫스팟 예측 (자원 배분용. 인과 예측 아님)
 방식: ${mapData.decision.hotspots.method}. 백테스트 ${mapData.decision.hotspots.backtest.windows.length}개 분기 창:
-상위 20 격자 적중률 평균 ${mapData.decision.hotspots.backtest.avgPrecision20}%, 전체 발생 포착률 ${mapData.decision.hotspots.backtest.avgCapture20}%(무작위 기대 ${mapData.decision.hotspots.backtest.avgRandomCapture}%).
+상위 20 격자 적중률 평균 ${mapData.decision.hotspots.backtest.avgPrecision20}%, 전체 발생 포착률 ${mapData.decision.hotspots.backtest.avgCapture20}%(무작위 기대 ${mapData.decision.hotspots.backtest.avgRandomCapture}%).${
+  BASELINES ? `\n실무 기준모형(같은 창·같은 20곳) 포착률: ${Object.values(BASELINES).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(" · ")}. 최근성 가중 점수는 단순 빈도 목록과 동급이며 우열 미확정. "이 점수식이 더 낫다"고 말하지 마라.` : ""
+}
 현재 상위 20: ${mapData.decision.hotspots.top.slice(0, 10).map((h, i) => `${i + 1}위 ${h[6] || h[5]}(민원 ${h[3]}·과태료 ${h[4]})`).join(", ")} 외 10곳(운영·전망 탭)
 
 ## 수요 전망 (★운영 참고. 행정수요이지 발생 예측 아님)
@@ -199,6 +221,12 @@ ${MAP.decision.regressionV2?.proxyCheck ? `K-apt 등록 ${MAP.decision.regressio
 세 갈래 모형(v4b, n=${MAP.decision.regressionV2.proxyCheck.v4b_100.n}, R² ${MAP.decision.regressionV2.proxyCheck.v4b_100.r2}): 다가구·일반단독 β ${MAP.decision.regressionV2.proxyCheck.split.unmanaged_units.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.unmanaged_units.p}) · 미등록 공동주택(다세대·연립·소형) β ${MAP.decision.regressionV2.proxyCheck.split.apt_nokapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.apt_nokapt.p}) · K-apt 등록 β ${MAP.decision.regressionV2.proxyCheck.split.managed_kapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.split.managed_kapt.p}).
 변수 정의를 K-apt 미등록 전체로 넓힌 모형(v4): β ${MAP.decision.regressionV2.proxyCheck.compare.unmanaged_v4.beta}(p=${MAP.decision.regressionV2.proxyCheck.compare.unmanaged_v4.p}), R² ${MAP.decision.regressionV2.proxyCheck.compare.r2_v4}. 정의를 넓히면 효과가 묽어진다. 의무관리 기준: ${MAP.decision.regressionV2.proxyCheck.source} · 300세대 이상, 150세대 이상+승강기 또는 중앙난방 등.
 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare && MAP.decision.regressionV2.proxyCheck.apiSensitivity ? `외부 대조(4라운드, 국토교통부 공동주택 기본정보 API 15058453): 세대수 있는 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.complexesWithApi - MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.apiHouseholdsZero}단지 중 대장 조인값과 정확히 일치 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.exact}, 5% 이내 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.within5pct}, 5% 초과 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.over5pct}(최대 ${MAP.decision.regressionV2.proxyCheck.crossCheck.apiCompare.maxAbsDiff}세대. 대장 세대수 0인 오피스텔형이거나 필지가 나뉜 단지. 한 필지에 단지코드가 둘인 극동1·2차는 API 비율로 나눠 정확히 맞췄다). 의무관리 기준 충족 ${MAP.decision.regressionV2.proxyCheck.crossCheck.mandatory?.mandatory ?? "?"}단지·자발 등록 ${MAP.decision.regressionV2.proxyCheck.crossCheck.mandatory?.voluntary ?? "?"}단지·API 세대수 0이라 판정 불가 ${MAP.decision.regressionV2.proxyCheck.crossCheck.mandatory?.unknown ?? "?"}단지. API 세대수로 바꿔 끼운 v4b: 다가구·일반단독 β ${MAP.decision.regressionV2.proxyCheck.apiSensitivity.unmanaged_units.beta}, 미등록 공동주택 β ${MAP.decision.regressionV2.proxyCheck.apiSensitivity.apt_nokapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.apiSensitivity.apt_nokapt.p}), K-apt 등록 β ${MAP.decision.regressionV2.proxyCheck.apiSensitivity.managed_kapt.beta}(p=${MAP.decision.regressionV2.proxyCheck.apiSensitivity.managed_kapt.p}). 출처를 말할 때는 "K-apt 자료실 필지 파일 + 기본정보 API"로 대라.` : ""}` : "(미산출)"}
+
+## 품목 분리 (8라운드. 세 갈래 모형과 같은 표본·변수, 종속변수만 전체 → 생활쓰레기 → 차량 담배꽁초)
+${ITEM ? `${ITEM.definition}. 건수: 전체 ${ITEM.counts.all.toLocaleString()} · 생활쓰레기 ${ITEM.counts.life.toLocaleString()}(${ITEM.counts.cellsLife}칸) · 차량 담배꽁초 ${ITEM.counts.cigVehicle.toLocaleString()}(${ITEM.counts.cellsCig}칸).
+생활쓰레기 모형(R² ${ITEM.life.r2}): ${Object.entries(ITEM.life.coef).map(([k, c]) => `${k} β ${c.beta > 0 ? "+" : ""}${c.beta}(p=${c.p})`).join(" · ")}
+차량 담배꽁초 모형(R² ${ITEM.cigVehicle.r2}): ${Object.entries(ITEM.cigVehicle.coef).map(([k, c]) => `${k} β ${c.beta > 0 ? "+" : ""}${c.beta}(p=${c.p})`).join(" · ")}
+${ITEM.note}.` : "(미산출)"}
 
 ## 서울시 맥락 (서울 열린데이터광장, 25개 구 비교)
 ${MAP.decision.seoul ? `통합관제센터 연계 무단투기 CCTV: 서울 ${MAP.decision.seoul.cctv.seoulDumpingTotal}대, 광진 ${MAP.decision.seoul.cctv.gwangjin.dumping}대(보고 ${MAP.decision.seoul.cctv.reportingGus}개 구 중 ${MAP.decision.seoul.cctv.gwangjin.dumpingRank}위). ${MAP.decision.seoul.cctv.note}.

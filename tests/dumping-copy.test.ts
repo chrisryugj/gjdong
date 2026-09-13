@@ -20,15 +20,17 @@ const withMap = { skip: map ? false : "data/dumping/map.json 없음. `npm run du
 const OLD_NAME = /무관리|관리주체 없는/
 const EM_DASH = /\u2014/ // 줄표. 게이트 grep이 이 파일에 걸리지 않게 이스케이프로 쓴다
 const CHATBOT = /좋은 질문|살펴보겠습니다|주의하세요|것으로 보입니다|다음과 같습니다/
-const FORBIDDEN = /신고와 무관한 실측|인구를 통제했|등록인구는 넣지 않|관리주체가 없어서 생긴|반증|낙관 편향 없음|모든 수치 재현|모든 수치가 재현|원인 규명|효과 입증|AI가 답한/
+// 8라운드(검토서 A1·A2·A6): 발생 증가 배제 단정, 비유의를 "연관 없음"으로 단정, 범례 "원인 쪽", "대부분 앱 보급 효과"도 금지
+const FORBIDDEN =
+  /신고와 무관한 실측|인구를 통제했|등록인구는 넣지 않|관리주체가 없어서 생긴|반증|낙관 편향 없음|모든 수치 재현|모든 수치가 재현|원인 규명|효과 입증|AI가 답한|발생이 아니라 신고 창구|연관이 없었습니다|연관이 없습니다|연관이 없다|연관이 없고|원인 쪽|대부분 앱 보급 효과/
 
 function stripLegalTerm(s: string): string {
   return s.replace(/의무관리/g, "")
 }
 
-test("발견 카드 14장은 결론 → 근거 → 한계·전망 순서(FINDING_ORDER)로 나온다", withMap, () => {
+test("발견 카드 17장은 결론 → 근거 → 한계·전망 순서(FINDING_ORDER)로 나온다", withMap, () => {
   const fs = buildFindings(map!, graph)
-  assert.strictEqual(fs.length, 14)
+  assert.strictEqual(fs.length, 17)
   assert.deepStrictEqual(fs.map((f) => f.tag), [...FINDING_ORDER])
   assert.strictEqual(fs[0].title, "다가구·단독주택 밀집")
 })

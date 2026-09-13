@@ -83,7 +83,29 @@ export interface DumpingMapData {
     reproduce: { hashes: number; numbers: number; note: string }
     binSites: number
     asof: string
+    // 8라운드. 원천별 지오코딩 품질. 법정동 없는 결과(구 중심 폴백)는 격자에 넣지 않는다
+    geocode?: GeocodeQuality
   }
+}
+
+export interface GeocodeSource {
+  rows: number
+  geocoded: number
+  fallbackExcluded: number
+  failed: number
+  outsideGrid: number
+  uniqueAddresses?: number
+}
+
+export interface GeocodeQuality {
+  rule: string
+  fallbackPoint?: [number, number][]
+  complaints?: GeocodeSource
+  enforcement?: GeocodeSource
+  ledger?: GeocodeSource
+  recycling?: GeocodeSource
+  cctvMobile?: GeocodeSource
+  bins?: GeocodeSource
 }
 
 // [lat, lng, 점수, 민원180일, 과태료180일, 행정동, 대표주소, 이동식CCTV유무(0/1)]
@@ -110,6 +132,17 @@ export interface DecisionLayer {
       monthly: Record<string, Record<string, number>>
       byCategory: Record<string, Record<string, number>>
       labels: Record<string, string>
+      // 8라운드. 같은 격자·위반일시 ±N일 안에 민원이 있는 과태료 비율(시공간 근사, 확정 사건 연결 아님)
+      complaintLink?: {
+        windowDays: number
+        reported: number
+        reportedLinked: number
+        all: number
+        allLinked: number
+        reportedLinkedPct: number | null
+        allLinkedPct: number | null
+        note: string
+      }
       note: string
     }
   }
@@ -139,6 +172,9 @@ export interface DecisionLayer {
       avgPrecision20: number | null
       avgCapture20: number | null
       avgRandomCapture: number | null
+      // 8라운드. 실무 기준모형(누적 빈도·최근 90일·반감기 동일가중)을 같은 창·같은 K로 잰 값
+      baselines?: Record<string, { label: string; avgPrecision20: number | null; avgCapture20: number | null; windows: { cutoff: string; precision20: number; capture20: number }[] }>
+      baselineNote?: string
     }
     method: string
   }
@@ -215,9 +251,28 @@ export interface RegCoef {
   nb_p: number | null
 }
 
+// 8라운드. 품목 분리 회귀: 세 갈래 모형과 같은 표본·변수로 종속변수만 전체 → 생활쓰레기 → 차량 담배꽁초
+export interface ItemSplitModel {
+  n: number
+  r2: number
+  coef: Record<string, RegCoef>
+}
+
+export interface ItemSplit {
+  definition: string
+  spec: string
+  counts: { all: number; life: number; cigVehicle: number; cellsLife: number; cellsCig: number }
+  all: ItemSplitModel
+  life: ItemSplitModel
+  cigVehicle: ItemSplitModel
+  note: string
+}
+
 export interface RegressionV2 {
   spec: string
-  base100: { n: number; r2: number }
+  base100: { n: number; r2: number; coef?: Record<string, RegCoef> }
+  itemSplit?: ItemSplit | null
+  refit?: string // 폴백 제외 재적합 고지
   v2_100: { n: number; r2: number; coef: Record<string, RegCoef> }
   v2_100_complaints: { r2: number; coef: Record<string, RegCoef> }
   v2_200: { n: number; r2: number; coef: Record<string, RegCoef> }

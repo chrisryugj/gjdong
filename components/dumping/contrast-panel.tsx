@@ -49,7 +49,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
                 k: "관리주체 대리변수",
                 beforeTag: "이 팀의 초기 분석" as const,
                 before: "건축물대장 공동주택은 관리주체가 있고 다가구·단독은 없다. 관리주체 부재가 발생을 설명한다.",
-                after: `K-apt 등록 세대는 대장 공동주택의 ${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%뿐. 세 갈래로 나누면 다가구·단독 β ${s(r2.proxyCheck.split.unmanaged_units.beta)}만 남고 관리사무소 없는 다세대·연립은 β ${s(r2.proxyCheck.split.apt_nokapt.beta)}로 연관 없음. 겨냥점은 다가구·단독 밀집.`,
+                after: `K-apt 등록 세대는 대장 공동주택의 ${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%뿐. 세 갈래로 나누면 다가구·단독 β ${s(r2.proxyCheck.split.unmanaged_units.beta)}만 남고 관리사무소 없는 다세대·연립은 β ${s(r2.proxyCheck.split.apt_nokapt.beta)}로 연관 미확인. 겨냥점은 다가구·단독 밀집.`,
               },
             ]
           : []),
@@ -57,8 +57,19 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
           k: "의류수거함",
           beforeTag: "통념",
           before: "의류수거함 옆이 무단투기 온상이다. 수거함부터 정비하자.",
-          after: `수거함 ${data.infra.clothBins.length}곳을 격자에 얹어 보니 단속 적발과 연관 없음(β ${s(r2.v2_100.coef.clothbin_n.beta)}, p=${r2.v2_100.coef.clothbin_n.p.toFixed(2)}). 신고만 약간 더 들어온다(β ${s(r2.v2_100_complaints.coef.clothbin_n.beta)}).`,
+          after: `수거함 ${data.infra.clothBins.length}곳을 격자에 얹어 보니 단속 적발과 연관 미확인(β ${s(r2.v2_100.coef.clothbin_n.beta)}, p=${r2.v2_100.coef.clothbin_n.p.toFixed(2)}). 신고만 약간 더 들어온다(β ${s(r2.v2_100_complaints.coef.clothbin_n.beta)}).`,
         },
+        ...(r2.itemSplit
+          ? [
+              {
+                k: "품목 섞임",
+                beforeTag: "이 팀의 초기 분석" as const,
+                before: "차량 담배꽁초(28%)가 섞인 전체 과태료로 주거 결론을 냈다. 생활쓰레기만 재면 달라질 수 있다.",
+                after: `생활쓰레기만 재도 다가구·단독 β ${s(r2.itemSplit.life.coef.unmanaged_units.beta)} 유지. 차량 담배꽁초에서는 β ${s(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(p=${r2.itemSplit.cigVehicle.coef.unmanaged_units.p.toFixed(2)})로 연관 미확인. 골목·큰길 음수는 차량 담배꽁초 쪽 현상.`,
+                chart: "beta" as const,
+              },
+            ]
+          : []),
         {
           k: "격자 크기",
           beforeTag: "통념",
@@ -78,7 +89,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "민원이 늘었다",
       beforeTag: "통념",
       before: `${g.baseYear}년보다 민원이 ${fmtRatio(g.total)}. 무단투기가 두 배로 나빠졌다.`,
-      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 과태료는 ${fmtRatio(g.fines)}, 신고와 독립인 순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}로 오히려 줄었다. 늘어난 건 신고 창구다.`,
+      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 과태료는 ${fmtRatio(g.fines)}, 신고와 독립인 순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}로 오히려 줄었다. 늘어난 건 앱 창구에 몰려 있다. 발생 증가를 완전히 배제하진 못한다.`,
       chart: "yearly",
     },
     {
@@ -98,7 +109,9 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "어디에 버리나",
       beforeTag: "통념",
       before: "사람 눈을 피해 으슥한 골목에 버린다. CCTV는 골목 안쪽에.",
-      after: `골목 비율 β ${s(beta("cov-alley")?.beta)}, 큰길 이격 β ${s(beta("cov-arterial")?.beta)}. 오히려 생활동선 위에서 생긴다.`,
+      after: r2?.itemSplit
+        ? `전체 과태료로는 골목 β ${s(beta("cov-alley")?.beta)}, 큰길 이격 β ${s(beta("cov-arterial")?.beta)}. 생활쓰레기만 보면 골목 β ${s(r2.itemSplit.life.coef.alley_ratio.beta)}, 큰길 이격 β ${s(r2.itemSplit.life.coef.dist_arterial.beta)}로 차이가 작다. 으슥한 곳 가설은 뒷받침되지 않고, 큰길 쪽 결과는 주로 차량 담배꽁초.`
+        : `골목 비율 β ${s(beta("cov-alley")?.beta)}, 큰길 이격 β ${s(beta("cov-arterial")?.beta)}. 으슥한 곳 가설은 뒷받침되지 않는다.`,
       chart: "beta",
     },
     {

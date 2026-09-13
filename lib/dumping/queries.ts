@@ -16,7 +16,7 @@ export const STRUCTURAL_FACTORS = new Set(["con-alley", "con-arterial-dist", "co
 const STRUCTURAL_NOTE: Record<string, string> = {
   "con-living-pop": "노출(체류 인구) 통제변수",
   "con-resident-pop": "노출(상주 인구) 통제변수",
-  "con-managed-kapt": "관리주체 실측(K-apt) 대조변수, 연관 없음",
+  "con-managed-kapt": "관리주체 실측(K-apt) 대조변수, 연관 미확인",
 }
 
 export interface CqHit {

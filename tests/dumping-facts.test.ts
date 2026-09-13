@@ -44,7 +44,8 @@ test("collinearRange·sampleSizes. 문장에 박혀 있던 수치를 그래프·
   assert.strictEqual(sz.gridN, 1062)
   assert.strictEqual(sz.ledgerRows, 24520)
   assert.strictEqual(sz.dongN, 15)
-  assert.strictEqual(map!.meta?.reproduce.hashes, 113)
+  // 8라운드: geocode_quality.json · waste_category.py · build_cell_layers.py 추가로 113 → 116
+  assert.strictEqual(map!.meta?.reproduce.hashes, 116)
   assert.strictEqual(map!.meta?.binSites, 64)
 })
 
@@ -60,10 +61,11 @@ test("tallyInfra. 인프라 원자료의 중복 행과 좌표 겹침을 갈라 �
   assert.strictEqual(Math.max(...bins.spots.map((s) => s.at.length)), 6)
 
   // 중복 행은 다른 레이어에도 있다. 칩·자료표가 행이 아니라 기록을 세는 이유
-  assert.strictEqual(tallyInfra(map!.infra.recycling).records.length, 859)
+  // 8라운드: 구 중심 폴백 좌표(법정동 없음)는 지도에서 뺀다 → 정거장 859→857, 이동식 CCTV 276→264
+  assert.strictEqual(tallyInfra(map!.infra.recycling).records.length, 857)
   assert.strictEqual(tallyInfra(map!.infra.clothBins).records.length, 475)
   assert.strictEqual(tallyInfra(map!.infra.cctvFixed).records.length, 71)
-  assert.strictEqual(tallyInfra(map!.infra.cctvMobile).records.length, 276)
+  assert.strictEqual(tallyInfra(map!.infra.cctvMobile).records.length, 264)
 })
 
 test("channelGrowth. 완결 연도끼리면 연환산하지 않는다", withMap, () => {
@@ -104,10 +106,20 @@ test("regressionBetas. 철회된 DID 계수는 빠지고 |β| 내림차순", () 
   for (let i = 1; i < b.length; i++) assert.ok(Math.abs(b[i - 1].beta) >= Math.abs(b[i].beta))
 })
 
-test("buildFindings. 14장(서울 데이터 3장·K-apt 대리변수 검증 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
+test("buildFindings. 17장(서울 데이터 3장·K-apt 대리변수 검증·품목 분리·자료 정정·처리 지연 포함), 배율은 연환산 기준을 밝히고 과태료는 감소로 서술한다", withMap, () => {
   const fs = buildFindings(map!, graph)
-  assert.strictEqual(fs.length, 14)
+  assert.strictEqual(fs.length, 17)
   assert.ok(fs.some((f) => f.tag === "격자 검증") && fs.some((f) => f.tag === "통념 검증") && fs.some((f) => f.tag === "노출 통제") && fs.some((f) => f.tag === "대리변수 검증"))
+  // 9라운드(2026-09-13): 품목 분리는 생활쓰레기 β를, 자료 정정은 폴백 제외 건수를, 처리 지연은 두 해의 상위 10% 소요를 말해야 한다
+  const item = fs.find((f) => f.tag === "품목 분리")!
+  assert.match(item.body, /생활쓰레기 [\d,]+건.*다가구·단독 밀집 β \+\d\.\d{3}/)
+  const fix = fs.find((f) => f.tag === "자료 정정")!
+  assert.match(fix.body, /민원 \d+건과 과태료 \d+건/)
+  const slaCard = fs.find((f) => f.tag === "처리 지연")!
+  assert.match(slaCard.body, /상위 10%는 [\d.]+시간/)
+  const bias = fs.find((f) => f.tag === "착시 해명")!
+  assert.ok(JSON.stringify(bias.detail).includes("한 달 만에"), "앱 계단(한 달 만에 N배)이 착시 카드에 없다")
+  assert.ok(JSON.stringify(bias.detail).includes("신고의 일부"), "민원 데이터셋이 신고의 일부라는 고지가 없다")
   const proxy = fs.find((f) => f.tag === "대리변수 검증")!
   assert.ok(/다가구·단독/.test(proxy.title) && /다세대·연립/.test(proxy.body), "대리변수 검증 카드가 세 갈래 결과를 말하지 않는다")
   const exposure = fs.find((f) => f.tag === "노출 통제")!

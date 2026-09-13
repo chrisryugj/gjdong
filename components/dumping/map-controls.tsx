@@ -27,7 +27,7 @@ const BASE_LABEL: Record<BaseMode, string> = {
 
 // 바탕 한 줄 뜻. 범례 첫 줄에 항상 보인다. 통계 낱말 없이
 const BASE_MEANING: Record<BaseMode, string> = {
-  unm: "색이 진할수록 다가구·단독주택이 많은 칸(원인 쪽)",
+  unm: "색이 진할수록 다가구·단독주택이 많은 칸(발생과 같이 움직이는 조건)",
   comp: "색이 진할수록 주민 신고 민원이 많은 칸",
   enf: "색이 진할수록 과태료를 많이 부과한 칸",
   lp: "색이 진할수록 머무는 사람이 많은 칸(서울시 생활인구)",
@@ -201,6 +201,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
             onClick={() => patch({ binRecos: !view.binRecos })}
             className={`${CHIP} ${view.binRecos ? "bg-white font-semibold" : CHIP_OFF}`}
             style={view.binRecos ? { borderColor: BIN_RECO_COLOR, color: BIN_RECO_COLOR } : undefined}
+            title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 모달 참고"
           >
             <i className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: BIN_RECO_COLOR }} />
             {BIN_RECO_LABEL} {BIN_RECOS.items.length}
@@ -280,7 +281,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
             <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
               {baseDesc(view.base, data)}
               {view.circles.length > 0 &&
-                ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(원인 쪽)과 결과를 한 칸에서 견주려고 올린 것입니다.`}
+                ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 견주려고 올린 것입니다.`}
             </p>
           )}
           </div>

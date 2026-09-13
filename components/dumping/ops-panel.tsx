@@ -150,6 +150,11 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[14.5px] font-medium leading-snug text-[#0a4a41]">
           지난 {bt.windows.length}개 분기 백테스트: 상위 20곳 중 평균 {bt.avgPrecision20}%에서 다음
           분기 실제 발생. 전체 발생의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
+          {bt.baselines && (
+            <span className="block font-normal text-[#0a4a41]/80">
+              실무 기준모형 포착률 {Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(" · ")}. 동급이며 우열 미확정.
+            </span>
+          )}
         </p>
         <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
           {d.hotspots.top.map((h, i) => (
@@ -347,7 +352,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               의무관리 기준 미달 소형 주거가{" "}
               {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
-              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관이 없었으므로 발생 예고가
+              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관을 확인하지 못했으므로 발생 예고가
               아니라, 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>
