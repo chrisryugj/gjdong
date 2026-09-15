@@ -74,7 +74,8 @@ function escapeHtml(s: string): string {
 
 function cellTooltip(cell: GridCell): string {
   const dong = escapeHtml(cell[7] || "광진구")
-  const lp = cell[8] ? `<br/>생활인구 ${cell[8].toLocaleString()}명 <span style="color:#64748b">(서울시 250m 격자 배분)</span>` : ""
+  // 서울 열린데이터광장 생활인구(통신 기반 체류 추정)는 250m 격자로만 나와 100m 칸에 면적 비례로 나눈 값. 주민등록 인구가 아니다
+  const lp = cell[8] ? `<br/>머무는 사람 약 ${cell[8].toLocaleString()}명 <span style="color:#64748b">(서울시 생활인구, 250m 격자를 면적 비례로 나눔)</span>` : ""
   return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>다가구·단독 ${cell[6]}세대${lp}`
 }
 
@@ -600,6 +601,20 @@ export default function DumpingMap({
       const group = L.layerGroup()
       const max = Math.max(1, ...data.dong.flatMap((d) => [d.comp, d.enf]))
       const H = 72 // 최대 막대 높이(px)
+      const n = data.dong.length
+      const rank = (key: "comp" | "enf", v: number) => data.dong.filter((x) => x[key] > v).length + 1
+      // 툴팁: 글자 나열이 아니라 카드. 색 칩·큰 숫자·구 최대 대비 막대·순위. 스타일은 globals.css .dump-bartip
+      const tip = (d: (typeof data.dong)[number]) => {
+        const row = (label: string, color: string, v: number, per: number, r: number) =>
+          `<div class="r"><i style="background:${color}"></i><b>${label}</b><span class="v">${v.toLocaleString()}<small>건</small></span><em>${r}위</em><span class="k">천명당 ${per}</span></div>` +
+          `<div class="bar"><i style="width:${Math.round((v / max) * 100)}%;background:${color}"></i></div>`
+        return (
+          `<div class="dump-bartip"><div class="t">${d.d}<span>세대 ${d.hh.toLocaleString()}</span></div>` +
+          row("민원", "#2f5aa8", d.comp, d.cr, rank("comp", d.comp)) +
+          row("과태료", "#9a6a2a", d.enf, d.er, rank("enf", d.enf)) +
+          `<div class="f">막대 길이는 구 최댓값 대비, 순위는 ${n}개 동 중</div></div>`
+        )
+      }
       for (const d of data.dong) {
         const pts = (data.dongOutlines[d.d] ?? []).flat() // 외곽선은 링 배열. 꼭짓점을 한 줄로
         if (!pts.length) continue
@@ -607,7 +622,7 @@ export default function DumpingMap({
         const lng = pts.reduce((s, p) => s + p[1], 0) / pts.length
         const hc = Math.max(3, Math.round((d.comp / max) * H))
         const he = Math.max(3, Math.round((d.enf / max) * H))
-        L.marker([lat, lng], {
+        const mk = L.marker([lat, lng], {
           pane: "dumpInfra",
           icon: L.divIcon({
             className: "",
@@ -616,12 +631,27 @@ export default function DumpingMap({
             iconAnchor: [BAR_W / 2, H + BAR_TOP],
           }),
         })
-          .bindTooltip(
-            `<b>${d.d}</b><br>민원 ${d.comp.toLocaleString()}건 · 과태료 ${d.enf.toLocaleString()}건<br>주민 천명당 민원 ${d.cr} · 과태료 ${d.er}`,
+          .bindTooltip(tip(d), {
             // top 고정이면 북쪽 끝 동(중곡3·4동)에서 지도 밖으로 나간다. auto = 지도 중심 기준 좌/우로 뒤집힘. 막대 중간 높이 옆에
-            { direction: "auto", opacity: 1, offset: [BAR_W / 2 + 4, -(H + BAR_TOP) / 2] },
-          )
+            direction: "auto",
+            opacity: 1,
+            offset: [BAR_W / 2 + 4, -(H + BAR_TOP) / 2],
+            className: "dump-bartip-wrap",
+          })
           .addTo(group)
+        // 카드가 지도 위·아래로 삐져나가면(북쪽 끝 동은 헤더가 툴바 뒤로 숨는다) 열리는 순간 세로 오프셋을 지도 안으로 당긴다
+        mk.on("tooltipopen", (ev) => {
+          const tt = ev.tooltip
+          const el = tt.getElement()
+          const h = el?.offsetHeight ?? 180
+          const pt = map.latLngToContainerPoint(mk.getLatLng())
+          const size = map.getSize()
+          let oy = -(H + BAR_TOP) / 2
+          oy = Math.max(oy, h / 2 - pt.y + 8) // 위쪽 여유
+          oy = Math.min(oy, size.y - pt.y - h / 2 - 8) // 아래쪽 여유
+          tt.options.offset = L.point(BAR_W / 2 + 4, oy)
+          tt.update()
+        })
       }
       group.addTo(map)
       dongBarsLayerRef.current = group
