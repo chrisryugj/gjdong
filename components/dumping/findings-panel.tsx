@@ -68,20 +68,19 @@ export default function FindingsPanel({
                           : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
                     }`}
                   >
-                    <span className="mb-1 mr-1.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[13.5px] font-medium text-[var(--cp-text-muted)]">
-                      {f.tag}
+                    <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12.5px] font-medium text-[var(--cp-text-muted)]">{f.tag}</span>
+                      {active && (
+                        <span className="rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">✓ 지도 반영 중</span>
+                      )}
                     </span>
-                    {active && (
-                      <span className="mb-1 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[13.5px] font-semibold text-white">
-                        ✓ 지도 반영 중
-                      </span>
-                    )}
-                    <h4 className="text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
-                    <p className="mt-1 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
-                    <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
+                    <h4 className="text-[16.5px] font-bold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
+                    {/* 한 줄 결론이 본문보다 먼저. 근거 수치 문장은 두 줄로 접고, 전문은 모달(수치 칸·상세)에 있다 */}
+                    <p className="mt-2 border-l-[3px] border-[#0c6155] pl-2.5 text-[15px] font-semibold leading-snug text-[#0a4a41]">
                       {f.takeaway}
                     </p>
-                    <span className="mt-1.5 inline-block text-[14.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
+                    <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{f.body}</p>
+                    <span className="mt-1.5 inline-block text-[13.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
                   </button>
                 )
               })}

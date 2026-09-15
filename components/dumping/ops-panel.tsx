@@ -323,14 +323,22 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <section>
           <SectionTitle n="07">구조 전망 · 관리 취약 신축이 어디로 들어오나</SectionTitle>
           <DetailCard onOpen={() => setModal("permits")}>
-            <p className="mt-3 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
-              최근 12개월 신축 허가(사용승인 전) 중 소형 공동주택(150세대 미만, 의무관리 기준 미달){" "}
-              <b className="font-mono text-[var(--cp-text-strong)]">
-                {d.permits.guTotal.smallAptPermits12m}건 · {d.permits.guTotal.smallAptUnits12m.toLocaleString()}세대
-              </b>
-              , 단독·다가구 {d.permits.guTotal.detachedPermits12m}건.
-            </p>
-            <div className="mt-2 flex flex-col gap-1">
+            {/* 수치 세 칸 먼저. 문장 안에 숫자를 섞어 두면 줄바꿈에서 읽히지 않는다 */}
+            <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
+              {[
+                { k: "소형 공동주택 허가", v: `${d.permits.guTotal.smallAptPermits12m}건`, s: "150세대 미만" },
+                { k: "그 세대수", v: `${d.permits.guTotal.smallAptUnits12m.toLocaleString()}세대`, s: "의무관리 기준 미달" },
+                { k: "단독·다가구 허가", v: `${d.permits.guTotal.detachedPermits12m}건`, s: "같은 기간" },
+              ].map((t) => (
+                <div key={t.k} className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
+                  <p className="text-[13.5px] text-[var(--cp-text-dim)]">{t.k}</p>
+                  <p className="font-mono text-[17px] font-semibold text-[var(--cp-text-strong)]">{t.v}</p>
+                  <p className="text-[12.5px] text-[var(--cp-text-faint)]">{t.s}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2.5 text-[13px] text-[var(--cp-text-dim)]">최근 12개월 신축 허가(사용승인 전) · 법정동 기준 · 막대는 소형 공동주택 세대수</p>
+            <div className="mt-1.5 flex flex-col gap-1">
               {d.permits.byDong.filter((r) => r.smallAptUnits > 0).map((r) => {
                 const max = d.permits!.byDong[0].smallAptUnits || 1
                 return (
@@ -342,8 +350,10 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                         style={{ width: `${(r.smallAptUnits / max) * 100}%` }}
                       />
                     </span>
-                    <span className="shrink-0 whitespace-nowrap text-right font-mono text-[13.5px] text-[var(--cp-text-muted)]">
-                      {r.smallAptPermits}건 · {r.smallAptUnits}세대
+                    {/* 건수·세대수를 열로 맞춘다. 한 덩어리 문자열이면 자릿수가 달라 끝만 맞고 가운데가 흔들린다 */}
+                    <span className="w-9 shrink-0 text-right font-mono text-[13.5px] tabular-nums text-[var(--cp-text-muted)]">{r.smallAptPermits}건</span>
+                    <span className="w-[4.6rem] shrink-0 text-right font-mono text-[13.5px] tabular-nums text-[var(--cp-text-muted)]">
+                      {r.smallAptUnits.toLocaleString()}세대
                     </span>
                   </div>
                 )

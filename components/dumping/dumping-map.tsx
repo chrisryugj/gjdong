@@ -606,16 +606,18 @@ export default function DumpingMap({
       // 민원과 과태료는 집계 시작이 다르다(민원 2024.1~, 과태료 2022.3~). 막대를 나란히 두니 툴팁에 밝힌다
       const compFrom = `${Object.keys(data.yearly.complaints)[0]}.1`
       const enfFrom = (Object.keys(data.decision.fines.monthly)[0] ?? "").replace(/-0?/, ".")
-      // 툴팁: 글자 나열이 아니라 카드. 색 칩·큰 숫자·구 최대 대비 막대·순위. 스타일은 globals.css .dump-bartip
+      // 툴팁: 글자 나열이 아니라 카드. 지표마다 색띠 블록(칩·순위·큰 숫자·천명당·구 최댓값 대비 막대). 스타일은 globals.css .dump-bartip
       const tip = (d: (typeof data.dong)[number]) => {
-        const row = (label: string, color: string, v: number, per: number, r: number) =>
-          `<div class="r"><i style="background:${color}"></i><b>${label}</b><span class="v">${v.toLocaleString()}<small>건</small></span><em>${r}위</em><span class="k">천명당 ${per}</span></div>` +
-          `<div class="bar"><i style="width:${Math.round((v / max) * 100)}%;background:${color}"></i></div>`
+        const block = (label: string, color: string, v: number, per: number, r: number) =>
+          `<div class="m" style="--c:${color}">` +
+          `<div class="h"><i></i><b>${label}</b><em>${r}위<small>/${n}</small></em></div>` +
+          `<div class="v">${v.toLocaleString()}<small>건</small><span class="k">천명당<b>${per.toFixed(1)}</b></span></div>` +
+          `<div class="bar"><i style="width:${Math.round((v / max) * 100)}%"></i></div></div>`
         return (
           `<div class="dump-bartip"><div class="t">${d.d}<span>세대 ${d.hh.toLocaleString()}</span></div>` +
-          row("민원", "#2f5aa8", d.comp, d.cr, rank("comp", d.comp)) +
-          row("과태료", "#9a6a2a", d.enf, d.er, rank("enf", d.enf)) +
-          `<div class="f">막대 길이는 구 최댓값 대비, 순위는 ${n}개 동 중<br>민원 ${compFrom}~ · 과태료 ${enfFrom}~ 누계(집계 시작이 다름)</div></div>`
+          block("민원", "#2f5aa8", d.comp, d.cr, rank("comp", d.comp)) +
+          block("과태료", "#9a6a2a", d.enf, d.er, rank("enf", d.enf)) +
+          `<div class="f">막대: 구 최댓값 대비 · 순위: ${n}개 동 중<br>누계 시작: 민원 ${compFrom} · 과태료 ${enfFrom}</div></div>`
         )
       }
       for (const d of data.dong) {

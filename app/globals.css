@@ -990,26 +990,32 @@
   .dump-rise, .dump-line { opacity: 1; transform: none; }
 }
 
-/* 동별 3D 막대 툴팁 카드. 헤더·색 칩·큰 숫자·구 최댓값 대비 막대·순위 */
+/* 동별 3D 막대 툴팁 카드. 헤더 · 지표마다 색띠 블록(칩·순위·큰 숫자·천명당·구 최댓값 대비 막대) · 각주.
+   leaflet 기본 white-space:nowrap 을 풀어야 각주가 카드 밖으로 삐져나가지 않는다 */
 .crowd-page .leaflet-tooltip.dump-bartip-wrap {
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.08);
   font-family: var(--font-suit), sans-serif;
+  white-space: normal;
+  line-height: 1.3;
 }
 .crowd-page .leaflet-tooltip.dump-bartip-wrap::before { display: none; }
-.dump-bartip { width: 236px; padding: 10px 12px 9px; color: #1f2937; }
-.dump-bartip .t { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid rgba(15, 23, 42, 0.1); font-size: 15px; font-weight: 800; }
-.dump-bartip .t span { font-size: 12px; font-weight: 500; color: #64748b; }
-.dump-bartip .r { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
-.dump-bartip .r i { align-self: center; width: 10px; height: 10px; border-radius: 3px; flex: none; }
-.dump-bartip .r b { font-size: 13px; font-weight: 700; color: #334155; width: 44px; }
-.dump-bartip .r .v { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.dump-bartip .r .v small { font-size: 12px; font-weight: 600; margin-left: 1px; color: #64748b; }
-.dump-bartip .r em { margin-left: 4px; padding: 1px 6px; border-radius: 9999px; background: rgba(12, 97, 85, 0.1); font-style: normal; font-size: 11px; font-weight: 700; color: #0c6155; }
-.dump-bartip .r .k { margin-left: auto; font-size: 12px; color: #64748b; }
-.dump-bartip .bar { height: 6px; margin: 4px 0 2px 16px; border-radius: 3px; background: rgba(15, 23, 42, 0.08); overflow: hidden; }
-.dump-bartip .bar i { display: block; height: 100%; border-radius: 3px; }
-.dump-bartip .f { margin-top: 9px; font-size: 11px; color: #94a3b8; }
+.dump-bartip { width: 252px; padding: 11px 13px 10px; color: #1f2937; }
+.dump-bartip .t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 800; color: #0f172a; }
+.dump-bartip .t span { font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
+.dump-bartip .m { margin-top: 8px; padding: 7px 10px 9px; border-radius: 8px; border-left: 3px solid var(--c); background: #f4f6f9; }
+.dump-bartip .h { display: flex; align-items: center; gap: 6px; }
+.dump-bartip .h i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.dump-bartip .h b { font-size: 13px; font-weight: 700; color: #334155; }
+.dump-bartip .h em { margin-left: auto; padding: 1px 7px; border-radius: 9999px; background: rgba(12, 97, 85, 0.1); font-style: normal; font-size: 11.5px; font-weight: 700; color: #0c6155; font-variant-numeric: tabular-nums; }
+.dump-bartip .h em small { font-size: 10.5px; font-weight: 500; opacity: 0.75; }
+.dump-bartip .v { display: flex; align-items: baseline; margin-top: 2px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: #0f172a; }
+.dump-bartip .v small { margin-left: 2px; font-size: 12px; font-weight: 600; color: #64748b; }
+.dump-bartip .v .k { margin-left: auto; font-size: 12px; font-weight: 500; color: #64748b; }
+.dump-bartip .v .k b { margin-left: 3px; font-size: 13.5px; font-weight: 700; color: #334155; }
+.dump-bartip .bar { height: 6px; margin-top: 6px; border-radius: 3px; background: rgba(15, 23, 42, 0.09); overflow: hidden; }
+.dump-bartip .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+.dump-bartip .f { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(15, 23, 42, 0.08); font-size: 11.5px; line-height: 1.45; color: #64748b; }

@@ -232,7 +232,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         {[
           // "0원(노선 조정)" 원문 대신 배지 이름 + 괄호 안. 추가 현금 지출과 총비용을 섞어 읽지 않게(J2)
           { k: "예산", v: lever.costNote && (cost ? `${cost.label}${splitParen(lever.costNote).note ? ` · ${splitParen(lever.costNote).note}` : ""}` : joinParen(lever.costNote)) },
-          { k: "담당", v: lever.owner && joinParen(lever.owner) },
+          { k: "담당", v: lever.owner && splitParen(lever.owner).main },
           { k: "효과 확인 방법", v: lever.verificationPlan && joinParen(lever.verificationPlan) },
         ]
           .filter((d) => d.v)
@@ -243,6 +243,12 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
             </div>
           ))}
       </div>
+      {/* 담당 괄호 안 = 부서별 역할과 법적 근거. 어느 과가 왜 끼는지 없으면 결재선이 담당을 오기로 읽는다(11라운드) */}
+      {lever.owner && splitParen(lever.owner).note && (
+        <p className="-mt-2 mb-4 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
+          <b className="font-semibold text-[var(--cp-text-muted)]">담당 구분</b> · {splitParen(lever.owner).note}
+        </p>
+      )}
 
       {evidence.length > 0 && (
         <div className="mb-4">

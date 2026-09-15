@@ -12,6 +12,7 @@ import {
   joinParen,
   proposalRows,
   shortTarget,
+  splitParen,
   STATUS_FALLBACK,
   STATUS_STYLE,
   type LeverView,
@@ -27,7 +28,7 @@ import type { MethodsSection } from "./methods-modal"
 // 10라운드 냉독: 결재선은 첫 화면에서 "할 일"을 못 찾았다. 제안 이름을 결론 바로 아래로).
 // 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 지도로 이어진다.
 
-function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void; i?: number }) {
+function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void; i?: number; n?: number }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
   const cost = costBadge(lv.costNote)
   const proposal = lv.status === "제안"
@@ -41,6 +42,7 @@ function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGra
       className="dump-rise rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
     >
       <span className="flex flex-wrap items-center gap-1.5">
+        {n != null && <span className="mr-0.5 font-mono text-[12.5px] text-[var(--cp-text-faint)]">{n}</span>}
         <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-bold ${status.cls}`}>{status.label}</span>
         {cost && <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
         {lv.preRegistered && (
@@ -49,7 +51,10 @@ function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGra
           </span>
         )}
       </span>
-      <h4 className="mt-2 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">{lv.node.label}</h4>
+      {/* 라벨 꼬리가 예산 등급과 같은 말이면(예: "(추가 예산 없음)") 위 배지와 겹치므로 뗀다. 다른 꼬리(대상·근거)는 그대로 */}
+      <h4 className="mt-2 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">
+        {cost && lv.node.label.endsWith(`(${cost.label})`) ? shortTarget(lv.node.label) : lv.node.label}
+      </h4>
       {lv.targets.length > 0 && (
         <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[13.5px] text-[var(--cp-text-dim)]">
           겨냥
@@ -66,7 +71,8 @@ function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGra
           {lv.owner && (
             <div className="flex gap-2">
               <dt className="w-8 shrink-0 font-medium">담당</dt>
-              <dd className="text-[var(--cp-text-muted)]">{joinParen(lv.owner)}</dd>
+              {/* 괄호 앞 이름만. 역할 근거(괄호 안)는 모달·결재 한 장에서 */}
+              <dd className="text-[var(--cp-text-muted)]">{splitParen(lv.owner).main}</dd>
             </div>
           )}
           {lv.verificationPlan && (
@@ -84,11 +90,23 @@ function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGra
   )
 }
 
+// 첫 화면 수치 칸 3개가 띄우는 지도. β는 다가구·단독 바탕, 채널고정은 민원 바탕(격자 자료에 채널 구분이 없어 앱 포함 전체),
+// 상습격자는 운영·전망 탭과 같은 강조 레이어 토글. 칸 밑 문구와 지도 툴바 "반영 중" 이름이 같은 낱말을 쓰도록 여기 한 곳에
+export type HeadlineId = "beta" | "fixed" | "critical"
+export const HEADLINE_MAP_LABEL: Record<HeadlineId, string> = {
+  beta: "다가구·단독 밀집 바탕",
+  fixed: "민원 바탕(앱 포함 전체)",
+  critical: "집중관리 상습격자(앱 포함)",
+}
+
 interface PolicyBoardProps {
   graph: OntoGraph | null
   data: DumpingMapData | null
   onShowMap: (lever: LeverView) => void
   activeLeverId: string | null
+  onHeadline: (id: HeadlineId) => void // 수치 칸 클릭 → 지도
+  activeHeadline: HeadlineId | null // 지도에 반영 중인 수치 칸(β·채널고정)
+  criticalOn: boolean // 상습격자 강조 레이어 상태(운영·전망 탭과 공유)
   onOpenMethods: (section: MethodsSection) => void // 평가자 링크 줄: 데이터·방법 모달
   onGoFindings: () => void // 평가자 링크 줄: 발견 탭
 }
@@ -122,7 +140,17 @@ function Folded({ n, title, sub, children }: { n: string; title: string; sub?: s
   )
 }
 
-export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onOpenMethods, onGoFindings }: PolicyBoardProps) {
+export default function PolicyBoard({
+  graph,
+  data,
+  onShowMap,
+  activeLeverId,
+  onOpenMethods,
+  onGoFindings,
+  onHeadline,
+  activeHeadline,
+  criticalOn,
+}: PolicyBoardProps) {
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
   const rows = useMemo(() => (graph ? proposalRows(graph) : []), [graph])
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
@@ -158,18 +186,21 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
   const conclusion = growth
     ? `단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 이 자료로 단정할 수 없습니다.`
     : "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 이 자료로 단정할 수 없습니다."
-  const headline: Headline[] = [
+  const headline: (Headline & { id: HeadlineId })[] = [
     {
+      id: "beta",
       k: "다가구·단독 밀집 β",
       v: topBeta ? `${topBeta.beta > 0 ? "+" : ""}${topBeta.beta.toFixed(3)}` : "미산출",
       sub: `격자 회귀 조건 ${betas.length}개 중 적발 기록(과태료)과 가장 강하게 같이 움직임`,
     },
     {
+      id: "fixed",
       k: "채널고정 민원(앱 제외)",
       v: growth ? fmtRatio(growth.fixed) : "미산출",
       sub: growth ? `${growth.baseYear}년 대비 연환산. 앱 신고 ${fmtRatio(growth.app)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}(최근 2~3개월 과소집계)` : "",
     },
     {
+      id: "critical",
       k: "집중관리 상습격자(앱 제외)",
       v: kpi ? `${kpi.criticalCellsNowNoApp}곳` : "미산출",
       sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸. 분기 추이 ${noAppTrend.length ? noAppTrend.join("→") : "미산출"}, 앱 포함 ${kpi.criticalCellsNow}곳` : "",
@@ -192,19 +223,39 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
         <h2 className="dump-rise mt-1.5 text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]" style={{ "--i": 1 } as React.CSSProperties}>
           {conclusion}
         </h2>
-        {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다 */}
-        <dl className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-          {headline.map((h, i) => (
-            <div key={h.k} className="dump-rise relative min-w-0 pl-3" style={{ "--i": 3 + i } as React.CSSProperties}>
-              <span className="dump-line absolute inset-y-0 left-0 w-px bg-[var(--cp-border-strong)]" style={{ "--i": 3 + i } as React.CSSProperties} aria-hidden />
-              <dt className="text-[13px] leading-tight text-[var(--cp-text-muted)] break-keep">{h.k}</dt>
-              <dd className="mt-1 font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">
-                <CountUp text={h.v} delayMs={250 + i * 90} />
-              </dd>
-              <dd className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{h.sub}</dd>
-            </div>
-          ))}
-        </dl>
+        {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다.
+            칸은 버튼: 누르면 그 수치가 가리키는 화면을 오른쪽 지도에 띄운다(운영·전망 탭 성과지표 칸과 같은 동작) */}
+        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+          {headline.map((h, i) => {
+            const on = h.id === "critical" ? criticalOn : activeHeadline === h.id
+            return (
+              <button
+                key={h.k}
+                type="button"
+                onClick={() => onHeadline(h.id)}
+                aria-pressed={on}
+                className={`dump-rise relative min-w-0 rounded-r-lg py-1 pl-3 pr-2 text-left transition-colors ${
+                  on ? "bg-[#0c6155]/8 ring-1 ring-[#0c6155]/40" : "hover:bg-[var(--cp-hover)]"
+                }`}
+                style={{ "--i": 3 + i } as React.CSSProperties}
+              >
+                <span
+                  className={`dump-line absolute inset-y-0 left-0 w-px ${on ? "bg-[#0c6155]" : "bg-[var(--cp-border-strong)]"}`}
+                  style={{ "--i": 3 + i } as React.CSSProperties}
+                  aria-hidden
+                />
+                <span className="block break-keep text-[13px] leading-tight text-[var(--cp-text-muted)]">{h.k}</span>
+                <span className="mt-1 block font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">
+                  <CountUp text={h.v} delayMs={250 + i * 90} />
+                </span>
+                <span className="mt-1.5 block text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{h.sub}</span>
+                <span className="mt-1.5 block text-[12.5px] font-medium text-[#0c6155]">
+                  {on ? (h.id === "critical" ? "지도 표시 중 · 눌러서 끄기" : "지도 표시 중") : "지도에 표시 →"}
+                </span>
+              </button>
+            )
+          })}
+        </div>
         {/* 두 독자의 진입점. 결재선은 인쇄, 평가자는 근거 경로 */}
         <div className="dump-rise mt-4 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ "--i": 7 } as React.CSSProperties}>
           <button
@@ -225,23 +276,27 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
             ))}
           </span>
         </div>
-        {/* 할 일이 첫 화면에 보이게. 제안 이름 6개, 누르면 그 카드의 모달 */}
-        <div className="dump-rise mt-3 flex flex-wrap items-center gap-1.5 text-[13.5px]" style={{ "--i": 8 } as React.CSSProperties}>
-          <span className="mr-0.5 text-[var(--cp-text-dim)]">제안 {proposals.length}건</span>
-          {proposals.map((lv, i) => {
-            const cost = costBadge(lv.costNote)
-            return (
-              <button
-                key={lv.node.id}
-                onClick={() => setOpenLever(lv)}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] py-0.5 pl-2 pr-1 text-[13.5px] text-[var(--cp-text)] hover:border-[#0c6155]/60"
-              >
-                <span className="font-mono text-[11px] text-[var(--cp-text-faint)]">{i + 1}</span>
-                {shortTarget(lv.node.label)}
-                {cost && <span className={`rounded px-1 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
-              </button>
-            )
-          })}
+        {/* 할 일이 첫 화면에 보이게. 제안 목차: 번호 · 이름 · 예산 등급을 열로 맞추고 03 카드와 같은 번호로 잇는다.
+            칩을 흘려 놓으면 줄바꿈이 제각각이라 6건이 하나로 읽히지 않았다 */}
+        <div className="dump-rise mt-4" style={{ "--i": 8 } as React.CSSProperties}>
+          <p className="mb-1.5 text-[13px] font-medium tracking-wide text-[var(--cp-text-dim)]">제안 {proposals.length}건 · 예산이 들지 않는 것부터</p>
+          <ol className="divide-y divide-[var(--cp-border)] overflow-hidden rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
+            {proposals.map((lv, i) => {
+              const cost = costBadge(lv.costNote)
+              return (
+                <li key={lv.node.id}>
+                  <button
+                    onClick={() => setOpenLever(lv)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--cp-hover)]"
+                  >
+                    <span className="w-4 shrink-0 font-mono text-[12px] text-[var(--cp-text-faint)]">{i + 1}</span>
+                    <span className="min-w-0 flex-1 break-keep text-[14.5px] font-medium text-[var(--cp-text-strong)]">{shortTarget(lv.node.label)}</span>
+                    {cost && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
         </div>
       </section>
 
@@ -298,7 +353,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
         </SectionHead>
         <div className="flex flex-col gap-2.5">
           {proposals.map((lv, i) => (
-            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} i={i} />
+            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} i={i} n={i + 1} />
           ))}
         </div>
       </section>
