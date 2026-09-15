@@ -618,7 +618,8 @@ export default function DumpingMap({
         })
           .bindTooltip(
             `<b>${d.d}</b><br>민원 ${d.comp.toLocaleString()}건 · 과태료 ${d.enf.toLocaleString()}건<br>주민 천명당 민원 ${d.cr} · 과태료 ${d.er}`,
-            { direction: "top", opacity: 1, offset: [0, -(H + BAR_TOP)] },
+            // top 고정이면 북쪽 끝 동(중곡3·4동)에서 지도 밖으로 나간다. auto = 지도 중심 기준 좌/우로 뒤집힘. 막대 중간 높이 옆에
+            { direction: "auto", opacity: 1, offset: [BAR_W / 2 + 4, -(H + BAR_TOP) / 2] },
           )
           .addTo(group)
       }
