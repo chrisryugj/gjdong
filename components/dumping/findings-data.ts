@@ -158,7 +158,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         `해석: 과태료 부과는 같은 기준으로 ${fmtRatio(g.fines)}, 오히려 ${finesDirection(g)}습니다. 다만 과태료의 ${100 - g.patrolSharePct}%는 신고를 받아 나간 것이라 신고 성향과 무관하지 않습니다. 신고와 독립인 순찰(수시) 적발만 따로 봐도 ${fmtRatio(g.finesPatrol)}로 줄었습니다. 늘어난 부분은 발생 증가보다 신고 채널의 변화로 설명되는 몫이 큽니다. 앱 이용자 수·중복 신고·단속 인시 자료가 없어 발생 증가를 완전히 배제하지는 못합니다. 연도별 민원 건수로 성과를 평가하면 안 되는 이유입니다.`,
         ...(step
           ? [
-              `앱 신고는 서서히 늘지 않았습니다. ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 ${step.ratio.toFixed(1)}배 뛰었고 그 뒤로 그 수준이 이어집니다${step.seoulRatio ? `(서울 전체 청소 신고는 같은 달 ${step.seoulRatio.toFixed(2)}배)` : ""}. 광진구에서 그 달에 무엇이 바뀌었는지(홍보·포상·앱 연계)는 아직 확인하지 못했습니다. "앱 보급 효과"는 채널별 관측 증가분을 나눈 결과이지, 앱이 원인이라고 식별한 것이 아닙니다.`,
+              `앱 신고는 서서히 늘지 않았습니다. ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 ${step.ratio.toFixed(1)}배 뛰었고 그 뒤로 그 수준이 이어집니다${step.seoulRatio ? `(서울 전체 청소 신고는 같은 달 ${step.seoulRatio.toFixed(2)}배)` : ""}. 청소과 현장 설명은 이사철·해빙기에 눈에 띄는 투기가 늘어 신고가 몰린다는 것이고, 해마다 2월에서 3월로 신고가 느는 것은 자료와 맞습니다. 다만 그해 배율이 유독 크고 그 수준이 이어진 까닭(홍보·포상·앱 연계)은 아직 확인하지 못했습니다. "앱 보급 효과"는 채널별 관측 증가분을 나눈 결과이지, 앱이 원인이라고 식별한 것이 아닙니다.`,
             ]
           : []),
         ...(link && link.reportedLinkedPct != null

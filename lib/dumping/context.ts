@@ -26,6 +26,18 @@ const EVS = ((graph.nodes.find((n) => n.id === "ev-did-cctv")?.props as Record<s
   | { n_treated: number; n_never: number; n_obs: number }
   | null
 const STEP = appStep(MAP)
+// 계단 달의 전년 같은 달 앱 배율(청소과 "매년 3월" 설명을 자료로 대조하기 위해)
+const PREV_STEP = (() => {
+  if (!STEP) return null
+  const app = MAP.decision.channels.monthly?.app as Record<string, number> | undefined
+  if (!app) return null
+  const [y, mm] = STEP.month.split("-")
+  const py = String(Number(y) - 1)
+  const pm = `${py}-${String(Number(mm) - 1).padStart(2, "0")}`
+  const from = app[pm]
+  const to = app[`${py}-${mm}`]
+  return from && to ? { from, to, ratio: to / from } : null
+})()
 const LINK = ROUTE?.complaintLink
 const GEO = geocodeExcluded(MAP)
 const ITEM = MAP.decision.regressionV2?.itemSplit
@@ -96,7 +108,10 @@ export function buildSystemPrompt(): string {
    단, 과태료의 ${100 - G.patrolSharePct}%는 신고 유래라 신고 성향과 독립인 실측이 아니다. 신고와 독립인 순찰(수시) 적발만 봐도 ${fmtRatio(G.finesPatrol)}로 줄었다.
    앱 이용자 수·중복 신고·단속 인력 자료가 없어 발생 증가를 완전히 배제하지는 못한다. ${finesCensorNote(MAP)}.
    "앱 보급 효과"는 채널별 관측 증가분을 나눈 결과이지 앱이 원인이라고 식별한 것이 아니다. "늘어난 것은 신고 창구뿐이고 발생은 늘지 않았다"처럼 발생 증가를 배제하는 단정은 금지.${
-     STEP ? `\n   앱 민원은 ${ym(STEP.month)}에 한 달 만에 ${STEP.from}건→${STEP.to}건(${STEP.ratio.toFixed(1)}배)으로 계단식으로 뛰었고${STEP.seoulRatio ? ` 서울 전체 청소 신고는 같은 달 ${STEP.seoulRatio.toFixed(2)}배였다` : ""}. 그 달 광진구에서 무엇이 바뀌었는지는 미확인이다. 물으면 "원인 미확인"이라고 답하라.` : ""
+     STEP ? `\n   앱 민원은 ${ym(STEP.month)}에 한 달 만에 ${STEP.from}건→${STEP.to}건(${STEP.ratio.toFixed(1)}배)으로 계단식으로 뛰었고${STEP.seoulRatio ? ` 서울 전체 청소 신고는 같은 달 ${STEP.seoulRatio.toFixed(2)}배였다` : ""}.
+   청소과 현장 설명(2026-09-15, 자료로 검증된 것은 아님): 3월은 이사철·개학이고 날이 풀려 사람이 다니며 눈에 띄는 것이 늘고, 겨울에 눈에 가려 있던 것이 녹으며 드러나고, 3월엔 대형폐기물 무단투기가 많다.
+   자료와 맞는 부분: 해마다 2→3월에 신고가 는다${PREV_STEP ? `(전년 같은 달 앱 ${PREV_STEP.from}건→${PREV_STEP.to}건, ${PREV_STEP.ratio.toFixed(1)}배)` : ""}. 계절별 일평균 민원은 봄 ${MAP.env.seasons["봄"]?.compPerDay ?? "·"}건, 겨울 ${MAP.env.seasons["겨울"]?.compPerDay ?? "·"}건.
+   다 설명되지 않는 부분: ${ym(STEP.month)}의 배율은 전년 3월보다 크고 그 수준이 다음 달들에도 이어진다. 물으면 "계절·가시성 요인이 현장 설명이고, 그 이상(홍보·포상·앱 연계 변화)은 미확인"이라고 답하라. 원인을 하나로 단정하지 마라.` : ""
    }${
      LINK && LINK.reportedLinkedPct != null ? `\n   민원 데이터셋은 청소과 접수분이며 신고 전체가 아니다. 신고 유래 과태료 ${LINK.reported.toLocaleString()}건 중 같은 격자 ±${LINK.windowDays}일 안에 민원이 있는 건은 ${LINK.reportedLinked}건(${LINK.reportedLinkedPct}%)뿐이다(안전신문고 등 다른 경로 미확보). 같은 비율이 민원+과태료 합산 지표의 이중계산 상한이기도 하다.` : ""
    }
@@ -141,6 +156,9 @@ export function buildSystemPrompt(): string {
    원자료에 어떤 항목이 있었는지, 삭제·가명처리를 어떻게 했는지, 개인정보 영향평가 같은 법적 판단은 이 분석 범위 밖이니 "담당 부서 확인 뒤 답하겠다"고 하라. "문제 없다"고 단정하지 말고, 하지 않은 처리를 했다고 말하지 마라.
 18. 대책 효과 확인 시점을 물으면 구체적으로 답하라. 조치 대장에 사전등록하고 시행하면 집중관리 상습격자 KPI가 분기마다 갱신되므로 시행 다음 분기 말이 첫 판정 시점이고, 계절 효과를 빼려면 전년 같은 분기와 견준다. "수개월"처럼 흐리게 말하지 마라.
 19. 다른 자치구와 비교를 물으면 25개 구의 무단투기 발생·과태료를 직접 견준 자료는 없다고 분명히 말하라. 있는 것은 서울 전체 앱 청소 신고 추이와 통합관제 CCTV 대수 순위뿐이다.
+20. 목표치를 물으면 정해진 목표는 없다고 말하고, 아래 "운영 KPI"의 분기 추이(집중관리 상습격자, 앱 제외 값 포함)를 참고 기준으로 제시하라. 목표 숫자를 네가 정해 말하지 마라.
+21. "과태료가 줄었으니 단속을 안 한 것 아니냐"는 물음에는 단속 인력·근무시간 자료가 없어 단속 강도의 변화는 이 자료로 판단할 수 없다고 답하라.
+   함께 말할 사실: 신고와 독립인 순찰 적발도 같은 기준으로 줄었고, 최근 두세 달은 부과 지연으로 과소 집계된다. 단속 부진이라고도, 발생 감소라고도 단정하지 마라.
 
 ## 답변 형식 (독자는 통계를 모르는 구청장·일반 직원·어르신이다. 답은 소리로도 읽어 준다)
 답은 두 부분이다. 앞부분은 음성으로 읽어 주고 화면에 크게 보이며, 뒷부분은 화면 아래에 작게 붙는다.

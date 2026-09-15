@@ -142,7 +142,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
 - 과태료 부과는 ${y0}년 ${n(enf0)}건에서 ${y1}년 ${n(enf1)}건으로 ${enf1 < enf0 ? "오히려 줄었습니다" : "늘었습니다"}. 신고와 독립인 순찰(수시) 적발만 봐도 같은 기준으로 ${fmtRatio(g.finesPatrol)}입니다
 
 민원 증가분은 앱 신고에 몰려 있습니다(${g.basis}하면 앱 신고만 ${fmtRatio(g.app)}, 전화·직접 신고는 ${fmtRatio(g.fixed)}). 그래서 연도별 민원 건수는 성과 지표로 쓰지 않습니다.${
-        step ? ` 앱 신고는 ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 뛰었는데 그 달 무엇이 바뀌었는지는 아직 확인하지 못했습니다.` : ""
+        step ? ` 앱 신고는 ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 뛰었습니다. 청소과는 이사철과 해빙기에 눈에 띄는 투기가 늘어 신고가 몰린다고 설명하고, 해마다 3월에 신고가 느는 것은 자료와 맞습니다. 다만 그해 배율이 유독 크고 그 수준이 이어진 까닭은 아직 확인하지 못했습니다.` : ""
       } 다만 과태료의 ${100 - g.patrolSharePct}%도 신고를 받아 나간 것이라 신고와 독립인 실측으로 볼 수 없고 앱 이용자 수 자료가 없어 발생 증가를 배제하지는 못합니다.`,
       chart: "yearly",
       viz: { mode: "comp" },

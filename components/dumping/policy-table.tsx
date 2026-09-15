@@ -123,7 +123,8 @@ export function PolicyPrintModal({ open, graph, rows, conclusion, headline, peri
       </dl>
       <p className="mt-4 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)] print:text-[11px]">
         원칙. 새 개입은 실행 전에 대상 격자, 기간, 비교 대상, 판정 지표를 조치 대장에 등록합니다. 이동식 CCTV의 효과 주장이
-        비교 방법 오류로 철회된 뒤 만든 장치입니다. 근거 자료와 방법은 상황실 화면의 데이터·방법에 있습니다.
+        비교 방법 오류로 철회된 뒤 만든 장치입니다. 판정 시점은 시행 다음 분기 말(집중관리 상습격자 지표 분기 갱신)이며 계절 효과를 빼기 위해 전년 같은 분기와
+        견줍니다. 근거 자료와 방법은 상황실 화면의 데이터·방법에 있습니다.
       </p>
       {team && <p className="mt-2 text-[13px] text-[var(--cp-text-dim)] print:text-[10.5px]">작성 {team} · 클린광진 상황실</p>}
     </ModalShell>
