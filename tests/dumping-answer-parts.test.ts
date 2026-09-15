@@ -34,9 +34,9 @@ test("완성 문장만 골라내고 숫자 안의 점은 끊지 않는다", () =
 
 test("ttsClean은 괄호 풀이·β·p값·가운뎃점을 말로 바꾼다", () => {
   const t = ttsClean("다가구·단독 밀집(건축물대장 기준) β +0.306, p<0.001, 오차 9.0%·10~12건\n[부연]\n- 항목")
-  assert.doesNotMatch(t, /[()β%·~\[\]]/)
+  assert.doesNotMatch(t, /[()β%·~[\]]/)
   assert.match(t, /베타/)
-  assert.match(t, /통계적으로 매우 유의/)
+  assert.match(t, /연관이 뚜렷함/)
   assert.match(t, /9\.0퍼센트/)
   assert.match(t, /10에서 12건/)
   assert.doesNotMatch(t, /^- /m)

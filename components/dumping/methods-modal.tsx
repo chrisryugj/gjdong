@@ -20,6 +20,9 @@ interface Dataset {
 
 const n = (v: number) => v.toLocaleString()
 
+// 해설서 원문(공개 레포). 여기서 다루지 않는 한계·검정 세부는 이리로. 정책 탭 근거 경로 "한계"는 이 모달로 온다
+const EXPLAINER_URL = "https://github.com/chrisryugj/gjdong/blob/main/docs/dumping-stats-explainer.md"
+
 // 구청 내부 행정자료 (청소과·동주민센터 제공)
 const provided = (data: DumpingMapData): Dataset[] => {
   const s = summarize(data)
@@ -40,14 +43,15 @@ const provided = (data: DumpingMapData): Dataset[] => {
       use: `단속 적발 기록(적발 경로 신고 유래 ${100 - channelGrowth(data).patrolSharePct}% · 순찰 ${channelGrowth(data).patrolSharePct}%). 회귀분석의 결과지표, 품목 분해·징수 퍼널`,
     },
     {
+      // 10라운드: 같은 시설이 화면마다 다른 수(276/264, 940/857)로 보였다. 장부 원수와 지도 표시 수를 같이 적고 차이의 정의를 말한다
       name: "CCTV 현황 (고정·이동식)",
-      scale: `고정 ${cctvFixed.records.length}개소 · 이동식 ${cctvMobile.records.length}대`,
-      use: "배치 지도 레이어, 이동식 CCTV 효과 검증(DID)의 설치 정보",
+      scale: `고정 장부 ${data.infra.cctvFixed.length}개소(지도 ${cctvFixed.records.length}) · 이동식 장부 ${data.meta?.geocode?.cctvMobile?.rows ?? cctvMobile.rows}대(지도 ${cctvMobile.records.length}대)`,
+      use: `배치 지도 레이어, 이동식 CCTV 효과 검증(DID)의 설치 정보. 지도 수가 적은 것은 중복 행과 위치 미확인분(이동식 ${data.meta?.geocode?.cctvMobile?.fallbackExcluded ?? 0}대)을 뺀 값`,
     },
     {
       name: "재활용정거장 설치현황",
-      scale: `${n(recycling.records.length)}곳`,
-      use: "배치 지도 레이어. 설치·철거 변이가 없어 효과 판정은 불가",
+      scale: `장부 ${n(data.meta?.geocode?.recycling?.rows ?? recycling.rows)}건(운영·철거 포함) · 지도 ${n(recycling.records.length)}곳`,
+      use: "배치 지도 레이어. 2024년이 마지막 신규 설치이고 철거 날짜가 기록된 건이 3건뿐이라 설치·철거 전후 비교(효과 판정)는 불가",
     },
     {
       name: "가로쓰레기통 설치현황",
@@ -189,7 +193,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
       easy: '여러 요인이 섞여 있을 때 각 요인의 영향을 구분하는 계산입니다. "가게가 많아서인가, 관리가 없어서인가"를 한꺼번에 넣고 따로 측정하는 것이고, β는 그 영향의 크기입니다.',
       here: `격자 ${n(sz.gridN)}칸에서 과태료 건수를 종속변수로 놓고 분석해 보니 다가구·단독 밀집(건축물대장 다가구 가구+일반단독 동을 합친 밀도)이 β ${unm ? signed(unm.beta) : "+0.312"}로 가장 컸고 공동주택 세대수는 연관 확인 안 됨(p=${apt ? apt.p.toFixed(3) : "0.708"}), 골목 비율은 오히려 음수(${alley ? signed(alley.beta) : "−0.222"})였습니다.`,
       caution:
-        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고 v2 모형은 서울시 250m 생활인구를, v3 모형은 SGIS 100m 상주인구까지 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "·"}, 상주인구 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}, 다가구·단독 밀집은 그대로). 이 변수는 건축물대장 대리변수입니다. K-apt 등록 세대로 다시 나눠 보면 연관은 다가구·일반단독에 몰려 있고 관리사무소가 없는 다세대·연립은 연관이 확인되지 않았습니다. 차량 담배꽁초를 뺀 생활쓰레기만으로 다시 적합해도 다가구·단독 β는 유지됩니다(발견 탭 품목 분리). 조건부 연관이지 인과를 증명한 것은 아닙니다.`,
+        `표준오차 계산을 세 가지(이분산 보정, 군집 보정, wild bootstrap)로 바꾸고 음이항 모형으로도 적합해 판정이 유지될 때만 채택했습니다. 기준 모형에 인구 변수는 없었고, 생활인구 추가 모형은 서울시 250m 생활인구를, 상주인구 추가 모형은 SGIS 100m 상주인구까지 노출 변수로 더했습니다(생활인구 β ${data.decision.regressionV2 ? (data.decision.regressionV2.v2_100.coef.living_pop.beta > 0 ? "+" : "") + data.decision.regressionV2.v2_100.coef.living_pop.beta : "·"}, 상주인구 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}, 다가구·단독 밀집은 그대로). 이 변수는 건축물대장 대리변수입니다. K-apt 등록 세대로 다시 나눠 보면 연관은 다가구·일반단독에 몰려 있고 관리사무소가 없는 다세대·연립은 연관이 확인되지 않았습니다. 차량 담배꽁초를 뺀 생활쓰레기만으로 다시 적합해도 다가구·단독 β는 유지됩니다(발견 탭 품목 분리). 조건부 연관이지 인과를 증명한 것은 아닙니다. 공간 모형·상주인구·K-apt 대조 등 강건성 검정의 β(+0.315 등)는 2026-09-13 폴백 정정 전 표본 값이며 정정 후 재적합은 아직 하지 않았습니다(방향·유의성 동일).`,
     },
     {
       name: "이중차분(DID)과 이벤트 스터디",
@@ -206,7 +210,7 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "핫스팟 점수와 백테스트",
       easy: `최근에 생긴 일일수록 가중치를 높여(90일이 지나면 절반) 격자마다 점수를 매기고 점수가 높은 지역을 다음 분기 관리 대상으로 뽑습니다. 믿을 만한지는 과거 시점으로 돌아가 확인합니다. 작년 이맘때 이 방법으로 뽑았다면 실제로 맞았을지를 ${bt.windows.length}개 분기에 걸쳐 반복 채점했습니다.`,
-      here: `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기 실제 발생이 있었습니다. 구 전체 발생의 ${bt.avgCapture20 ?? "미산출"}%가 이 20곳 안에서 일어났습니다. 무작위로 20곳을 고르면 ${bt.avgRandomCapture ?? "미산출"}%입니다.${
+      here: `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기 민원·과태료 기록이 있었습니다. 구 전체 기록의 ${bt.avgCapture20 ?? "미산출"}%가 이 20곳 안에서 일어났습니다. 무작위로 20곳을 고르면 ${bt.avgRandomCapture ?? "미산출"}%입니다.${
         bt.baselines ? ` 담당자가 원래 쓰는 방식과도 같은 창·같은 20곳으로 비교했습니다. ${Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(", ")}.` : ""
       }`,
       caution: bt.baselines
@@ -216,16 +220,16 @@ const methods = (data: DumpingMapData, graph: OntoGraph | null): Method[] => {
     {
       name: "홀트윈터스 수요 전망",
       easy: "월별 접수의 수준과 추세, 계절 반복(여름에 많고 겨울에 적은 흐름)을 학습해 다음 달을 내다보는 시계열 모형입니다.",
-      here: `매달 그 이전 자료로만 모수를 고르고 다음 달을 맞히는 롤링 원점 검증(${fc.window})에서 평균 오차 ${fc.mapePct}%, 전년 동월 값을 쓰는 기준모형은 ${fc.naiveMapePct ?? "미산출"}%였습니다. 80% 예측구간 적중률은 ${fc.coverage80Pct ?? "미산출"}%입니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
-      caution: `신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 평가 구간을 분리했지만 평가 표본이 ${fc.rows?.length ?? "미산출"}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.`,
+      here: `매달 그 이전 자료로만 모수를 고르고 다음 달을 맞히는 롤링 원점 검증(${fc.window})에서 평균 오차 ${fc.mapePct}%, 전년 동월 값을 쓰는 기준모형은 ${fc.naiveMapePct ?? "미산출"}%였습니다. 80% 예측구간 적중률 ${fc.coverage80Pct ?? "미산출"}%는 같은 ${fc.rows?.length ?? 6}개월 잔차로 구간 폭과 적중률을 계산한 값이라 독립 검증 전입니다. 인력과 순찰 배치를 위한 행정수요 전망으로만 씁니다.`,
+      caution: `신고 접수량 전망이지 발생량 예측이 아닙니다. 모수 선택 구간과 평가 구간을 분리했지만 평가 표본이 ${fc.rows?.length ?? "미산출"}개월뿐이라 오차 추정 자체의 불확실성은 큽니다. 2~6개월 앞 구간은 근사치입니다.`,
     },
     {
       name: "근거 그래프 (온톨로지)",
-      easy: '데이터셋·증거·주장·지표·대책을 점으로 놓고, 그 사이 관계(뒷받침한다, 겨냥한다)를 선으로 이은 지식 지도입니다. 표로는 확인할 수 없는 질문, 예를 들어 "연관 요인 가운데 대책이 없는 것은?" 같은 물음을 기계적으로 확인할 수 있습니다.',
-      here: `${g ? `${g.nodes}개 지식과 ${g.edges}개 연결로`: "지식과 연결로"} 구성했습니다. 청년·외국인·1인세대 요인에 대응 수단이 없다는 빈칸이 여기서 드러나 다국어 안내와 전입 시점 안내 등 신규 대책 세 가지가 나왔습니다.`,
+      easy: '데이터셋·증거·주장·지표·대책을 점으로 놓고, 그 사이 관계(뒷받침한다, 겨냥한다)를 선으로 이은 지식 지도입니다. 연결을 따라가야 답이 나오는 질문, 예를 들어 "연관 요인 가운데 대책이 없는 것은?" 같은 물음을 같은 규칙으로 검사합니다. 주장이 철회되거나 범위가 좁혀지면 그 이력도 남깁니다.',
+      here: `${g ? `${g.nodes}개 지식과 ${g.edges}개 연결로`: "지식과 연결로"} 구성했습니다. 이번에 모은 정책 목록에서 청년·외국인·1인세대 요인에 연결된 수단이 없다는 공백이 여기서 드러나 다국어 안내와 전입 시점 안내 등 검토 대책 세 가지가 나왔습니다.`,
     },
     {
-      name: "검증 하네스와 한계 공개",
+      name: "전제 조건 검사와 한계 공개",
       easy: "결론을 내기 전에 통계의 전제 조건이 실제로 성립하는지 따로 검사하고 어긋난 것은 숨기지 않고 적었습니다.",
       here: `잔차 정규성·등분산성·공간 독립성 위배를 확인해 보정 모형을 함께 돌렸고, 청년·외국인·1인세대·다가구·단독 밀집이 상관 ${col}로 겹쳐 있어 무엇이 진짜 요인인지 구분할 수 없다는 한계를 밝혀 두었습니다. 어느 하나를 원인으로 지목하는 해석은 피해야 합니다.`,
     },
@@ -395,7 +399,12 @@ export default function MethodsModal({
             </section>
           ))}
           <p className="text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
-            상세 수식·검증 절차는 내부 분석 저장소 gwangjin-dumping(비공개)의 README와 REPRODUCE/MODEL_SPEC.md에 있습니다. 고정 산출물의 무결성은 해시로, 핵심 수치는 verify.py 재계산으로 확인하며 모형 재추정은 각 스크립트로 합니다.
+            상세 수식·검증 절차는 재현 패키지(비공개 저장소, 요청 시 열람)에 있습니다. 고정 산출물의 무결성은 해시로, 핵심 수치는 검증 스크립트 재계산으로 확인하며 모형 재추정은 각 스크립트로 합니다.
+            한계·검정 세부는{" "}
+            <a href={EXPLAINER_URL} target="_blank" rel="noreferrer" className="font-medium text-[#0c6155] hover:underline">
+              통계 해설서(공개)
+            </a>
+            에 있습니다.
           </p>
         </div>
       )}

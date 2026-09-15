@@ -12,6 +12,7 @@ import {
   joinParen,
   primaryStat,
   reasonSentences,
+  splitParen,
   STATUS_FALLBACK,
   STATUS_STYLE,
   vizForLever,
@@ -119,8 +120,8 @@ function FlowDiagram({ lever, target }: { lever: string; target: string | null }
       {box(lever, "bg-[#0c6155] text-white")}
       {arrow("겨냥")}
       {box(target ?? "수거·단속 운영 방식", "bg-[#0c6155]/12 text-[#0a4a41]")}
-      {arrow("줄임")}
-      {box("무단투기 발생", "border border-[var(--cp-border-strong)] text-[var(--cp-text-strong)]")}
+      {arrow("기대 방향(검증 전)")}
+      {box("무단투기 적발 기록", "border border-[var(--cp-border-strong)] text-[var(--cp-text-strong)]")}
     </div>
   )
 }
@@ -229,7 +230,8 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
       <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
-          { k: "예산", v: lever.costNote && joinParen(lever.costNote) },
+          // "0원(노선 조정)" 원문 대신 배지 이름 + 괄호 안. 추가 현금 지출과 총비용을 섞어 읽지 않게(J2)
+          { k: "예산", v: lever.costNote && (cost ? `${cost.label}${splitParen(lever.costNote).note ? ` · ${splitParen(lever.costNote).note}` : ""}` : joinParen(lever.costNote)) },
           { k: "담당", v: lever.owner && joinParen(lever.owner) },
           { k: "효과 확인 방법", v: lever.verificationPlan && joinParen(lever.verificationPlan) },
         ]
@@ -260,8 +262,8 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </div>
       )}
 
-      {/* 그래프에 통계 엣지가 하나도 없으면 제목·주석만 덩그러니 남는다. 통째로 숨김 */}
-      {(betas.length > 0 || rhos.length > 0) && (
+      {/* 그래프에 통계 엣지가 하나도 없으면 제목·주석만 덩그러니 남는다. 겨냥 요인이 없는 운영 수단(수거 시간대 조정)에도 무관한 막대라 숨김 */}
+      {lever.targets.length > 0 && (betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
           <h4 className="text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
             무단투기를 늘리는 조건과 이 사업이 겨냥하는 지점

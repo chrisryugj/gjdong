@@ -82,7 +82,7 @@ function cellTooltip(cell: GridCell): string {
 function candidateTooltip(rank: number, c: CctvCandidate): string {
   return (
     `<b>재배치 후보 ${rank}위</b> · ${escapeHtml(c[4])}<br/>` +
-    `<b>${escapeHtml(c[5] || "주소 미상 (격자 중심)")}</b> 인근<br/>` +
+    `<b>${escapeHtml(c[5] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
     `민원 ${c[2]}건 · 과태료 ${c[3]}건<br/>` +
     `<span style="color:#a8322a">발생이력 기준 자원배분 논리. 통계 효과 근거 아님</span>`
   )
@@ -110,7 +110,7 @@ function binRecoTooltip(seq: number, r: BinReco): string {
 function hotspotTooltip(rank: number, h: HotspotRow): string {
   return (
     `<b>예측 핫스팟 ${rank}위</b> · ${escapeHtml(h[5] || "광진구")}<br/>` +
-    `<b>${escapeHtml(h[6] || "주소 미상 (격자 중심)")}</b> 인근<br/>` +
+    `<b>${escapeHtml(h[6] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
     `최근 180일 민원 ${h[3]}건 · 과태료 ${h[4]}건` +
     (h[7] === 0 ? `<br/><span style="color:#b45309">이동식 CCTV 없음</span>` : "")
   )

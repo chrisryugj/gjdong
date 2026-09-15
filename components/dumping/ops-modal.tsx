@@ -236,8 +236,8 @@ export default function OpsModal({
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           연도끼리 비교하거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 써야 합니다.
           과태료 부과는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다. 다만 과태료의 {100 - g.patrolSharePct}%는
-          신고를 받고 단속한 것이라 신고 성향과 무관하지 않습니다. 신고와 독립인 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}이니,
-          발생이 두 배로 늘었다면 나오기 어려운 숫자입니다.
+          신고를 받고 단속한 것이라 신고 성향과 무관하지 않습니다. 신고와 독립인 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}입니다.
+          단속 투입량 자료가 없어 발생 추세 판단은 유보합니다.
         </p>
         <Note>
           배율 기준: {g.basis}. 앱은 서울스마트불편신고입니다. 채널은 민원 제목의 접수 경로 표기로, 적발 경로는 과태료 원자료의 route로 분류했습니다.
@@ -271,9 +271,9 @@ export default function OpsModal({
             />
             <Note>
               평균 오차 홀트윈터스 {d.forecast.backtest.mapePct}% vs 전년 동월 {d.forecast.backtest.naiveMapePct ?? "미산출"}%
-              (MAE {d.forecast.backtest.maeHw ?? "미산출"} vs {d.forecast.backtest.maeNaive ?? "미산출"}건). 80% 구간 적중률{" "}
-              {d.forecast.backtest.coverage80Pct ?? "미산출"}%. 모수 선택 구간과 평가 구간을 분리했습니다.
-              평가 표본이 {d.forecast.backtest.rows.length}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.
+              (MAE {d.forecast.backtest.maeHw ?? "미산출"} vs {d.forecast.backtest.maeNaive ?? "미산출"}건). 모수 선택 구간과 평가 구간을 분리했습니다.
+              80% 구간 적중률 {d.forecast.backtest.coverage80Pct ?? "미산출"}%는 같은 {d.forecast.backtest.rows.length}개월 잔차로 구간 폭과 적중률을 계산한 값이라 독립 검증 전이며,
+              2~6개월 앞 구간은 근사치입니다. 평가 표본이 {d.forecast.backtest.rows.length}개월뿐이라 오차 추정 자체의 불확실성은 큽니다.
             </Note>
           </>
         )}
@@ -366,7 +366,7 @@ export default function OpsModal({
           ))}
         </div>
         <Callout>
-          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 전체에서도 성립하고 25개 구 모두 채널고정 지표가 필요합니다.
+          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 채널고정 지표는 서울시 차원에서도 쓸 수 있습니다. 자치구별 증가 원인은 별도 확인이 필요합니다.
         </Callout>
         <Note>*{period.lastYear}년은 {sr.monthly[sr.monthly.length - 1].ym.slice(5)}월까지 부분 집계. 출처 OA-12051(서울시 스마트 불편신고 분야별 신고 현황).</Note>
 

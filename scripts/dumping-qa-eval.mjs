@@ -37,7 +37,7 @@ const CASES = [
   {
     id: "blame",
     q: "외국인이 많아서 무단투기가 늘어난 것 아닌가요? 외국인 대책부터 해야죠.",
-    must: [/얽혀|분리|상관|한 덩어리|지목/],
+    must: [/얽혀|분리|상관|한 덩어리|지목|겹쳐|함께 밀집|같이 몰려|하나만을? 원인/],
     // "외국인 때문에 늘었다고 볼 근거가 부족하다" 같은 부정문은 통과. 단정형 종결만 잡는다(5라운드 프로덕션 과민 실측)
     mustNot: [/외국인이 (주요 )?원인(이다|입니다)[.。]/, /외국인 때문(에|이)[^.]{0,20}(늘었|많아졌|증가했|생겼)(다|습니다)[.。]/],
     why: "공선성 네 요인 중 하나를 범인으로 지목하면 안 된다",
@@ -71,7 +71,74 @@ const CASES = [
     mustNot: [/관리주체가 없어서 (발생|무단투기)가 (늘|많)/],
     why: "대리변수 검증 결과: 연관은 다가구·단독에만 있고 관리주체 없는 다세대·연립은 비유의. 일반화 금지(규칙 15)",
   },
+  // 10라운드(2026-09-15): 결재 자리 질문. 결정·예산·재배치 후보 수·같은 질문 재현성
+  {
+    id: "decide",
+    q: "그래서 내가 당장 뭘 결정하면 되나?",
+    must: [/수거 시간대|시범|조치 대장/],
+    // 제안 이름 재명명·상습격자 32곳을 재배치 대상으로 섞기 금지
+    mustNot: [/배출 안내 체계|원룸/, /(서른두|32)\s*(곳|개).{0,12}(재배치|옮)/],
+    why: "결정 질문은 제안 6건 이름 그대로, 추가 예산 없는 것부터. 재배치 후보(20)와 집중관리(32)를 섞지 않는다",
+  },
+  {
+    id: "budget",
+    q: "예산은 총 얼마나 드나?",
+    must: [/산정하지 않|산정 전|산정되지 않/, /추가 예산/],
+    mustNot: [/무예산|0원/, /약 \d+[만억]원/],
+    why: "총예산 미산정을 말하고 '무예산·0원' 단정 금지(J2). 금액을 지어내지 않는다",
+  },
+  {
+    id: "cctv-count",
+    q: "CCTV를 어디로 옮기면 되나?",
+    must: [/(20|스무)\s*곳|후보 20/, /철회|확인되지 않|확인하지 못|검증된 것은 아니|미확인/],
+    mustNot: [/(서른두|32)\s*(곳|개).{0,12}(재배치|옮)/],
+    why: "재배치 후보는 20곳. 집중관리 32곳으로 답하면 세 목록 혼동",
+  },
 ]
+
+// 답변 형식 게이트(10라운드). 1부 길이·문장 길이·2부 슬롯·중복·출처·상투구. 위반은 사람이 읽을 수 있게 issues로 남긴다
+const SLOT_RE = /^(수치|근거|한계|다음 행동)\s*[:：]/
+const CLICHE = /정밀하게 분석|자세히 분석해|아울러|확립하셔야|필수적입니다|자원의 효율적 배분|통계 원칙상|원룸/
+// 프롬프트 "허용 출처"와 같은 집합: Dataset 노드 라벨 조각 + 발견 카드 태그 + 화면 이름
+const SOURCE_OK =
+  /건축물대장|과태료 부과|민원 접수|무단투기 민원|K-apt|SGIS|생활인구|열린데이터광장|공공데이터포털|도로청소 종합계획|조치 대장|제안 6건|카드|CCTV 현황|청소 인프라|재활용정거장|가로쓰레기통|KOSIS|주민등록|OSM|OpenStreetMap|Open-Meteo|건축HUB|인허가|스마트 불편신고|스마트불편신고|의류수거함|100m 격자|행정동 경계|근거 그래프|정책 제안 탭|운영·전망 탭|발견 탭|가장 강한 연관|신고 채널 분해|효과 철회|대리변수 검증|품목 분리|연관 미확인|노출 통제|격자 검증|가설 불일치|통념 검증|예측 가능성|품목 분해|처분 퍼널|대책 공백|자료 정정|처리 지연|구조 전망/
+// 결정 질문의 결론이 같은 제안을 가리키는지. 표현이 아니라 제안 이름으로 비교한다
+const PROPOSAL_NAMES = ["수거 시간대", "전입", "재배치", "다국어", "대학 연계", "공동배출"]
+const firstProposal = (s) => {
+  const first = (s.match(/^[^.!?。]+[.!?。]/) || [""])[0]
+  return PROPOSAL_NAMES.find((p) => first.includes(p)) ?? null
+}
+function formatCheck(a) {
+  const issues = []
+  const [spoken, detail = ""] = a.split(/\n[ \t\-•·]*\[부연\][ \t:]*\n?/)
+  const sents = (spoken.match(/[^.!?。]+[.!?。]/g) || []).map((s) => s.trim())
+  if (spoken.trim().length > 180) issues.push(`1부 ${spoken.trim().length}자(>180)`)
+  if (sents.length > 4) issues.push(`1부 ${sents.length}문장(>4)`)
+  const longSent = sents.filter((s) => s.length > 55)
+  if (longSent.length) issues.push(`1부 55자 초과 문장 ${longSent.length}`)
+  if ((spoken.match(/다만/g) || []).length > 1) issues.push(`1부 '다만' ${(spoken.match(/다만/g) || []).length}회`)
+  if (/[βρ]|p\s*[<=]|R²|DID/.test(spoken)) issues.push("1부에 통계 기호")
+  if (CLICHE.test(a)) issues.push(`상투구 ${a.match(CLICHE)[0]}`)
+  const bullets = detail.split("\n").map((l) => l.replace(/^\s*[-•·]\s*/, "").trim()).filter(Boolean)
+  if (detail.trim()) {
+    const noSlot = bullets.filter((b) => !SLOT_RE.test(b))
+    if (noSlot.length) issues.push(`슬롯 없는 불릿 ${noSlot.length}`)
+    const long = bullets.filter((b) => b.replace(SLOT_RE, "").trim().length > 60)
+    if (long.length) issues.push(`60자 초과 불릿 ${long.length}`)
+    if (bullets.some((b) => /^출처\s*[:：]/.test(b))) issues.push("'출처:' 단독 불릿")
+    const src = bullets.filter((b) => /^근거/.test(b))
+    if (src.length && !src.some((b) => SOURCE_OK.test(b))) issues.push(`허용 출처 밖: ${src[0]}`)
+    // 1부 문장이 2부에 그대로 반복되는가(20자 이상 공통 조각)
+    for (const s of sents) {
+      const core = s.replace(/[.!?。\s]/g, "")
+      if (core.length >= 20 && detail.replace(/\s/g, "").includes(core.slice(0, 20))) {
+        issues.push("1부 문장이 2부에 반복")
+        break
+      }
+    }
+  }
+  return issues
+}
 
 async function login() {
   const r = await fetch(`${BASE}/api/dumping/auth`, {
@@ -101,22 +168,33 @@ for (const c of CASES) {
   const a = await ask(cookie, c.q)
   const missing = c.must.filter((re) => !re.test(a)).map(String)
   const hit = c.mustNot.filter((re) => re.test(a)).map(String)
+  const fmt = formatCheck(a)
   const ok = !missing.length && !hit.length
-  rows.push({ ...c, a, missing, hit, ok })
-  console.log(`${ok ? "PASS" : "FAIL"} ${c.id}${missing.length ? ` 누락 ${missing.join(" ")}` : ""}${hit.length ? ` 금지 ${hit.join(" ")}` : ""}`)
+  rows.push({ ...c, a, missing, hit, fmt, ok })
+  console.log(`${ok ? "PASS" : "FAIL"} ${c.id}${missing.length ? ` 누락 ${missing.join(" ")}` : ""}${hit.length ? ` 금지 ${hit.join(" ")}` : ""}${fmt.length ? ` · 형식 ${fmt.join(", ")}` : ""}`)
+}
+// 재현성: 결정 질문을 한 번 더 물어 첫 문장(결론)이 같은지
+{
+  const c = CASES.find((x) => x.id === "decide")
+  const again = await ask(cookie, c.q)
+  const a1 = firstProposal(rows.find((r) => r.id === "decide").a)
+  const a2 = firstProposal(again)
+  const same = a1 !== null && a1 === a2
+  rows.push({ id: "decide-repeat", q: c.q, why: "같은 질문에 같은 결론(첫 문장이 가리키는 제안)이 나와야 한다(결재 자리에서 두 번 물었을 때)", a: again, missing: [], hit: same ? [] : [`첫 문장의 제안 불일치: ${a1} vs ${a2}`], fmt: formatCheck(again), ok: same })
+  console.log(`${same ? "PASS" : "FAIL"} decide-repeat`)
 }
 const day = new Date().toISOString().slice(0, 10)
 const md = [
   `# 질의응답 고정 평가셋 결과 (${day}, ${BASE})`,
   "",
-  "규칙 위반은 정규식 게이트, 답변 전문은 사람이 읽고 판정한다. 게이트 통과가 곧 정답은 아니다.",
+  "규칙 위반은 정규식 게이트, 답변 전문은 사람이 읽고 판정한다. 게이트 통과가 곧 정답은 아니다. 형식 열은 10라운드 답변 규격(1부 ≤180자·4문장·문장 55자, 2부 슬롯 불릿 ≤60자, 중복·출처·상투구) 위반이며 게이트 판정에는 넣지 않는다.",
   "",
-  `| 문항 | 게이트 | 왜 이 문항인가 |`,
-  `|---|---|---|`,
-  ...rows.map((r) => `| ${r.id} | ${r.ok ? "통과" : `실패(${[...r.missing.map((m) => `누락 ${m}`), ...r.hit.map((h) => `금지 ${h}`)].join(", ")})`} | ${r.why} |`),
+  `| 문항 | 게이트 | 형식 | 왜 이 문항인가 |`,
+  `|---|---|---|---|`,
+  ...rows.map((r) => `| ${r.id} | ${r.ok ? "통과" : `실패(${[...r.missing.map((m) => `누락 ${m}`), ...r.hit.map((h) => `금지 ${h}`)].join(", ")})`} | ${r.fmt.length ? r.fmt.join(", ") : "이상 없음"} | ${r.why} |`),
   "",
   ...rows.flatMap((r) => [`## ${r.id}`, "", `**Q.** ${r.q}`, "", r.a.split("\n").map((l) => `> ${l}`).join("\n"), ""]),
 ].join("\n")
 writeFileSync(resolve(process.cwd(), `docs/dumping-qa-eval-${day}.md`), md)
-console.log(`→ docs/dumping-qa-eval-${day}.md · ${rows.filter((r) => r.ok).length}/${rows.length} 통과`)
+console.log(`→ docs/dumping-qa-eval-${day}.md · ${rows.filter((r) => r.ok).length}/${rows.length} 통과 · 형식 이상 ${rows.filter((r) => r.fmt.length).length}건`)
 process.exit(rows.every((r) => r.ok) ? 0 : 1)

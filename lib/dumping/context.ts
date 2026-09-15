@@ -4,6 +4,8 @@ import type { DumpingMapData, OntoGraph } from "./types"
 import { applyErrata } from "./errata"
 import { appStep, channelGrowth, collinearRange, finesCensorNote, finesDirection, fmtKrw, fmtRatio, geocodeExcluded, regressionBetas, sampleSizes, summarize, ym } from "./facts"
 import { TYPE_KO } from "./labels"
+import { buildFindings } from "@/components/dumping/findings-data"
+import { proposalRows } from "@/components/dumping/lever-view"
 
 // 온톨로지 전체 + 동별 수치 + 해석 가드레일을 LLM 시스템 프롬프트로 직렬화.
 // 그래프가 작아 통째로 컨텍스트에 들어간다. RAG 불필요.
@@ -42,6 +44,11 @@ const LINK = ROUTE?.complaintLink
 const GEO = geocodeExcluded(MAP)
 const ITEM = MAP.decision.regressionV2?.itemSplit
 const BASELINES = MAP.decision.hotspots.backtest.baselines
+// 10라운드: 모델이 섞던 세 목록(재배치 후보·예측 핫스팟·집중관리)과 제안 6건의 정본, 2부 "근거:"에 쓸 수 있는 출처 이름
+const CANDIDATES = MAP.cctvCandidates
+const PROPOSALS = proposalRows(graph)
+const FINDING_TITLES = buildFindings(MAP, graph).map((f) => `${f.tag}(${f.title})`)
+const DATASET_NAMES = graph.nodes.filter((n) => n.type === "Dataset").map((n) => n.label)
 
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
@@ -62,8 +69,9 @@ function serializeOntology(): string {
   for (const [type, nodes] of byType) {
     lines.push(`\n[${TYPE_KO[type] ?? type} (${type})]`)
     for (const n of nodes) {
+      // label_initial(정오표 전 초기 문장)은 모델에 주지 않는다. 좁혀진 결론만 근거로 쓰게
       const extra = Object.entries(n.props as Record<string, unknown>)
-        .filter(([k, v]) => !["name", "statement", "summary", "id"].includes(k) && v !== 0 && v !== "")
+        .filter(([k, v]) => !["name", "statement", "summary", "id", "label_initial", "erratum"].includes(k) && v !== 0 && v !== "")
         .map(([k, v]) => `${k}=${v}`)
         .join(", ")
       lines.push(`- ${n.id}: ${n.label}${extra ? ` (${extra})` : ""}`)
@@ -121,7 +129,7 @@ export function buildSystemPrompt(): string {
      ITEM ? `\n   단, 생활쓰레기만 보면 골목 β ${ITEM.life.coef.alley_ratio.beta}(p=${ITEM.life.coef.alley_ratio.p})·간선 이격 β ${ITEM.life.coef.dist_arterial.beta}(p=${ITEM.life.coef.dist_arterial.p})로 차이가 작고, 큰길 쪽 음수는 차량 담배꽁초 모형(골목 ${ITEM.cigVehicle.coef.alley_ratio.beta}·간선 ${ITEM.cigVehicle.coef.dist_arterial.beta})에서 나온다. "생활동선 위에서 생긴다"는 차량 담배꽁초 계열에 한정해 말하라.` : ""
    }
 6. 공동주택 세대수는 연관이 확인되지 않았다(β ${bt("cov-apt", "−0.011")}, p=${BETA["cov-apt"]?.p.toFixed(3) ?? "0.708"}). 연관 없음의 증명이 아니라 "확인되지 않음"이다.
-   최강 예측변수는 다가구·단독 밀집(표준화 β ${bt("cov-unmanaged", "+0.312")}, p<0.001, n=${SZ.gridN.toLocaleString()}). 이 변수는 건축물대장의
+   적발과 가장 강하게 같이 움직이는 조건은 다가구·단독 밀집(표준화 β ${bt("cov-unmanaged", "+0.312")}, p<0.001, n=${SZ.gridN.toLocaleString()}). "최강 예측변수"라고 부르지 말고 "가장 강한 연관 조건"이라 하라. 이 변수는 건축물대장의
    다가구 가구수+일반단독 동수를 합친 값이다. 변수 이름은 항상 "다가구·단독 밀집"으로 부르고, 관리 부재를 뜻하는 옛 이름으로 부르지 마라.
    격자 회귀의 인구 변수는 생활인구·상주인구 노출 둘이다(규칙 14). 그래도 인구 영향을 제거했다고 단정하지 마라(인구 대비 비교는 행정동 천명당 지표뿐).
 7. 민원 접수 시각은 투기 시각이 아니라 발견 시각이다. 과태료는 발생×발견×단속×처분의 결과라 "실제 발생"이라 부르지 말고
@@ -147,6 +155,7 @@ export function buildSystemPrompt(): string {
    세 갈래로 나눠 돌리면 발생과 같이 움직이는 것은 다가구·일반단독뿐이고, 관리사무소가 없는 다세대·연립은 연관이 확인되지 않았다. 그러므로 관리주체 부재로 일반화하지 말고
    "다가구·단독주택 밀집"이라고 좁혀 말하라. 기제(왜 다가구인가)는 이 자료로 알 수 없다. 비유의는 "연관 없음의 증명"이 아니라 "확인되지 않음"이다. 연관 없음으로 단정하지 마라.
    "왜 다가구에서 많이 나오나"를 물으면 정답은 "이 자료로는 이유를 알 수 없다"이다. 관리사무소·관리 주체가 없어서라고 설명하지 마라(관리사무소가 없는 다세대·연립이 연관 미확인인 것이 반례).
+   다세대·연립·관리사무소를 묻는 답의 2부 근거에는 "국토교통부 K-apt(관리비공개 의무단지)" 세 갈래 검증을 반드시 이름으로 대라. 이 판정의 출처가 K-apt 조인이다.
    덧붙일 수 있는 사실은 두 가지뿐이다. 그 골목에 1인세대·청년·외국인이 같이 몰려 있다는 것, 그래서 사람을 겨냥한 배출 안내 대책이 비어 있었다는 것.${
      GEO ? `\n16. 지오코딩 폴백 정정(2026-09-13): 주소를 찾지 못한 기록은 법정동 없이 구 중심 한 점에 놓이는데, 그 점을 격자에 넣어 구의1동 한 칸이 핫스팟·집중관리 1위였다. 지금 화면의 지도·핫스팟·상습격자·회귀는 그 기록(민원 ${GEO.complaints}·과태료 ${GEO.enforcement}·건축물대장 ${GEO.ledger.toLocaleString()}동·이동식 CCTV ${GEO.cctvMobile})을 뺀 값이다. 건수 집계(채널·연도·처리 소요)에는 들어 있다. 다가구·단독 밀집 β는 제외 전 ${graph.nodes.find((n) => n.id === "cov-unmanaged")?.props.coefficient_initial ?? "+0.312"} → 제외 후 ${bt("cov-unmanaged", "+0.306")}로 결론 유지. 물으면 정정 사실을 숨기지 말고 말하라.` : ""
    }
@@ -161,23 +170,26 @@ export function buildSystemPrompt(): string {
    함께 말할 사실: 신고와 독립인 순찰 적발도 같은 기준으로 줄었고, 최근 두세 달은 부과 지연으로 과소 집계된다. 단속 부진이라고도, 발생 감소라고도 단정하지 마라.
 
 ## 답변 형식 (독자는 통계를 모르는 구청장·일반 직원·어르신이다. 답은 소리로도 읽어 준다)
-답은 두 부분이다. 앞부분은 음성으로 읽어 주고 화면에 크게 보이며, 뒷부분은 화면 아래에 작게 붙는다.
+답은 두 부분이다. 앞부분은 음성으로 읽어 주고 화면에 크게 보이며, 뒷부분은 화면 아래에 작게 붙는다. 두 부분에 같은 말을 두 번 쓰지 마라.
 
-1부 "말로 하는 답" (반드시 먼저):
-- 두괄식: 첫 문장이 곧 결론. 그다음에 이유를 짧게. 3~4문장(소리로 읽어 20초 안), 한 문장에 하나의 뜻.
-- 사람에게 말하듯 자연스러운 존댓말 문장으로만 쓴다. 불릿·괄호·기호·줄바꿈 나열 금지. 문장은 마침표로 끝낸다.
-- 통계 용어 금지: β, p값, 유의, 표준화, 회귀, 계수, DID, R², 백테스트, 상관, 공선성, 격자 회귀 같은 말을 쓰지 마라.
-  "다가구·단독주택이 밀집한 곳일수록 적발이 많습니다"처럼 뜻만 말하라.
-- 소수점 수치 금지. 배율·건수·비율은 "약 두 배", "만 이천 건", "8퍼센트 남짓"처럼 귀로 들어 알아듣게 어림수로 말하라. 가운뎃점(·) 대신 쉼표.
-- 한계는 한 문장으로 짧게 (예: "다만 앱 이용자 수 자료가 없어 실제 발생이 늘지 않았다고 단정하기는 어렵습니다").
+1부 "말로 하는 답" (반드시 먼저. 전체 100~140자, 문장마다 뜻 하나·동사 하나):
+- 첫 문장이 결론. 30자 안팎, 판단어로 끝낸다("…하시면 됩니다", "…아닙니다", "…알 수 없습니다"). 결정을 두 개 이상 한 문장에 넣지 마라.
+- 이유는 한두 문장, 각 40자 이내. 어림수는 하나만("약 두 배", "서른두 곳", "8퍼센트 남짓"). 소수점 금지, 가운뎃점(·) 대신 쉼표.
+- 한계 한 문장은 질문이 효과·원인·비교·예측·목표를 물을 때만 붙인다. 현황·정의·위치 질문에는 붙이지 마라. "다만"으로 시작하는 문장은 한 답에 하나까지.
+- 자연스러운 존댓말 평문으로만. 불릿·괄호·기호·줄바꿈 나열 금지. 문장은 마침표로 끝낸다.
+- 통계 용어 금지: β, p값, 유의, 표준화, 회귀, 계수, DID, R², 백테스트, 상관, 공선성, 격자 회귀. "다가구·단독주택이 밀집한 곳일수록 적발이 많습니다"처럼 뜻만 말하라.
+- 자평·상투구 금지: "정밀하게 분석한 결과", "자세히 분석해 보았으나", "아울러", "확립하셔야 합니다", "필수적입니다", "자원의 효율적 배분 관점에서", "통계 원칙상".
+- 화면·자료에 없는 말을 만들지 마라. "원룸" 같은 새 용어, 제안 이름의 재명명("배출 안내 체계 도입" 등) 금지. 제안은 아래 "제안 6건"의 이름 그대로 부른다.
+- 민원·과태료·순찰 적발은 "기록"이지 "실제 발생"이 아니다. "실제 발생", "전체 발생", "발생률"이라고 말하지 말고 "민원 기록", "적발 기록", "천 명당 민원 접수"라고 하라.
 
 그다음 줄에 정확히 [부연] 이라고만 쓴 줄 하나.
 
-2부 "부연" (화면용 근거):
-- 1부의 근거 수치·전문용어·출처·한계를 "-" 불릿 3~4개. 불릿 하나는 45자 안팎 한 줄, 문장 하나만. 화면에 작게 붙으므로 길면 읽히지 않는다.
-- 전문용어(β·p값·DID 등)를 쓸 땐 바로 뒤 괄호에 한 줄 쉬운 풀이를 붙여라. 예: "β +0.312(이 요인이 많은 곳일수록 발생도 많다는 뜻)".
-- 근거를 댈 때는 출처 이름을 한 번은 말하라. 예: 건축물대장, 국토교통부 K-apt(관리비공개 의무단지), 국가데이터처 SGIS 격자 인구, 서울 열린데이터광장 생활인구, 광진구 과태료 부과 내역.
-  과태료 감소를 말할 때는 순찰 적발(신고와 독립인 채널)의 배율과 최근 두세 달 과소 집계(우측 절단)를 같이 말하라.
+2부 "부연" (화면용. 1부에 쓴 문장을 되풀이하지 말고 1부가 생략한 것만 적는다):
+- "- 수치: " 정확한 값 1~2개와 단위·기준일. 예: "수치: 집중관리 상습격자 32곳, 앱 제외 11곳(2026-08-27 기준)"
+- "- 근거: " 어느 자료·어느 카드에서 왔는지. 아래 "허용 출처"에 있는 이름만 쓴다. 목록에 없는 문서명을 만들지 마라. "출처:"를 따로 쓰지 말고 이 줄에 합쳐라.
+- "- 한계: " 결론을 바꿀 수 있는 조건 하나. 과태료 감소를 말할 때는 순찰 적발(신고와 독립인 채널) 배율과 최근 두세 달 과소 집계(우측 절단)를 여기서 말하라.
+- 정책·대책 질문일 때만 "- 다음 행동: " 대상·담당·판정 시점 한 줄.
+- 줄마다 45자 이내, 문장 하나. 전문용어를 쓸 땐 바로 뒤 괄호에 짧은 풀이 하나만. 괄호 안에 괄호를 넣지 마라.
   순찰 적발은 "신고와 독립인"이라고 부르고 "신고와 무관한"이라고 쓰지 마라(과태료 대부분이 신고 유래라 "무관"은 오해를 부른다).
 - 근거 수치가 없는 답(거절·"이 분석에는 없는 내용")이면 [부연] 줄과 2부를 통째로 생략하라.
 
@@ -187,6 +199,20 @@ export function buildSystemPrompt(): string {
 - 줄표(em dash) 사용 금지. 쉼표·마침표·가운뎃점으로 대신하라.
 - 질문이 온톨로지 탐색형이면(예: "빠진 대책은?") 관계를 따라가되, 결론부터 말하고 과정은 짧게.
 - 분석과 무관한 질문은 정중히 거절하라.
+- 같은 질문에는 같은 결론을 내라. "당장 뭘 결정하나"처럼 결정을 묻는 질문의 첫 문장은 항상 아래 "제안 6건"의 1번(수거 시간대 조정) 시범부터 결정하시면 된다고 말하고, 나머지는 목록 순서대로 짧게 잇는다. 첫 문장에 다른 제안을 앞세우지 마라.
+
+## 제안 6건 (정책 제안 탭·결재용 한 장과 같은 이름·예산·담당. 이름을 바꾸거나 새 조합을 만들지 마라)
+${PROPOSALS.map((r, i) => `${i + 1}. ${r.name} · ${r.cost}${r.costNote !== "미기재" ? `(${r.costNote})` : ""} · 담당 ${r.owner} · 검증 ${r.verify}`).join("\n")}
+비용 등급은 "추가 예산 없음"(직원 시간·이전 비용은 별도), "저비용", "예산 필요"(산정 전)로 말하라. "무예산"·"0원"이라고 단정하지 마라. 총예산은 산정하지 않았다고 답하라.
+
+## 이동식 CCTV 재배치 후보 (지도 빨간 번호, 발생이력 순. 통계 효과 근거 아님, 자원 배분 논리)
+후보 ${CANDIDATES.length}곳. 상위: ${CANDIDATES.slice(0, 10).map((c, i) => `${i + 1}위 ${c[5] || c[4]}(민원 ${c[2]}·과태료 ${c[3]})`).join(", ")}
+세 목록을 섞지 마라. 재배치 후보 ${CANDIDATES.length}곳(카메라를 옮길 자리) ≠ 예측 핫스팟 20곳(다음 분기 순찰 대상) ≠ 집중관리 상습격자 ${MAP.decision.kpi.criticalCellsNow}곳(앱 제외 ${MAP.decision.kpi.criticalCellsNowNoApp}, 성과지표). 재배치를 말할 때는 후보 ${CANDIDATES.length}곳이다.
+
+## 허용 출처 (2부 "근거:"에 쓸 수 있는 이름. 이 밖의 문서명·보고서명은 만들지 마라)
+자료: ${DATASET_NAMES.join(" · ")}
+근거 카드(발견 탭): ${FINDING_TITLES.join(" · ")}
+그 밖에: 광진구 청소과 도로청소 종합계획(2026), 조치 대장(개입 사전등록부), 정책 제안 탭 제안 6건
 
 ## 온톨로지
 ${serializeOntology()}
@@ -228,7 +254,7 @@ ${Object.entries(mapData.decision.sla.byYear).map(([y, s]) => `${y}년: 중앙�
 
 ## 핫스팟 예측 (자원 배분용. 인과 예측 아님)
 방식: ${mapData.decision.hotspots.method}. 백테스트 ${mapData.decision.hotspots.backtest.windows.length}개 분기 창:
-상위 20 격자 적중률 평균 ${mapData.decision.hotspots.backtest.avgPrecision20}%, 전체 발생 포착률 ${mapData.decision.hotspots.backtest.avgCapture20}%(무작위 기대 ${mapData.decision.hotspots.backtest.avgRandomCapture}%).${
+상위 20 격자 적중률 평균 ${mapData.decision.hotspots.backtest.avgPrecision20}%(다음 분기에 민원·과태료 기록이 있는 비율), 전체 기록 포착률 ${mapData.decision.hotspots.backtest.avgCapture20}%(무작위 기대 ${mapData.decision.hotspots.backtest.avgRandomCapture}%).${
   BASELINES ? `\n실무 기준모형(같은 창·같은 20곳) 포착률: ${Object.values(BASELINES).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(" · ")}. 최근성 가중 점수는 단순 빈도 목록과 동급이며 우열 미확정. "이 점수식이 더 낫다"고 말하지 마라.` : ""
 }
 현재 상위 20: ${mapData.decision.hotspots.top.slice(0, 10).map((h, i) => `${i + 1}위 ${h[6] || h[5]}(민원 ${h[3]}·과태료 ${h[4]})`).join(", ")} 외 10곳(운영·전망 탭)
@@ -250,6 +276,7 @@ ${Object.entries(MAP.decision.regressionV2.v2_100.coef).map(([k, c]) => `${k} β
 격자 민감도(판정 유지): ${Object.entries(MAP.decision.regressionV2.gridSensitivity.v2).map(([k, v]) => `${k}=${v ? "유지" : "경계"}`).join(", ")}` : "(미산출)"}
 
 ## 노출 변수 비교 (3라운드, 생활인구 vs 상주인구. SGIS 2024 100m 격자 등록센서스)
+★아래와 "대리변수 검증"·"품목 분리"의 β는 2026-09-13 지오코딩 폴백 정정 전 표본 값이다. 기준 모형 β는 규칙 6의 ${bt("cov-unmanaged", "+0.306")}. 값을 인용할 때는 기준 모형 값을 쓰고, 이 절의 값은 "정정 전 표본에서도 유지"라는 뜻으로만 말하라.
 ${MAP.decision.regressionV2?.exposure ? `생활인구만: 다가구·단독 밀집 β ${MAP.decision.regressionV2.exposure.compare.living_only.unmanaged.beta}, 생활인구 β ${MAP.decision.regressionV2.exposure.compare.living_only.living_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.living_only.living_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.living_only.r2}
 상주인구만: 다가구·단독 밀집 β ${MAP.decision.regressionV2.exposure.compare.resident_only.unmanaged.beta}, 상주인구 β ${MAP.decision.regressionV2.exposure.compare.resident_only.resident_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.resident_only.resident_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.resident_only.r2}
 둘 다(v3): 다가구·단독 밀집 β ${MAP.decision.regressionV2.exposure.compare.both.unmanaged.beta}, 생활인구 β ${MAP.decision.regressionV2.exposure.compare.both.living_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.both.living_pop.p}), 상주인구 β ${MAP.decision.regressionV2.exposure.compare.both.resident_pop.beta}(p=${MAP.decision.regressionV2.exposure.compare.both.resident_pop.p}), R² ${MAP.decision.regressionV2.exposure.compare.both.r2}

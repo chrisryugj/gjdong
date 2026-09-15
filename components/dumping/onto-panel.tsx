@@ -89,10 +89,15 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
               sig ? "bg-[#0c6155]/12 text-[#0a4a41]" : "bg-[var(--cp-hover2)] text-[var(--cp-text-dim)]"
             }`}
           >
-            {sig ? "✓ 통계적으로 유의 (우연 아님)" : "유의하지 않음 (우연 가능성)"}
+            {sig ? "연관 확인 (p<0.05, 원인을 뜻하지는 않음)" : "연관 미확인 (p≥0.05)"}
           </span>
         )
       })()}
+      {selected.props.erratum !== undefined && (
+        <p className="mt-1.5 rounded-lg border border-[#8a530e]/40 bg-[#8a530e]/5 px-2 py-1.5 text-[14px] leading-relaxed text-[#7a4a0e]">
+          <b>정정 {String(selected.props.erratum)}</b> · 초기 문장은 이후 검증으로 범위가 좁혀졌습니다. 초기 문장: {String(selected.props.label_initial ?? "")}
+        </p>
+      )}
       {selected.props["쉬운 설명"] !== undefined && (
         <p className="mt-1.5 rounded-lg bg-[var(--cp-hover)] px-2.5 py-2 text-[15.5px] leading-relaxed text-[var(--cp-text)]">
           {String(selected.props["쉬운 설명"])}
@@ -107,7 +112,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
         {Object.entries(selected.props)
           .filter(
             ([k, v]) =>
-              !["name", "statement", "summary", "retracted", "쉬운 설명"].includes(k) &&
+              !["name", "statement", "summary", "retracted", "쉬운 설명", "erratum", "label_initial"].includes(k) &&
               v !== "" &&
               v !== 0,
           )
@@ -220,7 +225,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="이름이나 아이디로 검색"
+        placeholder="이름으로 검색"
         className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[16px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
       />
       <div className="flex flex-wrap gap-1">

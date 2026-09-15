@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { completeSentences, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
+import { completeSentences, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
@@ -15,19 +15,54 @@ import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from 
 // 답이 미리 준비된 항목(qa-seeds.ts)은 API 호출 없이 즉시 열리고, 지도 반영은 명시적 버튼으로만 한다.
 // 음성(2026-09-15, 구청장 시연용): 마이크로 물으면 답을 소리로 읽는다. 답은 프롬프트가 "말로 하는 답" + [부연]으로
 // 나누어 주고(answer-parts.ts), 앞부분만 문장이 완성되는 즉시 읽고 부연은 화면 아래에 옅게 붙는다.
+// 10라운드: 준비된 답과 생성 답을 같은 카드 규격(1부 문장별 줄·2부 슬롯 칩)으로 그린다. 시드는 결재용 6개만 먼저.
 
 const DEFAULT_OPEN = 1 // 앞 N개는 펼쳐진 채 시작. 3개였을 때 패널이 길어져 훑어보기가 안 됐다(5라운드 냉독)
+const BOLD_MAX = 45 // 첫 문장이 이보다 길면 굵게 하지 않는다. 두 줄 반이 통째로 굵으면 강조가 죽는다(10라운드 냉독)
 
-// 답변은 두괄식(첫 문장 = 결론)이라 첫 문장만 굵게 강조한다
+// 1부. 문장마다 한 줄, 첫 문장(결론)만 굵게
 function renderAnswer(text: string) {
-  if (!text) return null
-  const m = text.match(/^[^.\n]{5,120}[.]\s*/)
-  if (!m) return text
+  const ss = sentencesOf(text)
+  if (!ss.length) return null
   return (
     <>
-      <b className="text-[var(--cp-text-strong)]">{m[0]}</b>
-      {text.slice(m[0].length)}
+      {ss.map((s, i) => (
+        <span
+          key={i}
+          className={`block ${i === 0 ? (s.length <= BOLD_MAX ? "font-bold text-[var(--cp-text-strong)]" : "font-semibold text-[var(--cp-text-strong)]") : "mt-1"}`}
+        >
+          {s}
+        </span>
+      ))}
     </>
+  )
+}
+
+// 2부. "수치·근거·한계·다음 행동" 슬롯 칩 + 한 줄
+const SLOT_CLS: Record<string, string> = {
+  수치: "bg-[#1c4f96]/10 text-[#1c4f96]",
+  근거: "bg-[var(--cp-hover2)] text-[var(--cp-text-muted)]",
+  한계: "bg-[#8a530e]/12 text-[#8a530e]",
+  "다음 행동": "bg-[#0c6155]/12 text-[#0a4a41]",
+}
+function renderDetail(detail: string, asof?: string) {
+  const ls = detailLines(detail)
+  if (!ls.length) return null
+  return (
+    <div className="mt-2.5 border-l-2 border-[var(--cp-border)] pl-3">
+      <p className="mb-1 flex items-baseline gap-2 text-[12.5px] font-semibold tracking-wide text-[var(--cp-text-faint)]">
+        근거 수치와 한계
+        {asof && <span className="font-normal">· 자료 기준 {asof}</span>}
+      </p>
+      <ul className="flex flex-col gap-1">
+        {ls.map((l, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-dim)]">
+            {l.slot && <span className={`mt-[3px] shrink-0 rounded px-1 text-[11.5px] font-semibold ${SLOT_CLS[l.slot]}`}>{l.slot}</span>}
+            <span className="min-w-0">{l.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -38,6 +73,7 @@ interface Exchange {
   q: string
   a: string
   pending?: boolean
+  aborted?: boolean // 중단된 답. 완성 답처럼 재사용하지 않는다
 }
 
 interface QaChatProps {
@@ -78,7 +114,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   const level = useMicLevel(listening) // 청취 중 소리 크기 막대
   const heardText = mic.listening ? mic.interim : wake.heard
 
-  const seeds = useMemo(() => (data && graph ? buildSeeds(data, graph) : []), [data, graph])
+  const allSeeds = useMemo(() => (data && graph ? buildSeeds(data, graph) : []), [data, graph])
+  const [moreSeeds, setMoreSeeds] = useState(false) // 결재용 6개 뒤의 나머지
+  const seeds = useMemo(() => (moreSeeds ? allSeeds : allSeeds.filter((s) => s.core)), [allSeeds, moreSeeds])
+  const asof = data?.decision.asof
 
   // 탭을 떠나면 진행 중인 스트림을 끊는다. 사라진 컴포넌트에 setState가 계속 날아오지 않게
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -113,8 +152,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     setReadingKey(key)
     for (const s of all) speaker.speak(s)
   }
-  // 준비된 답은 수치가 많고 길어(8문장 40초) 다 읽지 않는다. 한 줄 결론 + 첫 문단만
-  const seedSpoken = (s: Seed) => `${/[.!?]$/.test(s.hint) ? s.hint : s.hint + "."} ${s.answer.split(/\n\s*\n/)[0]}`
+  // 준비된 답의 1부만 읽는다(2부 수치는 화면용). hint는 1부 첫 문장과 같아 따로 붙이지 않는다
+  const seedSpoken = (s: Seed) => s.answer
 
   const startMic = () => {
     if (mic.listening) {
@@ -145,8 +184,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     const q = question.trim()
     if (!q || busy) return
 
-    // 같은 질문을 다시 물으면 API 호출 없이 기존 답을 맨 위로 끌어올린다
-    const cachedIdx = exchanges.findIndex((e) => e.q === q && !e.pending)
+    // 같은 질문을 다시 물으면 API 호출 없이 기존 답을 맨 위로 끌어올린다. 중단된 답은 완성 답이 아니라 다시 묻는다
+    const cachedIdx = exchanges.findIndex((e) => e.q === q && !e.pending && !e.aborted)
     if (cachedIdx >= 0) {
       setExchanges((xs) => {
         const next = xs.filter((_, i) => i !== cachedIdx)
@@ -171,7 +210,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         { role: "model" as const, text: e.a },
       ])
       .slice(-8)
-    setExchanges((xs) => [...xs, { q, a: "", pending: true }])
+    setExchanges((xs) => [...xs.filter((e) => !(e.q === q && e.aborted)), { q, a: "", pending: true }])
     scrollRef.current?.scrollTo({ top: 0 })
     const controller = new AbortController()
     abortRef.current = controller
@@ -231,11 +270,11 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         setExchanges((xs) => (xs[xs.length - 1]?.pending ? xs.slice(0, -1) : xs))
         speaker.stop()
       } else {
-        // 중단: 받은 데까지 확정
+        // 중단: 받은 데까지 보여 주되 완성 답으로 취급하지 않는다
         setExchanges((xs) => {
           const next = [...xs]
           const last = next[next.length - 1]
-          if (last?.pending) next[next.length - 1] = { ...last, a: last.a || "(중단됨)", pending: false }
+          if (last?.pending) next[next.length - 1] = { ...last, a: last.a || "(중단됨)", pending: false, aborted: true }
           return next
         })
       }
@@ -295,7 +334,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   ? "네, 말씀해 주세요"
                   : wakeOn
                     ? `"${WAKE_WORD}" 하고 부른 뒤 물어보세요`
-                    : "무단투기에 대해 무엇이든 물어보세요"
+                    : "이 분석의 결과와 대책을 물어보세요"
             }
             aria-label="질문"
             maxLength={500}
@@ -446,6 +485,15 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       </span>
                       {ex.q}
                     </p>
+                    {ex.aborted && (
+                      <button
+                        type="button"
+                        onClick={() => void askFree(ex.q)}
+                        className="shrink-0 rounded-full border border-[#8a530e]/50 px-2 py-0.5 text-[13px] text-[#8a530e]"
+                      >
+                        중단됨 · 다시 묻기
+                      </button>
+                    )}
                     {reading && (
                       <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#0c6155]" aria-live="off">
                         <span className="dump-eq" aria-hidden>
@@ -462,16 +510,11 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   {ex.pending && !spoken ? (
                     <ThinkingIndicator />
                   ) : (
-                    <div className={`whitespace-pre-wrap text-[17px] leading-relaxed text-[var(--cp-text)] ${ex.pending ? "dump-caret" : ""}`}>
+                    <div className={`text-[17px] leading-relaxed text-[var(--cp-text)] ${ex.pending ? "dump-caret" : ""}`}>
                       {renderAnswer(spoken)}
                     </div>
                   )}
-                  {parts.detail && (
-                    <div className="mt-2.5 border-l-2 border-[var(--cp-border)] pl-3">
-                      <p className="mb-1 text-[12.5px] font-semibold tracking-wide text-[var(--cp-text-faint)]">근거 수치와 한계</p>
-                      <div className="whitespace-pre-wrap text-[14.5px] leading-relaxed text-[var(--cp-text-dim)]">{parts.detail}</div>
-                    </div>
-                  )}
+                  {parts.detail && renderDetail(parts.detail, ex.pending ? undefined : asof)}
                 </div>
               )
             })}
@@ -481,7 +524,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         {/* 핵심 질의응답 아코디언. 첫 항목 펼침, 나머지 접힘 */}
         <section>
           <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-            핵심 질의응답 {seeds.length > 0 ? seeds.length : ""} · 누르면 펼쳐집니다
+            핵심 질의응답 {seeds.length > 0 ? `${seeds.length}` : ""}
+            {allSeeds.length > seeds.length ? ` / ${allSeeds.length}` : ""} · 누르면 펼쳐집니다
           </h3>
           {seeds.length === 0 && <p className="text-[15.5px] text-[var(--cp-text-dim)]">데이터를 불러오는 중…</p>}
           <div className="flex flex-col gap-1.5">
@@ -524,9 +568,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       <div className="flex justify-end">
                         {readButton(s.q, seedSpoken(s))}
                       </div>
-                      <div className="whitespace-pre-wrap text-[16px] leading-relaxed text-[var(--cp-text)]">
-                        {renderAnswer(s.answer)}
-                      </div>
+                      <div className="text-[16px] leading-relaxed text-[var(--cp-text)]">{renderAnswer(s.answer)}</div>
+                      {s.detail && renderDetail(s.detail, asof)}
                       {s.chart && data && (
                         <button
                           onClick={() => setBigChart(s.chart!)}
@@ -569,8 +612,17 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               )
             })}
           </div>
+          {allSeeds.length > seeds.length && (
+            <button
+              type="button"
+              onClick={() => setMoreSeeds(true)}
+              className="mt-2 w-full rounded-lg border border-dashed border-[var(--cp-border-strong)] py-2 text-[14.5px] font-medium text-[#0c6155] hover:bg-[var(--cp-hover)]"
+            >
+              질문 {allSeeds.length - seeds.length}개 더 보기 (검증·자료 질문)
+            </button>
+          )}
           <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
-            준비된 답의 수치는 독립 검토를 거친 확정치입니다. 더 깊은 근거는 발견·데이터 탭에서 볼 수 있습니다.
+            준비된 답은 발견 탭과 같은 수치를 씁니다{asof ? `(자료 기준 ${asof})` : ""}. 더 깊은 근거는 발견·데이터 탭에서 볼 수 있습니다.
           </p>
         </section>
       </div>
@@ -584,13 +636,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   )
 }
 
-// LLM이 첫 글자를 내기까지(사고형 모델은 5~12초) 멈춘 듯 보이지 않게. 단계 문구가 시간에 따라 바뀐다
-const THINK_STEPS: [number, string][] = [
-  [0, "질문을 읽는 중"],
-  [2000, "근거 그래프에서 관련 노드를 찾는 중"],
-  [5000, "동별 수치와 대조하는 중"],
-  [9000, "쉬운 말로 문장을 다듬는 중"],
-]
+// LLM이 첫 글자를 내기까지(사고형 모델은 5~12초) 멈춘 듯 보이지 않게. 실제 단계가 아닌 연출 문구("노드를 찾는 중")는
+// 심사에서 "정말 그래프를 탐색하나"를 부른다(10라운드). 사실인 것만: 답을 만드는 중 + 경과 시간
 function ThinkingIndicator() {
   const [t, setT] = useState(0)
   useEffect(() => {
@@ -598,7 +645,6 @@ function ThinkingIndicator() {
     const id = window.setInterval(() => setT(Date.now() - t0), 500)
     return () => window.clearInterval(id)
   }, [])
-  const label = [...THINK_STEPS].reverse().find(([at]) => t >= at)?.[1] ?? THINK_STEPS[0][1]
   return (
     <div className="flex flex-col gap-2.5 py-1" role="status" aria-label="답변 생성 중">
       <div className="flex items-center gap-2.5 text-[15px] font-semibold text-[#0c6155]">
@@ -607,9 +653,7 @@ function ThinkingIndicator() {
           <i />
           <i />
         </span>
-        <span key={label} className="dump-rise">
-          {label}
-        </span>
+        <span>답을 만드는 중 · {Math.floor(t / 1000)}초</span>
       </div>
       <div className="flex flex-col gap-2" aria-hidden>
         <div className="dump-skel w-[92%]" />

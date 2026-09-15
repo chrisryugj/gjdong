@@ -3,8 +3,15 @@
 import { useMemo } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
 import { DONG_THRESHOLDS, summarize } from "@/lib/dumping/facts"
-import { buildFindings, type Finding } from "./findings-data"
+import { buildFindings, FINDING_GROUPS, type Finding } from "./findings-data"
 import ContrastPanel from "./contrast-panel"
+
+// 10라운드: 17장을 결론 5·검증 8·한계 4로 묶는다. 결론만 펼치고 나머지는 접어 결재라인이 3~5장만 읽어도 되게
+const GROUP_SUB: Record<keyof typeof FINDING_GROUPS, string> = {
+  결론: "적발 기록과 같이 움직이는 조건, 신고 채널, 철회한 효과 주장",
+  검증: "결론을 흔들 수 있는 반론을 확인한 카드",
+  "한계·전망": "자료 정정, 처리 지연, 신축 흐름",
+}
 
 interface FindingsPanelProps {
   data: DumpingMapData | null
@@ -36,48 +43,67 @@ export default function FindingsPanel({
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      {/* 핵심 발견 카드가 먼저. 평가자가 결론과 근거를 카드 순서대로 읽는다 */}
+      {/* 핵심 발견 카드가 먼저. 결론 그룹은 펼치고 검증·한계 그룹은 접는다 */}
       <section>
         <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          핵심 발견 {findings.length} · 결론, 근거, 한계 순서 · 카드를 누르면 자세히 볼 수 있습니다
+          핵심 발견 {findings.length} · 결론 {FINDING_GROUPS.결론.length}장 먼저 · 카드를 누르면 자세히 볼 수 있습니다
         </h3>
-        <div className="flex flex-col gap-2">
-          {findings.map((f, i) => {
-            const active = f.title === activeTitle
-            return (
-              <button
-                key={f.title}
-                onClick={() => onOpenFinding(f)}
-                style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
-                className={`dump-rise rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
-                  active
-                    ? "border-[#0c6155] bg-[#0c6155]/10  ring-2 ring-[#0c6155]/30"
-                    : f.accent
-                      ? "border-[#0c6155]/50 bg-[#0c6155]/5"
-                      : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
-                }`}
-              >
-                <span className="mb-1 mr-1.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[13.5px] font-medium text-[var(--cp-text-muted)]">
-                  {f.tag}
+        {(Object.keys(FINDING_GROUPS) as (keyof typeof FINDING_GROUPS)[]).map((group) => {
+          const tags = FINDING_GROUPS[group] as readonly string[]
+          const cards = findings.filter((f) => tags.includes(f.tag))
+          const list = (
+            <div className="flex flex-col gap-2">
+              {cards.map((f, i) => {
+                const active = f.title === activeTitle
+                return (
+                  <button
+                    key={f.title}
+                    onClick={() => onOpenFinding(f)}
+                    style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
+                    className={`dump-rise rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
+                      active
+                        ? "border-[#0c6155] bg-[#0c6155]/10  ring-2 ring-[#0c6155]/30"
+                        : f.accent
+                          ? "border-[#0c6155]/50 bg-[#0c6155]/5"
+                          : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
+                    }`}
+                  >
+                    <span className="mb-1 mr-1.5 inline-block rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[13.5px] font-medium text-[var(--cp-text-muted)]">
+                      {f.tag}
+                    </span>
+                    {active && (
+                      <span className="mb-1 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[13.5px] font-semibold text-white">
+                        ✓ 지도 반영 중
+                      </span>
+                    )}
+                    <h4 className="text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
+                    <p className="mt-1 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
+                    <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
+                      {f.takeaway}
+                    </p>
+                    <span className="mt-1.5 inline-block text-[14.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+          if (group === "결론") return <div key={group}>{list}</div>
+          return (
+            <details key={group} className="group mt-3 rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
+              <summary className="flex cursor-pointer list-none items-baseline gap-2 text-[15px] font-semibold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
+                <span className="flex-1">
+                  {group} {cards.length}장
+                  <span className="ml-1.5 text-[13.5px] font-normal text-[var(--cp-text-dim)]">{GROUP_SUB[group]}</span>
                 </span>
-                {active && (
-                  <span className="mb-1 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[13.5px] font-semibold text-white">
-                    ✓ 지도 반영 중
-                  </span>
-                )}
-                <h4 className="text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
-                <p className="mt-1 text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">{f.body}</p>
-                <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15.5px] font-medium leading-snug text-[var(--cp-text-strong)]">
-                  {f.takeaway}
-                </p>
-                <span className="mt-1.5 inline-block text-[14.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
-              </button>
-            )
-          })}
-        </div>
+                <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
+                <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
+              </summary>
+              <div className="mt-2">{list}</div>
+            </details>
+          )
+        })}
         <p className="mt-2 text-[14.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 상세 방법론과 검증은 내부 분석
-          저장소(gwangjin-dumping, 비공개)의 docs를 참고해 주세요.
+          회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 자료와 방법은 위 데이터·방법에서 볼 수 있습니다.
         </p>
       </section>
 
@@ -245,7 +271,7 @@ export default function FindingsPanel({
       {data && graph && (
         <details className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
           <summary className="cursor-pointer text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-            기존 해석 vs 이 분석 · 데이터가 뒤집은 것 · 펼치기
+            통념·초기 분석과 이 분석의 차이 · 펼치기
           </summary>
           <div className="mt-2">
             <ContrastPanel data={data} graph={graph} />

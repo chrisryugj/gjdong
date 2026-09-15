@@ -64,6 +64,14 @@ export default function DumpingDashboard() {
   const [resetSeq, setResetSeq] = useState(0)
   const split = useSplitPane({ mapBelow: true }) // 모바일: 패널이 위, 지도가 아래. 핸들은 패널 바닥(crowd 패턴 재사용)
   const side = useSidebarWidth() // 데스크톱: 패널 폭. 경계선 드래그
+  // 10라운드: 390 폭에서 지도가 화면 절반을 먹어 결론·답이 두 줄만 보였다. 모바일은 지도를 접고 시작, "지도에서 확인"이나 지도 보기를 누르면 펼친다
+  const [mapCollapsed, setMapCollapsed] = useState(true)
+  // 등장 애니메이션은 첫 진입 한 번만. 탭을 오갈 때마다 다시 떠오르면 반복 열람에 피로하다
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => setSettled(true), 1500)
+    return () => window.clearTimeout(t)
+  }, [])
 
   const clearActive = () => {
     setActiveFinding(null)
@@ -142,6 +150,7 @@ export default function DumpingDashboard() {
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
     // 그래서 viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
+    setMapCollapsed(false) // 지도를 바꾸라는 뜻이니 모바일에서 접혀 있던 지도를 편다
   }, [])
 
   // 답변·칩이 지도를 바꾸면 이전 "반영 중" 배지는 사실이 아니다
@@ -190,13 +199,13 @@ export default function DumpingDashboard() {
       : null
 
   return (
-    <div className="crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)]">
+    <div className={`crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)] ${settled ? "dump-anim-off" : ""}`}>
       {/* 헤더. 처음 온 사람이 5초 안에 "무엇을 분석한 화면인지" 읽어야 한다. 부제가 대상·자료·목적을 한 문장으로 */}
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-4 py-2.5">
         <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
           <h1 className="truncate text-[19px] font-bold leading-tight text-[var(--cp-text-strong)]">클린광진 상황실</h1>
           <p className="line-clamp-2 text-[14px] leading-snug text-[var(--cp-text-muted)] md:line-clamp-1">
-            광진구 쓰레기 무단투기{stats ? ` 민원 ${stats.complaints.toLocaleString()}건` : ""}이 어디서 왜 생기는지 100m 격자로 분석한 결과와 대책 제안
+            광진구 쓰레기 무단투기{stats ? ` 민원 ${stats.complaints.toLocaleString()}건` : ""}이 어디에 몰리고 무엇과 함께 움직이는지 100m 격자로 분석한 결과와 대책 제안
           </p>
         </button>
         <div className="ml-auto flex items-center gap-5">
@@ -235,8 +244,15 @@ export default function DumpingDashboard() {
       <div className={`flex min-h-0 flex-1 flex-col md:flex-row ${side.dragging ? "select-none" : ""}`}>
         <div
           ref={split.mapBoxRef}
-          style={split.mapH != null ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties) : undefined}
-          className="order-last flex h-[var(--dump-map-h,42dvh)] shrink-0 flex-col md:h-auto md:min-w-0 md:flex-1"
+          // 모바일 접힘은 높이 변수를 0으로. md 이상은 h-auto라 영향이 없다
+          style={
+            mapCollapsed && rightPane === "map"
+              ? ({ "--dump-map-h": "0px" } as React.CSSProperties)
+              : split.mapH != null
+                ? ({ "--dump-map-h": `${split.mapH}px` } as React.CSSProperties)
+                : undefined
+          }
+          className="order-last flex h-[var(--dump-map-h,42dvh)] shrink-0 flex-col overflow-hidden md:h-auto md:min-w-0 md:flex-1 md:overflow-visible"
         >
           {rightPane === "map" ? (
             <>
@@ -361,29 +377,41 @@ export default function DumpingDashboard() {
               {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
             </div>
           )}
-          {/* 모바일 분할 핸들(패널 바닥). 드래그로 지도/패널 비율 조절, 더블탭 = 기본 복귀 */}
-          <div
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="지도 크기 조절"
-            onPointerDown={split.onSplitDown}
-            onPointerMove={split.onSplitMove}
-            onPointerUp={split.onSplitUp}
-            onPointerCancel={split.onSplitUp}
-            onDoubleClick={split.resetSplit}
-            className="flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center md:hidden"
-          >
-            <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
+          {/* 모바일 분할 핸들(패널 바닥). 드래그로 지도/패널 비율 조절, 더블탭 = 기본 복귀. 지도가 접혀 있으면 펼치기 버튼 */}
+          <div className="flex h-7 shrink-0 items-center md:hidden">
+            {rightPane === "map" && (
+              <button
+                onClick={() => setMapCollapsed((v) => !v)}
+                className="ml-2 shrink-0 rounded-full border border-[var(--cp-border)] px-2.5 py-0.5 text-[12.5px] font-medium text-[#0c6155]"
+              >
+                {mapCollapsed ? "지도 펼치기" : "지도 접기"}
+              </button>
+            )}
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="지도 크기 조절"
+              onPointerDown={(e) => {
+                setMapCollapsed(false)
+                split.onSplitDown(e)
+              }}
+              onPointerMove={split.onSplitMove}
+              onPointerUp={split.onSplitUp}
+              onPointerCancel={split.onSplitUp}
+              onDoubleClick={split.resetSplit}
+              className="flex h-full min-w-0 flex-1 cursor-row-resize touch-none items-center justify-center"
+            >
+              <span className="h-1.5 w-10 rounded-full bg-[var(--cp-border-strong)]" />
+            </div>
           </div>
         </aside>
       </div>
 
-      {/* 초기 분석 고지 푸터. 모바일은 첫 문장만 (지도·패널 공간이 우선) */}
+      {/* 한계 고지 푸터. 모바일은 첫 문장만 (지도·패널 공간이 우선). 결재를 유보하는 문장("정밀 분석을 권합니다")이 아니라 수치의 성격과 효과 판정 방법을 말한다 */}
       <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2 text-center text-[13px] leading-snug text-[var(--cp-text-dim)]">
-        이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다.{" "}
+        수치는 {mapData?.decision.asof ?? ""} 기준 민원·과태료 기록의 집계이며 실제 발생량이 아닙니다.{" "}
         <span className="hidden md:inline">
-          정책에 적용하기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을
-          거치기를 권합니다.
+          대책 효과는 조치 대장에 등록한 시범으로 판정하고, 청소차 수거 시각 자료가 확보되면 다시 분석합니다.
         </span>
       </footer>
 

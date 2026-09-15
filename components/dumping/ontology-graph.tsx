@@ -392,7 +392,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
         지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 ·{" "}
         <span className="pointer-coarse:hidden">드래그로 회전, 휠로 확대,</span>
         <span className="pointer-fine:hidden">손가락으로 돌리고 +/−로 확대,</span> 동그라미를 누르면 상세 (가만두면
-        천천히 돕니다)
+        천천히 자동 회전)
       </div>
     </div>
   )

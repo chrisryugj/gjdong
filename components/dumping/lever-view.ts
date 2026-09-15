@@ -19,12 +19,13 @@ export interface LeverView {
 
 // 비용 표기를 배지로 정규화. 관리자가 먼저 보는 것은 "돈이 드는가".
 // 원문은 노드 cost_note("재배치 0원"·"저비용(인쇄·번역)") 또는 판정 엣지 cost("0원"·"저") 두 형태다.
-export const COST_ORDER = ["무예산", "저비용", "예산 필요"] as const
+// 10라운드: "무예산"은 추가 현금 지출과 총비용을 혼동시킨다(검토서 J2). 배지는 "추가 예산 없음"으로 부르고 직원 시간·이전 비용은 별도임을 문장이 말한다
+export const COST_ORDER = ["추가 예산 없음", "저비용", "예산 필요"] as const
 
 export function costBadge(costNote: string | null): { label: (typeof COST_ORDER)[number]; cls: string } | null {
   const src = costNote ?? ""
   if (!src) return null
-  if (src.includes("0원")) return { label: "무예산", cls: "bg-[#0c6155]/12 text-[#0a4a41]" }
+  if (src.includes("0원")) return { label: "추가 예산 없음", cls: "bg-[#0c6155]/12 text-[#0a4a41]" }
   if (src === "저" || src.includes("저비용")) return { label: "저비용", cls: "bg-[var(--cp-hover2)] text-[var(--cp-text-muted)]" }
   return { label: "예산 필요", cls: "bg-[#8a530e]/12 text-[#8a530e]" }
 }
@@ -236,10 +237,12 @@ export function primaryStat(lv: LeverView, stats: FactorStat[]): FactorStat | nu
 
 export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   const top = primaryStat(lv, stats)
+  // 10라운드: 결재 인쇄물에 들어가는 문장이라 통계 풀이("우연히 나올 확률", "1에 가까울수록")는 뺀다.
+  // 근거 1문장 + 기대 방향 1문장(검증 전 명시). 효과를 단정하거나 "지금 바로"를 말하지 않는다
   if (!top) {
     return [
       "특정 요인을 겨냥하기보다, 수거와 단속의 운영 방식 자체를 조정하는 수단입니다.",
-      "새 예산 없이 지금 있는 인력과 노선만 조정해 시도할 수 있어 먼저 검토해 볼 만합니다.",
+      "추가 예산 없이 지금 있는 인력과 노선만 조정해 시범할 수 있습니다. 효과는 시범 뒤 실측으로 판정합니다.",
     ]
   }
   const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 사업입니다.`
@@ -249,25 +252,20 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   if (notStat) {
     return [
       s1,
-      "다만 근거는 통계로 확인된 효과가 아닙니다. 이미 있는 장비를 무단투기가 한 번도 없던 자리에서 실제로 잦은 자리로 옮기자는 자원 배분 논리입니다.",
-      "돈이 들지 않으니 효과 판정을 기다리지 않고 지금 바로 조정할 수 있습니다.",
+      "근거는 통계로 확인된 효과가 아닙니다. 이미 있는 장비를 적발 기록이 없던 자리에서 잦은 자리로 옮기자는 자원 배분 논리입니다.",
+      "추가 예산은 들지 않지만 이전·설치 인력은 별도이며, 재배치도 조치 대장에 등록한 뒤 평가합니다.",
     ]
   }
 
   const same = stats.filter((s) => s.kind === top.kind).sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
   const rank = same.findIndex((s) => s.id === top.id)
-  const chance =
-    top.p == null || Number.isNaN(top.p) || top.p < 0.001
-      ? "이런 결과가 우연히 나올 확률은 0.1%도 되지 않습니다."
-      : `이런 결과가 우연히 나올 확률은 ${(top.p * 100).toFixed(1)}%입니다.`
   const s2 =
     top.kind === "beta"
-      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
-      : `행정동 ${top.n ?? 15}곳을 비교하면 이 비율이 높은 동네일수록 무단투기도 ${
-          top.value >= 0.8 ? "거의 예외 없이" : top.value >= 0.7 ? "뚜렷하게" : "어느 정도"
-        } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 함께 움직이는 정도가 강합니다.`
-  const s3 =
-    "그동안 광진구 대책은 시설과 단속에 몰려 있었고 이 조건을 직접 겨냥하는 수단은 비어 있었습니다."
+      ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 보니 단속 적발 기록과 ${ordinal(rank)} 강하게 같이 움직이는 조건이었습니다.`
+      : `행정동 ${top.n ?? 15}곳을 비교하면 이 비율이 높은 동네일수록 적발 기록도 ${
+          top.value >= 0.8 ? "뚜렷하게" : top.value >= 0.7 ? "대체로" : "어느 정도"
+        } 많았습니다.`
+  const s3 = "이번에 모은 정책 목록에는 이 조건을 직접 겨냥하는 수단이 연결돼 있지 않았습니다. 효과는 시범 뒤 실측으로 판정합니다."
   return [s1, s2, s3]
 }
 

@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
           systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
           contents,
           // 사고형 모델은 사고 토큰이 출력 한도를 같이 쓴다 — 2048이면 프롬프트가 커진 뒤 답이 몇 문장 만에 잘렸다(2026-09-05 실측: 첫 바이트 12s 뒤 382B에서 종료)
-          generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
+          // 10라운드: 결재 자리에서 같은 질문에 같은 결론이 나오게 온도를 낮춘다(0.3에서 결정 질문의 첫 제안이 실행마다 바뀌었다)
+          generationConfig: { temperature: 0.15, maxOutputTokens: 8192 },
         }),
         signal: upstreamAbort.signal,
       },

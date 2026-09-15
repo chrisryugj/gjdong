@@ -17,7 +17,8 @@ export interface MapView {
   dongBars: boolean // 동별 민원·과태료 3D 막대(시연용 비교 뷰)
 }
 
-export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, binRecos: false, routes: false, dongBars: false }
+// 10라운드: 기본 원은 과태료. 회귀 판정의 결과지표가 과태료라 민원 원을 겹치면 화면의 겹침이 회귀 증거처럼 읽혔다(검토서 6절)
+export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["enf"], layers: [], candidates: false, binRecos: false, routes: false, dongBars: false }
 
 const BASE_LABEL: Record<BaseMode, string> = {
   unm: "다가구·단독",
@@ -28,9 +29,9 @@ const BASE_LABEL: Record<BaseMode, string> = {
 
 // 바탕 한 줄 뜻. 범례 첫 줄에 항상 보인다. 통계 낱말 없이
 const BASE_MEANING: Record<BaseMode, string> = {
-  unm: "색이 진할수록 다가구·단독주택이 많은 칸(발생과 같이 움직이는 조건)",
-  comp: "색이 진할수록 주민 신고 민원이 많은 칸",
-  enf: "색이 진할수록 과태료를 많이 부과한 칸",
+  unm: "색이 진할수록 다가구·단독주택이 많은 칸(적발 기록과 같이 움직이는 조건. 판정은 과태료 기준)",
+  comp: "색이 진할수록 주민 신고 민원이 많은 칸(앱 신고 편향 포함)",
+  enf: "색이 진할수록 과태료를 많이 부과한 칸(회귀 판정의 결과지표)",
   lp: "색이 진할수록 생활인구가 많은 칸(서울시 250m 격자)",
 }
 
@@ -52,7 +53,7 @@ const INFRA_IDS = Object.keys(INFRA_STYLE) as InfraLayerId[]
 
 // VizAction(발견 카드·예시 질문)의 기존 mode를 바탕+원 조합으로 해석
 export const MODE_MAP: Record<MapMode, { base: BaseMode; circles: CircleId[] }> = {
-  overlay: { base: "unm", circles: ["comp"] },
+  overlay: { base: "unm", circles: ["enf"] },
   unm: { base: "unm", circles: [] },
   comp: { base: "comp", circles: [] },
   enf: { base: "enf", circles: [] },

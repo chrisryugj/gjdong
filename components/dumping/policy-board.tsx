@@ -11,6 +11,7 @@ import {
   FACTOR_SHORT,
   joinParen,
   proposalRows,
+  shortTarget,
   STATUS_FALLBACK,
   STATUS_STYLE,
   type LeverView,
@@ -21,12 +22,10 @@ import type { MethodsSection } from "./methods-modal"
 
 // 정책 제안 탭. 지식그래프를 관리자 관점("무엇을 해야 하나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
-// 첫 화면에 보이는 것은 넷뿐이다. 결론 한 줄, 쉬운 수치 3, 결재용 인쇄와 평가자 근거 경로, 제안 카드.
-// 기존 수단 판정·성과지표는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다).
+// 첫 화면에 보이는 것은 넷뿐이다. 결론 한 줄, 쉬운 수치 3, 결재용 인쇄와 평가자 근거 경로, 제안 이름 6개와 카드.
+// 기존 수단 판정·성과지표·"왜 이런 제안인가"는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다.
+// 10라운드 냉독: 결재선은 첫 화면에서 "할 일"을 못 찾았다. 제안 이름을 결론 바로 아래로).
 // 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 지도로 이어진다.
-
-// 해설서 원문(공개 레포). 방법 모달이 다루지 않는 한계·검정 세부는 여기로 보낸다
-const EXPLAINER_URL = "https://github.com/chrisryugj/gjdong/blob/main/docs/dumping-stats-explainer.md"
 
 function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void; i?: number }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
@@ -152,32 +151,36 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
   const kpi = data?.decision.kpi
   const th = kpi?.thresholds
   const period = data ? summarize(data).period : null
+  // 앱 제외 상습격자의 최근 분기 추이. 헤드라인 옆에 자체 성과지표의 방향을 같이 둔다(10라운드 심사 냉독: 지표가 오르는데 결론만 고정)
+  const noAppTrend = (kpi?.persistentQuarterly ?? []).slice(-3).map((r) => r.criticalNoApp).filter((v): v is number => v != null)
   // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 첫 문장에 담는다. 검토서 A1
-  const conclusion =
-    "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가는 앱 신고 창구에 몰려 있어 발생이 늘었다고 읽기 어렵습니다."
+  // 10라운드: 앱 제외 신고·순찰 적발 배율을 결론 안에 병기해 "나빠졌다고 읽기 어렵다"가 지표와 따로 놀지 않게
+  const conclusion = growth
+    ? `단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 이 자료로 단정할 수 없습니다.`
+    : "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 이 자료로 단정할 수 없습니다."
   const headline: Headline[] = [
     {
       k: "다가구·단독 밀집 β",
       v: topBeta ? `${topBeta.beta > 0 ? "+" : ""}${topBeta.beta.toFixed(3)}` : "미산출",
-      sub: `조건 ${betas.length}개 중 발생과 가장 강하게 같이 움직임`,
+      sub: `격자 회귀 조건 ${betas.length}개 중 적발 기록(과태료)과 가장 강하게 같이 움직임`,
     },
     {
-      k: "순찰 적발",
-      v: growth ? fmtRatio(growth.finesPatrol) : "미산출",
-      sub: growth ? `신고 없이 순찰로 적발한 건수, ${growth.baseYear}년 대비 연환산. 최근 2~3개월은 부과 지연으로 과소집계` : "",
+      k: "채널고정 민원(앱 제외)",
+      v: growth ? fmtRatio(growth.fixed) : "미산출",
+      sub: growth ? `${growth.baseYear}년 대비 연환산. 앱 신고 ${fmtRatio(growth.app)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}(최근 2~3개월 과소집계)` : "",
     },
     {
-      k: "상습격자 앱 제외",
+      k: "집중관리 상습격자(앱 제외)",
       v: kpi ? `${kpi.criticalCellsNowNoApp}곳` : "미산출",
-      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸, 앱 신고를 빼고 집계한 수(넣으면 ${kpi.criticalCellsNow}곳)` : "",
+      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸. 분기 추이 ${noAppTrend.length ? noAppTrend.join("→") : "미산출"}, 앱 포함 ${kpi.criticalCellsNow}곳` : "",
     },
   ]
-  // 평가자 진입 줄. 데이터 → 방법 → 결론 → 한계 → 재현
-  const path: { k: string; go: () => void; ext?: string }[] = [
+  // 평가자 진입 줄. 데이터 → 방법 → 결론 → 한계 → 재현. 한계는 방법 모달 안(해설서 링크는 모달 하단)
+  const path: { k: string; go: () => void }[] = [
     { k: "데이터", go: () => onOpenMethods("data") },
     { k: "방법", go: () => onOpenMethods("methods") },
     { k: "결론", go: onGoFindings },
-    { k: "한계", go: () => {}, ext: EXPLAINER_URL },
+    { k: "한계", go: () => onOpenMethods("methods") },
     { k: "재현", go: () => onOpenMethods("reproduce") },
   ]
 
@@ -214,32 +217,43 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
             <span className="text-[var(--cp-text-dim)]">근거 경로</span>
             {path.map((p, i) => (
               <span key={p.k} className="inline-flex items-center gap-1.5">
-                {p.ext ? (
-                  <a href={p.ext} target="_blank" rel="noreferrer" className="font-semibold text-[#0c6155] hover:underline">
-                    {p.k}
-                  </a>
-                ) : (
-                  <button onClick={p.go} className="font-semibold text-[#0c6155] hover:underline">
-                    {p.k}
-                  </button>
-                )}
+                <button onClick={p.go} className="font-semibold text-[#0c6155] hover:underline">
+                  {p.k}
+                </button>
                 {i < path.length - 1 && <span className="text-[var(--cp-text-faint)]">→</span>}
               </span>
             ))}
           </span>
         </div>
+        {/* 할 일이 첫 화면에 보이게. 제안 이름 6개, 누르면 그 카드의 모달 */}
+        <div className="dump-rise mt-3 flex flex-wrap items-center gap-1.5 text-[13.5px]" style={{ "--i": 8 } as React.CSSProperties}>
+          <span className="mr-0.5 text-[var(--cp-text-dim)]">제안 {proposals.length}건</span>
+          {proposals.map((lv, i) => {
+            const cost = costBadge(lv.costNote)
+            return (
+              <button
+                key={lv.node.id}
+                onClick={() => setOpenLever(lv)}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] py-0.5 pl-2 pr-1 text-[13.5px] text-[var(--cp-text)] hover:border-[#0c6155]/60"
+              >
+                <span className="font-mono text-[11px] text-[var(--cp-text-faint)]">{i + 1}</span>
+                {shortTarget(lv.node.label)}
+                {cost && <span className={`rounded px-1 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+              </button>
+            )
+          })}
+        </div>
       </section>
 
-      {/* 정책 논리. 확인·공백·제안 세 단계. 한 문단으로 이으면 좁은 패널에서 읽히지 않는다 */}
-      <section>
-        <SectionHead n="02">왜 이런 제안인가</SectionHead>
+      {/* 정책 논리. 확인·공백·제안 세 단계. 접어 둔다(10라운드 냉독: 결재선에게 해독이 안 됐고 제안 카드를 폴드 밖으로 밀었다) */}
+      <Folded n="02" title="왜 이런 제안인가" sub="확인한 것, 비어 있던 것, 그래서 제안한 것">
         <dl className="flex flex-col gap-2.5">
           {[
             {
               k: "확인",
               v: (
                 <>
-                  단속 적발과 가장 강하게 연관된 조건은{" "}
+                  단속 적발 기록과 가장 강하게 연관된 조건은{" "}
                   <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 이 자료에서 연관이 확인되지
                   않았고, 차량 담배꽁초를 뺀 생활쓰레기만 봐도 같습니다.
                 </>
@@ -249,9 +263,9 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
               k: "공백",
               v: (
                 <>
-                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이번에 모은 정책 목록에는 이{" "}
-                  <b className="text-[var(--cp-text-strong)]">사람</b>에게 배출 안내를 전하는 대책이 연결돼 있지 않았습니다. 네 조건은 같은 동네에 겹쳐
-                  있어 어느 쪽을 겨냥해도 같은 골목에 닿습니다.
+                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이번에 모은 정책 목록에는 이 골목 주민에게 배출 안내를 전하는 대책이 연결돼 있지
+                  않았습니다. 네 조건은 같은 동네에 겹쳐 있어, 겨냥 지역은 주거 구조로 고르고 안내는 그 골목 주민에게 맞춥니다. 기존 사업 대조는 담당 부서
+                  확인이 필요합니다.
                 </>
               ),
             },
@@ -268,7 +282,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
             </div>
           ))}
         </dl>
-      </section>
+      </Folded>
 
       {/* 지도 연동 상태. 어떤 사업을 지도에 띄워 두었는지 */}
       {active && (
@@ -299,7 +313,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
       </Folded>
 
       {/* 성과지표. 무엇으로 성과를 재는가 */}
-      <Folded n="05" title="성과는 이 지표로 측정합니다" sub="민원 총건수는 앱 보급 편향이 섞여 성과 평가에 쓰지 않습니다">
+      <Folded n="05" title="성과는 이 지표로 측정합니다" sub="민원 총건수는 앱 신고 증가가 섞여 성과 평가에 쓰지 않습니다">
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
@@ -337,6 +351,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
       <PolicyPrintModal
         open={showPrint}
         graph={graph}
+        data={data}
         rows={rows}
         conclusion={conclusion}
         headline={headline}

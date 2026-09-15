@@ -43,7 +43,7 @@ export default function OntoQueries({ graph, onSelect }: Props) {
         <span className="shrink-0 text-[13.5px] text-[var(--cp-text-dim)]">공백 {gapTotal}건</span>
       </div>
       <p className="mb-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-        표만 봐서는 보이지 않고 관계를 따라가야 답이 나오는 질문입니다. 답은 지금 그래프에서 바로 계산합니다.
+        요인·증거·대책 사이 연결을 같은 규칙으로 검사하는 질문입니다. 답은 지금 그래프에서 바로 계산합니다.
       </p>
       <div className="flex flex-col gap-1">
         {results.map((r) => {
@@ -90,10 +90,9 @@ export default function OntoQueries({ graph, onSelect }: Props) {
           )
         })}
       </div>
-      {/* 스키마 검증. 도메인·레인지·철회 규약을 그래프가 지키는지. 오류 0이어야 정상 */}
+      {/* 스키마 검증. 도메인·레인지·철회 규약을 그래프가 지키는지. 오류 0이어야 정상. 주의 항목 내역은 개발 진단이라 화면엔 건수만 */}
       <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-        스키마 검증: 오류 {errors.length}건 · 주의 {warns.length}건
-        {warns.length > 0 && ` (${warns.map((w) => `${w.ref}: ${w.msg}`).join(" · ")})`}
+        그래프 규칙 점검: 오류 {errors.length}건 · 주의 {warns.length}건
         {errors.length > 0 && ` · ${errors.map((e) => `${e.ref}: ${e.msg}`).join(" · ")}`}
       </p>
     </section>

@@ -57,7 +57,7 @@ export function cqUntargetedFactors(graph: OntoGraph): CqResult {
   return {
     id: "cq-untargeted",
     q: "발생과 연관된 요인 가운데, 겨냥하는 개입수단이 없는 것은?",
-    why: "요인 목록과 개입 목록을 따로 보면 안 보인다. predicts로 들어온 요인에 affects로 나가는 개입이 없는 노드를 기계적으로 찾는다. 청년·외국인·1인세대 공백이 여기서 드러나 신규 대책 3건이 나왔다",
+    why: "요인 목록과 개입 목록을 따로 보면 드러나지 않습니다. 결과지표로 '예측함' 관계가 들어온 요인 가운데 '영향 줌' 관계로 나가는 개입이 없는 것을 같은 규칙으로 찾습니다. 이번에 모은 정책 목록에서 청년·외국인·1인세대 요인에 연결된 개입이 없다는 공백이 여기서 드러났습니다",
     hits,
     gaps: hits.filter((h) => !STRUCTURAL_FACTORS.has(h.id)).length,
     empty: "없음. 연관 요인마다 겨냥하는 개입이 하나 이상 있다",
@@ -71,7 +71,7 @@ export function cqUnsupportedClaims(graph: OntoGraph): CqResult {
   return {
     id: "cq-unsupported",
     q: "증거가 뒷받침하지 않는 주장이 있는가?",
-    why: "보고서 문장은 근거 없이도 쓸 수 있지만, 그래프의 주장은 supports 엣지가 있어야 한다. 0건이어야 정상이다",
+    why: "보고서 문장은 근거 없이도 쓸 수 있지만, 그래프의 주장은 '근거가 됨' 관계가 하나 이상 들어와야 합니다. 0건이 정상입니다",
     hits,
     gaps: hits.length,
     empty: "없음. 주장 전부가 증거 엣지를 갖는다",
@@ -100,7 +100,7 @@ export function cqRetractedCitations(graph: OntoGraph): CqResult {
   return {
     id: "cq-retracted",
     q: "철회된 근거(confidence 0)가 아직 연결된 항목은?",
-    why: "CCTV 효과 주장은 철회됐지만 노드를 지우지 않았다. 철회 사유와 함께 남겨 두고, 철회되지 않은 노드로 연결이 이어지는지를 감시한다. 연결이 남아 있어도 도착 노드가 철회 상태이거나 판정 엣지가 철회로 표기돼 있으면 정상이다",
+    why: "CCTV 효과 주장은 철회됐지만 항목을 지우지 않고 철회 사유와 함께 남겨 둡니다. 철회된 근거가 철회되지 않은 항목으로 이어지는지를 감시합니다. 연결이 남아 있어도 도착 항목이 철회 상태이거나 판정이 철회로 표기돼 있으면 정상입니다",
     hits,
     gaps: hits.filter((h) => !/철회/.test(h.note ?? "")).length,
     empty: "없음. 철회된 근거는 어디에도 연결돼 있지 않다",
@@ -118,7 +118,7 @@ export function cqLeversByVerdict(graph: OntoGraph): CqResult {
   return {
     id: "cq-verdict",
     q: "보유·제안 개입수단은 각각 어떤 검증 상태인가?",
-    why: "개입의 효과는 노드가 아니라 판정 엣지(lowers·stabilizes)의 status에 있다. '효과 있다'를 그래프가 단언하지 않게 만든 설계이고, 이 질문은 그 status를 한 번에 모은다",
+    why: "개입의 효과는 항목 자체가 아니라 판정 관계('낮추려는 수단'·'굳어지게 함')의 검증 상태에 둡니다. '효과 있다'를 그래프가 단언하지 않게 만든 설계이고, 이 질문은 그 상태를 한 번에 모읍니다",
     hits,
     gaps: hits.filter((h) => h.note === "판정 엣지 없음").length,
     empty: "개입수단 노드가 없다",
@@ -137,7 +137,7 @@ export function cqLeversWithoutBasis(graph: OntoGraph): CqResult {
   return {
     id: "cq-basis",
     q: "실행 근거 법령·조례가 연결되지 않은 개입수단은?",
-    why: "제안을 실행 계획으로 옮기려면 근거 조례가 필요하다. governed_by가 없는 개입은 그래프가 아직 실행 가능성을 보증하지 않는 것이다",
+    why: "제안을 실행 계획으로 옮기려면 근거 조례가 필요합니다. '실행 근거 법령' 관계가 없는 개입은 그래프가 아직 실행 가능성을 보증하지 않는 것입니다",
     hits,
     gaps: hits.length,
     empty: "없음. 모든 개입에 실행 근거가 연결돼 있다",
@@ -151,7 +151,7 @@ export function cqEvidenceWithoutLineage(graph: OntoGraph): CqResult {
   return {
     id: "cq-lineage",
     q: "어느 데이터셋에서 나왔는지 계보가 끊긴 증거는?",
-    why: "증거는 반드시 데이터셋(contains·derived_from)으로 거슬러 올라가야 재현 패키지의 해시와 맞물린다. 끊긴 증거는 출처 노드를 추가해야 할 대상이다",
+    why: "증거는 반드시 데이터셋('포함함'·'이 데이터에서 나옴')으로 거슬러 올라가야 재현 패키지의 해시와 맞물립니다. 끊긴 증거는 출처 항목을 추가해야 할 대상입니다",
     hits,
     gaps: hits.length,
     empty: "없음. 모든 증거가 데이터셋에 닿는다",
@@ -170,7 +170,7 @@ export function cqPreregistrationCoverage(graph: OntoGraph): CqResult {
   return {
     id: "cq-prereg",
     q: "제안된 개입 가운데 사전등록 원칙(조치 대장)이 그래프에 연결된 것은?",
-    why: "정책 화면은 '모든 제안은 실행 전 등록'이라고 말한다. 그래프의 restricts 엣지가 그 말을 얼마나 뒷받침하는지 세어, 말과 구조의 어긋남을 드러낸다",
+    why: "정책 화면은 '모든 제안은 실행 전 등록'이라고 말합니다. 그래프의 '제한함' 관계가 그 말을 얼마나 뒷받침하는지 세어, 말과 구조의 어긋남을 드러냅니다",
     hits,
     gaps: hits.filter((h) => !restricted.has(h.id)).length,
     empty: "제안 상태의 개입이 없다",
@@ -187,7 +187,7 @@ export function cqProvenanceGaps(graph: OntoGraph): CqResult {
   return {
     id: "cq-prov",
     q: "출처·기준 시점·산출 스크립트가 기록되지 않은 데이터셋·증거는?",
-    why: "증거 노드마다 어느 원천을 언제 어떤 스크립트로 가공했는지가 붙어 있어야 재현 패키지(해시·verify.py)와 한 줄로 이어진다. W3C PROV의 Entity·Activity 최소형이다",
+    why: "증거 항목마다 어느 원천을 언제 어떤 스크립트로 가공했는지가 붙어 있어야 재현 패키지(해시 검증)와 한 줄로 이어집니다. 출처 기록 표준(W3C PROV)의 최소형입니다",
     hits,
     gaps: hits.length,
     empty: "없음. 모든 데이터셋·증거에 출처·기준 시점·산출 스크립트가 있다",

@@ -892,6 +892,13 @@
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", var(--font-suit), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
+/* 등장 애니메이션은 첫 진입 한 번만. 대시보드가 1.5초 뒤 dump-anim-off를 달면 이후 탭 전환·재마운트에서는 바로 보인다 */
+.dump-anim-off .dump-rise,
+.dump-anim-off .dump-line,
+.dump-anim-off .dump-bar3d .bar {
+  animation: none;
+}
+
 /* 등장: 아래서 살짝 떠오름. --i 로 순서 지연 */
 @keyframes dump-rise {
   from { opacity: 0; transform: translateY(10px); }

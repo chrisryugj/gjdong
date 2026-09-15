@@ -162,7 +162,7 @@ function SeasonsChart({ data }: { data: DumpingMapData }) {
 }
 
 // 회귀 β. 그래프 Covariate 노드의 coefficient(|β| 내림차순). 꼬리표는 해석 결과라 id별로 붙인다
-const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "최강", "cov-alley": "역방향", "cov-arterial": "역방향" }
+const BETA_NOTE: Record<string, string> = { "cov-unmanaged": "가장 강함", "cov-alley": "역방향", "cov-arterial": "역방향" }
 
 function BetaChart({ graph }: { graph: OntoGraph }) {
   const BETAS = regressionBetas(graph).map((b) => ({

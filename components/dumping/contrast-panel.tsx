@@ -13,7 +13,7 @@ import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 interface Pair {
   k: string // 한 줄 주제
   before: string // 통념·초기 분석
-  beforeTag: "통념" | "이 팀의 초기 분석" | "원자료" // 냉독이 "초기 분석"을 외부 비판으로 읽어 주체를 밝혔다
+  beforeTag: "통념" | "초기 분석(철회)" | "원자료" // 냉독이 "초기 분석"을 외부 비판으로 읽어 철회 사실을 태그에 밝혔다
   after: string // 이 분석
   chart?: ChartKind
 }
@@ -47,7 +47,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
           ? [
               {
                 k: "관리주체 대리변수",
-                beforeTag: "이 팀의 초기 분석" as const,
+                beforeTag: "초기 분석(철회)" as const,
                 before: "건축물대장 공동주택은 관리주체가 있고 다가구·단독은 없다. 관리주체 부재가 발생을 설명한다.",
                 after: `K-apt 등록 세대는 대장 공동주택의 ${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%뿐. 세 갈래로 나누면 다가구·단독 β ${s(r2.proxyCheck.split.unmanaged_units.beta)}만 남고 관리사무소 없는 다세대·연립은 β ${s(r2.proxyCheck.split.apt_nokapt.beta)}로 연관 미확인. 겨냥점은 다가구·단독 밀집.`,
               },
@@ -63,7 +63,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
           ? [
               {
                 k: "품목 섞임",
-                beforeTag: "이 팀의 초기 분석" as const,
+                beforeTag: "초기 분석(철회)" as const,
                 before: "차량 담배꽁초(28%)가 섞인 전체 과태료로 주거 결론을 냈다. 생활쓰레기만 분석하면 달라질 수 있다.",
                 after: `생활쓰레기만 분석해도 다가구·단독 β ${s(r2.itemSplit.life.coef.unmanaged_units.beta)} 유지. 차량 담배꽁초에서는 β ${s(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(p=${r2.itemSplit.cigVehicle.coef.unmanaged_units.p.toFixed(2)})로 연관 미확인. 골목·큰길 음수는 차량 담배꽁초 쪽 현상.`,
                 chart: "beta" as const,
@@ -78,9 +78,9 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
         },
         {
           k: "상습 지역 수",
-          beforeTag: "이 팀의 초기 분석",
+          beforeTag: "초기 분석(철회)",
           before: `집중관리 상습격자 ${k.criticalCellsNow}곳. 신고편향과 무관한 성과지표.`,
-          after: `앱 민원을 빼고 집계하면 ${k.criticalCellsNowNoApp}곳. 앱 보급이 KPI도 부풀린다. 앱 제외판을 성과 기준으로.`,
+          after: `앱 민원을 빼고 집계하면 ${k.criticalCellsNowNoApp}곳. 앱 신고 증가가 이 지표에도 들어간다. 앱 제외판을 성과 기준으로.`,
         },
       ]
     : []
@@ -94,13 +94,13 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
     },
     {
       k: "과태료는 실측인가",
-      beforeTag: "이 팀의 초기 분석",
+      beforeTag: "초기 분석(철회)",
       before: "과태료는 신고 성향과 상관없는 단속 실측이다.",
-      after: `원자료 적발 경로를 보니 ${100 - g.patrolSharePct}%가 신고 유래. 신고와 독립인 것은 순찰(수시) ${g.patrolSharePct}%뿐이고 그 계열도 ${fmtRatio(g.finesPatrol)}. 문구를 고쳤다.`,
+      after: `원자료 적발 경로를 보니 ${100 - g.patrolSharePct}%가 신고 유래. 신고와 독립인 것은 순찰(수시) ${g.patrolSharePct}%뿐이고 그 계열도 ${fmtRatio(g.finesPatrol)}.`,
     },
     {
       k: "CCTV 효과",
-      beforeTag: "이 팀의 초기 분석",
+      beforeTag: "초기 분석(철회)",
       before: `발생 이력이 있는 곳에 설치하면 3개월 ${Math.abs(didOld).toFixed(2)}건 감소(p=${pOld.toFixed(3)}). 효과 있음.`,
       after: `비교 대상에 같은 조건을 적용하자 비교 대상도 줄었다. 대칭 설계 ${s(didSym)}(p>0.5). 효과 확인 안 됨, 주장 철회.`,
       chart: "did",
@@ -143,7 +143,7 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
   return (
     <section>
       <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-        기존 해석 vs 이 분석 · 데이터가 뒤집은 것 {pairs.length}
+        통념·초기 분석과 이 분석의 차이 {pairs.length}
       </h3>
       <div className="flex flex-col gap-1.5">
         {pairs.map((p) => (

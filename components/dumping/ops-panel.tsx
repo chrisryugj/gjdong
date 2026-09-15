@@ -103,8 +103,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               {d.kpi.thresholds?.months ?? 12}개월 {d.kpi.thresholds?.critical ?? 10}건+ {prevCritical != null && ` · 전분기 ${prevCritical}`}
             </p>
             <p className="text-[12.5px] font-medium text-[var(--cp-text-muted)]">앱 제외 {d.kpi.criticalCellsNowNoApp}곳</p>
-            <p className="mt-0.5 text-[12.5px] font-semibold text-[#a8322a]">
-              {showCritical ? "지도 표시 중 · 눌러서 끄기" : "누르면 지도에 표시"}
+            <p className="mt-0.5 text-[12.5px] font-medium text-[#0c6155]">
+              {showCritical ? "지도 표시 중 · 눌러서 끄기" : "지도에 표시 →"}
             </p>
           </button>
           <button
@@ -149,7 +149,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionTitle n="02">다음 분기 예측 핫스팟 20 · 누르면 지도에서 위치 표시</SectionTitle>
         <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[14.5px] font-medium leading-snug text-[#0a4a41]">
           지난 {bt.windows.length}개 분기 백테스트: 상위 20곳 중 평균 {bt.avgPrecision20}%에서 다음
-          분기 실제 발생. 전체 발생의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
+          분기 민원·과태료 기록. 전체 기록의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
           {bt.baselines && (
             <span className="block font-normal text-[#0a4a41]/80">
               실무 기준모형 포착률 {Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(" · ")}. 동급이며 우열 미확정.
@@ -172,7 +172,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14.5px] font-medium text-[var(--cp-text-strong)]">
-                  {h[6] || `${h[5]} (주소 미상)`}
+                  {h[6] || `${h[5]} (대표 주소 없음, 격자 중심)`}
                 </span>
                 <span className="block text-[13.5px] text-[var(--cp-text-dim)]">
                   {h[5]} · 최근 180일 민원 {h[3]} · 과태료 {h[4]}
@@ -210,8 +210,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           <ForecastChart data={data} />
           <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
             홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월 값을
-            쓰는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%).
-            신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
+            쓰는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%). 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%는 같은 잔차로 계산한
+            값이라 독립 검증 전입니다. 신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
       </section>
@@ -241,7 +241,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             ))}
           </div>
           <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
-            담배꽁초(차량) {cigShare}%는 주거 구조와 무관한 도로 현상입니다. 생활쓰레기 대책과 나눠
+            담배꽁초(차량) {cigShare}%는 주거 구조와 연관이 확인되지 않은 도로 현상입니다. 생활쓰레기 대책과 나눠
             관리해야 합니다.
           </p>
         </DetailCard>
@@ -368,7 +368,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
                 <p className="text-[13.5px] text-[var(--cp-text-dim)]">무단투기 CCTV</p>
                 <p className="font-mono text-[17px] font-semibold text-[var(--cp-text-strong)]">{d.seoul.cctv.gwangjin.dumping}대</p>
-                <p className="text-[12.5px] text-[var(--cp-text-faint)]">연계 25구 중 {d.seoul.cctv.gwangjin.dumpingRank}위</p>
+                <p className="text-[12.5px] text-[var(--cp-text-faint)]">보고 {d.seoul.cctv.reportingGus}개 구 중 {d.seoul.cctv.gwangjin.dumpingRank}위</p>
               </div>
               <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
                 <p className="text-[13.5px] text-[var(--cp-text-dim)]">서울 앱 청소신고</p>
@@ -390,7 +390,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               </div>
             </div>
             <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-              앱 신고 확산은 서울 전체 현상입니다. 25개 구가 같은 착시를 겪고 있어 채널고정 지표는 서울시 차원의 제안이 됩니다.
+              앱 청소 신고 증가는 서울 전체에서도 보입니다. 채널고정 지표는 서울시 차원에서도 쓸 수 있고, 자치구별 증가 원인은 별도 확인이 필요합니다.
             </p>
           </DetailCard>
         </section>
@@ -438,8 +438,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             </div>
           )}
           <p className="mt-2 text-[13.5px] text-[var(--cp-text-faint)]">
-            등록·갱신은 저장소 <span className="font-mono">data/dumping/interventions.json</span> 편집
-            후 재배포.
+            등록·갱신 담당은 청소과 상황실 관리자입니다. 등록 요청은 담당자에게 전달합니다. 등록 방법은 관리자 문서에 있습니다.
           </p>
         </div>
       </section>

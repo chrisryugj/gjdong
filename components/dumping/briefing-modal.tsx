@@ -36,14 +36,14 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
       why: `다가구·단독 ${row.unm}% (발생과 가장 강하게 같이 움직이는 조건, β ${betaText})`,
     })
   if (row.frn >= T.frn) recs.push({ t: "다국어 배출안내 우선 적용", why: `등록외국인 ${row.frn}%` })
-  if (row.one >= T.one) recs.push({ t: "전입·임대차 시점 배출안내(무예산)", why: `1인세대 ${row.one}%` })
+  if (row.one >= T.one) recs.push({ t: "전입·임대차 시점 배출안내(추가 예산 없음)", why: `1인세대 ${row.one}%` })
   if (row.yth >= T.yth) recs.push({ t: "대학 연계 배출안내 캠페인", why: `청년 20-34 ${row.yth}%` })
   if (candidates.length > 0)
     recs.push({
       t: `이동식 CCTV 재배치 후보 ${candidates.length}곳 (자원 배분 논리, 효과는 사전등록 후 평가)`,
       why: "무발생 지점 장비를 발생이력 격자로",
     })
-  recs.push({ t: "수거 시간대 조정 검토(무예산)", why: "배출과 수거의 시차 축소" })
+  recs.push({ t: "수거 시간대 조정 검토(추가 예산 없음)", why: "배출과 수거의 시차 축소" })
 
   return (
     <ModalShell

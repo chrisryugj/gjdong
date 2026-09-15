@@ -38,12 +38,39 @@ export function completeSentences(text: string): [string[], number] {
   return [out, consumed]
 }
 
+// 화면 표시용 문장 나누기. 1부를 문장마다 한 줄로 보여 주고 첫 문장만 결론으로 강조한다.
+// completeSentences는 끝에 공백이 있어야 마지막 문장을 잡으므로 여기서 붙이고, 남은 조각은 그대로 마지막 항목
+export function sentencesOf(text: string): string[] {
+  const t = text.trim()
+  if (!t) return []
+  const [done, consumed] = completeSentences(t + " ")
+  const rest = t.slice(consumed).trim()
+  return rest ? [...done, rest] : done
+}
+
+// 2부 불릿의 슬롯 라벨(수치·근거·한계·다음 행동). 프롬프트가 "- 수치: …" 꼴로 내게 한다
+export const DETAIL_SLOTS = ["수치", "근거", "한계", "다음 행동"] as const
+export interface DetailLine {
+  slot: (typeof DETAIL_SLOTS)[number] | null
+  text: string
+}
+export function detailLines(detail: string): DetailLine[] {
+  return detail
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-•·]\s*/, "").trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = /^(수치|근거|한계|다음 행동)\s*[:：]\s*(.+)$/.exec(l)
+      return m ? { slot: m[1] as DetailLine["slot"], text: m[2].trim() } : { slot: null, text: l }
+    })
+}
+
 // TTS 엔진이 읽기 어려운 기호를 말로 바꾼다. 준비된 답(시드)은 괄호 풀이·β·p값이 있어 여기서 걷어낸다.
 export function ttsClean(text: string): string {
   return text
     .replace(/\[부연\]/g, "")
     .replace(/\([^)]*\)/g, "") // 괄호 풀이는 화면용. 읽으면 흐름이 끊긴다
-    .replace(/p\s*<\s*0\.001/gi, "통계적으로 매우 유의")
+    .replace(/p\s*<\s*0\.001/gi, "연관이 뚜렷함")
     .replace(/p\s*=\s*([\d.]+)/gi, "피값 $1")
     .replace(/β/g, "베타 ")
     .replace(/R²/g, "설명력")

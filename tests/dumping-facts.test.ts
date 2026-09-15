@@ -117,7 +117,7 @@ test("buildFindings. 17장(서울 데이터 3장·K-apt 대리변수 검증·품
   assert.match(fix.body, /민원 \d+건과 과태료 \d+건/)
   const slaCard = fs.find((f) => f.tag === "처리 지연")!
   assert.match(slaCard.body, /상위 10%는 [\d.]+시간/)
-  const bias = fs.find((f) => f.tag === "착시 해명")!
+  const bias = fs.find((f) => f.tag === "신고 채널 분해")!
   assert.ok(JSON.stringify(bias.detail).includes("한 달 만에"), "앱 계단(한 달 만에 N배)이 착시 카드에 없다")
   assert.ok(JSON.stringify(bias.detail).includes("신고의 일부"), "민원 데이터셋이 신고의 일부라는 고지가 없다")
   const proxy = fs.find((f) => f.tag === "대리변수 검증")!
@@ -134,11 +134,18 @@ test("buildFindings. 17장(서울 데이터 3장·K-apt 대리변수 검증·품
   assert.strictEqual(new Set(fs.map((f) => f.title)).size, fs.length)
 })
 
-test("applyErrata. 정오표가 비어 있으면 그래프를 그대로 돌려주고, 정본이 고쳐진 ERR-001은 데이터에 남아 있지 않다", () => {
-  assert.strictEqual(EDGE_ERRATA.length, 0)
-  const fixed = applyErrata(graph)
-  assert.strictEqual(fixed, graph)
+test("applyErrata. 정본이 고쳐진 ERR-001은 데이터에 남아 있지 않고, 10라운드 정오표는 배율을 facts와 같은 자리수로 맞춘다", withMap, () => {
   const e = graph.edges.find((x) => x.f === "ev-fines" && x.rel === "supports" && x.t === "claim-bias")
   assert.ok(!String(e?.props?.note).includes("1.1배"), "정본 export가 다시 낡은 note를 내보냈다")
   assert.match(String(e?.props?.note), /감소/)
+  // ERR-006: ev-channel 엣지 note의 배율이 화면(facts.channelGrowth)과 같은 값
+  const fixed = applyErrata(graph)
+  const g = channelGrowth(map!)
+  const ch = fixed.edges.find((x) => x.f === "ev-channel" && x.rel === "supports" && x.t === "kpi-fixed-channel")!
+  assert.ok(String(ch.props?.note).includes(fmtRatio(g.app)) && String(ch.props?.note).includes(fmtRatio(g.fixed)), `엣지 note 배율이 facts와 다르다: ${ch.props?.note}`)
+  assert.strictEqual(ch.props?.erratum, "ERR-006")
+  assert.ok(EDGE_ERRATA.length >= 1)
+  // 노드 라벨 정오표(ERR-004)도 같은 배율
+  const ev = fixed.nodes.find((n) => n.id === "ev-channel")!
+  assert.ok(ev.label.includes(fmtRatio(g.app)) && ev.label.includes(fmtRatio(g.fixed)), ev.label)
 })
