@@ -139,7 +139,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
           민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
           채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하면 {d.kpi.criticalCellsNow}곳,
-          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 두세요.
+          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 삼아 주세요.
           {period.lastMonth < 12 && `채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
         </p>
       </section>
@@ -209,8 +209,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           </p>
           <ForecastChart data={data} />
           <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월로
-            찍는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%).
+            홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월 값을
+            쓰는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%, 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%).
             신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
           </p>
         </DetailCard>
@@ -249,7 +249,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 처분 퍼널 */}
       <section>
-        <SectionTitle n="05">과태료는 걷히고 있나 (부과 {KRW(d.fines.totalAmount)})</SectionTitle>
+        <SectionTitle n="05">과태료는 징수되고 있나 (부과 {KRW(d.fines.totalAmount)})</SectionTitle>
         <DetailCard onOpen={() => setModal("funnel")}>
           <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
             {funnelOrder.map((g) => {
@@ -352,7 +352,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               의무관리 기준 미달 소형 주거가{" "}
               {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
-              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관을 확인하지 못했으므로 발생 예고가
+              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관이 확인되지 않았으므로 발생 예고가
               아니라, 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>

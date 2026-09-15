@@ -382,8 +382,8 @@ export default function DumpingDashboard() {
       <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2 text-center text-[13px] leading-snug text-[var(--cp-text-dim)]">
         이 상황판은 지금까지 확보한 행정데이터와 기본 변수로 수행한 초기 분석입니다.{" "}
         <span className="hidden md:inline">
-          실제로 정책에 적용하시기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을
-          거치시길 권해 드립니다.
+          정책에 적용하기 전에는 현장 여건과 추가 변수(청소 노선·수거 시간 등)를 반영한 정밀 분석을
+          거치기를 권합니다.
         </span>
       </footer>
 

@@ -56,16 +56,16 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
         {
           k: "의류수거함",
           beforeTag: "통념",
-          before: "의류수거함 옆이 무단투기 온상이다. 수거함부터 정비하자.",
-          after: `수거함 ${data.infra.clothBins.length}곳을 격자에 얹어 보니 단속 적발과 연관 미확인(β ${s(r2.v2_100.coef.clothbin_n.beta)}, p=${r2.v2_100.coef.clothbin_n.p.toFixed(2)}). 신고만 약간 더 들어온다(β ${s(r2.v2_100_complaints.coef.clothbin_n.beta)}).`,
+          before: "의류수거함 옆에서 무단투기가 많이 생긴다. 수거함부터 정비하자.",
+          after: `수거함 ${data.infra.clothBins.length}곳을 격자에 배정해 분석하니 단속 적발과 연관 미확인(β ${s(r2.v2_100.coef.clothbin_n.beta)}, p=${r2.v2_100.coef.clothbin_n.p.toFixed(2)}). 신고만 약간 더 들어온다(β ${s(r2.v2_100_complaints.coef.clothbin_n.beta)}).`,
         },
         ...(r2.itemSplit
           ? [
               {
                 k: "품목 섞임",
                 beforeTag: "이 팀의 초기 분석" as const,
-                before: "차량 담배꽁초(28%)가 섞인 전체 과태료로 주거 결론을 냈다. 생활쓰레기만 재면 달라질 수 있다.",
-                after: `생활쓰레기만 재도 다가구·단독 β ${s(r2.itemSplit.life.coef.unmanaged_units.beta)} 유지. 차량 담배꽁초에서는 β ${s(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(p=${r2.itemSplit.cigVehicle.coef.unmanaged_units.p.toFixed(2)})로 연관 미확인. 골목·큰길 음수는 차량 담배꽁초 쪽 현상.`,
+                before: "차량 담배꽁초(28%)가 섞인 전체 과태료로 주거 결론을 냈다. 생활쓰레기만 분석하면 달라질 수 있다.",
+                after: `생활쓰레기만 분석해도 다가구·단독 β ${s(r2.itemSplit.life.coef.unmanaged_units.beta)} 유지. 차량 담배꽁초에서는 β ${s(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(p=${r2.itemSplit.cigVehicle.coef.unmanaged_units.p.toFixed(2)})로 연관 미확인. 골목·큰길 음수는 차량 담배꽁초 쪽 현상.`,
                 chart: "beta" as const,
               },
             ]
@@ -73,14 +73,14 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
         {
           k: "격자 크기",
           beforeTag: "통념",
-          before: "100m로 잘게 잘라서 그런 결과가 나온 것 아닌가.",
-          after: `200m로 합쳐 다시 돌려도 다가구·단독 밀집 β ${s(r2.v2_200.coef.unmanaged_units.beta)}, 골목 β ${s(r2.v2_200.coef.alley_ratio.beta)}. 판정 유지 ${Object.values(r2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(r2.gridSensitivity.v2).length} 변수.`,
+          before: "100m로 잘게 나눠서 그런 결과가 나온 것 아닌가.",
+          after: `200m로 합쳐 다시 분석해도 다가구·단독 밀집 β ${s(r2.v2_200.coef.unmanaged_units.beta)}, 골목 β ${s(r2.v2_200.coef.alley_ratio.beta)}. 판정 유지 ${Object.values(r2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(r2.gridSensitivity.v2).length} 변수.`,
         },
         {
           k: "상습 지역 수",
           beforeTag: "이 팀의 초기 분석",
           before: `집중관리 상습격자 ${k.criticalCellsNow}곳. 신고편향과 무관한 성과지표.`,
-          after: `앱 민원을 빼고 세면 ${k.criticalCellsNowNoApp}곳. 앱 보급이 KPI도 부풀린다. 앱 제외판을 성과 기준으로.`,
+          after: `앱 민원을 빼고 집계하면 ${k.criticalCellsNowNoApp}곳. 앱 보급이 KPI도 부풀린다. 앱 제외판을 성과 기준으로.`,
         },
       ]
     : []
@@ -89,20 +89,20 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "민원이 늘었다",
       beforeTag: "통념",
       before: `${g.baseYear}년보다 민원이 ${fmtRatio(g.total)}. 무단투기가 두 배로 나빠졌다.`,
-      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 과태료는 ${fmtRatio(g.fines)}, 신고와 독립인 순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}로 오히려 줄었다. 늘어난 건 앱 창구에 몰려 있다. 발생 증가를 완전히 배제하진 못한다.`,
+      after: `앱 신고만 ${fmtRatio(g.app)}, 120·직접 신고는 ${fmtRatio(g.fixed)}. 과태료는 ${fmtRatio(g.fines)}, 신고와 독립인 순찰 적발만 봐도 ${fmtRatio(g.finesPatrol)}로 오히려 줄었다. 늘어난 부분은 앱 창구에 몰려 있다. 발생 증가를 완전히 배제하지는 못한다.`,
       chart: "yearly",
     },
     {
       k: "과태료는 실측인가",
       beforeTag: "이 팀의 초기 분석",
       before: "과태료는 신고 성향과 상관없는 단속 실측이다.",
-      after: `원자료 적발 경로를 보니 ${100 - g.patrolSharePct}%가 신고 유래. 신고와 독립인 건 순찰(수시) ${g.patrolSharePct}%뿐이고 그 계열도 ${fmtRatio(g.finesPatrol)}. 문구를 고쳤다.`,
+      after: `원자료 적발 경로를 보니 ${100 - g.patrolSharePct}%가 신고 유래. 신고와 독립인 것은 순찰(수시) ${g.patrolSharePct}%뿐이고 그 계열도 ${fmtRatio(g.finesPatrol)}. 문구를 고쳤다.`,
     },
     {
       k: "CCTV 효과",
       beforeTag: "이 팀의 초기 분석",
       before: `발생 이력이 있는 곳에 설치하면 3개월 ${Math.abs(didOld).toFixed(2)}건 감소(p=${pOld.toFixed(3)}). 효과 있음.`,
-      after: `비교 대상에 같은 조건을 걸자 그쪽도 줄었다. 대칭 설계 ${s(didSym)}(p>0.5). 효과 확인 안 됨, 주장 철회.`,
+      after: `비교 대상에 같은 조건을 적용하자 비교 대상도 줄었다. 대칭 설계 ${s(didSym)}(p>0.5). 효과 확인 안 됨, 주장 철회.`,
       chart: "did",
     },
     {
@@ -125,12 +125,12 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
       k: "대책의 방향",
       beforeTag: "통념",
       before: `청년·외국인·1인세대가 많이 버린다(ρ ${rhoY.toFixed(2)}). 사람을 계도하면 된다.`,
-      after: `네 요인은 상관 ${collinearRange(graph)}로 한 덩어리라 누구를 지목할 수 없다. 겨냥할 것은 사람이 아니라 다가구·단독 골목의 배출 환경.`,
+      after: `네 요인은 상관 ${collinearRange(graph)}로 겹쳐 있어 어느 하나를 지목할 수 없다. 겨냥할 것은 사람이 아니라 다가구·단독 골목의 배출 환경.`,
     },
     {
       k: "원자료 그대로",
       beforeTag: "원자료",
-      before: "대장에 '다가구'라 적힌 건만 세면 다가구·단독 주거단위 41,633.",
+      before: "대장에 '다가구'라 적힌 건만 집계하면 다가구·단독 주거단위 41,633.",
       after: `'단독주택'으로 적혔지만 가구수 2 이상인 562동을 교차검증으로 찾아 ${unmUnits}(+5.4%). 계수 변화는 ±0.007.`,
     },
     ...extra,

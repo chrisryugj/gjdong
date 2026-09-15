@@ -292,7 +292,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               mic.listening
                 ? "듣고 있습니다. 말씀해 주세요"
                 : wake.state === "awake"
-                  ? "네, 말씀하세요"
+                  ? "네, 말씀해 주세요"
                   : wakeOn
                     ? `"${WAKE_WORD}" 하고 부른 뒤 물어보세요`
                     : "무단투기에 대해 무엇이든 물어보세요"

@@ -229,8 +229,8 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
       <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
-          { k: "드는 돈", v: lever.costNote && joinParen(lever.costNote) },
-          { k: "맡을 곳", v: lever.owner && joinParen(lever.owner) },
+          { k: "예산", v: lever.costNote && joinParen(lever.costNote) },
+          { k: "담당", v: lever.owner && joinParen(lever.owner) },
           { k: "효과 확인 방법", v: lever.verificationPlan && joinParen(lever.verificationPlan) },
         ]
           .filter((d) => d.v)
@@ -264,7 +264,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {(betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
           <h4 className="text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-            무단투기를 키우는 조건과 이 사업이 겨냥하는 지점
+            무단투기를 늘리는 조건과 이 사업이 겨냥하는 지점
           </h4>
           <StatGroup
             title="① 광진구를 100m 격자로 나눠 분석한 결과"
@@ -274,12 +274,12 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
           />
           <StatGroup
             title={`② 행정동 ${rhos[0]?.n ?? 15}곳을 비교한 결과`}
-            caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 붙어 다니는 것이고 절반이면 절반쯤 같이 움직입니다."
+            caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 함께 움직이는 것이고 절반이면 절반쯤 함께 움직입니다."
             stats={rhos}
             targeted={targeted}
           />
           <p className="px-1 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
-            1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 갈라낼 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
+            1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 구분할 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
           </p>
         </div>
       )}

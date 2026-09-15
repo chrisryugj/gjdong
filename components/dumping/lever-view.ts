@@ -176,7 +176,7 @@ export const FACTOR_EASY: Record<string, string> = {
   "con-alley": "골목이 많은 정도",
   "con-arterial-dist": "큰길에서 떨어진 거리",
   "con-latent-fragmentation": "1인·소형 주거가 몰린 동네 성격",
-  "con-living-pop": "머무는 사람 수(서울시 생활인구)",
+  "con-living-pop": "생활인구(서울시 250m 격자)",
   "con-clothbin": "의류수거함이 몰린 정도",
 }
 
@@ -263,19 +263,19 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   const s2 =
     top.kind === "beta"
       ? `광진구를 100m 격자 ${(top.n ?? 0).toLocaleString()}칸으로 나눠 분석해 보니 무단투기가 어디에서 생기는지를 ${ordinal(rank)} 잘 설명하는 조건이었습니다. ${chance}`
-      : `행정동 ${top.n ?? 15}곳을 나란히 놓고 보면 이 비율이 높은 동네일수록 무단투기도 ${
+      : `행정동 ${top.n ?? 15}곳을 비교하면 이 비율이 높은 동네일수록 무단투기도 ${
           top.value >= 0.8 ? "거의 예외 없이" : top.value >= 0.7 ? "뚜렷하게" : "어느 정도"
-        } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 붙어 다닙니다.`
+        } 많았습니다. 두 값이 함께 움직이는 정도는 ${top.value.toFixed(2)}입니다. 1에 가까울수록 함께 움직이는 정도가 강합니다.`
   const s3 =
-    "그동안 광진구 대책은 시설과 단속에 몰려 있었고 이 조건을 직접 건드리는 수단은 비어 있었습니다."
+    "그동안 광진구 대책은 시설과 단속에 몰려 있었고 이 조건을 직접 겨냥하는 수단은 비어 있었습니다."
   return [s1, s2, s3]
 }
 
 // 판정 근거(note)가 비어 있는 기존 수단을 위한 기본 설명
 export const STATUS_FALLBACK: Record<string, string> = {
   "미검증":
-    "아직 효과를 재 보지 않았습니다. 설치 시점과 위치 자료를 갖추면 다른 수단과 같은 방식으로 판정할 수 있습니다.",
-  "효과없음": "설치 위치와 무단투기 발생 사이에서 이렇다 할 관계가 나타나지 않았습니다.",
+    "아직 효과를 측정하지 않았습니다. 설치 시점과 위치 자료를 갖추면 다른 수단과 같은 방식으로 판정할 수 있습니다.",
+  "효과없음": "설치 위치와 무단투기 발생 사이에서 뚜렷한 관계가 나타나지 않았습니다.",
 }
 
 // 이 수단의 효과 분석(Evidence)에 달린 쉬운 설명. 검증 결과를 전문용어 없이 보여줄 때 쓴다

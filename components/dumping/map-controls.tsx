@@ -31,7 +31,7 @@ const BASE_MEANING: Record<BaseMode, string> = {
   unm: "색이 진할수록 다가구·단독주택이 많은 칸(발생과 같이 움직이는 조건)",
   comp: "색이 진할수록 주민 신고 민원이 많은 칸",
   enf: "색이 진할수록 과태료를 많이 부과한 칸",
-  lp: "색이 진할수록 머무는 사람이 많은 칸(서울시 생활인구)",
+  lp: "색이 진할수록 생활인구가 많은 칸(서울시 250m 격자)",
 }
 
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
@@ -44,7 +44,7 @@ const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
     case "enf":
       return "바탕색은 단속으로 부과한 과태료 건수입니다. 대부분 신고를 받아 적발한 것이고 순찰·근무 패턴도 섞여 있어, 발생 그 자체는 아닙니다."
     case "lp":
-      return `바탕색은 서울시 250m 격자 생활인구(${data?.decision.seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눈 체류 인구입니다. 사람이 많이 머무는 곳인지, 즉 노출을 보는 바탕입니다.`
+      return `바탕색은 서울시 250m 격자 생활인구(${data?.decision.seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눈 값입니다. 생활인구가 많은 곳인지, 즉 노출을 보는 바탕입니다.`
   }
 }
 
@@ -300,7 +300,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
             <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
               {baseDesc(view.base, data)}
               {view.circles.length > 0 &&
-                ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 견주려고 올린 것입니다.`}
+                ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
             </p>
           )}
           </div>

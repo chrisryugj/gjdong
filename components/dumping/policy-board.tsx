@@ -164,12 +164,12 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
     {
       k: "순찰 적발",
       v: growth ? fmtRatio(growth.finesPatrol) : "미산출",
-      sub: growth ? `신고 없이 순찰로 잡은 건수, ${growth.baseYear}년 대비 연환산. 최근 2~3개월은 부과 지연으로 과소집계` : "",
+      sub: growth ? `신고 없이 순찰로 적발한 건수, ${growth.baseYear}년 대비 연환산. 최근 2~3개월은 부과 지연으로 과소집계` : "",
     },
     {
       k: "상습격자 앱 제외",
       v: kpi ? `${kpi.criticalCellsNowNoApp}곳` : "미산출",
-      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸, 앱 신고를 빼고 센 수(넣으면 ${kpi.criticalCellsNow}곳)` : "",
+      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸, 앱 신고를 빼고 집계한 수(넣으면 ${kpi.criticalCellsNow}곳)` : "",
     },
   ]
   // 평가자 진입 줄. 데이터 → 방법 → 결론 → 한계 → 재현
@@ -240,8 +240,8 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
               v: (
                 <>
                   단속 적발과 가장 강하게 연관된 조건은{" "}
-                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 이 자료에서 연관을 확인하지
-                  못했고, 차량 담배꽁초를 뺀 생활쓰레기만 봐도 같습니다.
+                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 이 자료에서 연관이 확인되지
+                  않았고, 차량 담배꽁초를 뺀 생활쓰레기만 봐도 같습니다.
                 </>
               ),
             },
@@ -279,7 +279,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
 
       {/* 신규 제안 카드. 예산 등급 순 */}
       <section>
-        <SectionHead n="03" sub="돈이 안 드는 것부터. 카드를 누르면 이유와 지도가 나옵니다">
+        <SectionHead n="03" sub="예산이 들지 않는 것부터. 카드를 누르면 이유와 지도가 나옵니다">
           제안 {proposals.length}건
         </SectionHead>
         <div className="flex flex-col gap-2.5">
@@ -299,7 +299,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
       </Folded>
 
       {/* 성과지표. 무엇으로 성과를 재는가 */}
-      <Folded n="05" title="성과는 이 지표로 잽니다" sub="민원 총건수는 앱 보급 편향이 섞여 성과 평가에 쓰지 않습니다">
+      <Folded n="05" title="성과는 이 지표로 측정합니다" sub="민원 총건수는 앱 보급 편향이 섞여 성과 평가에 쓰지 않습니다">
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
@@ -317,7 +317,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
           })}
         </div>
         <p className="mt-2 px-2 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
-          빨간 점 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 신고 편향에 덜 민감하게 성과를 재는 지표입니다. 상습격자 수는
+          빨간 점 세 가지(채널고정 민원·집중관리 상습격자·징수율)가 신고 편향에 덜 민감하게 성과를 측정하는 지표입니다. 상습격자 수는
           앱 민원을 포함하므로 관리수요 지표로 함께 읽어 주세요.
         </p>
       </Folded>

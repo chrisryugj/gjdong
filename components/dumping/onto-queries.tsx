@@ -43,7 +43,7 @@ export default function OntoQueries({ graph, onSelect }: Props) {
         <span className="shrink-0 text-[13.5px] text-[var(--cp-text-dim)]">공백 {gapTotal}건</span>
       </div>
       <p className="mb-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-        표를 따로 보면 안 보이고 관계를 따라가야 나오는 질문들입니다. 답은 지금 그래프에서 바로 계산합니다.
+        표만 봐서는 보이지 않고 관계를 따라가야 답이 나오는 질문입니다. 답은 지금 그래프에서 바로 계산합니다.
       </p>
       <div className="flex flex-col gap-1">
         {results.map((r) => {

@@ -44,7 +44,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
         >
           <h1 className="text-lg font-bold text-[var(--cp-text-strong)]">클린광진 상황실</h1>
           <p className="mt-1 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
-            광진구 무단투기 분석 · 내부 검토용입니다. 비밀번호를 입력하세요.
+            광진구 무단투기 분석 · 내부 검토용입니다. 비밀번호를 입력해 주세요.
           </p>
           <input
             type="password"

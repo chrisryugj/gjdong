@@ -139,7 +139,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       })()}
       {lineage && (lineage.evidence.length > 0 || lineage.datasets.length > 0) && (
         <div className="mt-3 rounded-lg bg-[var(--cp-hover)] px-2.5 py-2">
-          <p className="mb-1 text-[13.5px] font-semibold text-[var(--cp-text-dim)]">근거 계보 · 이 항목이 기대는 곳</p>
+          <p className="mb-1 text-[13.5px] font-semibold text-[var(--cp-text-dim)]">근거 계보 · 이 항목이 근거로 삼는 곳</p>
           {(
             [
               ["증거", lineage.evidence],
@@ -220,7 +220,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="이름이나 아이디로 검색해 보세요"
+        placeholder="이름이나 아이디로 검색"
         className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-1.5 text-[16px] text-[var(--cp-text)] placeholder:text-[var(--cp-text-faint)] focus:border-[var(--cp-border-active)] focus:outline-none"
       />
       <div className="flex flex-wrap gap-1">

@@ -62,20 +62,20 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
   const seoulSeeds: Seed[] = r2 && sx
     ? [
         {
-          q: "의류수거함 옆이 무단투기 온상 아닌가?",
-          hint: "단속 자료로는 아닙니다. 신고만 조금 더 들어옵니다",
-          answer: `단속 적발 자료로는 그렇지 않습니다. 광진구 의류수거함 ${n(data.infra.clothBins.length)}곳(공공데이터포털)을 100m 격자에 얹어 회귀에 넣어 보니 과태료 적발과의 연관을 확인하지 못했습니다(β ${signed(r2.v2_100.coef.clothbin_n.beta)}, ${pText(r2.v2_100.coef.clothbin_n.p)}).
+          q: "의류수거함 옆에서 무단투기가 많이 생기지 않나?",
+          hint: "단속 자료로는 아닙니다. 신고 민원과만 약한 연관이 있습니다",
+          answer: `단속 적발 자료로는 그렇지 않습니다. 광진구 의류수거함 ${n(data.infra.clothBins.length)}곳(공공데이터포털)을 100m 격자에 배정해 회귀에 넣어 보니 과태료 적발과의 연관이 확인되지 않았습니다(β ${signed(r2.v2_100.coef.clothbin_n.beta)}, ${pText(r2.v2_100.coef.clothbin_n.p)}).
 
-신고 민원 기준으로는 약한 양의 연관이 있습니다(β ${signed(r2.v2_100_complaints.coef.clothbin_n.beta)}, ${pText(r2.v2_100_complaints.coef.clothbin_n.p)}). 수거함 주변이 눈에 잘 띄어 신고가 늘었을 수도 있고 실제 배출이 더 많은데 단속이 못 잡는 것일 수도 있습니다. 지금 자료로는 가를 수 없어서 수거함 밀집 격자 시범 정비를 사전등록 설계로 해 보는 것을 검토 항목으로 남겼습니다.`,
+신고 민원 기준으로는 약한 양의 연관이 있습니다(β ${signed(r2.v2_100_complaints.coef.clothbin_n.beta)}, ${pText(r2.v2_100_complaints.coef.clothbin_n.p)}). 수거함 주변이 눈에 잘 띄어 신고가 늘었을 수도 있고 실제 배출이 더 많은데 단속이 못 잡는 것일 수도 있습니다. 지금 자료로는 구분할 수 없어서 수거함 밀집 격자 시범 정비를 사전등록 설계로 해 보는 것을 검토 항목으로 남겼습니다.`,
           viz: { mode: "comp", layers: ["clothBins"] },
           vizNote: "지도에 의류수거함(청록 점)을 민원 분포 위에 표시했습니다.",
         },
         {
-          q: "100m 격자로 나누는 게 말이 되나?",
+          q: "100m 격자로 나누는 것이 타당한가?",
           hint: `200m로 합쳐도 판정 유지 ${Object.values(r2.gridSensitivity.v2).filter(Boolean).length}/${Object.keys(r2.gridSensitivity.v2).length}`,
           answer: `됩니다. 자료마다 칸에 넣는 방식이 다르고 칸 크기를 바꿔도 결론이 같았습니다.
 
-- 민원·과태료는 건별 주소를 좌표로 바꿔 그 점이 속한 칸에 셉니다. 건축물대장은 대지 지번 좌표로, 도로·건물은 OSM 선·면을 칸 경계로 잘라 넣습니다
+- 민원·과태료는 건별 주소를 좌표로 바꿔 그 점이 속한 칸에 집계합니다. 건축물대장은 대지 지번 좌표로, 도로·건물은 OSM 선·면을 칸 경계로 나눠 넣습니다
 - 인구는 서울시 250m 격자 생활인구(면적 비례 배분)와 SGIS 100m 격자 상주인구(2024 등록센서스) 두 가지를 노출 변수로 넣었습니다
 - 칸을 200m로 네 배 키워 다시 적합하면 다가구·단독 밀집 β ${signed(r2.v2_200.coef.unmanaged_units.beta)}, 골목 비율 β ${signed(r2.v2_200.coef.alley_ratio.beta)}로 방향과 유의성이 그대로입니다(R² ${r2.v2_100.r2}→${r2.v2_200.r2})
 
@@ -88,9 +88,9 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
               {
                 q: "등록인구를 넣으면 결론이 바뀌나?",
                 hint: "상주인구도 넣었습니다. 바뀌지 않습니다",
-                answer: `바뀌지 않습니다. 국가데이터처 SGIS 100m 격자 총인구(2024 등록센서스)를 같은 칸에 붙여 회귀에 넣었습니다. 상주인구만 넣으면 β ${signed(r2.exposure.compare.resident_only.resident_pop.beta)}(${pText(r2.exposure.compare.resident_only.resident_pop.p)}), 생활인구와 같이 넣으면 β ${signed(r2.exposure.compare.both.resident_pop.beta)}(${pText(r2.exposure.compare.both.resident_pop.p)})로 사는 사람 수 자체는 연관을 확인하지 못했습니다. 다가구·단독 밀집은 β ${signed(r2.exposure.compare.both.unmanaged.beta)}로 그대로입니다.
+                answer: `바뀌지 않습니다. 국가데이터처 SGIS 100m 격자 총인구(2024 등록센서스)를 같은 칸에 붙여 회귀에 넣었습니다. 상주인구만 넣으면 β ${signed(r2.exposure.compare.resident_only.resident_pop.beta)}(${pText(r2.exposure.compare.resident_only.resident_pop.p)}), 생활인구와 같이 넣으면 β ${signed(r2.exposure.compare.both.resident_pop.beta)}(${pText(r2.exposure.compare.both.resident_pop.p)})로 상주인구 자체는 연관이 확인되지 않았습니다. 다가구·단독 밀집은 β ${signed(r2.exposure.compare.both.unmanaged.beta)}로 그대로입니다.
 
-머무는 사람(생활인구)과 사는 사람(상주인구)은 상관이 ${r2.exposure.corrLivingResident.toFixed(2)}밖에 안 돼 서로 다른 정보를 담고 있고 같이 넣어도 공선성 문제(VIF 최대 ${Math.max(...Object.values(r2.exposure.vif)).toFixed(1)})는 없습니다. 인구 영향을 걷어냈다고 단정할 수는 없습니다. 이 자료로 말할 수 있는 것은 두 종류 인구 노출을 넣어도 결론이 같다는 데까지입니다. 격자 통계에는 셀당 최대 ±7명의 비밀보호 노이즈가 들어 있습니다.`,
+생활인구와 상주인구는 상관이 ${r2.exposure.corrLivingResident.toFixed(2)}에 그쳐 서로 다른 정보를 담고 있습니다. 같이 넣어도 공선성 문제(VIF 최대 ${Math.max(...Object.values(r2.exposure.vif)).toFixed(1)})는 없습니다. 인구 영향을 제거했다고 단정할 수는 없습니다. 이 자료로 말할 수 있는 것은 두 종류 인구 노출을 넣어도 결론이 같다는 데까지입니다. 격자 통계에는 셀당 최대 ±7명의 비밀보호 노이즈가 들어 있습니다.`,
                 viz: { mode: "lp" as const },
                 vizNote: "지도 바탕은 생활인구입니다. 상주인구는 회귀 변수로만 썼습니다.",
               },
@@ -103,7 +103,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
                 hint: "K-apt로 나눠 보니 연관은 다가구·단독에만 있었습니다",
                 answer: `건축물대장 "공동주택" ${n(r2.proxyCheck.crossCheck.aptHhTotal)}세대 가운데 관리주체가 실제로 있는 K-apt 등록 단지는 ${n(r2.proxyCheck.crossCheck.managedTotal)}세대(${Math.round((r2.proxyCheck.crossCheck.managedShareOfAptHh ?? 0) * 100)}%)뿐이었습니다. 나머지는 관리사무소 없는 다세대·연립·소형 공동주택입니다.
 
-주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록)로 나눠 같은 모형을 돌리면 다가구·일반단독만 β ${signed(r2.proxyCheck.split.unmanaged_units.beta)}(${pText(r2.proxyCheck.split.unmanaged_units.p)})로 남고 관리사무소가 없는 다세대·연립은 β ${signed(r2.proxyCheck.split.apt_nokapt.beta)}(${pText(r2.proxyCheck.split.apt_nokapt.p)})로 연관을 확인하지 못했습니다. 그래서 "관리주체가 없어서"라는 설명은 너무 넓습니다. 이 자료가 뒷받침하는 범위는 다가구·단독주택 밀집까지입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 가를 수 없습니다.${r2.proxyCheck.apiSensitivity ? ` 국토교통부 기본정보 API의 단지별 세대수로 바꿔 끼워도 다가구·일반단독 β ${signed(r2.proxyCheck.apiSensitivity.unmanaged_units.beta)}로 같은 답입니다.` : ""}`,
+주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록)로 나눠 같은 모형을 돌리면 다가구·일반단독만 β ${signed(r2.proxyCheck.split.unmanaged_units.beta)}(${pText(r2.proxyCheck.split.unmanaged_units.p)})로 남고 관리사무소가 없는 다세대·연립은 β ${signed(r2.proxyCheck.split.apt_nokapt.beta)}(${pText(r2.proxyCheck.split.apt_nokapt.p)})로 연관이 확인되지 않았습니다. 그래서 "관리주체가 없어서"라는 설명은 너무 넓습니다. 이 자료가 뒷받침하는 범위는 다가구·단독주택 밀집까지입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 구분할 수 없습니다.${r2.proxyCheck.apiSensitivity ? ` 국토교통부 기본정보 API의 단지별 세대수로 바꿔 넣어도 다가구·일반단독 β ${signed(r2.proxyCheck.apiSensitivity.unmanaged_units.beta)}로 같은 답입니다.` : ""}`,
                 viz: { mode: "unm" as const },
                 vizNote: "지도에 다가구·단독 밀집을 표시했습니다. 밀집 칸이 진하게 보입니다.",
               },
@@ -112,11 +112,11 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
         ...(r2.itemSplit
           ? [
               {
-                q: "차량 담배꽁초를 빼고 생활쓰레기만 재도 같은 결론인가?",
+                q: "차량 담배꽁초를 빼고 생활쓰레기만 분석해도 같은 결론인가?",
                 hint: `생활쓰레기만으로 다가구·단독 β ${signed(r2.itemSplit.life.coef.unmanaged_units.beta)} 유지`,
-                answer: `같습니다. 과태료 ${n(r2.itemSplit.counts.all)}건을 생활쓰레기 ${n(r2.itemSplit.counts.life)}건과 차량 담배꽁초 ${n(r2.itemSplit.counts.cigVehicle)}건으로 나눠 같은 모형을 따로 돌렸습니다. 생활쓰레기에서 다가구·단독 밀집 β ${signed(r2.itemSplit.life.coef.unmanaged_units.beta)}(${pText(r2.itemSplit.life.coef.unmanaged_units.p)})로 유지되고, 차량 담배꽁초에서는 β ${signed(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(${pText(r2.itemSplit.cigVehicle.coef.unmanaged_units.p)})로 연관을 확인하지 못했습니다.
+                answer: `같습니다. 과태료 ${n(r2.itemSplit.counts.all)}건을 생활쓰레기 ${n(r2.itemSplit.counts.life)}건과 차량 담배꽁초 ${n(r2.itemSplit.counts.cigVehicle)}건으로 나눠 같은 모형을 따로 돌렸습니다. 생활쓰레기에서 다가구·단독 밀집 β ${signed(r2.itemSplit.life.coef.unmanaged_units.beta)}(${pText(r2.itemSplit.life.coef.unmanaged_units.p)})로 유지되고, 차량 담배꽁초에서는 β ${signed(r2.itemSplit.cigVehicle.coef.unmanaged_units.beta)}(${pText(r2.itemSplit.cigVehicle.coef.unmanaged_units.p)})로 연관이 확인되지 않았습니다.
 
-달라지는 것은 도로 형태 쪽입니다. 골목 비율·큰길 이격의 음수 계수는 차량 담배꽁초 모형(골목 β ${signed(r2.itemSplit.cigVehicle.coef.alley_ratio.beta)}, 큰길 이격 β ${signed(r2.itemSplit.cigVehicle.coef.dist_arterial.beta)})에서 뚜렷하고, 생활쓰레기에서는 골목 β ${signed(r2.itemSplit.life.coef.alley_ratio.beta)}(${pText(r2.itemSplit.life.coef.alley_ratio.p)})로 경계, 큰길 이격은 β ${signed(r2.itemSplit.life.coef.dist_arterial.beta)}로 연관을 확인하지 못했습니다. 주거 대책의 근거는 생활쓰레기 모형에서 서고, 차량 담배꽁초는 큰길 축에서 따로 다룹니다.`,
+달라지는 것은 도로 형태 쪽입니다. 골목 비율·큰길 이격의 음수 계수는 차량 담배꽁초 모형(골목 β ${signed(r2.itemSplit.cigVehicle.coef.alley_ratio.beta)}, 큰길 이격 β ${signed(r2.itemSplit.cigVehicle.coef.dist_arterial.beta)})에서 뚜렷합니다. 생활쓰레기에서는 골목 β ${signed(r2.itemSplit.life.coef.alley_ratio.beta)}(${pText(r2.itemSplit.life.coef.alley_ratio.p)})로 경계이고, 큰길 이격은 β ${signed(r2.itemSplit.life.coef.dist_arterial.beta)}로 연관이 확인되지 않았습니다. 주거 대책의 근거는 생활쓰레기 모형에서 서고, 차량 담배꽁초는 큰길 축에서 따로 다룹니다.`,
                 viz: { mode: "enf" as const },
                 vizNote: "지도를 과태료 분포로 전환했습니다. 품목별 지도 바탕은 아직 없습니다.",
               },
@@ -127,7 +127,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
           hint: "서울 전체 앱 청소 신고가 해마다 증가",
           answer: `그렇습니다. 서울시 스마트불편신고 청소 분야 접수는 ${Object.entries(sx.smartReport.cleaningByYear).filter(([y]) => y >= "2022" && y < period.lastYear).map(([y, v]) => `${y}년 ${v.toLocaleString()}건`).join(", ")}으로 서울 전체에서 늘고 있습니다(서울 열린데이터광장).
 
-광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 전체에서도 성립합니다. 25개 구가 같은 착시를 겪고 있으니 앱을 뺀 채널고정 지표로 성과를 재는 원칙은 서울시 전체에 제안할 수 있습니다. 상습격자 수도 앱을 빼면 ${k.criticalCellsNow}곳에서 ${k.criticalCellsNowNoApp}곳으로 줄어듭니다.`,
+광진의 민원 증가가 앱 보급 효과라는 해석은 서울시 전체에서도 성립합니다. 25개 구가 같은 착시를 겪고 있으니 앱을 뺀 채널고정 지표로 성과를 측정하는 원칙은 서울시 전체에 제안할 수 있습니다. 상습격자 수도 앱을 빼면 ${k.criticalCellsNow}곳에서 ${k.criticalCellsNowNoApp}곳으로 줄어듭니다.`,
         },
       ]
     : []
@@ -135,15 +135,15 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
   return [
     {
       q: "작년보다 나빠졌나?",
-      hint: "숫자는 늘었지만 대부분 앱 신고 확산 효과",
+      hint: "숫자는 늘었지만 앱 신고 확산의 영향이 큽니다",
       answer: `민원 숫자만 보면 늘었지만 실제로 나빠졌다고 보기는 어렵습니다.
 
 - 민원 접수: ${comp}
 - 과태료 부과는 ${y0}년 ${n(enf0)}건에서 ${y1}년 ${n(enf1)}건으로 ${enf1 < enf0 ? "오히려 줄었습니다" : "늘었습니다"}. 신고와 독립인 순찰(수시) 적발만 봐도 같은 기준으로 ${fmtRatio(g.finesPatrol)}입니다
 
 민원 증가분은 앱 신고에 몰려 있습니다(${g.basis}하면 앱 신고만 ${fmtRatio(g.app)}, 전화·직접 신고는 ${fmtRatio(g.fixed)}). 그래서 연도별 민원 건수는 성과 지표로 쓰지 않습니다.${
-        step ? ` 앱 신고는 ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 뛰었습니다. 청소과는 이사철과 해빙기에 눈에 띄는 투기가 늘어 신고가 몰린다고 설명하고, 해마다 3월에 신고가 느는 것은 자료와 맞습니다. 다만 그해 배율이 유독 크고 그 수준이 이어진 이유는 아직 확인하지 못했습니다.` : ""
-      } 다만 과태료의 ${100 - g.patrolSharePct}%도 신고를 받아 나간 것이라 신고와 독립인 실측으로 볼 수 없고 앱 이용자 수 자료가 없어 발생 증가를 배제하지는 못합니다.`,
+        step ? ` 앱 신고는 ${ym(step.month)}에 한 달 만에 ${n(step.from)}건에서 ${n(step.to)}건으로 뛰었습니다. 청소과는 이사철과 해빙기에 눈에 띄는 투기가 늘어 신고가 몰린다고 설명합니다. 해마다 3월에 신고가 느는 것은 자료와 맞습니다. 다만 그해 배율이 유독 크고 그 수준이 이어진 이유는 아직 확인하지 못했습니다.` : ""
+      } 다만 과태료의 ${100 - g.patrolSharePct}%도 신고를 받고 단속한 것이라 신고와 독립인 실측으로 볼 수 없습니다. 앱 이용자 수 자료가 없어 발생 증가를 배제하지는 못합니다.`,
       chart: "yearly",
       viz: { mode: "comp" },
       vizNote: "지도를 민원 분포로 전환했습니다. 민원 수치에는 앱 보급에 따른 신고 편향이 섞여 있습니다.",
@@ -153,7 +153,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       hint: `다가구·단독주택 밀집 (β ${unmText})`,
       answer: `다가구·단독주택이 몰린 정도입니다. 건축물대장의 다가구 가구수와 단독주택 동수를 합친 밀도가 높은 곳일수록 발생이 많습니다(표준화 β ${unmText}, 이 요인이 많은 곳일수록 발생도 많다는 뜻. ${unm ? pText(unm.p) : "p<0.001"}로 우연이 아님).
 
-반대로 아파트 등 공동주택 세대수는 연관이 확인되지 않았습니다(β ${apt ? signed(apt.beta) : "−0.011"}, ${apt ? pText(apt.p) : "p=0.708"}). 다만 K-apt로 나눠 보면 관리사무소가 없는 다세대·연립도 연관을 확인하지 못했습니다. 관리주체가 없어서가 아니라 다가구·단독이라서입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 가를 수 없습니다.`,
+반대로 아파트 등 공동주택 세대수는 연관이 확인되지 않았습니다(β ${apt ? signed(apt.beta) : "−0.011"}, ${apt ? pText(apt.p) : "p=0.708"}). 다만 K-apt로 나눠 보면 관리사무소가 없는 다세대·연립도 연관이 확인되지 않았습니다. 관리주체가 없어서가 아니라 다가구·단독이라서입니다. 왜 다가구인지(세입자 구조인지 배출 장소 구조인지)는 이 자료로 구분할 수 없습니다.`,
       chart: "beta",
       viz: { mode: "unm" },
       vizNote: `지도를 다가구·단독 밀집(β ${unmText})으로 전환했습니다.`,
@@ -161,7 +161,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
     {
       q: "CCTV는 어디에 놓아야 하나?",
       hint: "증설 근거는 철회 · 재배치는 합리적",
-      answer: `CCTV를 늘려서 무단투기를 줄일 수 있다는 근거는 없습니다. 초기 분석의 감소 효과는 비교 방법 오류(평균회귀)로 확인되어 철회됐습니다. 공정하게 다시 잰 결과 효과가 확인되지 않았습니다(대칭 DID ${signed(didSym)}, p${didP}).
+      answer: `CCTV를 늘려서 무단투기를 줄일 수 있다는 근거는 없습니다. 초기 분석의 감소 효과는 비교 방법 오류(평균회귀)로 확인되어 철회됐습니다. 조건을 맞춰 다시 분석한 결과 효과가 확인되지 않았습니다(대칭 DID ${signed(didSym)}, p${didP}).
 
 다만 발생이 전혀 없는 곳의 카메라를 발생 이력이 많은 곳으로 옮기는 재배치는 예산 0원이라 자원 배분 논리로는 합리적입니다. 지도에 표시된 재배치 후보 ${candidates}곳(빨간 번호)이 발생 이력 순 후보이며 오른쪽 목록에서 주소를 확인할 수 있습니다.`,
       chart: "did",
@@ -173,7 +173,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       hint: "사람을 겨냥하는 대책이 비어 있었습니다",
       answer: `있습니다. 사람을 겨냥하는 대책이 통째로 비어 있었습니다.
 
-발생과 연관된 요인(청년 밀집, 외국인 비율, 1인세대)을 겨냥하는 개입수단이 근거 그래프에 하나도 없었습니다. 그래프를 맞춰 보는 것만으로 잡히는 빈칸이고, 여기서 신규 대책 3건이 나왔습니다.
+발생과 연관된 요인(청년 밀집, 외국인 비율, 1인세대)을 겨냥하는 개입수단이 근거 그래프에 하나도 없었습니다. 그래프를 대조하는 것만으로 드러나는 공백이고, 여기서 신규 대책 3건이 나왔습니다.
 
 - 다국어 배출안내(${topFrn.d}은 외국인 비율 ${topFrn.frn}%)
 - 전입·임대차 시점 배출안내(1인세대 진입 경로)
@@ -189,13 +189,13 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       hint: "뒷받침되지 않습니다. 큰길 쪽 결과는 주로 차량 담배꽁초",
       answer: `이 자료에서는 뒷받침되지 않았습니다.
 
-전체 과태료로 재면 골목이 많은 격자일수록(β ${alley ? signed(alley.beta) : "−0.222"}), 큰길에서 멀수록(β ${arterial ? signed(arterial.beta) : "−0.139"}) 적발이 오히려 적었습니다.${
+전체 과태료 기준으로 보면 골목이 많은 격자일수록(β ${alley ? signed(alley.beta) : "−0.222"}), 큰길에서 멀수록(β ${arterial ? signed(arterial.beta) : "−0.139"}) 적발이 오히려 적었습니다.${
         r2?.itemSplit
-          ? ` 다만 차량 담배꽁초를 빼고 생활쓰레기만 재면 골목 β ${signed(r2.itemSplit.life.coef.alley_ratio.beta)}, 큰길 이격 β ${signed(r2.itemSplit.life.coef.dist_arterial.beta)}로 차이가 작습니다. 큰길 쪽에서 많다는 결과는 주로 차량 담배꽁초 이야기입니다.`
+          ? ` 다만 차량 담배꽁초를 빼고 생활쓰레기만 분석하면 골목 β ${signed(r2.itemSplit.life.coef.alley_ratio.beta)}, 큰길 이격 β ${signed(r2.itemSplit.life.coef.dist_arterial.beta)}로 차이가 작습니다. 큰길 쪽에서 많다는 결과는 주로 차량 담배꽁초에 해당합니다.`
           : ""
       }
 
-사람 눈을 피해 으슥한 곳에 버린다는 은폐 가설은 뒷받침되지 않았지만, 뒤집어 증명한 것도 아닙니다. 단속이나 CCTV를 으슥한 곳 위주로 몰 근거는 없고, 생활쓰레기는 도로 형태보다 발생 이력(핫스팟)으로 배치를 정하는 것이 맞습니다.`,
+사람 눈을 피해 으슥한 곳에 버린다는 은폐 가설은 뒷받침되지 않았지만, 뒤집어 증명한 것도 아닙니다. 단속이나 CCTV를 으슥한 곳 위주로 집중할 근거는 없고, 생활쓰레기는 도로 형태보다 발생 이력(핫스팟)으로 배치를 정하는 것이 맞습니다.`,
       chart: "beta",
       viz: { mode: "overlay" },
       vizNote: "지도를 원인+결과 겹쳐보기로 전환했습니다. 발생이 생활동선 위에 있는지 직접 확인할 수 있습니다.",
@@ -203,7 +203,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
     {
       q: "재활용정거장은 효과가 있었나?",
       hint: "지금 데이터로는 판정 불가",
-      answer: `효과를 측정할 수 없었습니다. 재활용정거장은 2024년이 마지막 신규 설치라 제대로 비교할 대상(아직 설치 안 된 곳)이 없고 철거 기록도 ${n(data.infra.recycling.length)}곳 중 3곳뿐이라 전후 비교가 불가능합니다.
+      answer: `효과를 측정할 수 없었습니다. 재활용정거장은 2024년이 마지막 신규 설치라 비교할 대상(아직 설치되지 않은 곳)이 없습니다. 철거 기록도 ${n(data.infra.recycling.length)}곳 중 3곳뿐이라 전후 비교가 불가능합니다.
 
 초기 계산에서 ${signed(recDid)}건(p=${recP.toFixed(3)})이라는 수치가 나왔지만 평균회귀 편향이 남아 있어 판정 불가로 처리했습니다. 효과가 없다는 말이 아닙니다. 지금 데이터로는 알 수 없습니다.`,
       viz: { mode: "comp", layers: ["recycling"] },
@@ -229,7 +229,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       answer: `달라집니다. 여름과 더운 날에 뚜렷하게 많습니다.
 
 - 계절별 일평균 민원: 여름 ${S["여름"].compPerDay}건, 봄 ${S["봄"].compPerDay}건, 가을 ${S["가을"].compPerDay}건, 겨울 ${S["겨울"].compPerDay}건. 여름이 겨울의 ${summerWinter}배입니다
-- 더운 날(25도 이상)은 ${hot.compPerDay}건으로 가장 많고 비 오는 날엔 단속 적발이 ${rain["무강수"].enfPerDay}건에서 ${rain["비(1mm+)"].enfPerDay}건으로 줄어듭니다(폭우 땐 ${rain["폭우(10mm+)"].enfPerDay}건)
+- 더운 날(25도 이상)은 ${hot.compPerDay}건으로 가장 많고 비 오는 날에는 단속 적발이 ${rain["무강수"].enfPerDay}건에서 ${rain["비(1mm+)"].enfPerDay}건으로 줄어듭니다(폭우 때는 ${rain["폭우(10mm+)"].enfPerDay}건)
 
 주의: 민원은 발견·신고 시점, 과태료는 단속 적발 시점 기준이라 투기 행위 시각 그 자체는 아닙니다. 날씨가 원인이라기보다 야외 활동·신고·단속 여건이 함께 움직이는 연관입니다.`,
       chart: "seasons",

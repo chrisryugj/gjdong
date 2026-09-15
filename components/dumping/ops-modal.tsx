@@ -171,7 +171,7 @@ export default function OpsModal({
     const MEANING: Record<string, string> = {
       "납부 완료": "완납, 사전통지 단계 자진납부 종결, 초과 납부 포함",
       체납: "납기가 지나도록 내지 않은 건",
-      "감면·감액": "이의 인정, 생계 곤란 등으로 깎아주거나 전액 면제한 건",
+      "감면·감액": "이의 인정, 생계 곤란 등으로 감액하거나 전액 면제한 건",
       "진행 중": "부과 직후이거나 정리 보류 상태",
     }
     return (
@@ -189,8 +189,8 @@ export default function OpsModal({
         <H>읽는 법</H>
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           징수율은 감면·진행 건을 뺀 나머지 가운데 납부 완료 비율입니다. 체납 {f.arrearsN}건{" "}
-          {KRW(f.arrearsAmount)}은 금액보다도, 상습 체납 지점과 상습 투기 지점이 겹치는지가 다음
-          분석 과제입니다(지금 데이터에는 체납자 위치가 담겨 있지 않습니다).
+          {KRW(f.arrearsAmount)}은 금액 자체보다 상습 체납 지점과 상습 투기 지점이 겹치는지가 다음
+          분석 과제입니다(지금 데이터에는 체납자 위치가 없습니다).
         </p>
         <Note>금액은 과세금액 합산이며 가산금은 포함하지 않은 근사치입니다. 원천: 청소과 과태료 부과내역(세무 총괄과세 조회).</Note>
       </ModalShell>
@@ -215,8 +215,8 @@ export default function OpsModal({
           ])}
         />
         <Callout>
-          민원 총건수가 {fmtRatio(g.total)}로 뛴 동안 앱 접수만 {fmtRatio(g.app)}로 늘었고 120·직접은 {fmtRatio(g.fixed)}로 거의
-          그대로였습니다. 늘어난 것은 무단투기가 아니라 신고의 편리함입니다.
+          민원 총건수가 {fmtRatio(g.total)}로 늘어난 동안 앱 접수만 {fmtRatio(g.app)}로 늘었고 120·직접은 {fmtRatio(g.fixed)}로 거의
+          그대로였습니다. 늘어난 것은 주로 신고 채널이며, 발생 증가는 이 자료로 배제할 수 없습니다.
         </Callout>
         {d.fines.byRoute && (
           <>
@@ -234,9 +234,9 @@ export default function OpsModal({
         )}
         <H>그래서 어떻게 쓰나</H>
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
-          연도끼리 견주거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 쓰셔야 합니다.
+          연도끼리 비교하거나 성과를 평가할 때는 앱을 뺀 채널고정(120·직접) 수치를 써야 합니다.
           과태료 부과는 같은 기준으로 {fmtRatio(g.fines)}, 오히려 {finesDirection(g)}습니다. 다만 과태료의 {100 - g.patrolSharePct}%는
-          신고를 받아 나간 것이라 신고 성향과 무관하지 않습니다. 신고와 상관없는 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}이니,
+          신고를 받고 단속한 것이라 신고 성향과 무관하지 않습니다. 신고와 독립인 순찰(수시) 적발만 봐도 {fmtRatio(g.finesPatrol)}이니,
           발생이 두 배로 늘었다면 나오기 어려운 숫자입니다.
         </p>
         <Note>
@@ -264,7 +264,7 @@ export default function OpsModal({
         </p>
         {d.forecast.backtest.rows && (
           <>
-            <H>롤링 원점 백테스트 · 그 달 이전 자료로만 모수를 골라 맞힌 결과</H>
+            <H>롤링 원점 백테스트 · 그 달 이전 자료로만 모수를 선택해 예측한 결과</H>
             <Table
               head={["월", "실제", "홀트윈터스", "전년 동월"]}
               rows={d.forecast.backtest.rows.map((r) => [r.m, r.y, r.hw, r.naive])}
@@ -278,7 +278,7 @@ export default function OpsModal({
           </>
         )}
         <Callout>
-          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고 대책 효과를 계산하는 용도로도 쓰실 수 없습니다.
+          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고 대책 효과를 계산하는 용도로도 쓸 수 없습니다.
         </Callout>
       </ModalShell>
     )
@@ -301,12 +301,12 @@ export default function OpsModal({
         <H>월별 추이 · 두 현상은 따로 움직입니다</H>
         <CategoryTrendChart data={data} />
         <Callout>
-          담배꽁초(차량) {Math.round((cigN / f.totalN) * 100)}%는 주행 중 도로에서 벌어지는 일이라
-          다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 처방도 다릅니다. 지표를 합쳐
+          담배꽁초(차량) {Math.round((cigN / f.totalN) * 100)}%는 주행 중 도로에서 발생하는 일이라
+          다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 대책도 다릅니다. 지표를 합쳐
           관리하면 어느 쪽 성과도 읽을 수 없습니다.
         </Callout>
         <Note>
-          분류는 과세대상 문구의 키워드 규칙(담배, 대형, 시간외, 규격봉투, 음식물, 이동배출 순)으로 했고 격자 회귀가 설명하는 본체는 생활쓰레기 계열입니다.
+          분류는 과세대상 문구의 키워드 규칙(담배, 대형, 시간외, 규격봉투, 음식물, 이동배출 순)으로 했고 격자 회귀가 설명하는 주 대상은 생활쓰레기 계열입니다.
         </Note>
       </ModalShell>
     )
@@ -334,13 +334,13 @@ export default function OpsModal({
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.
           {best && last && best[0] !== last[0]
-            ? `${best[0]}년에 크게 좋아졌다가 ${last[0]}년 들어 느린 쪽 꼬리가 다시 길어졌는데, 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 앞지르기 시작했다는 신호로 읽을 수 있습니다.`
+            ? `${best[0]}년에 크게 개선됐다가 ${last[0]}년 들어 오래 걸리는 건이 다시 늘었습니다. 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 넘어서기 시작했다는 신호로 읽을 수 있습니다.`
             : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄어듭니다."}
         </p>
         <Note>
           {d.sla.note}. 표본은 접수·처리 시각이 모두 있고 순서가 맞는 건만이라 전체 민원 {summarize(data).complaints.toLocaleString()}건 중{" "}
           {(summarize(data).complaints - years.reduce((a, [, s]) => a + s.n, 0)).toLocaleString()}건(미종결·기록 오류)이 빠져 있어 체감보다 낙관적일 수 있습니다.
-          주민이 체감하는 "현장 수거까지 걸린 시간"을 재려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).
+          주민이 체감하는 "현장 수거까지 걸린 시간"을 측정하려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).
         </Note>
       </ModalShell>
     )
@@ -410,18 +410,18 @@ export default function OpsModal({
       <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
         이 분석에서 가장 강한 예측변수는 다가구·단독주택 밀집입니다. 150세대 미만 공동주택은
         공동주택관리법상 의무관리 대상이 아니어서 관리사무소와 경비, 공동 배출장이 없는 경우가
-        많지만, K-apt로 나눈 세 갈래 모형에서 미등록 공동주택(다세대·연립·소형)은 과태료와 연관이
-        없었습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는
-        주거 구조가 어느 쪽으로 움직이는지 읽는 자료이지, 발생 증가의 예고는 아닙니다. 겨냥점과 직접
-        닿는 물량은 단독·다가구 허가 {pm.guTotal.detachedPermits12m}건입니다.
+        많습니다. 다만 K-apt로 나눈 세 갈래 모형에서 미등록 공동주택(다세대·연립·소형)은 과태료와의 연관이
+        확인되지 않았습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는
+        주거 구조가 어느 쪽으로 움직이는지 읽는 자료이지, 발생 증가의 예고는 아닙니다. 겨냥점에 직접
+        해당하는 물량은 단독·다가구 허가 {pm.guTotal.detachedPermits12m}건입니다.
       </p>
       <Callout>
-        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두는 편이, 늘어나는 위험 지역을 뒤쫓기보다 앞질러 가는 방법입니다.
+        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두면, 위험 지역이 늘어난 뒤에 대응하는 것보다 먼저 대응할 수 있습니다.
       </Callout>
       <Note>
         "진행중"은 허가는 났으나 사용승인 전인 건입니다(허가 5년이 지난 미착공은 제외). 출처는
-        국토교통부 건축HUB 인허가({pm.asof} 실측)입니다. 법정동 기준이라 지도의 행정동 경계와 딱
-        맞아떨어지지 않아, 지도 표시 대신 표로 보여 드립니다. 인과를 예측하는 것이 아니라 주거
+        국토교통부 건축HUB 인허가({pm.asof} 실측)입니다. 법정동 기준이라 지도의 행정동 경계와 정확히
+        일치하지 않아, 지도 표시 대신 표로 보여 드립니다. 인과를 예측하는 것이 아니라 주거
         구조가 어느 쪽으로 움직이는지를 읽는 전망입니다.
       </Note>
     </ModalShell>
