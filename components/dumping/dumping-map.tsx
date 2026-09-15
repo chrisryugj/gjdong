@@ -603,6 +603,9 @@ export default function DumpingMap({
       const H = 72 // 최대 막대 높이(px)
       const n = data.dong.length
       const rank = (key: "comp" | "enf", v: number) => data.dong.filter((x) => x[key] > v).length + 1
+      // 민원과 과태료는 집계 시작이 다르다(민원 2024.1~, 과태료 2022.3~). 막대를 나란히 두니 툴팁에 밝힌다
+      const compFrom = `${Object.keys(data.yearly.complaints)[0]}.1`
+      const enfFrom = (Object.keys(data.decision.fines.monthly)[0] ?? "").replace(/-0?/, ".")
       // 툴팁: 글자 나열이 아니라 카드. 색 칩·큰 숫자·구 최대 대비 막대·순위. 스타일은 globals.css .dump-bartip
       const tip = (d: (typeof data.dong)[number]) => {
         const row = (label: string, color: string, v: number, per: number, r: number) =>
@@ -612,7 +615,7 @@ export default function DumpingMap({
           `<div class="dump-bartip"><div class="t">${d.d}<span>세대 ${d.hh.toLocaleString()}</span></div>` +
           row("민원", "#2f5aa8", d.comp, d.cr, rank("comp", d.comp)) +
           row("과태료", "#9a6a2a", d.enf, d.er, rank("enf", d.enf)) +
-          `<div class="f">막대 길이는 구 최댓값 대비, 순위는 ${n}개 동 중</div></div>`
+          `<div class="f">막대 길이는 구 최댓값 대비, 순위는 ${n}개 동 중<br>민원 ${compFrom}~ · 과태료 ${enfFrom}~ 누계(집계 시작이 다름)</div></div>`
         )
       }
       for (const d of data.dong) {
