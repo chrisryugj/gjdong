@@ -74,8 +74,8 @@ function escapeHtml(s: string): string {
 
 function cellTooltip(cell: GridCell): string {
   const dong = escapeHtml(cell[7] || "광진구")
-  // 서울 열린데이터광장 생활인구(통신 기반 체류 추정)는 250m 격자로만 나와 100m 칸에 면적 비례로 나눈 값. 주민등록 인구가 아니다
-  const lp = cell[8] ? `<br/>머무는 사람 약 ${cell[8].toLocaleString()}명 <span style="color:#64748b">(서울시 생활인구, 250m 격자를 면적 비례로 나눔)</span>` : ""
+  // 서울시 생활인구(2026-07 한 달, 24시간·31일 평균). 250m 격자를 100m 칸에 면적 비례로 나눈 값. 설명은 지도 도움말·방법 모달에
+  const lp = cell[8] ? `<br/>생활인구 ${cell[8].toLocaleString()}명` : ""
   return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>다가구·단독 ${cell[6]}세대${lp}`
 }
 
