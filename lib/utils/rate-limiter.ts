@@ -40,7 +40,7 @@ export function getClientIp(headers: Headers): string {
   return "unknown"
 }
 
-export type RateLimitType = "single" | "batch" | "geocode" | "dumpingAsk" | "dumpingAuth"
+export type RateLimitType = "single" | "batch" | "geocode" | "dumpingAsk" | "dumpingAuth" | "dumpingTts"
 
 const LIMITS: Record<RateLimitType, number> = {
   single: 30,
@@ -48,6 +48,7 @@ const LIMITS: Record<RateLimitType, number> = {
   geocode: 300,
   dumpingAsk: 10, // LLM 호출 — 과금 보호
   dumpingAuth: 10, // 비밀번호 시도 — 무차별 대입 방어
+  dumpingTts: 60, // 음성 합성 — 답 하나가 문장 수(3~6)만큼 부른다
 }
 
 export function checkRateLimit(
