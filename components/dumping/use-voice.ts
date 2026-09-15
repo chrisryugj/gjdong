@@ -433,3 +433,59 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
 
   return { supported, state, heard, error, enable, disable }
 }
+
+// ── 마이크 소리 크기(0~1). 청취 중 "받아적고 있다"는 느낌을 주는 막대용.
+// Web Speech는 음량을 주지 않아 getUserMedia 스트림을 따로 열어 재는데, 인식기와 같이 써도 충돌하지 않는다.
+export function useMicLevel(active: boolean) {
+  const [level, setLevel] = useState(0)
+  useEffect(() => {
+    if (!active || typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setLevel(0)
+      return
+    }
+    let stream: MediaStream | null = null
+    let ctx: AudioContext | null = null
+    let raf = 0
+    let stopped = false
+    const run = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch {
+        return
+      }
+      if (stopped) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+      ctx = new AudioContext()
+      const src = ctx.createMediaStreamSource(stream)
+      const an = ctx.createAnalyser()
+      an.fftSize = 512
+      src.connect(an)
+      const buf = new Uint8Array(an.fftSize)
+      let smooth = 0
+      const tick = () => {
+        an.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / buf.length)
+        smooth = Math.max(rms * 4, smooth * 0.85) // 올라갈 땐 바로, 내려갈 땐 천천히
+        setLevel(Math.min(1, smooth))
+        raf = requestAnimationFrame(tick)
+      }
+      tick()
+    }
+    void run()
+    return () => {
+      stopped = true
+      cancelAnimationFrame(raf)
+      stream?.getTracks().forEach((t) => t.stop())
+      void ctx?.close()
+      setLevel(0)
+    }
+  }, [active])
+  return level
+}

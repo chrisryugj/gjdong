@@ -42,13 +42,14 @@ export default function FindingsPanel({
           핵심 발견 {findings.length} · 결론, 근거, 한계 순서 · 카드를 누르면 자세히 볼 수 있습니다
         </h3>
         <div className="flex flex-col gap-2">
-          {findings.map((f) => {
+          {findings.map((f, i) => {
             const active = f.title === activeTitle
             return (
               <button
                 key={f.title}
                 onClick={() => onOpenFinding(f)}
-                className={`rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
+                style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
+                className={`dump-rise rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
                   active
                     ? "border-[#0c6155] bg-[#0c6155]/10  ring-2 ring-[#0c6155]/30"
                     : f.accent

@@ -7,7 +7,7 @@ import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 import { buildSeeds, type Seed } from "./qa-seeds"
-import { useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from "./use-voice"
+import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from "./use-voice"
 
 // 물어보기 탭. 지도 앱처럼 검색이 기본. 상단 검색바에 뭐든 물어보면
 // /api/dumping/ask 평문 스트리밍으로 답이 검색바 바로 아래 내려온다(최신순).
@@ -74,6 +74,9 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     void askFree(text, true)
   }, speaker.speaking)
   const wakeOn = wake.state !== "off"
+  const listening = mic.listening || wake.state === "awake"
+  const level = useMicLevel(listening) // 청취 중 소리 크기 막대
+  const heardText = mic.listening ? mic.interim : wake.heard
 
   const seeds = useMemo(() => (data && graph ? buildSeeds(data, graph) : []), [data, graph])
 
@@ -110,6 +113,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     setReadingKey(key)
     for (const s of all) speaker.speak(s)
   }
+  // 준비된 답은 수치가 많고 길어(8문장 40초) 다 읽지 않는다. 한 줄 결론 + 첫 문단만
+  const seedSpoken = (s: Seed) => `${/[.!?]$/.test(s.hint) ? s.hint : s.hint + "."} ${s.answer.split(/\n\s*\n/)[0]}`
 
   const startMic = () => {
     if (mic.listening) {
@@ -372,7 +377,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             </button>
           )}
         </div>
-        <p className="mt-1.5 px-2 text-[14px] leading-snug text-[var(--cp-text-faint)]">
+        <p className="mt-1.5 flex items-start gap-1.5 px-2 text-[14px] leading-snug text-[var(--cp-text-faint)]">
+          {wakeOn && wake.state !== "awake" && (
+            <span className="dump-breathe mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#0c6155]" aria-hidden />
+          )}
           {wake.state === "awake"
             ? "듣고 있습니다. 질문을 말씀하시면 바로 답합니다."
             : wakeOn
@@ -382,6 +390,29 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 : "답은 이 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
         </p>
       </form>
+
+      {/* 청취 패널. 마이크가 열려 있는 동안만. 받아적는 글자를 크게, 소리 크기를 막대로 보여 "듣고 있다"를 확실히 */}
+      {listening && (
+        <div className="dump-rise shrink-0 border-b border-[#b42318]/30 bg-[#b42318]/[0.04] px-4 py-3" aria-live="polite">
+          <div className="flex items-center gap-3">
+            <span className="dump-ring relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#b42318] text-white">
+              <MicIcon />
+            </span>
+            <div className="dump-bars shrink-0" aria-hidden>
+              {[0.35, 0.7, 1, 0.7, 0.35].map((w, i) => (
+                <i key={i} style={{ height: `${Math.max(4, Math.round(30 * Math.min(1, level * (0.6 + w * 0.8))))}px` }} />
+              ))}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12.5px] font-semibold tracking-wide text-[#b42318]">{heardText ? "받아적는 중" : "듣고 있습니다"}</p>
+              <p className="min-h-[1.4em] break-keep text-[21px] font-semibold leading-snug text-[var(--cp-text-strong)]">
+                {heardText || <span className="font-normal text-[var(--cp-text-faint)]">말씀하시면 여기에 바로 적힙니다</span>}
+              </p>
+            </div>
+          </div>
+          <p className="mt-1.5 pl-14 text-[13px] text-[var(--cp-text-dim)]">말이 끝나면 자동으로 질문합니다</p>
+        </div>
+      )}
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-3">
         {(error || mic.error || wake.error) && (
@@ -404,8 +435,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               return (
                 <div
                   key={ex.q}
-                  className={`rounded-lg border bg-[var(--cp-panel)] p-3 transition-colors ${
-                    reading ? "border-[#0c6155]" : "border-[var(--cp-border)]"
+                  className={`dump-rise rounded-lg border bg-[var(--cp-panel)] p-3 transition-colors ${
+                    reading ? "border-[#0c6155] shadow-[0_0_0_3px_rgba(12,97,85,0.12)]" : ex.pending ? "border-[#0c6155]/50" : "border-[var(--cp-border)]"
                   }`}
                 >
                   <div className="mb-1.5 flex items-start gap-1.5">
@@ -415,11 +446,26 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       </span>
                       {ex.q}
                     </p>
+                    {reading && (
+                      <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#0c6155]" aria-live="off">
+                        <span className="dump-eq" aria-hidden>
+                          <i />
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        읽는 중
+                      </span>
+                    )}
                     {!ex.pending && spoken && readButton(ex.q, ex.a)}
                   </div>
-                  <div className="whitespace-pre-wrap text-[17px] leading-relaxed text-[var(--cp-text)]">
-                    {renderAnswer(spoken) || (ex.pending ? "생각 중…" : "")}
-                  </div>
+                  {ex.pending && !spoken ? (
+                    <ThinkingIndicator />
+                  ) : (
+                    <div className={`whitespace-pre-wrap text-[17px] leading-relaxed text-[var(--cp-text)] ${ex.pending ? "dump-caret" : ""}`}>
+                      {renderAnswer(spoken)}
+                    </div>
+                  )}
                   {parts.detail && (
                     <div className="mt-2.5 border-l-2 border-[var(--cp-border)] pl-3">
                       <p className="mb-1 text-[12.5px] font-semibold tracking-wide text-[var(--cp-text-faint)]">근거 수치와 한계</p>
@@ -476,7 +522,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   {open && (
                     <div className="flex flex-col gap-2 border-t border-[var(--cp-border-faint)] px-3 pb-3 pt-2.5">
                       <div className="flex justify-end">
-                        {readButton(s.q, s.answer)}
+                        {readButton(s.q, seedSpoken(s))}
                       </div>
                       <div className="whitespace-pre-wrap text-[16px] leading-relaxed text-[var(--cp-text)]">
                         {renderAnswer(s.answer)}
@@ -534,6 +580,42 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
           <QaChart kind={bigChart} data={data} graph={graph} />
         </ModalShell>
       )}
+    </div>
+  )
+}
+
+// LLM이 첫 글자를 내기까지(사고형 모델은 5~12초) 멈춘 듯 보이지 않게. 단계 문구가 시간에 따라 바뀐다
+const THINK_STEPS: [number, string][] = [
+  [0, "질문을 읽는 중"],
+  [2000, "근거 그래프에서 관련 노드를 찾는 중"],
+  [5000, "동별 수치와 대조하는 중"],
+  [9000, "쉬운 말로 문장을 다듬는 중"],
+]
+function ThinkingIndicator() {
+  const [t, setT] = useState(0)
+  useEffect(() => {
+    const t0 = Date.now()
+    const id = window.setInterval(() => setT(Date.now() - t0), 500)
+    return () => window.clearInterval(id)
+  }, [])
+  const label = [...THINK_STEPS].reverse().find(([at]) => t >= at)?.[1] ?? THINK_STEPS[0][1]
+  return (
+    <div className="flex flex-col gap-2.5 py-1" role="status" aria-label="답변 생성 중">
+      <div className="flex items-center gap-2.5 text-[15px] font-semibold text-[#0c6155]">
+        <span className="dump-dots" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        <span key={label} className="dump-rise">
+          {label}
+        </span>
+      </div>
+      <div className="flex flex-col gap-2" aria-hidden>
+        <div className="dump-skel w-[92%]" />
+        <div className="dump-skel w-[78%]" style={{ animationDelay: "0.15s" }} />
+        <div className="dump-skel w-[60%]" style={{ animationDelay: "0.3s" }} />
+      </div>
     </div>
   )
 }

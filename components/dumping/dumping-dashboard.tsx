@@ -264,6 +264,7 @@ export default function DumpingDashboard() {
                   showCritical={showCritical && tab === "ops"}
                   focusCandidate={focusCandidate}
                   showRoutes={view.routes}
+                  showDongBars={view.dongBars}
                   resetSeq={resetSeq}
                 />
                 <MapOverlays data={mapData} view={view} onFocusCandidate={setFocusCandidate} selectedDong={selectedDong} />

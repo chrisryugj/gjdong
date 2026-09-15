@@ -39,7 +39,7 @@ function DetailCard({
   return (
     <button
       onClick={onOpen}
-      className={`relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60 ${className ?? ""}`}
+      className={`dump-rise relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60 ${className ?? ""}`}
     >
       <span className="absolute right-3 top-2.5 text-[13.5px] font-medium text-[#0c6155]">자세히 →</span>
       {children}

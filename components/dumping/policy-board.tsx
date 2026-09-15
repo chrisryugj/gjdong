@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
 import { channelGrowth, fmtRatio, regressionBetas, summarize } from "@/lib/dumping/facts"
 import {
@@ -28,7 +28,7 @@ import type { MethodsSection } from "./methods-modal"
 // 해설서 원문(공개 레포). 방법 모달이 다루지 않는 한계·검정 세부는 여기로 보낸다
 const EXPLAINER_URL = "https://github.com/chrisryugj/gjdong/blob/main/docs/dumping-stats-explainer.md"
 
-function LeverCard({ lv, graph, onOpen }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void }) {
+function LeverCard({ lv, graph, onOpen, i = 0 }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void; i?: number }) {
   const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
   const cost = costBadge(lv.costNote)
   const proposal = lv.status === "제안"
@@ -38,7 +38,8 @@ function LeverCard({ lv, graph, onOpen }: { lv: LeverView; graph: OntoGraph; onO
   return (
     <button
       onClick={() => onOpen(lv)}
-      className="rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
+      style={{ "--i": 8 + i } as React.CSSProperties}
+      className="dump-rise rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
     >
       <span className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-bold ${status.cls}`}>{status.label}</span>
@@ -184,20 +185,25 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
     <div className="flex flex-col gap-5 px-4 py-4">
       {/* 결론 한 줄 + 핵심 수치 3개. 첫 화면에서 답이 먼저 보이게 */}
       <section>
-        <p className="font-mono text-[12px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
-        <h2 className="mt-1.5 text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]">{conclusion}</h2>
+        <p className="dump-rise font-mono text-[12px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
+        <h2 className="dump-rise mt-1.5 text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]" style={{ "--i": 1 } as React.CSSProperties}>
+          {conclusion}
+        </h2>
         {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다 */}
         <dl className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-          {headline.map((h) => (
-            <div key={h.k} className="min-w-0 border-l border-[var(--cp-border-strong)] pl-3">
+          {headline.map((h, i) => (
+            <div key={h.k} className="dump-rise relative min-w-0 pl-3" style={{ "--i": 3 + i } as React.CSSProperties}>
+              <span className="dump-line absolute inset-y-0 left-0 w-px bg-[var(--cp-border-strong)]" style={{ "--i": 3 + i } as React.CSSProperties} aria-hidden />
               <dt className="text-[13px] leading-tight text-[var(--cp-text-muted)] break-keep">{h.k}</dt>
-              <dd className="mt-1 font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">{h.v}</dd>
+              <dd className="mt-1 font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">
+                <CountUp text={h.v} delayMs={250 + i * 90} />
+              </dd>
               <dd className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{h.sub}</dd>
             </div>
           ))}
         </dl>
         {/* 두 독자의 진입점. 결재선은 인쇄, 평가자는 근거 경로 */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="dump-rise mt-4 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ "--i": 7 } as React.CSSProperties}>
           <button
             onClick={() => setShowPrint(true)}
             className="rounded-lg border border-[var(--cp-border-strong)] bg-white px-3.5 py-2 text-[14px] font-semibold text-[var(--cp-text-strong)] hover:bg-[var(--cp-hover)]"
@@ -277,8 +283,8 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
           제안 {proposals.length}건
         </SectionHead>
         <div className="flex flex-col gap-2.5">
-          {proposals.map((lv) => (
-            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
+          {proposals.map((lv, i) => (
+            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} i={i} />
           ))}
         </div>
       </section>
@@ -349,5 +355,46 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onO
         }}
       />
     </div>
+  )
+}
+
+// 히어로 수치가 0에서 차오른다. 문자열 안의 첫 숫자만 애니메이션하고 부호·단위("배", "곳")는 그대로 둔다
+function CountUp({ text, delayMs = 0, durationMs = 900 }: { text: string; delayMs?: number; durationMs?: number }) {
+  const m = /-?\d[\d,]*\.?\d*/.exec(text)
+  const target = m ? Number(m[0].replace(/,/g, "")) : NaN
+  const decimals = m && m[0].includes(".") ? m[0].split(".")[1].length : 0
+  const grouped = !!m && m[0].includes(",")
+  const [shown, setShown] = useState(Number.isFinite(target) ? 0 : target)
+  useEffect(() => {
+    if (!Number.isFinite(target)) return
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(target)
+      return
+    }
+    let raf = 0
+    let t0 = 0
+    const tick = (now: number) => {
+      if (!t0) t0 = now
+      const p = Math.min(1, (now - t0) / durationMs)
+      const eased = 1 - Math.pow(1 - p, 3)
+      setShown(target * eased)
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    const timer = window.setTimeout(() => {
+      raf = requestAnimationFrame(tick)
+    }, delayMs)
+    return () => {
+      window.clearTimeout(timer)
+      cancelAnimationFrame(raf)
+    }
+  }, [target, delayMs, durationMs])
+  if (!m || !Number.isFinite(target)) return <>{text}</>
+  const num = grouped ? Math.round(shown).toLocaleString() : shown.toFixed(decimals)
+  return (
+    <>
+      {text.slice(0, m.index)}
+      {num}
+      {text.slice(m.index + m[0].length)}
+    </>
   )
 }

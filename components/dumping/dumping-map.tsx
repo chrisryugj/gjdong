@@ -133,7 +133,40 @@ interface DumpingMapProps {
   showCritical: boolean // 집중관리 상습격자(12개월 10건+) 외곽선 강조
   focusCandidate: CandidateFocus | null
   showRoutes: boolean // 청소차 관리노선 (도로청소 종합계획의 도로명 × 표준노드링크 지오메트리)
+  showDongBars: boolean // 동별 민원·과태료 3D 막대(시연용 비교 뷰)
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
+}
+
+// 동별 3D 막대 SVG. 등축 막대 2개(민원 파랑·과태료 갈색), 앞면·옆면·윗면 세 조각. 값은 위, 동 이름은 아래.
+// 자라나는 애니메이션은 globals.css .dump-bar3d .bar
+const BAR_W = 76
+const BAR_TOP = 18 // 값 글자 자리
+const BAR_BOTTOM = 26 // 동 이름 자리
+function dongBarSvg(name: string, comp: number, enf: number, hc: number, he: number, H: number): string {
+  const D = 7 // 깊이
+  const bw = 16
+  const base = BAR_TOP + H
+  const bar = (x: number, h: number, front: string, side: string, top: string, cls: string) => {
+    const y = base - h
+    return (
+      `<g class="bar ${cls}">` +
+      `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${front}"/>` +
+      `<polygon points="${x + bw},${y} ${x + bw + D},${y - D} ${x + bw + D},${y - D + h} ${x + bw},${y + h}" fill="${side}"/>` +
+      `<polygon points="${x},${y} ${x + D},${y - D} ${x + bw + D},${y - D} ${x + bw},${y}" fill="${top}"/>` +
+      `</g>`
+    )
+  }
+  const x1 = 14
+  const x2 = 42
+  return (
+    `<svg class="dump-bar3d" width="${BAR_W}" height="${H + BAR_TOP + BAR_BOTTOM}" viewBox="0 0 ${BAR_W} ${H + BAR_TOP + BAR_BOTTOM}">` +
+    bar(x1, hc, "#2f5aa8", "#1d3f78", "#6b93d6", "comp") +
+    bar(x2, he, "#9a6a2a", "#6e4a1b", "#c99a55", "enf") +
+    `<text x="${x1 + bw / 2 + 3}" y="${base - hc - D - 4}" text-anchor="middle" font-size="11" fill="#1d3f78">${comp.toLocaleString()}</text>` +
+    `<text x="${x2 + bw / 2 + 3}" y="${base - he - D - 4}" text-anchor="middle" font-size="11" fill="#6e4a1b">${enf.toLocaleString()}</text>` +
+    `<text x="${BAR_W / 2}" y="${base + 16}" text-anchor="middle" font-size="12.5" fill="#1f2937">${name}</text>` +
+    `</svg>`
+  )
 }
 
 // 「2026년 도로청소 종합계획」 관리도로. 도로명 기준(광진 구간 전체를 그림, 문서상 세부 구간과 근사)
@@ -155,6 +188,7 @@ export default function DumpingMap({
   showCritical,
   focusCandidate,
   showRoutes,
+  showDongBars,
   resetSeq,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -171,6 +205,7 @@ export default function DumpingMap({
   const hotspotLayerRef = useRef<LayerGroup | null>(null)
   const criticalLayerRef = useRef<LayerGroup | null>(null)
   const focusLayerRef = useRef<LayerGroup | null>(null)
+  const dongBarsLayerRef = useRef<LayerGroup | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다. ready로 재트리거
   const [ready, setReady] = useState(false)
   // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다. 작은 점으로 바꾸기 위한 트리거
@@ -551,6 +586,47 @@ export default function DumpingMap({
     }
     void draw()
   }, [data, showHotspots, ready, zoomedOut])
+
+  // 동별 민원·과태료 3D 막대. 행정동 외곽선 꼭짓점 평균을 기둥 자리로 쓴다. 15개 동은 줌 13 이상이면 서로 겹치지 않는다
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map) return
+      dongBarsLayerRef.current?.remove()
+      dongBarsLayerRef.current = null
+      if (!showDongBars || !data) return
+      const L = await import("leaflet")
+      if (!mapRef.current) return
+      const group = L.layerGroup()
+      const max = Math.max(1, ...data.dong.flatMap((d) => [d.comp, d.enf]))
+      const H = 72 // 최대 막대 높이(px)
+      for (const d of data.dong) {
+        const pts = (data.dongOutlines[d.d] ?? []).flat() // 외곽선은 링 배열. 꼭짓점을 한 줄로
+        if (!pts.length) continue
+        const lat = pts.reduce((s, p) => s + p[0], 0) / pts.length
+        const lng = pts.reduce((s, p) => s + p[1], 0) / pts.length
+        const hc = Math.max(3, Math.round((d.comp / max) * H))
+        const he = Math.max(3, Math.round((d.enf / max) * H))
+        L.marker([lat, lng], {
+          pane: "dumpInfra",
+          icon: L.divIcon({
+            className: "",
+            html: dongBarSvg(d.d, d.comp, d.enf, hc, he, H),
+            iconSize: [BAR_W, H + BAR_TOP + BAR_BOTTOM],
+            iconAnchor: [BAR_W / 2, H + BAR_TOP],
+          }),
+        })
+          .bindTooltip(
+            `<b>${d.d}</b><br>민원 ${d.comp.toLocaleString()}건 · 과태료 ${d.enf.toLocaleString()}건<br>주민 천명당 민원 ${d.cr} · 과태료 ${d.er}`,
+            { direction: "top", opacity: 1, offset: [0, -(H + BAR_TOP)] },
+          )
+          .addTo(group)
+      }
+      group.addTo(map)
+      dongBarsLayerRef.current = group
+    }
+    void draw()
+  }, [data, showDongBars, ready])
 
   // 집중관리 상습격자 (12개월 10건 이상). 격자 외곽선 강조
   useEffect(() => {

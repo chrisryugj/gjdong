@@ -14,9 +14,10 @@ export interface MapView {
   candidates: boolean
   binRecos: boolean
   routes: boolean
+  dongBars: boolean // 동별 민원·과태료 3D 막대(시연용 비교 뷰)
 }
 
-export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, binRecos: false, routes: false }
+export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["comp"], layers: [], candidates: false, binRecos: false, routes: false, dongBars: false }
 
 const BASE_LABEL: Record<BaseMode, string> = {
   unm: "다가구·단독",
@@ -138,6 +139,24 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
             </button>
           )
         })}
+        <button
+          aria-pressed={view.dongBars}
+          title="행정동 15곳의 민원·과태료 건수를 입체 막대로 비교합니다"
+          onClick={() => patch({ dongBars: !view.dongBars })}
+          className={`${CHIP} ${view.dongBars ? "border-[#0c6155] bg-white font-semibold text-[#0c6155]" : CHIP_OFF}`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+            <path d="M2 14V8h3v6zM6.5 14V4h3v10zM11 14V6h3v8z" />
+          </svg>
+          동별 막대
+          {/* 막대 색 범례. 켜졌을 때만 */}
+          {view.dongBars && (
+            <span className="ml-0.5 flex items-center gap-1 text-[12.5px] font-normal text-[var(--cp-text-muted)]">
+              <i className="h-2.5 w-2.5 rounded-[2px] bg-[#2f5aa8]" />민원
+              <i className="ml-1 h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
+            </span>
+          )}
+        </button>
         <span className="mx-1 h-5 w-px shrink-0 bg-[var(--cp-border)]" />
         <button
           aria-expanded={layersOpen}
