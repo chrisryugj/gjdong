@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
+import { channelGrowth, fmtRatio } from "@/lib/dumping/facts"
 import {
   COST_ORDER,
   costBadge,
@@ -24,7 +24,7 @@ import LeverModal from "./lever-modal"
 
 // 정책 제안 탭. 지식그래프를 결재권자 관점("무엇을 결정하면 되나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
-// 12라운드: 첫 화면은 둘뿐이다. 결론 두 문장(번호로 갈라 분리감)과 수치 칸 3개, 그 아래 제안 6건 카드(기대·담당·검증).
+// 12라운드: 첫 화면은 둘뿐이다. 결론 두 문장(번호로 갈라 분리감), 그 아래 제안 6건 카드(기대·담당·검증). 수치 칸 3개는 상세(발견·운영)와 겹쳐 뺐다.
 // 예전의 제안 목차·"왜 이런 제안인가"·결재용 한 장은 같은 제안이 세 번 나오던 원인이라 카드 하나로 합쳤다.
 // 기존 수단 판정·성과지표는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다).
 // 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 지도로 이어진다.
@@ -134,41 +134,23 @@ function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
   )
 }
 
-// 첫 화면 수치 칸 3개가 띄우는 지도. β는 다가구·단독 바탕, 채널고정은 민원 바탕(격자 자료에 채널 구분이 없어 앱 포함 전체),
-// 상습격자는 운영·전망 탭과 같은 강조 레이어 토글. 칸 밑 문구와 지도 툴바 "반영 중" 이름이 같은 낱말을 쓰도록 여기 한 곳에
-export type HeadlineId = "beta" | "fixed" | "critical"
-export const HEADLINE_MAP_LABEL: Record<HeadlineId, string> = {
-  beta: "다가구·단독 밀집 바탕",
-  fixed: "민원 바탕(앱 포함 전체)",
-  critical: "집중관리 상습격자(앱 포함)",
-}
-
-interface Headline {
-  id: HeadlineId
-  k: string
-  v: string
-  sub: string
-}
-
 interface PolicyBoardProps {
   graph: OntoGraph | null
   data: DumpingMapData | null
   onShowMap: (lever: LeverView) => void
   activeLeverId: string | null
-  onHeadline: (id: HeadlineId) => void // 수치 칸 클릭 → 지도
-  activeHeadline: HeadlineId | null // 지도에 반영 중인 수치 칸(β·채널고정)
-  criticalOn: boolean // 상습격자 강조 레이어 상태(운영·전망 탭과 공유)
 }
 
 // 섹션 제목. 위계는 색이 아니라 번호와 hairline으로
-function SectionHead({ n, children, sub }: { n: string; children: React.ReactNode; sub?: string }) {
+// 12라운드: 결재선이 훑는 항목 이름(결론·제안)은 본문보다 확실히 크게. 접힌 항목은 한 단계 아래
+function SectionHead({ n, children, sub, first = false }: { n: string; children: React.ReactNode; sub?: string; first?: boolean }) {
   return (
-    <div className="mb-3 border-t border-[var(--cp-border)] pt-4">
-      <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
-        <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">{n}</span>
+    <div className={first ? "mb-3" : "mb-3 border-t border-[var(--cp-border)] pt-5"}>
+      <h3 className="flex items-baseline gap-2.5 text-[23px] font-bold leading-tight text-[var(--cp-text-strong)]">
+        <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">{n}</span>
         <span>{children}</span>
       </h3>
-      {sub && <p className="mt-1 pl-6 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{sub}</p>}
+      {sub && <p className="mt-1.5 pl-8 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{sub}</p>}
     </div>
   )
 }
@@ -177,19 +159,19 @@ function SectionHead({ n, children, sub }: { n: string; children: React.ReactNod
 function Folded({ n, title, sub, children }: { n: string; title: string; sub?: string; children: React.ReactNode }) {
   return (
     <details className="group border-t border-[var(--cp-border)] pt-4">
-      <summary className="flex cursor-pointer list-none items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
-        <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">{n}</span>
+      <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
+        <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">{n}</span>
         <span className="flex-1">{title}</span>
         <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
         <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
       </summary>
-      {sub && <p className="mt-0.5 pl-6 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
+      {sub && <p className="mt-0.5 pl-8 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
       <div className="mt-3">{children}</div>
     </details>
   )
 }
 
-export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onHeadline, activeHeadline, criticalOn }: PolicyBoardProps) {
+export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: PolicyBoardProps) {
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
   const stats = useMemo(() => (graph ? factorStats(graph) : []), [graph])
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
@@ -215,14 +197,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })
   const active = activeLeverId ? levers.find((l) => l.node.id === activeLeverId) : null
-  // 첫 화면 결론. 수치는 전부 facts 파생(문장에 박지 않는다). 꼬리표는 통계를 모르는 독자용 풀이
-  const betas = regressionBetas(graph)
-  const topBeta = betas[0]
   const growth = data ? channelGrowth(data) : null
-  const kpi = data?.decision.kpi
-  const th = kpi?.thresholds
-  // 앱 제외 상습격자의 최근 분기 추이. 헤드라인 옆에 자체 성과지표의 방향을 같이 둔다(10라운드 심사 냉독: 지표가 오르는데 결론만 고정)
-  const noAppTrend = (kpi?.persistentQuarterly ?? []).slice(-3).map((r) => r.criticalNoApp).filter((v): v is number => v != null)
   // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 담는다. 검토서 A1
   // 10라운드: 앱 제외 신고·순찰 적발 배율을 결론 안에 병기해 "나빠졌다고 읽기 어렵다"가 지표와 따로 놀지 않게
   // 12라운드: 결론이 둘(어디서 생기나 · 늘었나)이라 번호로 가른다. 한 문단으로 붙여 두면 둘째가 첫째의 부연으로 읽혔다
@@ -232,33 +207,15 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
       ? `민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 이 자료로 단정할 수 없습니다.`
       : "민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 이 자료로 단정할 수 없습니다.",
   ]
-  const headline: Headline[] = [
-    {
-      id: "beta",
-      k: "다가구·단독 밀집 β",
-      v: topBeta ? `${topBeta.beta > 0 ? "+" : ""}${topBeta.beta.toFixed(3)}` : "미산출",
-      sub: `격자 회귀 조건 ${betas.length}개 중 적발 기록(과태료)과 가장 강하게 같이 움직임`,
-    },
-    {
-      id: "fixed",
-      k: "채널고정 민원(앱 제외)",
-      v: growth ? fmtRatio(growth.fixed) : "미산출",
-      sub: growth ? `${growth.baseYear}년 대비 연환산. 앱 신고 ${fmtRatio(growth.app)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}(최근 2~3개월 과소집계)` : "",
-    },
-    {
-      id: "critical",
-      k: "집중관리 상습격자(앱 제외)",
-      v: kpi ? `${kpi.criticalCellsNowNoApp}곳` : "미산출",
-      sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸. 분기 추이 ${noAppTrend.length ? noAppTrend.join("→") : "미산출"}, 앱 포함 ${kpi.criticalCellsNow}곳` : "",
-    },
-  ]
 
   return (
     <div className="flex flex-col gap-5 px-4 py-4">
-      {/* 결론 두 줄 + 핵심 수치 3개. 첫 화면에서 답이 먼저 보이게 */}
+      {/* 결론 두 줄. 첫 화면에서 답이 먼저 보이게. 수치(β·채널고정·상습격자)는 발견 카드와 운영·전망 성과지표에 있어 여기 두지 않는다(12라운드) */}
       <section>
-        <p className="dump-rise font-mono text-[12px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
-        <ol className="mt-1.5 flex flex-col">
+        <SectionHead n="01" first>
+          결론
+        </SectionHead>
+        <ol className="flex flex-col">
           {conclusions.map((c, i) => (
             <li
               key={i}
@@ -272,39 +229,6 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
             </li>
           ))}
         </ol>
-        {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다.
-            칸은 버튼: 누르면 그 수치가 가리키는 화면을 오른쪽 지도에 띄운다(운영·전망 탭 성과지표 칸과 같은 동작) */}
-        <div className="mt-1 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-          {headline.map((h, i) => {
-            const on = h.id === "critical" ? criticalOn : activeHeadline === h.id
-            return (
-              <button
-                key={h.k}
-                type="button"
-                onClick={() => onHeadline(h.id)}
-                aria-pressed={on}
-                className={`dump-rise relative min-w-0 rounded-r-lg py-1 pl-3 pr-2 text-left transition-colors ${
-                  on ? "bg-[#0c6155]/8 ring-1 ring-[#0c6155]/40" : "hover:bg-[var(--cp-hover)]"
-                }`}
-                style={{ "--i": 3 + i } as React.CSSProperties}
-              >
-                <span
-                  className={`dump-line absolute inset-y-0 left-0 w-px ${on ? "bg-[#0c6155]" : "bg-[var(--cp-border-strong)]"}`}
-                  style={{ "--i": 3 + i } as React.CSSProperties}
-                  aria-hidden
-                />
-                <span className="block break-keep text-[13px] leading-tight text-[var(--cp-text-muted)]">{h.k}</span>
-                <span className="mt-1 block font-mono text-[24px] font-semibold leading-none tabular-nums text-[var(--cp-text-strong)]">
-                  <CountUp text={h.v} delayMs={250 + i * 90} />
-                </span>
-                <span className="mt-1.5 block text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{h.sub}</span>
-                <span className="mt-1.5 block text-[12.5px] font-medium text-[#0c6155]">
-                  {on ? (h.id === "critical" ? "지도 표시 중 · 눌러서 끄기" : "지도 표시 중") : "지도에 표시 →"}
-                </span>
-              </button>
-            )
-          })}
-        </div>
       </section>
 
       {/* 지도 연동 상태. 어떤 제안을 지도에 띄워 두었는지 */}
@@ -322,7 +246,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
         >
           제안 {proposals.length}건
         </SectionHead>
-        <p className="mb-2.5 flex flex-wrap items-center gap-1.5 pl-6 text-[12.5px]">
+        <p className="mb-2.5 flex flex-wrap items-center gap-1.5 pl-8 text-[12.5px]">
           {costCounts.map((c) => (
             <span key={c.label} className={`rounded px-1.5 py-0.5 font-semibold ${c.cls}`}>
               {c.label} {c.n}건
@@ -371,8 +295,8 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
 
       {/* 원칙. CCTV 철회의 교훈 */}
       <section className="border-t border-[var(--cp-border)] pt-4">
-        <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
-          <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">05</span>원칙 · 개입 사전등록(조치 대장)
+        <h3 className="flex items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)]">
+          <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">05</span>원칙 · 개입 사전등록(조치 대장)
         </h3>
         <p className="mt-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
           새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고 평가는 등록한 설계 그대로만 합니다. 이동식 CCTV의
@@ -394,43 +318,3 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onH
   )
 }
 
-// 히어로 수치가 0에서 차오른다. 문자열 안의 첫 숫자만 애니메이션하고 부호·단위("배", "곳")는 그대로 둔다
-function CountUp({ text, delayMs = 0, durationMs = 900 }: { text: string; delayMs?: number; durationMs?: number }) {
-  const m = /-?\d[\d,]*\.?\d*/.exec(text)
-  const target = m ? Number(m[0].replace(/,/g, "")) : NaN
-  const decimals = m && m[0].includes(".") ? m[0].split(".")[1].length : 0
-  const grouped = !!m && m[0].includes(",")
-  const [shown, setShown] = useState(Number.isFinite(target) ? 0 : target)
-  useEffect(() => {
-    if (!Number.isFinite(target)) return
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(target)
-      return
-    }
-    let raf = 0
-    let t0 = 0
-    const tick = (now: number) => {
-      if (!t0) t0 = now
-      const p = Math.min(1, (now - t0) / durationMs)
-      const eased = 1 - Math.pow(1 - p, 3)
-      setShown(target * eased)
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    const timer = window.setTimeout(() => {
-      raf = requestAnimationFrame(tick)
-    }, delayMs)
-    return () => {
-      window.clearTimeout(timer)
-      cancelAnimationFrame(raf)
-    }
-  }, [target, delayMs, durationMs])
-  if (!m || !Number.isFinite(target)) return <>{text}</>
-  const num = grouped ? Math.round(shown).toLocaleString() : shown.toFixed(decimals)
-  return (
-    <>
-      {text.slice(0, m.index)}
-      {num}
-      {text.slice(m.index + m[0].length)}
-    </>
-  )
-}

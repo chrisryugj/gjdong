@@ -12,7 +12,7 @@ import FindingModal from "./finding-modal"
 import type { Finding } from "./findings-data"
 import OntoPanel from "./onto-panel"
 import OpsPanel from "./ops-panel"
-import PolicyBoard, { HEADLINE_MAP_LABEL, type HeadlineId } from "./policy-board"
+import PolicyBoard from "./policy-board"
 import BriefingModal from "./briefing-modal"
 import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
@@ -73,12 +73,9 @@ export default function DumpingDashboard() {
     return () => window.clearTimeout(t)
   }, [])
 
-  const [activeHeadline, setActiveHeadline] = useState<HeadlineId | null>(null) // 정책 탭 수치 칸이 띄운 지도 바탕(β·채널고정)
-
   const clearActive = () => {
     setActiveFinding(null)
     setActiveLever(null)
-    setActiveHeadline(null)
   }
 
   // 좌상단 배너 클릭 → 첫 화면 상태로 초기화
@@ -185,21 +182,9 @@ export default function DumpingDashboard() {
       })
       setActiveLever(lv)
       setActiveFinding(null)
-      setActiveHeadline(null)
     },
     [mapData, applyViz],
   )
-
-  // 정책 탭 첫 화면 수치 칸 → 지도. 상습격자는 강조 레이어 토글(운영·전망 탭과 같은 상태), 나머지는 바탕 교체
-  const applyHeadline = (id: HeadlineId) => {
-    if (id === "critical") {
-      setShowCritical((v) => !v)
-      return
-    }
-    applyViz({ mode: id === "beta" ? "unm" : "comp" })
-    clearActive()
-    setActiveHeadline(id)
-  }
 
   if (auth !== "open") {
     return <LoginGate checking={auth === "checking"} onOpen={() => setAuth("open")} />
@@ -211,9 +196,7 @@ export default function DumpingDashboard() {
     ? { label: activeLever.node.label.split("(")[0].trim(), onClear: () => setActiveLever(null) }
     : activeFinding
       ? { label: activeFinding.title, onClear: () => setActiveFinding(null) }
-      : activeHeadline
-        ? { label: HEADLINE_MAP_LABEL[activeHeadline], onClear: () => setActiveHeadline(null) }
-        : null
+      : null
 
   return (
     <div className={`crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)] ${settled ? "dump-anim-off" : ""}`}>
@@ -294,7 +277,7 @@ export default function DumpingDashboard() {
                   showCandidates={view.candidates}
                   showBinRecos={view.binRecos}
                   showHotspots={tab === "ops"}
-                  showCritical={showCritical && (tab === "ops" || tab === "policy")}
+                  showCritical={showCritical && tab === "ops"}
                   focusCandidate={focusCandidate}
                   showRoutes={view.routes}
                   showDongBars={view.dongBars}
@@ -387,9 +370,6 @@ export default function DumpingDashboard() {
                   data={mapData}
                   onShowMap={applyLeverViz}
                   activeLeverId={activeLever?.node.id ?? null}
-                  onHeadline={applyHeadline}
-                  activeHeadline={activeHeadline}
-                  criticalOn={showCritical}
                 />
               )}
               {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}
@@ -443,7 +423,6 @@ export default function DumpingDashboard() {
           if (f.viz) applyViz(f.viz)
           setActiveFinding(f)
           setActiveLever(null)
-          setActiveHeadline(null)
           setOpenFinding(null)
           switchTab("findings") // 지도 페인이 보이는 탭으로
         }}
