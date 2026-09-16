@@ -44,20 +44,35 @@ function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
     // 제안 카드: 번호·이름·예산 한 줄, 밑에 기대·담당·검증 세 줄. "신규 제안"·"사전등록 후 평가"는 섹션 머리에서 한 번만 말한다.
     // 라벨 꼬리가 예산 등급과 같은 말이면(예: "(추가 예산 없음)") 배지와 겹치므로 뗀다. 다른 꼬리(대상·근거)는 그대로
     const title = cost && lv.node.label.endsWith(`(${cost.label})`) ? shortTarget(lv.node.label) : lv.node.label
-    // 기대 = 이 제안이 서 있는 가정(작동 원리). 정본 문장(mechanism_detail)이 있으면 그것을, 없으면 방향 문장만.
+    // 작동 원리 = 가정 · 조치 · 기대 한 문장씩(정본 슬롯). 없으면 방향 문장 하나.
     // "쓰레기 노출 시간을 줄인다"처럼 무엇을 바꿔 무단투기가 줄기를 기대하는지가 카드에서 바로 읽혀야 한다(12라운드)
     const [expect, caveat] = expectedEffect(lv, stats).split(/\. (?=검증|효과)/)
-    const rows: [string, React.ReactNode][] = [
-      [
-        "기대",
-        <>
-          {lv.mechanismDetail ?? expect}
-          <span className="text-[var(--cp-text-faint)]"> · {lv.mechanismDetail ? "검증 전이라 시범 뒤 실측으로 판정" : caveat}</span>
-        </>,
-      ],
+    const m = lv.mechanismSlots
+    const rows: [string, React.ReactNode][] = m
+      ? [
+          ["가정", m.assumption],
+          ["조치", m.action],
+          [
+            "기대",
+            <>
+              {m.expect}
+              <span className="text-[var(--cp-text-faint)]"> · 검증 전</span>
+            </>,
+          ],
+        ]
+      : [
+          [
+            "기대",
+            <>
+              {expect}
+              {caveat && <span className="text-[var(--cp-text-faint)]"> · {caveat}</span>}
+            </>,
+          ],
+        ]
+    rows.push(
       ["담당", lv.owner ? splitParen(lv.owner).main : null],
       ["검증", lv.verificationPlan ? joinParen(lv.verificationPlan) : null],
-    ]
+    )
     return (
       <button
         onClick={() => onOpen(lv)}

@@ -209,8 +209,25 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
               <span className="rounded-full border border-[#0c6155]/40 px-2 py-0.5 text-[12.5px] font-semibold">{lever.mechanism}</span>
             )}
           </p>
-          <p className="mt-1 text-[15px] leading-relaxed text-[var(--cp-text)]">{lever.mechanismDetail ?? expect}</p>
-          <p className="mt-1 text-[13.5px] text-[var(--cp-text-dim)]">
+          {lever.mechanismSlots ? (
+            <dl className="mt-1.5 flex flex-col gap-1 text-[15px] leading-relaxed text-[var(--cp-text)]">
+              {(
+                [
+                  ["가정", lever.mechanismSlots.assumption],
+                  ["조치", lever.mechanismSlots.action],
+                  ["기대", lever.mechanismSlots.expect],
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div key={k} className="flex gap-2.5">
+                  <dt className="w-8 shrink-0 font-semibold text-[#0a4a41]">{k}</dt>
+                  <dd className="min-w-0">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="mt-1 text-[15px] leading-relaxed text-[var(--cp-text)]">{expect}</p>
+          )}
+          <p className="mt-1.5 text-[13.5px] text-[var(--cp-text-dim)]">
             기대 방향 · {expect}
             {expectCaveat && <> · {expectCaveat}</>}
           </p>

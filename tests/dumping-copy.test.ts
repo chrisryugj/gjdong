@@ -150,9 +150,12 @@ test("제안 카드의 기대효과는 6건 모두 있고 '사업'이라 부르�
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-collection-time")!.lever, stats), /안정/)
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-joint-disposal")!.lever, stats), /다가구·단독 밀집 지역의/)
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-cctv-relocate")!.lever, stats), /자원 배분/)
-  // 가정한 작동 원리: 6건 모두 칩(10자 안)과 상세("가정" 또는 통계 근거 아님을 명시)
+  // 가정한 작동 원리: 6건 모두 칩(10자 안)과 가정·조치·기대 세 슬롯(각 한 문장·45자 안)
   for (const r of rows) {
     assert.ok(r.mechanism !== "미기재" && r.mechanism.length <= 10, `${r.name}: 칩 "${r.mechanism}"`)
-    assert.match(r.mechanismDetail, /가정|확인된 수단이 아닙니다/, `${r.name}: 상세에 가정 명시 없음`)
+    const m = r.lever.mechanismSlots
+    assert.ok(m, `${r.name}: 슬롯 없음`)
+    for (const [k, v] of Object.entries(m!)) assert.ok(v.length > 0 && v.length <= 45, `${r.name}: ${k} ${v.length}자 "${v}"`)
+    assert.match(r.mechanismDetail, /^가정: .+ 조치: .+ 기대: /)
   }
 })

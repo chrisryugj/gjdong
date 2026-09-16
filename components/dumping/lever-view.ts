@@ -17,7 +17,7 @@ export interface LeverView {
   ordinance: string | null // governed_by → 실행 근거 조례 라벨
   effectRel: string | null // 판정 엣지 관계. lowers(줄인다)·stabilizes(안정시킨다). 기대효과 문장의 방향
   mechanism: string | null // 가정한 작동 원리 요약 칩 (예: "방치 시간 단축"). 정본은 export LEVER_MECHANISM
-  mechanismDetail: string | null // 같은 가정을 두세 문장으로. 카드·모달·물어보기 프롬프트가 같은 문장을 쓴다
+  mechanismSlots: { assumption: string; action: string; expect: string } | null // 가정 · 조치 · 기대 한 문장씩. 카드·모달·프롬프트가 같은 문장
 }
 
 // 비용 표기를 배지로 정규화. 관리자가 먼저 보는 것은 "돈이 드는가".
@@ -76,7 +76,14 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
         ordinance: ordEdge ? (nodeById.get(ordEdge.t)?.label ?? null) : null,
         effectRel: verdict?.rel ?? null,
         mechanism: node.props.mechanism != null ? String(node.props.mechanism) : null,
-        mechanismDetail: node.props.mechanism_detail != null ? String(node.props.mechanism_detail) : null,
+        mechanismSlots:
+          node.props.mechanism_assumption != null
+            ? {
+                assumption: String(node.props.mechanism_assumption),
+                action: String(node.props.mechanism_action ?? ""),
+                expect: String(node.props.mechanism_expect ?? ""),
+              }
+            : null,
       }
     })
 }
@@ -104,7 +111,7 @@ export interface ProposalRow {
   owner: string
   verify: string
   mechanism: string // 가정 요약 칩. 없으면 "미기재"
-  mechanismDetail: string
+  mechanismDetail: string // "가정: … 조치: … 기대: …" 한 줄. 프롬프트·게이트용
 }
 
 export function costRank(lv: LeverView): number {
@@ -124,7 +131,9 @@ export function proposalRows(graph: OntoGraph): ProposalRow[] {
       owner: lever.owner ?? "미기재",
       verify: lever.verificationPlan ?? "미기재",
       mechanism: lever.mechanism ?? "미기재",
-      mechanismDetail: lever.mechanismDetail ?? "미기재",
+      mechanismDetail: lever.mechanismSlots
+        ? `가정: ${lever.mechanismSlots.assumption}. 조치: ${lever.mechanismSlots.action}. 기대: ${lever.mechanismSlots.expect}`
+        : "미기재",
     }))
 }
 
