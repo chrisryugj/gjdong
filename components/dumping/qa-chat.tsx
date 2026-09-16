@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { ASK_ACCEPT, ASK_ERR, completeSentences, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
+import { ASK_ACCEPT, ASK_ERR, completeSentences, DETAIL_MARK, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
+import { matchSeed } from "@/lib/dumping/seed-match"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
@@ -75,6 +76,7 @@ interface Exchange {
   a: string
   pending?: boolean
   aborted?: boolean // 중단된 답. 완성 답처럼 재사용하지 않는다
+  seedQ?: string // 13라운드: 준비된 답으로 즉답한 경우 그 시드 질문. 화면에 밝히고 "모델에게 새로 묻기"를 둔다
 }
 
 interface QaChatProps {
@@ -203,7 +205,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     wake.enable()
   }
 
-  const askFree = async (question: string, byVoice = false) => {
+  const askFree = async (question: string, byVoice = false, opts: { force?: boolean } = {}) => {
     const q = question.trim()
     if (!q || busy) return
 
@@ -219,6 +221,22 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
       scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
       if (byVoice || voiceOnRef.current) readAloud(q, exchanges[cachedIdx].a)
       return
+    }
+
+    // 13라운드: 준비된 답(시드)과 같은 뜻이면 모델을 부르지 않고 그 답을 바로 낸다(첫 글자까지 10초 → 0초).
+    // 어느 시드로 판단했는지 화면에 밝히고, 아니면 "모델에게 새로 묻기"로 강제할 수 있다
+    if (!opts.force) {
+      const hit = matchSeed(q, allSeeds)
+      if (hit) {
+        const a = `${hit.seed.answer}\n\n${DETAIL_MARK}\n${hit.seed.detail}`
+        setError(null)
+        setInput("")
+        speaker.stop()
+        setExchanges((xs) => [...xs.filter((e) => e.q !== q), { q, a, pending: false, seedQ: hit.seed.q }])
+        scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+        if (byVoice || voiceOnRef.current) readAloud(q, a)
+        return
+      }
     }
 
     setError(null)
@@ -520,6 +538,23 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       </span>
                       {ex.q}
                     </p>
+                    {ex.seedQ && !ex.pending && (
+                      <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                        <span
+                          title={`준비된 답 「${ex.seedQ}」와 같은 뜻의 질문으로 판단해 바로 답했습니다`}
+                          className="rounded-full bg-[#0c6155]/10 px-2 py-0.5 text-[12.5px] font-semibold text-[#0c6155]"
+                        >
+                          준비된 답
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void askFree(ex.q, false, { force: true })}
+                          className="rounded-full border border-[var(--cp-border)] px-2 py-0.5 text-[12.5px] text-[var(--cp-text-muted)] hover:border-[#0c6155] hover:text-[#0c6155]"
+                        >
+                          모델에게 새로 묻기
+                        </button>
+                      </span>
+                    )}
                     {ex.aborted && (
                       <button
                         type="button"

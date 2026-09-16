@@ -158,8 +158,19 @@ async function ask(cookie, question) {
     headers: { "content-type": "application/json", cookie, ...ORIGIN },
     body: JSON.stringify({ question, history: [] }),
   })
+  // 답이 빨라진 뒤(13라운드)엔 분당 한도(429)에 걸린다. Retry-After만큼 쉬고 다시
+  if (r.status === 429) {
+    const wait = Number(r.headers.get("retry-after") || 60) + 1
+    console.log(`  429 · ${wait}s 대기`)
+    await new Promise((res) => setTimeout(res, wait * 1000))
+    return ask(cookie, question)
+  }
   if (!r.ok) throw new Error(`ask ${r.status} ${await r.text()}`)
-  return (await r.text()).trim()
+  // 스트림 규약: 첫 바이트 접수 표시(제로폭 공백)는 본문이 아니다. NUL+ERR: 는 서버 오류 메시지
+  const raw = await r.text()
+  const errAt = raw.indexOf(String.fromCharCode(0) + "ERR:")
+  if (errAt >= 0) throw new Error(`ask stream error: ${raw.slice(errAt + 5).trim()}`)
+  return raw.replace(/^\u200b/, "").trim()
 }
 
 const cookie = await login()

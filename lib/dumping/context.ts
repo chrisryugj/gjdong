@@ -50,10 +50,18 @@ const PROPOSALS = proposalRows(graph)
 const FINDING_TITLES = buildFindings(MAP, graph).map((f) => `${f.tag}(${f.title})`)
 const DATASET_NAMES = graph.nodes.filter((n) => n.type === "Dataset").map((n) => n.label)
 
+// 13라운드 프롬프트 다이어트: 답에 쓰이지 않는 속성은 모델에 주지 않는다(스크립트 경로·재적합 메모·내부 변수명·신뢰도·노드별 날짜).
+// 수치(계수·p·ρ·n·현재값)·판정(status·note·retracted)·실행 정보(owner·cost·검증·가정)·쉬운 설명은 그대로. 기준일은 개요 한 곳에 있다
+const NODE_PROP_SKIP = new Set([
+  "name", "statement", "summary", "id", "label_initial", "erratum",
+  "derived_by", "asof", "confidence", "refit", "variable", "mismatchTop", "rule", "industry", "size", "coefficient_initial",
+])
+const EDGE_PROP_SKIP = new Set(["id", "space", "refit", "dep", "model", "beta_initial"])
+
 function fmtProps(p: Record<string, unknown> | undefined): string {
   if (!p) return ""
   const parts = Object.entries(p)
-    .filter(([k]) => !["id", "space"].includes(k))
+    .filter(([k, v]) => !EDGE_PROP_SKIP.has(k) && v !== "" && v !== null && v !== undefined)
     .map(([k, v]) => `${k}=${typeof v === "number" ? v : String(v)}`)
   return parts.length ? ` {${parts.join(", ")}}` : ""
 }
@@ -71,16 +79,24 @@ function serializeOntology(): string {
     for (const n of nodes) {
       // label_initial(정오표 전 초기 문장)은 모델에 주지 않는다. 좁혀진 결론만 근거로 쓰게
       const extra = Object.entries(n.props as Record<string, unknown>)
-        .filter(([k, v]) => !["name", "statement", "summary", "id", "label_initial", "erratum"].includes(k) && v !== 0 && v !== "")
+        .filter(([k, v]) => !NODE_PROP_SKIP.has(k) && v !== 0 && v !== "")
         .map(([k, v]) => `${k}=${v}`)
         .join(", ")
       lines.push(`- ${n.id}: ${n.label}${extra ? ` (${extra})` : ""}`)
     }
   }
-  lines.push("\n[관계 (from --관계--> to, 부가 속성)]")
+  // 관계: 속성이 있는 것은 한 줄씩, 없는 것은 (from, 관계)별로 to를 묶어 한 줄로(같은 정보, 줄 수 1/3)
+  lines.push("\n[관계 (from --관계--> to, 부가 속성. 여러 to는 쉼표로 묶음)]")
+  const grouped = new Map<string, string[]>()
   for (const e of graph.edges) {
-    lines.push(`- ${e.f} --${e.rel}--> ${e.t}${fmtProps((e as { props?: Record<string, unknown> }).props)}`)
+    const props = fmtProps((e as { props?: Record<string, unknown> }).props)
+    if (props) lines.push(`- ${e.f} --${e.rel}--> ${e.t}${props}`)
+    else {
+      const key = `${e.f} --${e.rel}--> `
+      grouped.set(key, [...(grouped.get(key) ?? []), e.t])
+    }
   }
+  for (const [key, tos] of grouped) lines.push(`- ${key}${tos.join(", ")}`)
   return lines.join("\n")
 }
 
