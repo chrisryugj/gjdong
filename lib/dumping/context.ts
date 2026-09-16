@@ -100,10 +100,20 @@ function serializeOntology(): string {
   return lines.join("\n")
 }
 
+// 13라운드: 동별 연도(민원=접수일, 과태료=위반일)와 민원 채널 분해를 같이 준다. "2026년 화양동은?" 같은 질문에
+// 모델이 "동별 연도 자료 없음"이라고 답하던 것(실사고 2026-09-16)을 자료로 막는다
+// map.json을 리터럴로 들여와 연도 키가 동마다 달라 유니언으로 잡힌다. 값이 있는 해만 쓴다
+const yr = (o: Record<string, number | undefined> | undefined) =>
+  Object.entries(o ?? {})
+    .filter((e): e is [string, number] => typeof e[1] === "number")
+    .sort()
+    .map(([y, n]) => `${y.slice(2)}년 ${n}`)
+    .join("·")
 function serializeDong(): string {
   const rows = mapData.dong.map(
     (d) =>
-      `${d.d}: 민원 ${d.comp}건(등록인구 천명당 ${d.cr}, 생활인구 천명당 ${d.crl ?? "미산출"}) · 과태료 ${d.enf}건(등록인구 천명당 ${d.er}, 생활인구 천명당 ${d.erl ?? "미산출"}) · ` +
+      `${d.d}: 민원 ${d.comp}건(연도별 ${yr(d.yr?.complaints) || "미산출"}; 채널 앱 ${d.ch?.app ?? "미산출"}·120 ${d.ch?.c120 ?? "미산출"}·직접 ${d.ch?.direct ?? "미산출"}; 등록인구 천명당 ${d.cr}, 생활인구 천명당 ${d.crl ?? "미산출"}) · ` +
+      `과태료 ${d.enf}건(연도별 ${yr(d.yr?.enforcement) || "미산출"}; 등록인구 천명당 ${d.er}, 생활인구 천명당 ${d.erl ?? "미산출"}) · ` +
       `1인세대 ${d.one}% · 청년20-34 ${d.yth}% · 외국인 ${d.frn}% · 다가구·단독 ${d.unm}%(다가구 ${d.mf}가구) · ` +
       `세대수 ${d.hh} · 공동주택 ${d.apt}세대 · 생활인구 ${d.lp ?? "미산출"}명(장기체류 외국인 ${d.lpf ?? "미산출"})`,
   )
@@ -233,7 +243,7 @@ ${PROPOSALS.map((r, i) => `${i + 1}. ${r.name} · ${r.cost}${r.costNote !== "미
 ## 온톨로지
 ${serializeOntology()}
 
-## 동별 수치 (행정동 ${S.dongCount}개)
+## 동별 수치 (행정동 ${S.dongCount}개. 괄호 안 "연도별"이 그 동의 연도 집계, "채널"이 민원 접수 창구 분해. ★${S.period.lastYear}년은 1~${S.period.lastMonth}월 부분 연도라 연도 비교 시 반드시 붙여 말하라. 동별 연도 수치를 "자료에 없다"고 하지 마라)
 ${serializeDong()}
 
 ## 연도별 집계 (민원=접수시각 기준, 과태료=위반일시 기준. ★${S.period.lastYear}년은 1~${S.period.lastMonth}월까지만의 부분 연도. 연간 환산·비교 시 반드시 명시하라)
