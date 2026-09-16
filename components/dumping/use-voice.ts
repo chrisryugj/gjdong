@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { fixTranscript } from "@/lib/dumping/stt"
+import { MIN_QUESTION, wakeStep, type WakeState } from "@/lib/dumping/wake"
 
 // 음성 입출력. 질의응답 탭이 쓰지만 대시보드 어디서든 재사용할 수 있게 화면 의존 없이 둔다.
 // 입력: 브라우저 Web Speech(ko-KR). 크롬·엣지에서만 되고 HTTPS 또는 localhost가 필요하다.
@@ -59,6 +61,7 @@ class TtsPlayer {
     }
     // 컨텍스트는 닫지 않는다. 사용자 제스처 밖에서 새로 만들면 자동재생 정책에 걸릴 수 있어 하나를 계속 쓴다
     for (const s of this.sources) {
+      s.onended = null // stop() 뒤에 onended가 와서 live를 음수로 만들면 speaking이 영원히 true가 된다(호출어가 두 번째부터 무시되던 원인 하나)
       try {
         s.stop()
       } catch {
@@ -66,6 +69,7 @@ class TtsPlayer {
       }
     }
     this.sources.clear()
+    this.utts.clear()
     if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel()
     this.onChange(false)
   }
@@ -151,6 +155,8 @@ class TtsPlayer {
     }
   }
 
+  private utts = new Set<SpeechSynthesisUtterance>() // 크롬은 참조가 끊긴 utterance의 onend를 안 주기도 한다. 끝날 때까지 붙잡아 둔다
+
   private fallback(text: string) {
     if (typeof speechSynthesis === "undefined") return
     const u = new SpeechSynthesisUtterance(text)
@@ -158,9 +164,15 @@ class TtsPlayer {
     const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith("ko"))
     if (v) u.voice = v
     this.live++
-    u.onend = u.onerror = () => {
+    this.utts.add(u)
+    const finish = () => {
+      if (!this.utts.delete(u)) return // stop()이 이미 정리했으면 live를 다시 깎지 않는다
       this.live--
+      window.clearTimeout(guard)
     }
+    u.onend = u.onerror = finish
+    // onend가 영영 안 오면 speaking이 굳는다. 읽는 데 걸릴 시간의 상한 뒤엔 끝난 것으로 본다
+    const guard = window.setTimeout(finish, 2_000 + text.length * 180)
     speechSynthesis.speak(u)
   }
 }
@@ -249,7 +261,7 @@ export function useSpeechInput(onFinal: (text: string) => void) {
       recRef.current = null
       setListening(false)
       setInterim("")
-      const t = finalText.trim()
+      const t = fixTranscript(finalText)
       if (t) onFinalRef.current(t)
     }
     recRef.current = rec
@@ -274,14 +286,8 @@ export function useSpeechInput(onFinal: (text: string) => void) {
 // 크롬은 무음 1분·네트워크 흔들림에 인식을 끊으므로 onend에서 다시 켠다. 답을 읽는 동안(muted)은 결과를 버린다(되받기 방지).
 // 인식기는 한 페이지에 하나만 돌릴 수 있어, 켜 둔 동안 누르고 말하기(useSpeechInput)는 쓰지 않는다.
 
-export const WAKE_WORD = "김주임"
-// ASR이 받아쓰는 변형("김 주임", "김주임님", "김주임아"). 띄어쓰기는 매칭 때 무시한다. 긴 것부터
-const WAKE_VARIANTS = ["김주임님", "김주임아", "김주임", "김쭈임", "김주인"]
-const WAKE_RE = new RegExp(WAKE_VARIANTS.map((w) => w.split("").join("\\s*")).join("|"))
+export { WAKE_WORD } from "@/lib/dumping/wake"
 const AWAKE_MS = 8_000
-const MIN_QUESTION = 2
-
-export type WakeState = "off" | "idle" | "awake"
 
 function chime(ctx: AudioContext) {
   const t = ctx.currentTime
@@ -342,7 +348,7 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
   }
 
   const submit = (text: string) => {
-    const q = text.trim()
+    const q = fixTranscript(text)
     if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
     setSt("idle")
     setHeard("")
@@ -361,33 +367,20 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
       if (mutedRef.current) return
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i]
-        const text = r[0].transcript
-        if (stateRef.current === "idle") {
-          const m = WAKE_RE.exec(text)
-          if (!m) continue
-          const rest = text.slice(m.index + m[0].length).replace(/^[\s,.!?]+/, "").trim()
-          if (r.isFinal) {
-            if (rest.length >= MIN_QUESTION) submit(rest)
-            else {
-              if (ctxRef.current) chime(ctxRef.current)
-              setSt("awake")
-              armAwake()
-            }
-          } else {
-            // 중간 결과에서 호출어가 잡히면 즉시 깨운다. 뒤에 붙는 말은 heard로 보여 주고 최종 결과에서 제출
-            if (ctxRef.current) chime(ctxRef.current)
-            setSt("awake")
-            setHeard(rest)
-            armAwake()
-          }
-        } else {
-          const q = text.replace(WAKE_RE, "").replace(/^[\s,.!?]+/, "").trim()
-          if (r.isFinal) submit(q)
-          else {
-            setHeard(q)
-            armAwake()
-          }
-        }
+        // 판단은 순수 함수(lib/dumping/wake.ts)가 한다. 여기서는 알림음·상태·타이머만
+        const step = wakeStep(stateRef.current, r[0].transcript, r.isFinal)
+        if (step.kind === "ignore") continue
+        if (step.kind === "wake") {
+          if (ctxRef.current) chime(ctxRef.current)
+          setSt("awake")
+          setHeard(step.heard)
+          armAwake()
+        } else if (step.kind === "hear") {
+          setHeard(step.heard)
+          armAwake()
+        } else if (step.kind === "hold") {
+          armAwake()
+        } else submit(step.text)
       }
     }
     rec.onerror = (ev) => {

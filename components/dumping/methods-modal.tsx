@@ -110,7 +110,7 @@ const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): D
   {
     name: "SGIS 100m 격자 총인구 (2024 등록센서스)",
     scale: `국가데이터처 SGIS · 광진 ${n(data.decision.regressionV2?.exposure ? data.decision.regressionV2.exposure.v3_100.n : 0)}칸 회귀 표본`,
-    use: `상주인구 노출 변수(v3 회귀 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}). 공식 1km 격자와 합산 대조해 같은 자료임을 확인`,
+    use: `상주인구 노출 변수(노출 = 그 칸에 사람이 얼마나 있는가. v3 회귀 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}). 공식 1km 격자와 합산 대조해 같은 자료임을 확인`,
   },
   {
     name: "K-apt 관리비공개 의무단지 (필지·관리비)",

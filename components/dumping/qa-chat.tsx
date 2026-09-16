@@ -107,6 +107,11 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   // 호출어 상시 대기("김주임, 민원이 왜 늘었어?"). 답을 읽는 동안은 마이크 결과를 버린다
   const wake = useWakeWord((text) => {
     setInput(text)
+    if (busy) {
+      // 답을 만드는 중이면 askFree가 조용히 버린다. 입력창에 남기고 이유를 말해 준다
+      setError("앞 질문의 답을 만드는 중입니다. 끝나면 다시 불러 주세요. 질문은 입력창에 남겨 두었습니다.")
+      return
+    }
     void askFree(text, true)
   }, speaker.speaking)
   const wakeOn = wake.state !== "off"

@@ -10,12 +10,17 @@ const STAT_HELP: [string, string][] = [
   ["p값", "연관이 없다고 가정했을 때 이만한 차이가 나올 가능성입니다. 0.05보다 작으면 이 분석에서 연관이 확인된 것으로 봅니다. 원인을 뜻하지는 않습니다."],
   ["DID", "조치한 곳과 하지 않은 곳의 전후 변화를 비교한 차이입니다. 0이면 효과가 없다는 뜻입니다."],
   ["상관 ρ", "두 값이 함께 움직이는 정도입니다. 1에 가까울수록 함께 움직이는 정도가 강합니다."],
+  [
+    "노출(인구)",
+    "그 칸에 사람이 얼마나 있는지를 나타내는 변수입니다. 상주인구는 주민등록 기준 거주자(SGIS 100m 격자), 생활인구는 통신 기반 체류자(서울시 250m 격자)입니다. 사람이 많아서 생기는 것인지 가려내려고 회귀식에 넣습니다.",
+  ],
 ]
 
 function relevantHelp(finding: Finding): [string, string][] {
   const text = [...(finding.numbers?.map((n) => n.k) ?? []), finding.body].join(" ")
+  const all = [text, finding.tag, ...finding.detail].join(" ")
   return STAT_HELP.filter(([term]) =>
-    term === "β(베타)" ? /β/.test(text) : term === "상관 ρ" ? /ρ/.test(text) : text.includes(term.replace(/\(.*\)/, "")),
+    term === "β(베타)" ? /β/.test(text) : term === "상관 ρ" ? /ρ/.test(text) : all.includes(term.replace(/\(.*\)/, "")),
   )
 }
 

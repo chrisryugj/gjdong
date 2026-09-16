@@ -35,7 +35,7 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
   const extra: Pair[] = r2
     ? [
         {
-          k: "인구 노출",
+          k: "인구 노출(그 칸에 사람이 얼마나 있는가)",
           beforeTag: "통념",
           before: "사람이 많이 오가는 곳이니 많이 생긴다. 인구를 넣으면 결론이 바뀔 것이다.",
           after: r2.exposure

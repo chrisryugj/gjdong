@@ -1,0 +1,33 @@
+// 호출어("김주임") 상태기계. use-voice.ts의 인식기 콜백이 결과마다 이 함수를 부른다.
+// 순수 함수라 tests/dumping-wake.test.ts가 지킨다. 브라우저 인식기는 한 구간(segment)에 대해 중간 결과를 여러 번,
+// 최종 결과를 한 번 준다. 호출어만 부른 구간은 중간 결과에서 이미 깨운 뒤 최종 결과("김주임")가 따라오므로,
+// 그 최종 결과를 빈 질문으로 제출해 idle로 돌아가면 다음 구간의 질문을 놓친다(11라운드 실사고: 두 번째부터 반응 없음).
+
+export const WAKE_WORD = "김주임"
+// ASR이 받아쓰는 변형("김 주임", "김주임님", "김주임아"). 띄어쓰기는 매칭 때 무시한다. 긴 것부터
+const WAKE_VARIANTS = ["김주임님", "김주임아", "김주임", "김쭈임", "김주인"]
+export const WAKE_RE = new RegExp(WAKE_VARIANTS.map((w) => w.split("").join("\\s*")).join("|"))
+export const MIN_QUESTION = 2
+
+export type WakeState = "off" | "idle" | "awake"
+export type WakeStep =
+  | { kind: "ignore" } // idle인데 호출어 없음
+  | { kind: "wake"; heard: string } // 깨움(알림음). 호출어 뒤에 붙은 말은 heard
+  | { kind: "hear"; heard: string } // awake 상태의 중간 결과
+  | { kind: "hold" } // awake 유지. 호출어만 부른 구간의 최종 결과
+  | { kind: "submit"; text: string }
+
+const strip = (s: string) => s.replace(/^[\s,.!?]+/, "").trim()
+
+export function wakeStep(state: WakeState, text: string, isFinal: boolean): WakeStep {
+  if (state !== "awake") {
+    const m = WAKE_RE.exec(text)
+    if (!m) return { kind: "ignore" }
+    const rest = strip(text.slice(m.index + m[0].length))
+    if (isFinal) return rest.length >= MIN_QUESTION ? { kind: "submit", text: rest } : { kind: "wake", heard: "" }
+    return { kind: "wake", heard: rest }
+  }
+  const q = strip(text.replace(WAKE_RE, ""))
+  if (isFinal) return q.length >= MIN_QUESTION ? { kind: "submit", text: q } : { kind: "hold" }
+  return { kind: "hear", heard: q }
+}

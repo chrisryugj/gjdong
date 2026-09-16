@@ -20,16 +20,16 @@ import {
   type LeverView,
 } from "./lever-view"
 
-// 제안이유 모달. 정책 보드에서 사업 카드를 누르면 "왜 이걸 하자는 건가"를 보여준다.
+// 제안이유 모달. 정책 보드에서 제안 카드를 누르면 "왜 이걸 하자는 건가"를 보여준다.
 // 통계 용어를 그대로 늘어놓지 않고, 쉬운 문장 + 그림(인과 흐름·요인 강도 막대)으로 설명한다.
 // 내용은 전부 graph.json에서 파생. 별도 원고를 두지 않는다.
 
 const POS = "#a8322a" // 발생을 늘리는 방향
 const NEG = "#1c4f96" // 발생을 줄이는 방향
-const HI = "#0c6155" // 이 사업이 겨냥하는 요인
+const HI = "#0c6155" // 이 제안이 겨냥하는 요인
 
 // 요인 강도 막대 한 줄. beta는 0을 가운데 두고 좌우로, rho는 왼쪽에서 오른쪽으로
-function StatRow({ s, max, highlight }: { s: FactorStat; max: number; highlight: boolean }) {
+function StatRow({ s, max, highlight, noun }: { s: FactorStat; max: number; highlight: boolean; noun: string }) {
   const ratio = Math.min(1, Math.abs(s.value) / max)
   const signed = s.kind === "beta"
   const width = `${ratio * (signed ? 50 : 100)}%`
@@ -45,7 +45,7 @@ function StatRow({ s, max, highlight }: { s: FactorStat; max: number; highlight:
           {s.easy}
           {highlight && (
             <span className="ml-1.5 whitespace-nowrap rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-bold text-white">
-              이 사업이 겨냥
+              이 {noun}이 겨냥
             </span>
           )}
         </span>
@@ -78,11 +78,13 @@ function StatGroup({
   caption,
   stats,
   targeted,
+  noun,
 }: {
   title: string
   caption: string
   stats: FactorStat[]
   targeted: Set<string>
+  noun: string // "제안"(신규) 또는 "수단"(기존). "사업"이라 부르지 않는다
 }) {
   if (!stats.length) return null
   // 상관 ρ는 0~1 절대 척도라 1을 기준으로 그려야 "1에 가깝다"가 눈에 보인다.
@@ -95,14 +97,14 @@ function StatGroup({
       <p className="mb-1.5 px-1 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">{caption}</p>
       <div className="flex flex-col gap-0.5">
         {sorted.map((s) => (
-          <StatRow key={`${s.kind}-${s.id}`} s={s} max={max} highlight={targeted.has(s.id)} />
+          <StatRow key={`${s.kind}-${s.id}`} s={s} max={max} highlight={targeted.has(s.id)} noun={noun} />
         ))}
       </div>
     </div>
   )
 }
 
-// 인과 흐름. [사업] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
+// 인과 흐름. [제안] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
 function FlowDiagram({ lever, target }: { lever: string; target: string | null }) {
   const box = (text: string, cls: string) => (
     <span className={`flex-1 rounded-lg px-2.5 py-2 text-center text-[14.5px] font-semibold leading-snug ${cls}`}>
@@ -142,6 +144,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
   if (!lever) return null
 
   const proposal = lever.status === "제안"
+  const noun = proposal ? "제안" : "수단"
   const status = STATUS_STYLE[lever.status] ?? {
     label: lever.status,
     cls: "bg-slate-400 text-white",
@@ -272,19 +275,21 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {lever.targets.length > 0 && (betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
           <h4 className="text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-            무단투기를 늘리는 조건과 이 사업이 겨냥하는 지점
+            무단투기를 늘리는 조건과 이 {noun}이 겨냥하는 지점
           </h4>
           <StatGroup
             title="① 광진구를 100m 격자로 나눠 분석한 결과"
             caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
             stats={betas}
             targeted={targeted}
+            noun={noun}
           />
           <StatGroup
             title={`② 행정동 ${rhos[0]?.n ?? 15}곳을 비교한 결과`}
             caption="동네 특성과 무단투기가 함께 움직이는 정도입니다. 막대가 끝까지 차면 완전히 함께 움직이는 것이고 절반이면 절반쯤 함께 움직입니다."
             stats={rhos}
             targeted={targeted}
+            noun={noun}
           />
           <p className="px-1 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 구분할 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.

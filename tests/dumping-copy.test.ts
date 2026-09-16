@@ -5,8 +5,7 @@ import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
 import { buildFindings, FINDING_GROUPS, FINDING_ORDER } from "../components/dumping/findings-data"
 import { buildSeeds } from "../components/dumping/qa-seeds"
-import { joinParen, proposalRows } from "../components/dumping/lever-view"
-import { requestSentence } from "../components/dumping/policy-table"
+import { expectedEffect, factorStats, joinParen, proposalRows, requestSentence } from "../components/dumping/lever-view"
 import { buildSystemPrompt } from "../lib/dumping/context"
 import { applyErrata } from "../lib/dumping/errata"
 import { detailLines, sentencesOf } from "../lib/dumping/answer-parts"
@@ -46,7 +45,14 @@ test("발견 카드 17장은 결론 → 검증 → 한계·전망 순서(FINDING
 })
 
 test("화면 문장(발견·시드·대비·제안)에 옛 변수명·줄표·챗봇 말투·금지 문구가 없다", withMap, () => {
-  const text = stripLegalTerm(JSON.stringify([buildFindings(map!, graph), buildSeeds(map!, graph), proposalRows(graph).map((r) => [r.name, r.costNote, r.owner, r.verify])]))
+  const stats = factorStats(graph)
+  const text = stripLegalTerm(
+    JSON.stringify([
+      buildFindings(map!, graph),
+      buildSeeds(map!, graph),
+      proposalRows(graph).map((r) => [r.name, r.costNote, r.owner, r.verify, expectedEffect(r.lever, stats)]),
+    ]),
+  )
   assert.doesNotMatch(text, OLD_NAME)
   assert.doesNotMatch(text, EM_DASH)
   assert.doesNotMatch(text, CHATBOT)
@@ -129,4 +135,19 @@ test("괄호 붙은 담당·비용 문구는 ' · '로 이어 한 줄로 읽힌�
   assert.strictEqual(joinParen("동주민센터"), "동주민센터")
   const cctv = proposalRows(graph).find((r) => r.lever.node.id === "lev-cctv-relocate")!
   assert.strictEqual(joinParen(cctv.owner), "청소과·동주민센터 · 276대 보유")
+})
+
+// 12라운드. 제안은 "사업"이 아니라 제안·수단. 기대효과 문장은 방향(감소·안정)과 겨냥 요인만 말하고 효과 크기를 단정하지 않는다
+test("제안 카드의 기대효과는 6건 모두 있고 '사업'이라 부르지 않으며 검증 전임을 말한다", () => {
+  const stats = factorStats(graph)
+  const rows = proposalRows(graph)
+  for (const r of rows) {
+    const e = expectedEffect(r.lever, stats)
+    assert.ok(e.length > 10, `${r.name}: 기대효과 없음`)
+    assert.doesNotMatch(e, /사업/)
+    assert.match(e, /검증 전|통계로 확인된 것이 아님/, `${r.name}: ${e}`)
+  }
+  assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-collection-time")!.lever, stats), /안정/)
+  assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-joint-disposal")!.lever, stats), /다가구·단독 밀집 지역의/)
+  assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-cctv-relocate")!.lever, stats), /자원 배분/)
 })

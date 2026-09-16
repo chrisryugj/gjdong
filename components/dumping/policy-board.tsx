@@ -2,39 +2,90 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
-import { channelGrowth, fmtRatio, regressionBetas, summarize } from "@/lib/dumping/facts"
+import { channelGrowth, fmtRatio, regressionBetas } from "@/lib/dumping/facts"
 import {
+  COST_ORDER,
   costBadge,
   costRank,
   deriveLevers,
   easyVerdict,
+  expectedEffect,
   FACTOR_SHORT,
+  factorStats,
   joinParen,
-  proposalRows,
   shortTarget,
   splitParen,
   STATUS_FALLBACK,
   STATUS_STYLE,
+  type FactorStat,
   type LeverView,
 } from "./lever-view"
 import LeverModal from "./lever-modal"
-import { PolicyPrintModal, type Headline } from "./policy-table"
-import type { MethodsSection } from "./methods-modal"
 
-// 정책 제안 탭. 지식그래프를 관리자 관점("무엇을 해야 하나")으로 재구성한 첫 화면.
+// 정책 제안 탭. 지식그래프를 결재권자 관점("무엇을 결정하면 되나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
-// 첫 화면에 보이는 것은 넷뿐이다. 결론 한 줄, 쉬운 수치 3, 결재용 인쇄와 평가자 근거 경로, 제안 이름 6개와 카드.
-// 기존 수단 판정·성과지표·"왜 이런 제안인가"는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다.
-// 10라운드 냉독: 결재선은 첫 화면에서 "할 일"을 못 찾았다. 제안 이름을 결론 바로 아래로).
+// 12라운드: 첫 화면은 둘뿐이다. 결론 두 문장(번호로 갈라 분리감)과 수치 칸 3개, 그 아래 제안 6건 카드(기대·담당·검증).
+// 예전의 제안 목차·"왜 이런 제안인가"·결재용 한 장은 같은 제안이 세 번 나오던 원인이라 카드 하나로 합쳤다.
+// 기존 수단 판정·성과지표는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다).
 // 카드를 누르면 제안이유 모달이 열리고, 모달에서 오른쪽 지도로 이어진다.
 
-function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: OntoGraph; onOpen: (lv: LeverView) => void; i?: number; n?: number }) {
-  const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
+interface CardProps {
+  lv: LeverView
+  graph: OntoGraph
+  stats: FactorStat[]
+  onOpen: (lv: LeverView) => void
+  i?: number
+  n?: number // 제안 번호. 결론·모달과 같은 번호로 잇는다
+}
+
+function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
   const cost = costBadge(lv.costNote)
-  const proposal = lv.status === "제안"
-  // 제안은 까닭을 모달에서 풀어 주므로 카드에는 판정 문장을 두지 않는다.
-  // 기존 수단은 한 줄 판정이 곧 요점이라, 쉬운 설명이 있으면 그쪽을 쓴다.
-  const note = proposal ? null : (easyVerdict(lv, graph) ?? lv.verdictNote ?? STATUS_FALLBACK[lv.status] ?? null)
+  if (lv.status === "제안") {
+    // 제안 카드: 번호·이름·예산 한 줄, 밑에 기대·담당·검증 세 줄. "신규 제안"·"사전등록 후 평가"는 섹션 머리에서 한 번만 말한다.
+    // 라벨 꼬리가 예산 등급과 같은 말이면(예: "(추가 예산 없음)") 배지와 겹치므로 뗀다. 다른 꼬리(대상·근거)는 그대로
+    const title = cost && lv.node.label.endsWith(`(${cost.label})`) ? shortTarget(lv.node.label) : lv.node.label
+    // 기대효과는 "무엇을 기대하나. 검증 전" 두 문장. 뒤 문장(한계)은 옅게 이어 붙여 한눈에 앞 문장이 먼저 읽히게
+    const [expect, caveat] = expectedEffect(lv, stats).split(/\. (?=검증|효과)/)
+    const rows: [string, React.ReactNode][] = [
+      [
+        "기대",
+        <>
+          {expect}
+          {caveat && <span className="text-[var(--cp-text-faint)]"> · {caveat}</span>}
+        </>,
+      ],
+      ["담당", lv.owner ? splitParen(lv.owner).main : null],
+      ["검증", lv.verificationPlan ? joinParen(lv.verificationPlan) : null],
+    ]
+    return (
+      <button
+        onClick={() => onOpen(lv)}
+        style={{ "--i": 8 + i } as React.CSSProperties}
+        className="dump-rise rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
+      >
+        <span className="flex items-start gap-2.5">
+          <span className="mt-[3px] w-4 shrink-0 font-mono text-[13px] text-[var(--cp-text-faint)]">{n}</span>
+          <h4 className="min-w-0 flex-1 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">{title}</h4>
+          {cost && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+        </span>
+        <dl className="mt-2 flex flex-col gap-1 pl-[1.625rem] text-[14px] leading-snug text-[var(--cp-text-dim)]">
+          {rows
+            .filter(([, v]) => v)
+            .map(([k, v]) => (
+              <div key={k} className="flex gap-2">
+                <dt className="w-8 shrink-0 font-medium">{k}</dt>
+                <dd className="min-w-0 text-[var(--cp-text-muted)]">{v}</dd>
+              </div>
+            ))}
+        </dl>
+        <span className="mt-2.5 inline-block pl-[1.625rem] text-[14px] font-semibold text-[#0c6155]">제안 이유와 지도 보기 →</span>
+      </button>
+    )
+  }
+
+  // 기존 수단 카드(접힌 03). 한 줄 판정이 곧 요점이라, 쉬운 설명이 있으면 그쪽을 쓴다
+  const status = STATUS_STYLE[lv.status] ?? { label: lv.status, cls: "bg-slate-400 text-white" }
+  const note = easyVerdict(lv, graph) ?? lv.verdictNote ?? STATUS_FALLBACK[lv.status] ?? null
   return (
     <button
       onClick={() => onOpen(lv)}
@@ -42,7 +93,6 @@ function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: Onto
       className="dump-rise rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)] px-4 py-3.5 text-left transition-colors hover:border-[#0c6155]/60"
     >
       <span className="flex flex-wrap items-center gap-1.5">
-        {n != null && <span className="mr-0.5 font-mono text-[12.5px] text-[var(--cp-text-faint)]">{n}</span>}
         <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-bold ${status.cls}`}>{status.label}</span>
         {cost && <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
         {lv.preRegistered && (
@@ -51,10 +101,7 @@ function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: Onto
           </span>
         )}
       </span>
-      {/* 라벨 꼬리가 예산 등급과 같은 말이면(예: "(추가 예산 없음)") 위 배지와 겹치므로 뗀다. 다른 꼬리(대상·근거)는 그대로 */}
-      <h4 className="mt-2 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">
-        {cost && lv.node.label.endsWith(`(${cost.label})`) ? shortTarget(lv.node.label) : lv.node.label}
-      </h4>
+      <h4 className="mt-2 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">{lv.node.label}</h4>
       {lv.targets.length > 0 && (
         <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[13.5px] text-[var(--cp-text-dim)]">
           겨냥
@@ -71,7 +118,6 @@ function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: Onto
           {lv.owner && (
             <div className="flex gap-2">
               <dt className="w-8 shrink-0 font-medium">담당</dt>
-              {/* 괄호 앞 이름만. 역할 근거(괄호 안)는 모달·결재 한 장에서 */}
               <dd className="text-[var(--cp-text-muted)]">{splitParen(lv.owner).main}</dd>
             </div>
           )}
@@ -83,9 +129,7 @@ function LeverCard({ lv, graph, onOpen, i = 0, n }: { lv: LeverView; graph: Onto
           )}
         </dl>
       )}
-      <span className="mt-2.5 inline-block text-[14px] font-semibold text-[#0c6155]">
-        {proposal ? "제안 이유와 지도 보기 →" : "검증 결과 자세히 →"}
-      </span>
+      <span className="mt-2.5 inline-block text-[14px] font-semibold text-[#0c6155]">검증 결과 자세히 →</span>
     </button>
   )
 }
@@ -99,6 +143,13 @@ export const HEADLINE_MAP_LABEL: Record<HeadlineId, string> = {
   critical: "집중관리 상습격자(앱 포함)",
 }
 
+interface Headline {
+  id: HeadlineId
+  k: string
+  v: string
+  sub: string
+}
+
 interface PolicyBoardProps {
   graph: OntoGraph | null
   data: DumpingMapData | null
@@ -107,8 +158,6 @@ interface PolicyBoardProps {
   onHeadline: (id: HeadlineId) => void // 수치 칸 클릭 → 지도
   activeHeadline: HeadlineId | null // 지도에 반영 중인 수치 칸(β·채널고정)
   criticalOn: boolean // 상습격자 강조 레이어 상태(운영·전망 탭과 공유)
-  onOpenMethods: (section: MethodsSection) => void // 평가자 링크 줄: 데이터·방법 모달
-  onGoFindings: () => void // 평가자 링크 줄: 발견 탭
 }
 
 // 섹션 제목. 위계는 색이 아니라 번호와 hairline으로
@@ -119,7 +168,7 @@ function SectionHead({ n, children, sub }: { n: string; children: React.ReactNod
         <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">{n}</span>
         <span>{children}</span>
       </h3>
-      {sub && <p className="mt-0.5 pl-6 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
+      {sub && <p className="mt-1 pl-6 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{sub}</p>}
     </div>
   )
 }
@@ -140,29 +189,23 @@ function Folded({ n, title, sub, children }: { n: string; title: string; sub?: s
   )
 }
 
-export default function PolicyBoard({
-  graph,
-  data,
-  onShowMap,
-  activeLeverId,
-  onOpenMethods,
-  onGoFindings,
-  onHeadline,
-  activeHeadline,
-  criticalOn,
-}: PolicyBoardProps) {
+export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, onHeadline, activeHeadline, criticalOn }: PolicyBoardProps) {
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
-  const rows = useMemo(() => (graph ? proposalRows(graph) : []), [graph])
+  const stats = useMemo(() => (graph ? factorStats(graph) : []), [graph])
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
-  const [showPrint, setShowPrint] = useState(false)
 
   if (!graph) {
     return <div className="p-4 text-[16px] text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다…</div>
   }
 
-  // 제안은 돈이 덜 드는 순. 무예산 → 저비용 → 예산 필요 (같은 등급 안에서는 그래프 순서 유지)
+  // 제안은 돈이 덜 드는 순. 추가 예산 없음 → 저비용 → 예산 필요 (같은 등급 안에서는 그래프 순서 유지)
   const proposals = levers.filter((l) => l.status === "제안").sort((a, b) => costRank(a) - costRank(b))
   const existing = levers.filter((l) => l.status !== "제안")
+  const costCounts = COST_ORDER.map((label) => ({
+    label,
+    n: proposals.filter((l) => costBadge(l.costNote)?.label === label).length,
+    cls: costBadge(label === "추가 예산 없음" ? "0원" : label === "저비용" ? "저비용" : "예산")?.cls ?? "",
+  })).filter((c) => c.n > 0)
   const kpis = graph.nodes.filter((n) => n.type === "KPI")
   // 성과 평가에 쓰는 지표(신고편향에 덜 민감한 3종)를 앞으로
   const KPI_ORDER = ["kpi-fixed-channel", "kpi-critical-cells", "kpi-collection"]
@@ -178,15 +221,18 @@ export default function PolicyBoard({
   const growth = data ? channelGrowth(data) : null
   const kpi = data?.decision.kpi
   const th = kpi?.thresholds
-  const period = data ? summarize(data).period : null
   // 앱 제외 상습격자의 최근 분기 추이. 헤드라인 옆에 자체 성과지표의 방향을 같이 둔다(10라운드 심사 냉독: 지표가 오르는데 결론만 고정)
   const noAppTrend = (kpi?.persistentQuarterly ?? []).slice(-3).map((r) => r.criticalNoApp).filter((v): v is number => v != null)
-  // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 첫 문장에 담는다. 검토서 A1
+  // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 담는다. 검토서 A1
   // 10라운드: 앱 제외 신고·순찰 적발 배율을 결론 안에 병기해 "나빠졌다고 읽기 어렵다"가 지표와 따로 놀지 않게
-  const conclusion = growth
-    ? `단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 이 자료로 단정할 수 없습니다.`
-    : "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다. 민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 이 자료로 단정할 수 없습니다."
-  const headline: (Headline & { id: HeadlineId })[] = [
+  // 12라운드: 결론이 둘(어디서 생기나 · 늘었나)이라 번호로 가른다. 한 문단으로 붙여 두면 둘째가 첫째의 부연으로 읽혔다
+  const conclusions = [
+    "단속에 잡히는 무단투기는 사람이 많은 곳이 아니라 다가구·단독주택이 몰린 골목에 더 많습니다.",
+    growth
+      ? `민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 이 자료로 단정할 수 없습니다.`
+      : "민원 증가의 대부분은 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 이 자료로 단정할 수 없습니다.",
+  ]
+  const headline: Headline[] = [
     {
       id: "beta",
       k: "다가구·단독 밀집 β",
@@ -206,26 +252,29 @@ export default function PolicyBoard({
       sub: kpi ? `${th?.months ?? 12}개월 ${th?.critical ?? 10}건 넘는 100m 칸. 분기 추이 ${noAppTrend.length ? noAppTrend.join("→") : "미산출"}, 앱 포함 ${kpi.criticalCellsNow}곳` : "",
     },
   ]
-  // 평가자 진입 줄. 데이터 → 방법 → 결론 → 한계 → 재현. 한계는 방법 모달 안(해설서 링크는 모달 하단)
-  const path: { k: string; go: () => void }[] = [
-    { k: "데이터", go: () => onOpenMethods("data") },
-    { k: "방법", go: () => onOpenMethods("methods") },
-    { k: "결론", go: onGoFindings },
-    { k: "한계", go: () => onOpenMethods("methods") },
-    { k: "재현", go: () => onOpenMethods("reproduce") },
-  ]
 
   return (
     <div className="flex flex-col gap-5 px-4 py-4">
-      {/* 결론 한 줄 + 핵심 수치 3개. 첫 화면에서 답이 먼저 보이게 */}
+      {/* 결론 두 줄 + 핵심 수치 3개. 첫 화면에서 답이 먼저 보이게 */}
       <section>
         <p className="dump-rise font-mono text-[12px] tracking-[0.12em] text-[var(--cp-text-faint)]">01 결론</p>
-        <h2 className="dump-rise mt-1.5 text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]" style={{ "--i": 1 } as React.CSSProperties}>
-          {conclusion}
-        </h2>
+        <ol className="mt-1.5 flex flex-col">
+          {conclusions.map((c, i) => (
+            <li
+              key={i}
+              className={`dump-rise flex gap-3 ${i ? "border-t border-[var(--cp-border)] py-3.5" : "pb-3.5 pt-1"}`}
+              style={{ "--i": 1 + i } as React.CSSProperties}
+            >
+              <span className="mt-[3px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0c6155] font-mono text-[13px] font-bold text-white">
+                {i + 1}
+              </span>
+              <h2 className="text-[19px] font-bold leading-snug text-[var(--cp-text-strong)]">{c}</h2>
+            </li>
+          ))}
+        </ol>
         {/* 390에서는 세로로. 세 칸에 나누면 "β"가 홀로 다음 줄로 떨어진다.
             칸은 버튼: 누르면 그 수치가 가리키는 화면을 오른쪽 지도에 띄운다(운영·전망 탭 성과지표 칸과 같은 동작) */}
-        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+        <div className="mt-1 grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
           {headline.map((h, i) => {
             const on = h.id === "critical" ? criticalOn : activeHeadline === h.id
             return (
@@ -256,119 +305,48 @@ export default function PolicyBoard({
             )
           })}
         </div>
-        {/* 두 독자의 진입점. 결재선은 인쇄, 평가자는 근거 경로 */}
-        <div className="dump-rise mt-4 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ "--i": 7 } as React.CSSProperties}>
-          <button
-            onClick={() => setShowPrint(true)}
-            className="rounded-lg border border-[var(--cp-border-strong)] bg-white px-3.5 py-2 text-[14px] font-semibold text-[var(--cp-text-strong)] hover:bg-[var(--cp-hover)]"
-          >
-            결재용 한 장 인쇄
-          </button>
-          <span className="flex flex-wrap items-center gap-x-1.5 text-[13.5px]">
-            <span className="text-[var(--cp-text-dim)]">근거 경로</span>
-            {path.map((p, i) => (
-              <span key={p.k} className="inline-flex items-center gap-1.5">
-                <button onClick={p.go} className="font-semibold text-[#0c6155] hover:underline">
-                  {p.k}
-                </button>
-                {i < path.length - 1 && <span className="text-[var(--cp-text-faint)]">→</span>}
-              </span>
-            ))}
-          </span>
-        </div>
-        {/* 할 일이 첫 화면에 보이게. 제안 목차: 번호 · 이름 · 예산 등급을 열로 맞추고 03 카드와 같은 번호로 잇는다.
-            칩을 흘려 놓으면 줄바꿈이 제각각이라 6건이 하나로 읽히지 않았다 */}
-        <div className="dump-rise mt-4" style={{ "--i": 8 } as React.CSSProperties}>
-          <p className="mb-1.5 text-[13px] font-medium tracking-wide text-[var(--cp-text-dim)]">제안 {proposals.length}건 · 예산이 들지 않는 것부터</p>
-          <ol className="divide-y divide-[var(--cp-border)] overflow-hidden rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
-            {proposals.map((lv, i) => {
-              const cost = costBadge(lv.costNote)
-              return (
-                <li key={lv.node.id}>
-                  <button
-                    onClick={() => setOpenLever(lv)}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--cp-hover)]"
-                  >
-                    <span className="w-4 shrink-0 font-mono text-[12px] text-[var(--cp-text-faint)]">{i + 1}</span>
-                    <span className="min-w-0 flex-1 break-keep text-[14.5px] font-medium text-[var(--cp-text-strong)]">{shortTarget(lv.node.label)}</span>
-                    {cost && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${cost.cls}`}>{cost.label}</span>}
-                  </button>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
       </section>
 
-      {/* 정책 논리. 확인·공백·제안 세 단계. 접어 둔다(10라운드 냉독: 결재선에게 해독이 안 됐고 제안 카드를 폴드 밖으로 밀었다) */}
-      <Folded n="02" title="왜 이런 제안인가" sub="확인한 것, 비어 있던 것, 그래서 제안한 것">
-        <dl className="flex flex-col gap-2.5">
-          {[
-            {
-              k: "확인",
-              v: (
-                <>
-                  단속 적발 기록과 가장 강하게 연관된 조건은{" "}
-                  <b className="text-[var(--cp-text-strong)]">다가구·단독주택의 밀집</b>이었습니다. 관리사무소가 없는 다세대·연립은 이 자료에서 연관이 확인되지
-                  않았고, 차량 담배꽁초를 뺀 생활쓰레기만 봐도 같습니다.
-                </>
-              ),
-            },
-            {
-              k: "공백",
-              v: (
-                <>
-                  그 골목에는 청년·외국인·1인세대가 함께 몰려 있는데, 이번에 모은 정책 목록에는 이 골목 주민에게 배출 안내를 전하는 대책이 연결돼 있지
-                  않았습니다. 네 조건은 같은 동네에 겹쳐 있어, 겨냥 지역은 주거 구조로 고르고 안내는 그 골목 주민에게 맞춥니다. 기존 사업 대조는 담당 부서
-                  확인이 필요합니다.
-                </>
-              ),
-            },
-            {
-              k: "제안",
-              v: <>아래 {proposals.length}건이 이 두 공백을 메웁니다. 모두 실행 전에 조치 대장에 설계를 등록한 뒤 평가합니다.</>,
-            },
-          ].map((row) => (
-            <div key={row.k} className="flex gap-2.5">
-              <dt className="mt-0.5 h-fit shrink-0 rounded bg-[#0c6155]/15 px-1.5 py-0.5 text-[12.5px] font-bold text-[#0a4a41]">
-                {row.k}
-              </dt>
-              <dd className="min-w-0 flex-1 text-[15px] leading-relaxed text-[var(--cp-text)]">{row.v}</dd>
-            </div>
-          ))}
-        </dl>
-      </Folded>
-
-      {/* 지도 연동 상태. 어떤 사업을 지도에 띄워 두었는지 */}
+      {/* 지도 연동 상태. 어떤 제안을 지도에 띄워 두었는지 */}
       {active && (
         <p className="rounded-lg border border-[#0c6155]/40 bg-[#0c6155]/8 px-3 py-2 text-[14px] leading-relaxed text-[#0a4a41]">
           지도에 <b>{active.node.label}</b> 관련 화면을 표시하고 있습니다.
         </p>
       )}
 
-      {/* 신규 제안 카드. 예산 등급 순 */}
+      {/* 제안 6건. 예산 등급 순. 결론에서 바로 이어지는 "할 일" */}
       <section>
-        <SectionHead n="03" sub="예산이 들지 않는 것부터. 카드를 누르면 이유와 지도가 나옵니다">
+        <SectionHead
+          n="02"
+          sub="적발 기록과 가장 강하게 같이 움직이는 조건(다가구·단독 밀집)을 직접 겨냥하는 수단이 기존 목록에 없어 그 공백을 메웁니다. 모두 실행 전에 조치 대장에 설계를 등록한 뒤 평가하며, 예산이 들지 않는 것부터 놓았습니다. 카드를 누르면 이유와 지도가 나옵니다."
+        >
           제안 {proposals.length}건
         </SectionHead>
+        <p className="mb-2.5 flex flex-wrap items-center gap-1.5 pl-6 text-[12.5px]">
+          {costCounts.map((c) => (
+            <span key={c.label} className={`rounded px-1.5 py-0.5 font-semibold ${c.cls}`}>
+              {c.label} {c.n}건
+            </span>
+          ))}
+        </p>
         <div className="flex flex-col gap-2.5">
           {proposals.map((lv, i) => (
-            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} i={i} n={i + 1} />
+            <LeverCard key={lv.node.id} lv={lv} graph={graph} stats={stats} onOpen={setOpenLever} i={i} n={i + 1} />
           ))}
         </div>
       </section>
 
       {/* 기존 수단 판정. 접어 둔다 */}
-      <Folded n="04" title={`이미 쓰고 있는 수단 ${existing.length}건의 검증 결과`} sub="CCTV 효과 철회 등. 카드를 누르면 판정 근거가 나옵니다">
+      <Folded n="03" title={`이미 쓰고 있는 수단 ${existing.length}건의 검증 결과`} sub="CCTV 효과 철회 등. 카드를 누르면 판정 근거가 나옵니다">
         <div className="flex flex-col gap-2.5">
           {existing.map((lv) => (
-            <LeverCard key={lv.node.id} lv={lv} graph={graph} onOpen={setOpenLever} />
+            <LeverCard key={lv.node.id} lv={lv} graph={graph} stats={stats} onOpen={setOpenLever} />
           ))}
         </div>
       </Folded>
 
       {/* 성과지표. 무엇으로 성과를 재는가 */}
-      <Folded n="05" title="성과는 이 지표로 측정합니다" sub="민원 총건수는 앱 신고 증가가 섞여 성과 평가에 쓰지 않습니다">
+      <Folded n="04" title="성과는 이 지표로 측정합니다" sub="민원 총건수는 앱 신고 증가가 섞여 성과 평가에 쓰지 않습니다">
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
@@ -394,7 +372,7 @@ export default function PolicyBoard({
       {/* 원칙. CCTV 철회의 교훈 */}
       <section className="border-t border-[var(--cp-border)] pt-4">
         <h3 className="flex items-baseline gap-2 text-[16px] font-bold text-[var(--cp-text-strong)]">
-          <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">06</span>원칙 · 개입 사전등록(조치 대장)
+          <span className="font-mono text-[12px] font-normal text-[var(--cp-text-faint)]">05</span>원칙 · 개입 사전등록(조치 대장)
         </h3>
         <p className="mt-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
           새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고 평가는 등록한 설계 그대로만 합니다. 이동식 CCTV의
@@ -403,18 +381,6 @@ export default function PolicyBoard({
         </p>
       </section>
 
-      <PolicyPrintModal
-        open={showPrint}
-        graph={graph}
-        data={data}
-        rows={rows}
-        conclusion={conclusion}
-        headline={headline}
-        periodLabel={period?.label ?? ""}
-        finesPeriodLabel={data ? summarize(data).finesPeriod.label : ""}
-        asof={data?.decision.asof ?? ""}
-        onClose={() => setShowPrint(false)}
-      />
       <LeverModal
         lever={openLever}
         graph={graph}

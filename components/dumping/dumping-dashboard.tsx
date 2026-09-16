@@ -387,8 +387,6 @@ export default function DumpingDashboard() {
                   data={mapData}
                   onShowMap={applyLeverViz}
                   activeLeverId={activeLever?.node.id ?? null}
-                  onOpenMethods={openMethods}
-                  onGoFindings={() => switchTab("findings")}
                   onHeadline={applyHeadline}
                   activeHeadline={activeHeadline}
                   criticalOn={showCritical}

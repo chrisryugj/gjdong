@@ -13,6 +13,12 @@ const GROUP_SUB: Record<keyof typeof FINDING_GROUPS, string> = {
   "한계·전망": "자료 정정, 처리 지연, 신축 흐름",
 }
 
+// 태그에 낯선 낱말이 있으면 마우스를 올렸을 때 풀이. 모달의 "쉬운 풀이"와 같은 말
+const TAG_HELP: Record<string, string> = {
+  "노출 통제":
+    "노출 = 그 칸에 사람이 얼마나 있는가(상주인구: 주민등록 거주자, 생활인구: 통신 기반 체류자). 사람이 많아서 생기는 것인지 가려내려고 회귀식에 넣은 변수",
+}
+
 interface FindingsPanelProps {
   data: DumpingMapData | null
   graph: OntoGraph | null
@@ -69,7 +75,14 @@ export default function FindingsPanel({
                     }`}
                   >
                     <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12.5px] font-medium text-[var(--cp-text-muted)]">{f.tag}</span>
+                      <span
+                        title={TAG_HELP[f.tag]}
+                        className={`rounded bg-[var(--cp-hover2)] px-1.5 py-0.5 text-[12.5px] font-medium text-[var(--cp-text-muted)] ${
+                          TAG_HELP[f.tag] ? "cursor-help underline decoration-dotted underline-offset-2" : ""
+                        }`}
+                      >
+                        {f.tag}
+                      </span>
                       {active && (
                         <span className="rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">✓ 지도 반영 중</span>
                       )}

@@ -15,6 +15,7 @@ export interface LeverView {
   verificationPlan: string | null
   preRegistered: boolean // 개입 사전등록 원칙(restricts) 적용 대상
   ordinance: string | null // governed_by → 실행 근거 조례 라벨
+  effectRel: string | null // 판정 엣지 관계. lowers(줄인다)·stabilizes(안정시킨다). 기대효과 문장의 방향
 }
 
 // 비용 표기를 배지로 정규화. 관리자가 먼저 보는 것은 "돈이 드는가".
@@ -71,6 +72,7 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
         verificationPlan: node.props.verification_plan != null ? String(node.props.verification_plan) : null,
         preRegistered: restricted.has(node.id),
         ordinance: ordEdge ? (nodeById.get(ordEdge.t)?.label ?? null) : null,
+        effectRel: verdict?.rel ?? null,
       }
     })
 }
@@ -119,7 +121,7 @@ export function proposalRows(graph: OntoGraph): ProposalRow[] {
 }
 
 // ─── 지도 연계 ────────────────────────────────────────────────
-// 수단마다 "이 사업이 어디를 두고 하는 이야기인지" 지도로 바로 넘어가게 한다.
+// 수단마다 "이 제안이 어디를 두고 하는 이야기인지" 지도로 바로 넘어가게 한다.
 // 바탕·레이어는 여기서 정하고, 대상 동은 실측값(map.json)에서 골라야 하므로
 // dongBy만 남겨 두고 실제 선택은 대시보드가 한다.
 
@@ -245,7 +247,7 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
       "추가 예산 없이 지금 있는 인력과 노선만 조정해 시범할 수 있습니다. 효과는 시범 뒤 실측으로 판정합니다.",
     ]
   }
-  const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 사업입니다.`
+  const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 제안입니다.`
 
   // 통계로 확인된 효과가 아니라 자원 배분 논리로만 유지하는 제안. 근거를 부풀리면 안 된다
   const notStat = /근거가 아니|근거 아님/.test(`${lv.rationale ?? ""} ${lv.node.props.note ?? ""}`)
@@ -267,6 +269,29 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
         } 많았습니다.`
   const s3 = "이번에 모은 정책 목록에는 이 조건을 직접 겨냥하는 수단이 연결돼 있지 않았습니다. 효과는 시범 뒤 실측으로 판정합니다."
   return [s1, s2, s3]
+}
+
+// 카드 한 줄용 기대효과. 새 판단을 쓰지 않는다: 판정 엣지의 방향(lowers→감소, stabilizes→안정)·겨냥 요인·통계 근거 여부만 조합하고
+// 효과 크기는 말하지 않는다(검증 전). 12라운드: 결재선이 카드에서 "무엇을 기대하는지"를 못 찾았다
+export function expectedEffect(lv: LeverView, stats: FactorStat[]): string {
+  const notStat = /근거가 아니|근거 아님/.test(`${lv.rationale ?? ""} ${lv.node.props.note ?? ""}`)
+  if (notStat) return "적발 기록이 없던 자리의 장비를 잦은 자리로 옮기는 자원 배분. 효과는 통계로 확인된 것이 아님"
+  const dir = lv.effectRel === "stabilizes" ? "안정" : "감소"
+  const top = primaryStat(lv, stats)
+  const first = lv.targets[0]
+  const target = top ? (FACTOR_SHORT[top.id] ?? top.easy) : first ? (FACTOR_SHORT[first.id] ?? first.label) : null
+  const where = target ? `${target} 지역의` : "수거·단속 운영 방식을 조정해"
+  return `${where} 무단투기 적발 기록 ${dir} 기대. 검증 전이라 시범 뒤 실측으로 판정`
+}
+
+// 예산 등급별 건수 문장. "추가 예산 없는 3건은 조정으로 시범, 저비용 2건·예산 필요 1건은 시범 동을 정한 뒤 시행"
+export function requestSentence(rows: ProposalRow[]): string {
+  const count = (label: (typeof COST_ORDER)[number]) => rows.filter((r) => r.cost === label).length
+  const free = count("추가 예산 없음")
+  const low = count("저비용")
+  const budget = count("예산 필요")
+  const later = [low ? `저비용 ${low}건` : "", budget ? `예산 필요 ${budget}건` : ""].filter(Boolean).join("과 ")
+  return `아래 ${rows.length}건의 검토를 요청합니다. 추가 예산 없는 ${free}건은 기존 인력과 장비 조정으로 시범할 수 있고(직원 시간·이전 비용은 별도) ${later}은 시범 동을 정해 조치 대장에 등록한 뒤 시행합니다. 모두 등록한 설계로만 평가합니다.`
 }
 
 // 판정 근거(note)가 비어 있는 기존 수단을 위한 기본 설명
