@@ -117,6 +117,23 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   const wakeOn = wake.state !== "off"
   const listening = mic.listening || wake.state === "awake"
   const level = useMicLevel(listening) // 청취 중 소리 크기 막대
+  const [phase, setPhase] = useState<ThinkPhase>("sending") // 답을 기다리는 동안의 실제 단계
+
+  // Esc: 듣는 중이면 제출 없이 취소, 호출어에 깨어 있으면 접기, 답을 만드는 중이면 중단, 읽는 중이면 멈춤.
+  // 모달이 열려 있으면 모달이 document에서 Esc를 먹고 전파를 끊으므로 여기(window)까지 오지 않는다
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      if (mic.listening) mic.cancel()
+      else if (wake.state === "awake") wake.dismiss()
+      else if (abortRef.current) abortRef.current.abort()
+      else if (speaker.speaking) speaker.stop()
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [mic, wake, speaker])
   const heardText = mic.listening ? mic.interim : wake.heard
 
   const allSeeds = useMemo(() => (data && graph ? buildSeeds(data, graph) : []), [data, graph])
@@ -206,6 +223,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     setError(null)
     setInput("")
     setBusy(true)
+    setPhase("sending")
     speaker.stop()
     const speakThis = byVoice || voiceOnRef.current
     if (speakThis) setReadingKey(q)
@@ -247,6 +265,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         const err = await res.json().catch(() => null)
         throw new Error(err?.error ?? "답변 생성에 실패했습니다")
       }
+      setPhase("writing") // 서버는 모델 연결이 열린 뒤에야 응답 머리를 보낸다. 여기부터는 첫 문장을 기다리는 중
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       while (true) {
@@ -403,6 +422,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             <button
               type="button"
               onClick={() => abortRef.current?.abort()}
+              title="Esc로도 중단됩니다"
               className="shrink-0 rounded-full border border-[var(--cp-border)] px-3 py-1.5 text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
             >
               중단
@@ -454,7 +474,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               </p>
             </div>
           </div>
-          <p className="mt-1.5 pl-14 text-[13px] text-[var(--cp-text-dim)]">말이 끝나면 자동으로 질문합니다</p>
+          <p className="mt-1.5 pl-14 text-[13px] text-[var(--cp-text-dim)]">말이 끝나면 자동으로 질문합니다 · Esc를 누르면 취소</p>
         </div>
       )}
 
@@ -513,7 +533,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                     {!ex.pending && spoken && readButton(ex.q, ex.a)}
                   </div>
                   {ex.pending && !spoken ? (
-                    <ThinkingIndicator />
+                    <ThinkingIndicator phase={phase} />
                   ) : (
                     <div className={`text-[17px] leading-relaxed text-[var(--cp-text)] ${ex.pending ? "dump-caret" : ""}`}>
                       {renderAnswer(spoken)}
@@ -642,8 +662,15 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
 }
 
 // LLM이 첫 글자를 내기까지(사고형 모델은 5~12초) 멈춘 듯 보이지 않게. 실제 단계가 아닌 연출 문구("노드를 찾는 중")는
-// 심사에서 "정말 그래프를 탐색하나"를 부른다(10라운드). 사실인 것만: 답을 만드는 중 + 경과 시간
-function ThinkingIndicator() {
+// 심사에서 "정말 그래프를 탐색하나"를 부른다(10라운드). 사실인 것만 보인다: 응답 머리가 오기 전(질문 전송·모델 연결)과
+// 온 뒤(첫 문장 대기)의 두 단계 + 경과 시간(12라운드). 서버는 모델 연결이 열린 뒤에야 응답 머리를 보낸다
+type ThinkPhase = "sending" | "writing"
+const PHASE_LABEL: Record<ThinkPhase, string> = {
+  sending: "질문과 근거 프롬프트를 보내는 중",
+  writing: "모델이 첫 문장을 쓰는 중",
+}
+
+function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
   const [t, setT] = useState(0)
   useEffect(() => {
     const t0 = Date.now()
@@ -658,7 +685,17 @@ function ThinkingIndicator() {
           <i />
           <i />
         </span>
-        <span>답을 만드는 중 · {Math.floor(t / 1000)}초</span>
+        <span>{PHASE_LABEL[phase]} · {Math.floor(t / 1000)}초</span>
+      </div>
+      {/* 두 단계 진행 표시. 채워진 칸이 지금 단계 */}
+      <div className="flex items-center gap-1.5 text-[12.5px] text-[var(--cp-text-dim)]" aria-hidden>
+        {(["sending", "writing"] as ThinkPhase[]).map((p, i) => (
+          <span key={p} className="flex items-center gap-1.5">
+            <i className={`h-1.5 w-8 rounded-full ${phase === p ? "dump-breathe bg-[#0c6155]" : i < ["sending", "writing"].indexOf(phase) ? "bg-[#0c6155]/50" : "bg-[var(--cp-hover2)]"}`} />
+            {i === 0 ? "전송" : "첫 문장"}
+          </span>
+        ))}
+        <span className="ml-1">· Esc 중단</span>
       </div>
       <div className="flex flex-col gap-2" aria-hidden>
         <div className="dump-skel w-[92%]" />

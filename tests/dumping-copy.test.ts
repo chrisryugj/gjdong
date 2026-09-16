@@ -50,7 +50,7 @@ test("화면 문장(발견·시드·대비·제안)에 옛 변수명·줄표·�
     JSON.stringify([
       buildFindings(map!, graph),
       buildSeeds(map!, graph),
-      proposalRows(graph).map((r) => [r.name, r.costNote, r.owner, r.verify, expectedEffect(r.lever, stats)]),
+      proposalRows(graph).map((r) => [r.name, r.costNote, r.owner, r.verify, r.mechanism, r.mechanismDetail, expectedEffect(r.lever, stats)]),
     ]),
   )
   assert.doesNotMatch(text, OLD_NAME)
@@ -150,4 +150,9 @@ test("제안 카드의 기대효과는 6건 모두 있고 '사업'이라 부르�
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-collection-time")!.lever, stats), /안정/)
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-joint-disposal")!.lever, stats), /다가구·단독 밀집 지역의/)
   assert.match(expectedEffect(rows.find((r) => r.lever.node.id === "lev-cctv-relocate")!.lever, stats), /자원 배분/)
+  // 가정한 작동 원리: 6건 모두 칩(10자 안)과 상세("가정" 또는 통계 근거 아님을 명시)
+  for (const r of rows) {
+    assert.ok(r.mechanism !== "미기재" && r.mechanism.length <= 10, `${r.name}: 칩 "${r.mechanism}"`)
+    assert.match(r.mechanismDetail, /가정|확인된 수단이 아닙니다/, `${r.name}: 상세에 가정 명시 없음`)
+  }
 })

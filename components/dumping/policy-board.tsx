@@ -44,14 +44,15 @@ function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
     // 제안 카드: 번호·이름·예산 한 줄, 밑에 기대·담당·검증 세 줄. "신규 제안"·"사전등록 후 평가"는 섹션 머리에서 한 번만 말한다.
     // 라벨 꼬리가 예산 등급과 같은 말이면(예: "(추가 예산 없음)") 배지와 겹치므로 뗀다. 다른 꼬리(대상·근거)는 그대로
     const title = cost && lv.node.label.endsWith(`(${cost.label})`) ? shortTarget(lv.node.label) : lv.node.label
-    // 기대효과는 "무엇을 기대하나. 검증 전" 두 문장. 뒤 문장(한계)은 옅게 이어 붙여 한눈에 앞 문장이 먼저 읽히게
+    // 기대 = 이 제안이 서 있는 가정(작동 원리). 정본 문장(mechanism_detail)이 있으면 그것을, 없으면 방향 문장만.
+    // "쓰레기 노출 시간을 줄인다"처럼 무엇을 바꿔 무단투기가 줄기를 기대하는지가 카드에서 바로 읽혀야 한다(12라운드)
     const [expect, caveat] = expectedEffect(lv, stats).split(/\. (?=검증|효과)/)
     const rows: [string, React.ReactNode][] = [
       [
         "기대",
         <>
-          {expect}
-          {caveat && <span className="text-[var(--cp-text-faint)]"> · {caveat}</span>}
+          {lv.mechanismDetail ?? expect}
+          <span className="text-[var(--cp-text-faint)]"> · {lv.mechanismDetail ? "검증 전이라 시범 뒤 실측으로 판정" : caveat}</span>
         </>,
       ],
       ["담당", lv.owner ? splitParen(lv.owner).main : null],
@@ -66,6 +67,14 @@ function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
         <span className="flex items-start gap-2.5">
           <span className="mt-[3px] w-4 shrink-0 font-mono text-[13px] text-[var(--cp-text-faint)]">{n}</span>
           <h4 className="min-w-0 flex-1 text-[17px] font-semibold leading-snug text-[var(--cp-text-strong)]">{title}</h4>
+          {lv.mechanism && (
+            <span
+              title="이 제안이 가정한 작동 원리. 아래 '기대' 줄에 풀어 적혀 있습니다"
+              className="shrink-0 rounded-full border border-[#0c6155]/40 px-2 py-0.5 text-[12.5px] font-semibold text-[#0a4a41]"
+            >
+              {lv.mechanism}
+            </span>
+          )}
           {cost && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
         </span>
         <dl className="mt-2 flex flex-col gap-1 pl-[1.625rem] text-[14px] leading-snug text-[var(--cp-text-dim)]">

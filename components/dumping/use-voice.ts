@@ -227,6 +227,7 @@ export function useSpeechInput(onFinal: (text: string) => void) {
   const recRef = useRef<SR | null>(null)
   const onFinalRef = useRef(onFinal)
   onFinalRef.current = onFinal
+  const cancelledRef = useRef(false) // Esc 취소. abort 뒤에도 onend는 오므로 거기서 제출을 막는다
 
   useEffect(() => {
     setSupported(getRecognizer() != null)
@@ -234,6 +235,11 @@ export function useSpeechInput(onFinal: (text: string) => void) {
   }, [])
 
   const stop = useCallback(() => recRef.current?.stop(), [])
+  const cancel = useCallback(() => {
+    if (!recRef.current) return
+    cancelledRef.current = true
+    recRef.current.abort()
+  }, [])
 
   const start = useCallback(() => {
     const Ctor = getRecognizer()
@@ -262,9 +268,10 @@ export function useSpeechInput(onFinal: (text: string) => void) {
       setListening(false)
       setInterim("")
       const t = fixTranscript(finalText)
-      if (t) onFinalRef.current(t)
+      if (t && !cancelledRef.current) onFinalRef.current(t)
     }
     recRef.current = rec
+    cancelledRef.current = false
     setError(null)
     setInterim("")
     setListening(true)
@@ -277,7 +284,7 @@ export function useSpeechInput(onFinal: (text: string) => void) {
     }
   }, [])
 
-  return { supported, listening, interim, error, start, stop }
+  return { supported, listening, interim, error, start, stop, cancel }
 }
 
 // ── 호출어 상시 대기 ("광진아, 민원이 왜 늘었어?")
@@ -415,6 +422,14 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
     startRec()
   }, [])
 
+  // 깨어 있는 상태만 접는다(Esc). 대기(idle)는 유지되어 다시 부를 수 있다
+  const dismiss = useCallback(() => {
+    if (stateRef.current !== "awake") return
+    if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
+    setSt("idle")
+    setHeard("")
+  }, [])
+
   const disable = useCallback(() => {
     enabledRef.current = false
     if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
@@ -424,7 +439,7 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
     setHeard("")
   }, [])
 
-  return { supported, state, heard, error, enable, disable }
+  return { supported, state, heard, error, enable, disable, dismiss }
 }
 
 // ── 마이크 소리 크기(0~1). 청취 중 "받아적고 있다"는 느낌을 주는 막대용.

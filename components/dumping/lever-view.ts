@@ -16,6 +16,8 @@ export interface LeverView {
   preRegistered: boolean // 개입 사전등록 원칙(restricts) 적용 대상
   ordinance: string | null // governed_by → 실행 근거 조례 라벨
   effectRel: string | null // 판정 엣지 관계. lowers(줄인다)·stabilizes(안정시킨다). 기대효과 문장의 방향
+  mechanism: string | null // 가정한 작동 원리 요약 칩 (예: "방치 시간 단축"). 정본은 export LEVER_MECHANISM
+  mechanismDetail: string | null // 같은 가정을 두세 문장으로. 카드·모달·물어보기 프롬프트가 같은 문장을 쓴다
 }
 
 // 비용 표기를 배지로 정규화. 관리자가 먼저 보는 것은 "돈이 드는가".
@@ -73,6 +75,8 @@ export function deriveLevers(graph: OntoGraph): LeverView[] {
         preRegistered: restricted.has(node.id),
         ordinance: ordEdge ? (nodeById.get(ordEdge.t)?.label ?? null) : null,
         effectRel: verdict?.rel ?? null,
+        mechanism: node.props.mechanism != null ? String(node.props.mechanism) : null,
+        mechanismDetail: node.props.mechanism_detail != null ? String(node.props.mechanism_detail) : null,
       }
     })
 }
@@ -99,6 +103,8 @@ export interface ProposalRow {
   costNote: string // 원문 비용 메모(금액·근거)
   owner: string
   verify: string
+  mechanism: string // 가정 요약 칩. 없으면 "미기재"
+  mechanismDetail: string
 }
 
 export function costRank(lv: LeverView): number {
@@ -117,6 +123,8 @@ export function proposalRows(graph: OntoGraph): ProposalRow[] {
       costNote: lever.costNote ?? "미기재",
       owner: lever.owner ?? "미기재",
       verify: lever.verificationPlan ?? "미기재",
+      mechanism: lever.mechanism ?? "미기재",
+      mechanismDetail: lever.mechanismDetail ?? "미기재",
     }))
 }
 

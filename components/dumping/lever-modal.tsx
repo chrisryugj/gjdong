@@ -7,10 +7,9 @@ import {
   costBadge,
   easyVerdict,
   evidenceFor,
+  expectedEffect,
   factorStats,
-  FACTOR_SHORT,
   joinParen,
-  primaryStat,
   reasonSentences,
   splitParen,
   STATUS_FALLBACK,
@@ -104,30 +103,6 @@ function StatGroup({
   )
 }
 
-// 인과 흐름. [제안] → [겨냥 대상] → [무단투기 발생]. 좁은 화면에서는 세로로 쌓는다.
-function FlowDiagram({ lever, target }: { lever: string; target: string | null }) {
-  const box = (text: string, cls: string) => (
-    <span className={`flex-1 rounded-lg px-2.5 py-2 text-center text-[14.5px] font-semibold leading-snug ${cls}`}>
-      {text}
-    </span>
-  )
-  const arrow = (caption: string) => (
-    <span className="flex shrink-0 flex-row items-center justify-center gap-1 text-[12.5px] text-[var(--cp-text-faint)] sm:flex-col sm:gap-0">
-      <span className="rotate-90 text-[16px] leading-none text-[var(--cp-text-dim)] sm:rotate-0">→</span>
-      {caption}
-    </span>
-  )
-  return (
-    <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:gap-1.5">
-      {box(lever, "bg-[#0c6155] text-white")}
-      {arrow("겨냥")}
-      {box(target ?? "수거·단속 운영 방식", "bg-[#0c6155]/12 text-[#0a4a41]")}
-      {arrow("기대 방향(검증 전)")}
-      {box("무단투기 적발 기록", "border border-[var(--cp-border-strong)] text-[var(--cp-text-strong)]")}
-    </div>
-  )
-}
-
 interface LeverModalProps {
   lever: LeverView | null
   graph: OntoGraph
@@ -151,12 +126,13 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
   }
   const cost = costBadge(lever.costNote)
   const targeted = new Set(lever.targets.map((t) => t.id))
-  const top = primaryStat(lever, stats)
   const betas = stats.filter((s) => s.kind === "beta")
   const rhos = stats.filter((s) => s.kind === "rho")
   // 통계 효과 근거가 아니라 자원배분 논리로만 유지하는 제안. 오독하면 안 되는 대목
   const caveat = lever.node.props.note != null ? String(lever.node.props.note) : null
   const viz = vizForLever(lever)
+  // 카드와 같은 기대효과 문장. 앞 문장은 진하게, 검증 전 꼬리는 옅게
+  const [expect, expectCaveat] = expectedEffect(lever, stats).split(/\. (?=검증|효과)/)
 
   return (
     <ModalShell
@@ -189,12 +165,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
 
       {proposal ? (
         <>
-          <div className="mb-3.5 rounded-xl bg-[#0c6155]/8 p-2.5">
-            <FlowDiagram
-              lever={lever.node.label.split("(")[0].trim()}
-              target={top ? (FACTOR_SHORT[top.id] ?? top.easy) : null}
-            />
-          </div>
+          {/* 12라운드: 흐름도([제안]→겨냥→[요인]→기대 방향→[적발 기록])는 화살표 뜻이 안 읽혀 뺐다. 같은 내용을 문장과 "기대" 줄로 */}
           <div className="mb-4 flex flex-col gap-2">
             {reasons.map((p, i) => (
               <p
@@ -230,6 +201,21 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </p>
       )}
 
+      {proposal && (
+        <div className="mb-3 rounded-lg bg-[#0c6155]/8 px-3 py-2.5">
+          <p className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-[#0a4a41]">
+            가정한 작동 원리
+            {lever.mechanism && (
+              <span className="rounded-full border border-[#0c6155]/40 px-2 py-0.5 text-[12.5px] font-semibold">{lever.mechanism}</span>
+            )}
+          </p>
+          <p className="mt-1 text-[15px] leading-relaxed text-[var(--cp-text)]">{lever.mechanismDetail ?? expect}</p>
+          <p className="mt-1 text-[13.5px] text-[var(--cp-text-dim)]">
+            기대 방향 · {expect}
+            {expectCaveat && <> · {expectCaveat}</>}
+          </p>
+        </div>
+      )}
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
       <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
@@ -249,7 +235,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 담당 괄호 안 = 부서별 역할과 법적 근거. 어느 과가 왜 끼는지 없으면 결재선이 담당을 오기로 읽는다(11라운드) */}
       {lever.owner && splitParen(lever.owner).note && (
         <p className="-mt-2 mb-4 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
-          <b className="font-semibold text-[var(--cp-text-muted)]">담당 구분</b> · {splitParen(lever.owner).note}
+          <b className="font-semibold text-[var(--cp-text-muted)]">담당 상세</b> · {splitParen(lever.owner).note}
         </p>
       )}
 
@@ -275,8 +261,34 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {lever.targets.length > 0 && (betas.length > 0 || rhos.length > 0) && (
         <div className="mb-4 flex flex-col gap-2">
           <h4 className="text-[14px] font-bold tracking-wide text-[var(--cp-text-dim)]">
-            무단투기를 늘리는 조건과 이 {noun}이 겨냥하는 지점
+            이 {noun}이 겨냥하는 조건의 세기
           </h4>
+          {/* 12라운드: 겨냥 조건 막대만 먼저 보이고, 다른 조건과의 비교(막대 11개)는 접는다. 결재선은 여기서 스크롤을 포기했다 */}
+          <div className="rounded-xl border border-[var(--cp-border)] p-2.5">
+            <div className="flex flex-col gap-0.5">
+              {[...betas, ...rhos]
+                .filter((s) => targeted.has(s.id))
+                .map((s) => (
+                  <StatRow
+                    key={`${s.kind}-${s.id}`}
+                    s={s}
+                    max={s.kind === "rho" ? 1 : Math.max(...betas.map((b) => Math.abs(b.value)))}
+                    highlight
+                    noun={noun}
+                  />
+                ))}
+            </div>
+            <p className="mt-1.5 px-1 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
+              막대가 오른쪽으로 길수록 그 조건이 클수록 적발 기록이 많다는 뜻입니다. 격자 β는 100m 격자 회귀, 동 비교 ρ는 행정동 {rhos[0]?.n ?? 15}곳 상관입니다.
+            </p>
+          </div>
+          <details className="group rounded-xl border border-dashed border-[var(--cp-border)] px-2.5 py-2">
+            <summary className="flex cursor-pointer list-none items-baseline gap-2 text-[14px] font-semibold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
+              <span className="flex-1">다른 조건과 견주어 보기</span>
+              <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
+              <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
+            </summary>
+            <div className="mt-2 flex flex-col gap-2">
           <StatGroup
             title="① 광진구를 100m 격자로 나눠 분석한 결과"
             caption="막대가 오른쪽으로 뻗으면 그 조건이 클수록 무단투기가 늘고 왼쪽으로 뻗으면 줄어듭니다. 길수록 설명하는 힘이 큽니다."
@@ -294,6 +306,8 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
           <p className="px-1 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 구분할 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
           </p>
+            </div>
+          </details>
         </div>
       )}
 
@@ -305,11 +319,6 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       )}
       {lever.ordinance && (
         <p className="mt-2 px-1 text-[14px] text-[var(--cp-text-faint)]">실행 근거 · {lever.ordinance}</p>
-      )}
-      {lever.rationale && (
-        <p className="mt-2 px-1 font-mono text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          분석 메모 · {lever.rationale}
-        </p>
       )}
     </ModalShell>
   )
