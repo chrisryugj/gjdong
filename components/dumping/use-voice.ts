@@ -21,6 +21,7 @@ interface Item {
 }
 
 class TtsPlayer {
+  voice: string | null = null // 고른 목소리(lib/dumping/voices). null이면 서버 기본
   private ctx: AudioContext | null = null
   private items: Item[] = []
   private nextTime = 0
@@ -79,7 +80,7 @@ class TtsPlayer {
       const res = await fetch("/api/dumping/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: item.text }),
+        body: JSON.stringify({ text: item.text, ...(this.voice ? { voice: this.voice } : {}) }),
         signal: item.abort.signal,
       })
       if (!res.ok || !res.body) throw new Error(String(res.status))
@@ -177,18 +178,42 @@ class TtsPlayer {
   }
 }
 
+const VOICE_KEY = "dump-tts-voice" // 이 브라우저에서 고른 목소리. 편의 저장이라 없어도 기본으로 동작
+
 export function useSpeaker() {
   const playerRef = useRef<TtsPlayer | null>(null)
   const [speaking, setSpeaking] = useState(false)
+  const [voice, setVoiceState] = useState<string | null>(null)
   if (!playerRef.current && typeof window !== "undefined") {
     playerRef.current = new TtsPlayer()
     playerRef.current.onChange = setSpeaking
   }
-  useEffect(() => () => playerRef.current?.stop(), [])
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VOICE_KEY)
+      if (saved && playerRef.current) {
+        playerRef.current.voice = saved
+        setVoiceState(saved)
+      }
+    } catch {
+      // 사생활 창 등 저장소 접근 불가. 기본 목소리로
+    }
+    return () => playerRef.current?.stop()
+  }, [])
   const speak = useCallback((sentence: string) => playerRef.current?.enqueue(sentence), [])
   const stop = useCallback(() => playerRef.current?.stop(), [])
   const unlock = useCallback(() => playerRef.current?.unlock(), [])
-  return { speaking, speak, stop, unlock }
+  const setVoice = useCallback((id: string | null) => {
+    if (playerRef.current) playerRef.current.voice = id
+    setVoiceState(id)
+    try {
+      if (id) window.localStorage.setItem(VOICE_KEY, id)
+      else window.localStorage.removeItem(VOICE_KEY)
+    } catch {
+      // 저장 실패는 무시
+    }
+  }, [])
+  return { speaking, speak, stop, unlock, voice, setVoice }
 }
 
 type SRResults = ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>

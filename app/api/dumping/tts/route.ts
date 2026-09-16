@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { verifyRequest } from "@/lib/dumping/auth"
 import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
+import { isVoice } from "@/lib/dumping/voices"
 
 // 질의응답 음성 합성. 문장 하나를 받아 Gemini TTS 스트림의 PCM(16bit·24kHz·모노)을 그대로 흘려보낸다.
 // 문장 단위로 부르는 이유: 세 문장 한 번에 보내면 첫 소리까지 11초, 한 문장 스트리밍은 1초 안팎(2026-09-15 실측).
@@ -28,9 +29,11 @@ export async function POST(request: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "서버에 LLM 키가 설정되지 않았습니다" }, { status: 500 })
 
   let text = ""
+  let voice = TTS_VOICE
   try {
     const body = await request.json()
     text = typeof body?.text === "string" ? body.text.trim() : ""
+    if (isVoice(body?.voice)) voice = body.voice // 화면에서 고른 목소리. 목록에 없는 값은 기본으로
   } catch {
     // 아래 빈 문장 검증에 걸린다
   }
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
           contents: [{ parts: [{ text: STYLE + text }] }],
           generationConfig: {
             responseModalities: ["AUDIO"],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } },
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
           },
         }),
         signal: upstreamAbort.signal,

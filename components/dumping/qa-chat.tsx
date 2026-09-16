@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
 import { ASK_ACCEPT, ASK_ERR, completeSentences, DETAIL_MARK, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
 import { matchSeed } from "@/lib/dumping/seed-match"
+import { DEFAULT_VOICE, VOICES } from "@/lib/dumping/voices"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
@@ -121,6 +122,16 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   const listening = mic.listening || wake.state === "awake"
   const level = useMicLevel(listening) // 청취 중 소리 크기 막대
   const [phase, setPhase] = useState<ThinkPhase>("sending") // 답을 기다리는 동안의 실제 단계
+  const [voicePick, setVoicePick] = useState(false) // 목소리 고르기 줄
+  const currentVoice = VOICES.find((v) => v.id === (speaker.voice ?? DEFAULT_VOICE)) ?? VOICES[0]
+  // 목소리를 고르면 곧바로 그 목소리로 한 문장 읽어 준다(미리 듣기). 답 읽기도 켠다
+  const pickVoice = (id: string) => {
+    speaker.stop()
+    speaker.unlock()
+    speaker.setVoice(id === DEFAULT_VOICE ? null : id)
+    setVoiceOn(true)
+    speaker.speak("안녕하세요, 클린광진 상황실입니다. 이 목소리로 답을 읽어 드립니다.")
+  }
 
   // Esc: 듣는 중이면 제출 없이 취소, 호출어에 깨어 있으면 접기, 답을 만드는 중이면 중단, 읽는 중이면 멈춤.
   // 모달이 열려 있으면 모달이 document에서 Esc를 먹고 전파를 끊으므로 여기(window)까지 오지 않는다
@@ -444,6 +455,17 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
           >
             <SpeakerIcon muted={!voiceOn} />
           </button>
+          <button
+            type="button"
+            onClick={() => setVoicePick((v) => !v)}
+            aria-expanded={voicePick}
+            title={`읽어 주는 목소리: ${currentVoice.label}. 누르면 다른 목소리를 골라 미리 들을 수 있습니다`}
+            className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
+              voicePick ? "bg-[#0c6155]/12 text-[#0c6155]" : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
+            }`}
+          >
+            목소리
+          </button>
           {busy ? (
             <button
               type="button"
@@ -480,6 +502,31 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 : "답은 이 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
         </p>
       </form>
+      {/* 목소리 고르기. 누르면 그 목소리로 한 문장을 바로 읽어 준다. 선택은 이 브라우저에 저장 */}
+      {voicePick && (
+        <div className="dump-rise shrink-0 border-b border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2.5">
+          <p className="mb-1.5 text-[13px] text-[var(--cp-text-dim)]">답을 읽어 주는 목소리. 누르면 한 문장을 바로 들려 드립니다</p>
+          <div className="flex flex-wrap gap-1.5">
+            {VOICES.map((v) => {
+              const on = v.id === currentVoice.id
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => pickVoice(v.id)}
+                  aria-pressed={on}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13.5px] transition-colors ${
+                    on ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : "border-[var(--cp-border)] bg-white text-[var(--cp-text-muted)] hover:border-[#0c6155]"
+                  }`}
+                >
+                  {v.label}
+                  <span className="text-[12px] font-normal text-[var(--cp-text-faint)]">{v.desc}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 청취 패널. 마이크가 열려 있는 동안만. 받아적는 글자를 크게, 소리 크기를 막대로 보여 "듣고 있다"를 확실히 */}
       {listening && (
