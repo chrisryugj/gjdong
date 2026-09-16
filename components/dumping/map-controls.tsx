@@ -114,7 +114,9 @@ interface ToolbarProps {
 
 export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
   // 동별 막대 연도 버튼. 민원 연도(접수)와 과태료 연도(위반)를 합친 목록
-  const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => [...Object.keys(d.yr.complaints), ...Object.keys(d.yr.enforcement)]))).sort() : []
+  const dongYears = data
+    ? Array.from(new Set(data.dong.flatMap((d) => [...Object.keys(d.yr?.complaints ?? {}), ...Object.keys(d.yr?.enforcement ?? {})]))).sort()
+    : []
 
   const [layersOpen, setLayersOpen] = useState(false)
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
@@ -377,7 +379,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
               />
               <span>
                 원은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, 클수록 많음. 접수일 기준이라 투기 시각은 아님
-                {data && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
+                {data?.env.weatherDays && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
               </span>
             </p>
           ) : (
@@ -395,7 +397,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
           )}
           {view.grid3d && (
             <p className="text-[var(--cp-text-muted)]">
-              기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수(5건 이상 칸), 높을수록 많음
+              기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 구 전체 보기는 10건 이상 칸, 확대하면 5건 이상 칸과 값
             </p>
           )}
           <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">

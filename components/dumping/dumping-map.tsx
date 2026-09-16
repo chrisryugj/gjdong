@@ -184,7 +184,7 @@ function columnSvg(h: number, H: number, face: Face, label: string, cls = ""): s
 }
 
 // 격자 기둥: 칸마다 원 지표 1~2개(민원·과태료). 이름 없이 값만
-function cellBarsSvg(bars: { h: number; v: number; face: Face }[], H: number): string {
+function cellBarsSvg(bars: { h: number; v: number; face: Face }[], H: number, labels = true): string {
   const D = 5
   const bw = 10
   const top = 14
@@ -192,7 +192,13 @@ function cellBarsSvg(bars: { h: number; v: number; face: Face }[], H: number): s
   const w = 12 + bars.length * 16
   return (
     `<svg class="dump-bar3d dump-col" width="${w}" height="${H + top + 4}" viewBox="0 0 ${w} ${H + top + 4}">` +
-    bars.map((b, i) => isoBar(6 + i * 16, base, 0, b.h, bw, D, b.face) + `<text x="${6 + i * 16 + bw / 2 + 2}" y="${base - b.h - D - 3}" text-anchor="middle" font-size="9.5" fill="${b.face.side}">${b.v}</text>`).join("") +
+    bars
+      .map(
+        (b, i) =>
+          isoBar(6 + i * 16, base, 0, b.h, bw, D, b.face) +
+          (labels ? `<text x="${6 + i * 16 + bw / 2 + 2}" y="${base - b.h - D - 3}" text-anchor="middle" font-size="9.5" fill="${b.face.side}">${b.v}</text>` : ""),
+      )
+      .join("") +
     `</svg>`
   )
 }
@@ -278,6 +284,7 @@ export default function DumpingMap({
   const [ready, setReady] = useState(false)
   // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다. 작은 점으로 바꾸기 위한 트리거
   const [zoomedOut, setZoomedOut] = useState(false)
+  const [zoomTick, setZoomTick] = useState(0) // 줌이 바뀔 때마다 격자 기둥 밀도를 다시 정한다
 
   // 지도 1회 초기화
   useEffect(() => {
@@ -311,7 +318,10 @@ export default function DumpingMap({
       dongPane.style.pointerEvents = "none"
       // 모바일 분할 핸들 등으로 컨테이너 높이가 바뀌면 Leaflet에 알림
       // 패널을 넓힌 뒤 구 전체보기가 13.75 근처라 14 기준이면 데스크톱에서도 순위가 사라진다(7라운드)
-      map.on("zoomend", () => setZoomedOut(map.getZoom() < 13.5))
+      map.on("zoomend", () => {
+        setZoomedOut(map.getZoom() < 13.5)
+        setZoomTick((t) => t + 1)
+      })
       const observer = new ResizeObserver(() => mapRef.current?.invalidateSize())
       observer.observe(boxRef.current)
       resizeObsRef.current = observer
@@ -367,6 +377,7 @@ export default function DumpingMap({
         interactive: false,
       }).addTo(map)
       map.fitBounds(L.latLngBounds(data.ring), { padding: [12, 12] })
+      setZoomedOut(map.getZoom() < 13.5)
     }
     void draw()
   }, [data, ready])
@@ -429,10 +440,11 @@ export default function DumpingMap({
       }
 
       // 날씨별 원(12라운드): 보통 원 대신 그 조건에 접수된 민원을 하루당으로 환산(×100일)해 원으로. 접수일 기준
-      if (weather && data.env.cellWeather) {
+      if (weather && data.env.cellWeather && data.env.weatherDays) {
         const k = { hot: 0, mild: 1, cold: 2, rain: 3 }[weather]
         const days = Math.max(1, data.env.weatherDays[weather])
         const wdef = WEATHER_DEF[weather]
+        const maxCnt = Math.max(1, ...data.env.cellWeather.map((v) => v[k]))
         data.grid.forEach((cell, i) => {
           const cnt = data.env.cellWeather[i]?.[k] ?? 0
           if (!cnt) return
@@ -441,7 +453,8 @@ export default function DumpingMap({
           L.circle([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
-            radius: Math.min(70, 8 + Math.pow(per100, 0.6) * 6),
+            // 하루당 값은 절대치가 작아(0.01~0.3) 보통 원 공식이면 전부 점이 된다. 그 조건 안의 최댓값 대비 상대 크기
+            radius: 6 + Math.sqrt(cnt / maxCnt) * 64,
             color: wdef.color,
             weight: 1.1,
             opacity: dimmed ? 0.15 : 0.8,
@@ -664,8 +677,8 @@ export default function DumpingMap({
       const HH = 56
       const maxScore = Math.max(1, ...data.decision.hotspots.top.map((h) => h[2]))
       data.decision.hotspots.top.forEach((h, i) => {
-        // 줌아웃 상태에선 작은 점. 줌인이면 점수 높이의 기둥 위에 순위(12라운드). 상위 3은 색으로만 구분
-        const sm = zoomedOut
+        // 기둥(높이=점수) 위에 순위. 구 전체 보기에서도 20개는 겹치지 않아 항상 기둥으로(12라운드 실측). 상위 3은 색으로 구분
+        const sm = false
         const hh = Math.max(4, Math.round((h[2] / maxScore) * HH))
         L.marker([h[0], h[1]], {
           pane: "dumpInfra",
@@ -701,7 +714,7 @@ export default function DumpingMap({
       // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 막대를 앱·120·직접 스택으로
       const valOf = (d: (typeof data.dong)[number]) =>
         dongMode === "year" && dongYear
-          ? { comp: d.yr.complaints[dongYear] ?? 0, enf: d.yr.enforcement[dongYear] ?? 0 }
+          ? { comp: d.yr?.complaints[dongYear] ?? 0, enf: d.yr?.enforcement[dongYear] ?? 0 }
           : { comp: d.comp, enf: d.enf }
       const max = Math.max(1, ...data.dong.flatMap((d) => [valOf(d).comp, valOf(d).enf]))
       const H = 72 // 최대 막대 높이(px)
@@ -722,7 +735,7 @@ export default function DumpingMap({
         // 연도 모드의 천명당은 그 해 건수 ÷ 등록인구(천명). 누계 천명당(d.cr)에 비례 환산
         const perYear = (cnt: number, total: number, per: number) => (total ? (per * cnt) / total : 0)
         const chLine =
-          dongMode === "channel"
+          dongMode === "channel" && d.ch
             ? `<div class="f">민원 채널 · 앱 ${d.ch.app.toLocaleString()} · 120 ${d.ch.c120.toLocaleString()} · 직접 ${d.ch.direct.toLocaleString()}</div>`
             : ""
         return (
@@ -743,7 +756,7 @@ export default function DumpingMap({
         const he = Math.max(3, Math.round((v.enf / max) * H))
         // 채널 스택: 세 토막 높이 합 = hc. 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)
         const segments =
-          dongMode === "channel" && d.comp > 0
+          dongMode === "channel" && d.comp > 0 && d.ch
             ? (["direct", "c120", "app"] as const).map((c) => ({ h: Math.round((d.ch[c] / d.comp) * hc), face: CHANNEL_DEF[c] as Face }))
             : undefined
         const mk = L.marker([lat, lng], {
@@ -794,17 +807,19 @@ export default function DumpingMap({
       const L = await import("leaflet")
       const group = L.layerGroup()
       const ids: CircleId[] = circles.length ? circles : ["enf"]
-      const H = 48
+      const dense = map.getZoom() < 14.5 // 구 전체 보기(약 13.6)에선 237칸에 값 라벨까지 세우면 서로 겹쳐 읽히지 않는다
+      const H = dense ? 40 : 48
+      const minV = dense ? 10 : 5
       const maxV = Math.max(1, ...ids.flatMap((id) => data.grid.map((c) => c[CIRCLE_DEF[id].idx])))
       for (const cell of data.grid) {
         const vals = ids.map((id) => cell[CIRCLE_DEF[id].idx])
-        if (Math.max(...vals) < 5) continue
+        if (Math.max(...vals) < minV) continue
         if (selectedDong && cell[7] !== selectedDong) continue
         const bars = ids.map((id, i) => ({ v: vals[i], h: Math.max(2, Math.round((vals[i] / maxV) * H)), face: id === "comp" ? COMP_FACE : ENF_FACE }))
         const w = 12 + bars.length * 16
         L.marker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
           pane: "dumpInfra",
-          icon: L.divIcon({ className: "", html: cellBarsSvg(bars, H), iconSize: [w, H + 18], iconAnchor: [w / 2, H + 14] }),
+          icon: L.divIcon({ className: "", html: cellBarsSvg(bars, H, !dense), iconSize: [w, H + 18], iconAnchor: [w / 2, H + 14] }),
         })
           .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
           .addTo(group)
@@ -813,7 +828,7 @@ export default function DumpingMap({
       gridBarsLayerRef.current = group
     }
     void draw()
-  }, [data, grid3d, circles, selectedDong, ready])
+  }, [data, grid3d, circles, selectedDong, ready, zoomedOut, zoomTick])
 
   // 집중관리 상습격자 (12개월 10건 이상). 격자 외곽선 강조
   useEffect(() => {

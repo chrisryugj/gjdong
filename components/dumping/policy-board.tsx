@@ -295,7 +295,8 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
             return (
               <div key={k.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-2 py-1.5">
                 <i className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#a8322a]" : "bg-[var(--cp-text-faint)]"}`} />
-                <span className="min-w-0 flex-1 text-[15px] text-[var(--cp-text)]">{k.label}</span>
+                {/* 라벨 꼬리 "(12개월 10건 이상)"은 부제에 있어 뗀다 */}
+                <span className="min-w-0 flex-1 text-[15px] text-[var(--cp-text)]">{val ? k.label.replace(/\s*\(.*\)$/, "") : k.label}</span>
                 {val && (
                   <span className="flex items-baseline gap-1.5">
                     <span className="font-mono text-[17px] font-semibold tabular-nums text-[var(--cp-text-strong)]">{val.v}</span>
