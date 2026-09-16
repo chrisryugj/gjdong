@@ -3,6 +3,8 @@
 import { useMemo } from "react"
 import type { OntoGraph } from "@/lib/dumping/types"
 import ModalShell from "./modal-shell"
+import { LawRef, linkLawRefs } from "./law-ref"
+import { ORDINANCE_META } from "@/lib/dumping/law"
 import {
   costBadge,
   easyVerdict,
@@ -252,7 +254,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       {/* 담당 괄호 안 = 부서별 역할과 법적 근거. 어느 과가 왜 끼는지 없으면 결재선이 담당을 오기로 읽는다(11라운드) */}
       {lever.owner && splitParen(lever.owner).note && (
         <p className="-mt-2 mb-4 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">
-          <b className="font-semibold text-[var(--cp-text-muted)]">담당 상세</b> · {splitParen(lever.owner).note}
+          <b className="font-semibold text-[var(--cp-text-muted)]">담당 상세</b> · {linkLawRefs(splitParen(lever.owner).note!)}
         </p>
       )}
 
@@ -335,7 +337,13 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         </p>
       )}
       {lever.ordinance && (
-        <p className="mt-2 px-1 text-[14px] text-[var(--cp-text-faint)]">실행 근거 · {lever.ordinance}</p>
+        <p className="mt-2 px-1 text-[14px] text-[var(--cp-text-faint)]">
+          실행 근거 ·{" "}
+          <LawRef keys={["ord-8", "ord-9", "ord-10"]} up>
+            {lever.ordinance}
+          </LawRef>
+          <span className="ml-1.5 text-[12.5px]">{ORDINANCE_META}</span>
+        </p>
       )}
     </ModalShell>
   )
