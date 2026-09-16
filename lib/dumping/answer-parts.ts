@@ -84,3 +84,8 @@ export function ttsClean(text: string): string {
     .replace(/\n{2,}/g, "\n")
     .trim()
 }
+
+// 질의응답 스트림 규약(app/api/dumping/ask/route.ts ↔ qa-chat). 첫 바이트가 ASK_ACCEPT면 "요청이 서버에 닿아 모델을 부르는 중",
+// ASK_ERR로 시작하는 조각은 모델 호출 실패 메시지. 둘 다 화면 본문에는 남기지 않는다. (제로폭 공백·NUL을 코드포인트로 적는다)
+export const ASK_ACCEPT = String.fromCharCode(0x200b)
+export const ASK_ERR = String.fromCharCode(0) + "ERR:"

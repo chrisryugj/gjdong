@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { ASK_ACCEPT, ASK_ERR } from "@/lib/dumping/answer-parts"
 import { verifyRequest } from "@/lib/dumping/auth"
 import { buildSystemPrompt } from "@/lib/dumping/context"
 import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
@@ -62,44 +63,50 @@ export async function POST(request: NextRequest) {
   const timeout = setTimeout(() => upstreamAbort.abort(), UPSTREAM_TIMEOUT_MS)
   request.signal.addEventListener("abort", () => upstreamAbort.abort(), { once: true })
 
-  let upstream: Response
-  try {
-    upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-          contents,
-          // 사고형 모델은 사고 토큰이 출력 한도를 같이 쓴다 — 2048이면 프롬프트가 커진 뒤 답이 몇 문장 만에 잘렸다(2026-09-05 실측: 첫 바이트 12s 뒤 382B에서 종료)
-          // 10라운드: 결재 자리에서 같은 질문에 같은 결론이 나오게 온도를 낮춘다(0.3에서 결정 질문의 첫 제안이 실행마다 바뀌었다)
-          generationConfig: { temperature: 0.15, maxOutputTokens: 8192 },
-        }),
-        signal: upstreamAbort.signal,
-      },
-    )
-  } catch (e) {
-    clearTimeout(timeout)
-    console.error("[dumping/ask] Gemini fetch failed:", e instanceof Error ? e.message : e)
-    return NextResponse.json({ error: "답변 생성에 실패했습니다. 잠시 뒤 다시 시도해주세요." }, { status: 502 })
-  }
-
-  if (!upstream.ok || !upstream.body) {
-    clearTimeout(timeout)
-    const detail = await upstream.text().catch(() => "")
-    console.error("[dumping/ask] Gemini error:", upstream.status, detail.slice(0, 300))
-    return NextResponse.json({ error: "답변 생성에 실패했습니다. 잠시 뒤 다시 시도해주세요." }, { status: 502 })
-  }
-
-  // Gemini SSE → 평문 텍스트 청크 스트림으로 변환
+  // 12라운드: 응답 머리를 모델 연결 뒤에 보내면 화면이 "보내는 중"에서 곧바로 답으로 건너뛴다(사고형 모델은 첫 글자까지 5~12초).
+  // 스트림을 먼저 열어 접수 표시(ASK_ACCEPT)를 즉시 보내고 그 뒤에 모델을 부른다. 화면은 접수 표시를 받으면 "모델이 생각하는 중"으로 바꾼다.
+  // 그래서 상태 코드로는 오류를 못 알리므로 모델 호출 실패는 스트림 안 ASK_ERR 표시로 보낸다
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   let buffer = ""
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+  const fail = (controller: ReadableStreamDefaultController<Uint8Array>, msg: string) => {
+    clearTimeout(timeout)
+    controller.enqueue(encoder.encode(ASK_ERR + msg))
+    controller.close()
+  }
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      reader = upstream.body!.getReader()
+      controller.enqueue(encoder.encode(ASK_ACCEPT))
+      let upstream: Response
+      try {
+        upstream = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+              contents,
+              // 사고형 모델은 사고 토큰이 출력 한도를 같이 쓴다 — 2048이면 프롬프트가 커진 뒤 답이 몇 문장 만에 잘렸다(2026-09-05 실측: 첫 바이트 12s 뒤 382B에서 종료)
+              // 10라운드: 결재 자리에서 같은 질문에 같은 결론이 나오게 온도를 낮춘다(0.3에서 결정 질문의 첫 제안이 실행마다 바뀌었다)
+              generationConfig: { temperature: 0.15, maxOutputTokens: 8192 },
+            }),
+            signal: upstreamAbort.signal,
+          },
+        )
+      } catch (e) {
+        if (!upstreamAbort.signal.aborted) console.error("[dumping/ask] Gemini fetch failed:", e instanceof Error ? e.message : e)
+        fail(controller, "답변 생성에 실패했습니다. 잠시 뒤 다시 시도해주세요.")
+        return
+      }
+      if (!upstream.ok || !upstream.body) {
+        const detail = await upstream.text().catch(() => "")
+        console.error("[dumping/ask] Gemini error:", upstream.status, detail.slice(0, 300))
+        fail(controller, "답변 생성에 실패했습니다. 잠시 뒤 다시 시도해주세요.")
+        return
+      }
+      reader = upstream.body.getReader()
       try {
         while (true) {
           const { done, value } = await reader.read()

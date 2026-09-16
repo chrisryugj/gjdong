@@ -125,3 +125,21 @@ export function helpForKeys(keys: string[]): string[] {
   }
   return out
 }
+
+// ── 지도 모드 상수(12라운드). map-controls(툴바·범례)와 dumping-map(그리기)이 같이 쓴다. dumping-map이 map-controls를
+//    import하면 순환이라 여기 둔다
+import type { WeatherKey } from "./types"
+export type DongMode = "total" | "channel" | "year"
+export const DONG_MODE_LABEL: Record<DongMode, string> = { total: "합계", channel: "채널", year: "연도" }
+// 채널 스택 색. 민원 파랑 계열 안에서 진하기로 구분(앱이 가장 많아 진하게)
+export const CHANNEL_DEF = {
+  app: { label: "앱 신고", front: "#2f5aa8", side: "#1d3f78", top: "#6b93d6" },
+  c120: { label: "120", front: "#6b93d6", side: "#4a6fb0", top: "#a9c1ea" },
+  direct: { label: "직접", front: "#b7c8ea", side: "#8fa6d1", top: "#dbe4f5" },
+} as const
+export const WEATHER_DEF: Record<WeatherKey, { label: string; short: string; color: string }> = {
+  hot: { label: "더운 날(일평균 25도 이상)", short: "더움", color: "#c2410c" },
+  mild: { label: "온화한 날(5~25도)", short: "온화", color: "#0e7490" },
+  cold: { label: "추운 날(5도 미만)", short: "추움", color: "#1d4ed8" },
+  rain: { label: "비 오는 날(일강수 1mm 이상)", short: "비", color: "#0369a1" },
+}

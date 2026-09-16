@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { completeSentences, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
+import { ASK_ACCEPT, ASK_ERR, completeSentences, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 import { buildSeeds, type Seed } from "./qa-seeds"
 import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from "./use-voice"
+import { SectionHead } from "./section-head"
 
 // 물어보기 탭. 지도 앱처럼 검색이 기본. 상단 검색바에 뭐든 물어보면
 // /api/dumping/ask 평문 스트리밍으로 답이 검색바 바로 아래 내려온다(최신순).
@@ -265,13 +266,20 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         const err = await res.json().catch(() => null)
         throw new Error(err?.error ?? "답변 생성에 실패했습니다")
       }
-      setPhase("writing") // 서버는 모델 연결이 열린 뒤에야 응답 머리를 보낸다. 여기부터는 첫 문장을 기다리는 중
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
+        let chunk = decoder.decode(value, { stream: true })
+        // 첫 바이트의 접수 표시: 요청이 서버에 닿아 모델을 부르는 중. 여기서부터 "생각하는 중"
+        if (!acc && chunk.startsWith(ASK_ACCEPT)) {
+          chunk = chunk.slice(ASK_ACCEPT.length)
+          setPhase("writing")
+          if (!chunk) continue
+        }
+        const ei = chunk.indexOf(ASK_ERR)
+        if (ei >= 0) throw new Error(chunk.slice(ei + ASK_ERR.length).trim() || "답변 생성에 실패했습니다")
         acc += chunk
         speakProgress(false)
         setExchanges((xs) => {
@@ -491,7 +499,9 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         {/* 직접 질문 결과. 검색바 바로 아래, 최신순 */}
         {results.length > 0 && (
           <section className="mb-4 flex flex-col gap-2" aria-live="polite">
-            <h3 className="text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">내가 물어본 것</h3>
+            <SectionHead n="01" first>
+              내가 물어본 것
+            </SectionHead>
             {results.map((ex) => {
               const parts = splitAnswer(ex.a)
               const spoken = ex.pending ? parts.spoken.replace(PARTIAL_MARK, "") : parts.spoken
@@ -548,10 +558,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
 
         {/* 핵심 질의응답 아코디언. 첫 항목 펼침, 나머지 접힘 */}
         <section>
-          <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
+          <SectionHead n={results.length > 0 ? "02" : "01"} first={results.length === 0} sub="누르면 펼쳐집니다. 검증된 수치로 미리 준비된 답입니다">
             핵심 질의응답 {seeds.length > 0 ? `${seeds.length}` : ""}
-            {allSeeds.length > seeds.length ? ` / ${allSeeds.length}` : ""} · 누르면 펼쳐집니다
-          </h3>
+            {allSeeds.length > seeds.length ? ` / ${allSeeds.length}` : ""}
+          </SectionHead>
           {seeds.length === 0 && <p className="text-[15.5px] text-[var(--cp-text-dim)]">데이터를 불러오는 중…</p>}
           <div className="flex flex-col gap-1.5">
             {seeds.map((s, i) => {
@@ -666,8 +676,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
 // 온 뒤(첫 문장 대기)의 두 단계 + 경과 시간(12라운드). 서버는 모델 연결이 열린 뒤에야 응답 머리를 보낸다
 type ThinkPhase = "sending" | "writing"
 const PHASE_LABEL: Record<ThinkPhase, string> = {
-  sending: "질문과 근거 프롬프트를 보내는 중",
-  writing: "모델이 첫 문장을 쓰는 중",
+  sending: "질문을 서버로 보내는 중",
+  writing: "모델이 생각하고 첫 문장을 쓰는 중",
 }
 
 function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
@@ -692,7 +702,7 @@ function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
         {(["sending", "writing"] as ThinkPhase[]).map((p, i) => (
           <span key={p} className="flex items-center gap-1.5">
             <i className={`h-1.5 w-8 rounded-full ${phase === p ? "dump-breathe bg-[#0c6155]" : i < ["sending", "writing"].indexOf(phase) ? "bg-[#0c6155]/50" : "bg-[var(--cp-hover2)]"}`} />
-            {i === 0 ? "전송" : "첫 문장"}
+            {i === 0 ? "전송" : "생각·작성"}
           </span>
         ))}
         <span className="ml-1">· Esc 중단</span>

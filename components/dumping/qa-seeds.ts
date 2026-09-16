@@ -314,6 +314,8 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
         `한계: 야외 활동·신고·단속 여건이 함께 움직이는 연관`,
       ),
       chart: "seasons",
+      viz: { weather: "hot" as const },
+      vizNote: "지도에 더운 날(일평균 25도 이상)에 접수된 민원을 하루당으로 환산한 원으로 표시했습니다. 툴바 '날씨별'에서 온화·추움·비와 견줄 수 있습니다. 접수일 기준이라 투기 시각은 아닙니다.",
     },
     {
       q: "월별로는 어떻게 움직였나?",

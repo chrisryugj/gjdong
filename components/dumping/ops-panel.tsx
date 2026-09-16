@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { DumpingMapData, InterventionEntry } from "@/lib/dumping/types"
 import { partialYearSuffix, summarize } from "@/lib/dumping/facts"
+import { SectionHead } from "./section-head"
 import OpsModal, { ForecastChart, KRW, type OpsModalId } from "./ops-modal"
 
 // 운영·전망 탭. KPI 보드 · 예측 핫스팟 · 수요 전망 · 품목 분해 · 처분 퍼널 · 처리 SLA · 구조 전망 · 조치 대장.
@@ -15,15 +16,6 @@ interface OpsPanelProps {
   onFocus: (latlng: [number, number], label: string) => void
   showCritical: boolean // 집중관리 상습격자 지도 강조 레이어 상태 (지도와 동기)
   onToggleCritical: () => void
-}
-
-function SectionTitle({ n, children }: { n?: string; children: React.ReactNode }) {
-  return (
-    <h3 className={`mb-2 flex items-baseline gap-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)] ${n && n !== "01" ? "border-t border-[var(--cp-border)] pt-3" : ""}`}>
-      {n && <span className="font-mono text-[12.5px] font-normal text-[var(--cp-text-faint)]">{n}</span>}
-      <span>{children}</span>
-    </h3>
-  )
 }
 
 // 모달로 여는 카드 공용 래퍼. "자세히" 어포던스를 우상단에 고정
@@ -87,7 +79,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
     <div className="flex flex-col gap-4 p-3">
       {/* KPI 보드. 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
       <section>
-        <SectionTitle n="01">성과지표 (신고편향에 덜 민감 · {d.asof} 기준)</SectionTitle>
+        <SectionHead n="01" first sub={`신고편향에 덜 민감한 지표 · ${d.asof} 기준`}>성과지표</SectionHead>
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <button
             onClick={onToggleCritical}
@@ -146,7 +138,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 예측 핫스팟. 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
       <section>
-        <SectionTitle n="02">다음 분기 예측 핫스팟 20 · 누르면 지도에서 위치 표시</SectionTitle>
+        <SectionHead n="02" sub="순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수. 최근에 기록이 몰린 칸이 위로 옵니다 · 누르면 지도에서 기둥으로 표시">다음 분기 예측 핫스팟 20</SectionHead>
         <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[14.5px] font-medium leading-snug text-[#0a4a41]">
           지난 {bt.windows.length}개 분기 백테스트: 상위 20곳 중 평균 {bt.avgPrecision20}%에서 다음
           분기 민원·과태료 기록. 전체 기록의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
@@ -177,7 +169,17 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 <span className="block text-[13.5px] text-[var(--cp-text-dim)]">
                   {h[5]} · 최근 180일 민원 {h[3]} · 과태료 {h[4]}
                 </span>
+                {/* 12라운드: 왜 이 칸인가. 최근 90일 vs 이전 90일, 12개월 누계, 마지막 기록 */}
+                <span className="block text-[13px] text-[var(--cp-text-faint)]">
+                  이유 · 최근 90일 {h[9]}건({h[9] > h[10] ? `이전 90일 ${h[10]}건보다 증가` : h[9] < h[10] ? `이전 90일 ${h[10]}건보다 감소` : "이전 90일과 같음"}) · 12개월 {h[8]}건
+                  {h[11] >= 0 ? ` · 마지막 기록 ${h[11]}일 전` : ""}
+                </span>
               </span>
+              {h[12] === 1 && (
+                <span className="mt-0.5 shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12.5px] font-medium text-[#a8322a]">
+                  집중관리
+                </span>
+              )}
               {h[7] === 0 && (
                 <span className="mt-0.5 shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[12.5px] font-medium text-amber-800">
                   CCTV 없음
@@ -193,7 +195,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 수요 전망 */}
       <section>
-        <SectionTitle n="03">민원 접수 전망 (운영 참고)</SectionTitle>
+        <SectionHead n="03" sub="운영 참고용 행정수요 전망">민원 접수 전망</SectionHead>
         <DetailCard onOpen={() => setModal("forecast")}>
           <p className="mb-1 text-[15.5px] text-[var(--cp-text-muted)]">
             {fcSoFar != null ? "이번 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
@@ -218,7 +220,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 품목 분해 */}
       <section>
-        <SectionTitle n="04">무엇을 버리다 적발됐나 (과태료 {d.fines.totalN.toLocaleString()}건)</SectionTitle>
+        <SectionHead n="04" sub={`과태료 ${d.fines.totalN.toLocaleString()}건 품목 분해`}>무엇을 버리다 적발됐나</SectionHead>
         <DetailCard onOpen={() => setModal("fines")}>
           <div className="mt-3 flex flex-col gap-2">
             {/* 수치가 길어(1,285건 · 7,169만원) 우측 고정폭 컬럼이 좁은 화면에서 줄바꿈으로 무너진다
@@ -249,7 +251,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 처분 퍼널 */}
       <section>
-        <SectionTitle n="05">과태료는 징수되고 있나 (부과 {KRW(d.fines.totalAmount)})</SectionTitle>
+        <SectionHead n="05" sub={`부과 ${KRW(d.fines.totalAmount)}`}>과태료는 징수되고 있나</SectionHead>
         <DetailCard onOpen={() => setModal("funnel")}>
           <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
             {funnelOrder.map((g) => {
@@ -281,7 +283,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 처리 SLA */}
       <section>
-        <SectionTitle n="06">민원 처리 속도 (접수 → 행정 종결)</SectionTitle>
+        <SectionHead n="06" sub="접수에서 행정 종결까지">민원 처리 속도</SectionHead>
         <DetailCard onOpen={() => setModal("sla")}>
           <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
             {slaYears.map(([yr, s]) => {
@@ -321,7 +323,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       {/* 구조 전망. 관리 취약 신축 공급 파이프라인 (법정동 기준이라 지도 대신 모달 상세) */}
       {d.permits && (
         <section>
-          <SectionTitle n="07">구조 전망 · 관리 취약 신축이 어디로 들어오나</SectionTitle>
+          <SectionHead n="07" sub="관리 취약 신축이 어디로 들어오나">구조 전망</SectionHead>
           <DetailCard onOpen={() => setModal("permits")}>
             {/* 수치 세 칸 먼저. 문장 안에 숫자를 섞어 두면 줄바꿈에서 읽히지 않는다 */}
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
@@ -372,7 +374,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       {/* 서울시 맥락. 25개 구 비교·서울 전체 앱 추세 */}
       {d.seoul && (
         <section>
-          <SectionTitle n="08">서울시 안에서 광진은 어디쯤인가 (열린데이터광장)</SectionTitle>
+          <SectionHead n="08" sub="서울 열린데이터광장 공개 자료로 25개 구와 견줌">서울시 안에서 광진은 어디쯤인가</SectionHead>
           <DetailCard onOpen={() => setModal("seoul")}>
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
               <div className="rounded-lg border border-[var(--cp-border-faint)] px-1 py-2">
@@ -408,7 +410,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 조치 대장 */}
       <section>
-        <SectionTitle n="09">조치 대장 (개입 사전등록부)</SectionTitle>
+        <SectionHead n="09" sub="개입 사전등록부">조치 대장</SectionHead>
         <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <p className="mb-2 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
             새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을 등록하고 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지 않기 위한 장치입니다.

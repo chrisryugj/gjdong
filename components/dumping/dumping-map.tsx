@@ -11,9 +11,11 @@ import type {
   GridCell,
   HotspotRow,
   InfraLayerId,
+  WeatherKey,
 } from "@/lib/dumping/types"
 import { BIN_RECOS } from "@/lib/dumping/bin-recos"
 import { tallyInfra, type InfraSpot } from "@/lib/dumping/facts"
+import { CHANNEL_DEF, WEATHER_DEF, type DongMode } from "@/lib/dumping/labels"
 
 // 100m 격자 choropleth. 960셀 + 인프라 최대 1,400점이라 canvas 렌더러 필수
 // 타일: OSM 표준 + CSS grayscale 뮤트(globals.css .dumping-map). CARTO는 무키 워터마크,
@@ -111,7 +113,9 @@ function hotspotTooltip(rank: number, h: HotspotRow): string {
   return (
     `<b>예측 핫스팟 ${rank}위</b> · ${escapeHtml(h[5] || "광진구")}<br/>` +
     `<b>${escapeHtml(h[6] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
-    `최근 180일 민원 ${h[3]}건 · 과태료 ${h[4]}건` +
+    `최근 180일 민원 ${h[3]}건 · 과태료 ${h[4]}건<br/>` +
+    `<span style="color:#64748b">이유 · 최근 90일 ${h[9]}건(이전 90일 ${h[10]}건) · 12개월 ${h[8]}건${h[11] >= 0 ? ` · 마지막 기록 ${h[11]}일 전` : ""}</span>` +
+    (h[12] === 1 ? `<br/><span style="color:#a8322a">집중관리 상습격자</span>` : "") +
     (h[7] === 0 ? `<br/><span style="color:#b45309">이동식 CCTV 없음</span>` : "")
   )
 }
@@ -135,6 +139,10 @@ interface DumpingMapProps {
   focusCandidate: CandidateFocus | null
   showRoutes: boolean // 청소차 관리노선 (도로청소 종합계획의 도로명 × 표준노드링크 지오메트리)
   showDongBars: boolean // 동별 민원·과태료 3D 막대(시연용 비교 뷰)
+  dongMode: DongMode // 12라운드: 동별 막대 합계·채널 스택·연도별
+  dongYear: string | null
+  grid3d: boolean // 격자 기둥(원 지표 건수, 5건 이상 칸)
+  weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
 }
 
@@ -143,26 +151,80 @@ interface DumpingMapProps {
 const BAR_W = 76
 const BAR_TOP = 18 // 값 글자 자리
 const BAR_BOTTOM = 26 // 동 이름 자리
-function dongBarSvg(name: string, comp: number, enf: number, hc: number, he: number, H: number): string {
+// 등축 막대 한 토막. base=바닥 y. 세 조각(앞·옆·윗면). 스택은 같은 x에 y0를 올려 가며 여러 토막
+type Face = { front: string; side: string; top: string }
+function isoBar(x: number, base: number, y0: number, h: number, bw: number, D: number, f: Face, cls = ""): string {
+  const y = base - y0 - h
+  return (
+    `<g class="bar ${cls}">` +
+    `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${f.front}"/>` +
+    `<polygon points="${x + bw},${y} ${x + bw + D},${y - D} ${x + bw + D},${y - D + h} ${x + bw},${y + h}" fill="${f.side}"/>` +
+    `<polygon points="${x},${y} ${x + D},${y - D} ${x + bw + D},${y - D} ${x + bw},${y}" fill="${f.top}"/>` +
+    `</g>`
+  )
+}
+const COMP_FACE: Face = { front: "#2f5aa8", side: "#1d3f78", top: "#6b93d6" }
+const ENF_FACE: Face = { front: "#9a6a2a", side: "#6e4a1b", top: "#c99a55" }
+const CRIT_FACE: Face = { front: "#a8322a", side: "#7a2420", top: "#d0605a" }
+const HOT_FACE: Face = { front: "#b45309", side: "#7c3a06", top: "#e0873a" }
+
+// 기둥 하나(격자 기둥·상습격자·핫스팟). 값 라벨은 위, 선택 꼬리표(순위 등)는 라벨 자리에
+const COL_W = 34
+function columnSvg(h: number, H: number, face: Face, label: string, cls = ""): string {
+  const D = 6
+  const bw = 14
+  const top = 16
+  const base = top + H
+  return (
+    `<svg class="dump-bar3d dump-col" width="${COL_W}" height="${H + top + 4}" viewBox="0 0 ${COL_W} ${H + top + 4}">` +
+    isoBar(10, base, 0, h, bw, D, face, cls) +
+    (label ? `<text x="${10 + bw / 2 + 3}" y="${base - h - D - 4}" text-anchor="middle" font-size="11" font-weight="700" fill="${face.side}">${label}</text>` : "") +
+    `</svg>`
+  )
+}
+
+// 격자 기둥: 칸마다 원 지표 1~2개(민원·과태료). 이름 없이 값만
+function cellBarsSvg(bars: { h: number; v: number; face: Face }[], H: number): string {
+  const D = 5
+  const bw = 10
+  const top = 14
+  const base = top + H
+  const w = 12 + bars.length * 16
+  return (
+    `<svg class="dump-bar3d dump-col" width="${w}" height="${H + top + 4}" viewBox="0 0 ${w} ${H + top + 4}">` +
+    bars.map((b, i) => isoBar(6 + i * 16, base, 0, b.h, bw, D, b.face) + `<text x="${6 + i * 16 + bw / 2 + 2}" y="${base - b.h - D - 3}" text-anchor="middle" font-size="9.5" fill="${b.face.side}">${b.v}</text>`).join("") +
+    `</svg>`
+  )
+}
+
+// 동별 막대. segments가 있으면 민원 막대를 채널 스택(아래부터 순서대로)으로
+function dongBarSvg(
+  name: string,
+  comp: number,
+  enf: number,
+  hc: number,
+  he: number,
+  H: number,
+  segments?: { h: number; face: Face }[],
+): string {
   const D = 7 // 깊이
   const bw = 16
   const base = BAR_TOP + H
-  const bar = (x: number, h: number, front: string, side: string, top: string, cls: string) => {
-    const y = base - h
-    return (
-      `<g class="bar ${cls}">` +
-      `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${front}"/>` +
-      `<polygon points="${x + bw},${y} ${x + bw + D},${y - D} ${x + bw + D},${y - D + h} ${x + bw},${y + h}" fill="${side}"/>` +
-      `<polygon points="${x},${y} ${x + D},${y - D} ${x + bw + D},${y - D} ${x + bw},${y}" fill="${top}"/>` +
-      `</g>`
-    )
-  }
   const x1 = 14
   const x2 = 42
+  let compSvg = ""
+  if (segments) {
+    let y0 = 0
+    for (const sg of segments) {
+      if (sg.h <= 0) continue
+      compSvg += isoBar(x1, base, y0, sg.h, bw, D, sg.face, "comp")
+      y0 += sg.h
+    }
+  } else compSvg = isoBar(x1, base, 0, hc, bw, D, COMP_FACE, "comp")
   return (
     `<svg class="dump-bar3d" width="${BAR_W}" height="${H + BAR_TOP + BAR_BOTTOM}" viewBox="0 0 ${BAR_W} ${H + BAR_TOP + BAR_BOTTOM}">` +
-    bar(x1, hc, "#2f5aa8", "#1d3f78", "#6b93d6", "comp") +
-    bar(x2, he, "#9a6a2a", "#6e4a1b", "#c99a55", "enf") +
+    compSvg +
+    isoBar(x2, base, 0, he, bw, D, ENF_FACE, "enf") +
     `<text x="${x1 + bw / 2 + 3}" y="${base - hc - D - 4}" text-anchor="middle" font-size="11" fill="#1d3f78">${comp.toLocaleString()}</text>` +
     `<text x="${x2 + bw / 2 + 3}" y="${base - he - D - 4}" text-anchor="middle" font-size="11" fill="#6e4a1b">${enf.toLocaleString()}</text>` +
     `<text x="${BAR_W / 2}" y="${base + 16}" text-anchor="middle" font-size="12.5" fill="#1f2937">${name}</text>` +
@@ -190,6 +252,10 @@ export default function DumpingMap({
   focusCandidate,
   showRoutes,
   showDongBars,
+  dongMode,
+  dongYear,
+  grid3d,
+  weather,
   resetSeq,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -207,6 +273,7 @@ export default function DumpingMap({
   const criticalLayerRef = useRef<LayerGroup | null>(null)
   const focusLayerRef = useRef<LayerGroup | null>(null)
   const dongBarsLayerRef = useRef<LayerGroup | null>(null)
+  const gridBarsLayerRef = useRef<LayerGroup | null>(null)
   // Leaflet 동적 import가 data fetch보다 늦으면 data 의존 effect가 헛돌고 끝난다. ready로 재트리거
   const [ready, setReady] = useState(false)
   // 줌 14 미만(모바일 전체보기)에선 핫스팟 순위 배지 20개가 서로 덮는다. 작은 점으로 바꾸기 위한 트리거
@@ -361,8 +428,35 @@ export default function DumpingMap({
         }
       }
 
-      // 원 오버레이. 선택된 지표들을 바탕 위에 중첩
-      for (const cid of circles) {
+      // 날씨별 원(12라운드): 보통 원 대신 그 조건에 접수된 민원을 하루당으로 환산(×100일)해 원으로. 접수일 기준
+      if (weather && data.env.cellWeather) {
+        const k = { hot: 0, mild: 1, cold: 2, rain: 3 }[weather]
+        const days = Math.max(1, data.env.weatherDays[weather])
+        const wdef = WEATHER_DEF[weather]
+        data.grid.forEach((cell, i) => {
+          const cnt = data.env.cellWeather[i]?.[k] ?? 0
+          if (!cnt) return
+          const per100 = (cnt / days) * 100
+          const dimmed = isDimmed(cell)
+          L.circle([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
+            pane: "dumpGrid",
+            renderer,
+            radius: Math.min(70, 8 + Math.pow(per100, 0.6) * 6),
+            color: wdef.color,
+            weight: 1.1,
+            opacity: dimmed ? 0.15 : 0.8,
+            fillColor: wdef.color,
+            fillOpacity: dimmed ? 0.04 : 0.22,
+          })
+            .bindTooltip(
+              `${cellTooltip(cell)}<br/><span style="color:${wdef.color}">${wdef.label} 민원 ${cnt}건 · 하루당 ${(cnt / days).toFixed(2)}건(100일 환산 ${per100.toFixed(1)})</span>`,
+              { sticky: true, direction: "top", opacity: 1 },
+            )
+            .addTo(group)
+        })
+      }
+      // 원 오버레이. 선택된 지표들을 바탕 위에 중첩(날씨별이 켜져 있으면 그쪽 원만)
+      for (const cid of weather ? [] : circles) {
         const cdef = CIRCLE_DEF[cid]
         const busy = data.grid.filter((c) => c[cdef.idx] > 0).sort((a, b) => b[cdef.idx] - a[cdef.idx])
         for (const cell of busy) {
@@ -396,7 +490,7 @@ export default function DumpingMap({
       }
     }
     void draw()
-  }, [data, base, circles, selectedDong, ready, layers, showCandidates, showBinRecos, showHotspots, showCritical])
+  }, [data, base, circles, selectedDong, ready, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather])
 
   // 동 경계 레이어. 전체 동은 상시 얇게, 선택 동은 굵게 + 동 전체가 화면에 들어오게 fit
   useEffect(() => {
@@ -567,16 +661,21 @@ export default function DumpingMap({
       if (!showHotspots || !data) return
       const L = await import("leaflet")
       const group = L.layerGroup()
+      const HH = 56
+      const maxScore = Math.max(1, ...data.decision.hotspots.top.map((h) => h[2]))
       data.decision.hotspots.top.forEach((h, i) => {
-        // 줌아웃 상태에선 순위 숫자 대신 작은 점. 상위 3은 색으로만 구분
+        // 줌아웃 상태에선 작은 점. 줌인이면 점수 높이의 기둥 위에 순위(12라운드). 상위 3은 색으로만 구분
         const sm = zoomedOut
+        const hh = Math.max(4, Math.round((h[2] / maxScore) * HH))
         L.marker([h[0], h[1]], {
           pane: "dumpInfra",
           icon: L.divIcon({
             className: "",
-            html: `<div class="dump-hot${i < 3 ? " dump-hot-top" : ""}${sm ? " dump-hot-sm" : ""}">${sm ? "" : i + 1}</div>`,
-            iconSize: sm ? [10, 10] : [24, 24],
-            iconAnchor: sm ? [5, 5] : [12, 12],
+            html: sm
+              ? `<div class="dump-hot dump-hot-sm${i < 3 ? " dump-hot-top" : ""}"></div>`
+              : columnSvg(hh, HH, i < 3 ? CRIT_FACE : HOT_FACE, `${i + 1}위`),
+            iconSize: sm ? [10, 10] : [COL_W, HH + 20],
+            iconAnchor: sm ? [5, 5] : [COL_W / 2, HH + 16],
           }),
         })
           .bindTooltip(hotspotTooltip(i + 1, h), { sticky: true, direction: "top", opacity: 1 })
@@ -599,10 +698,15 @@ export default function DumpingMap({
       const L = await import("leaflet")
       if (!mapRef.current) return
       const group = L.layerGroup()
-      const max = Math.max(1, ...data.dong.flatMap((d) => [d.comp, d.enf]))
+      // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 막대를 앱·120·직접 스택으로
+      const valOf = (d: (typeof data.dong)[number]) =>
+        dongMode === "year" && dongYear
+          ? { comp: d.yr.complaints[dongYear] ?? 0, enf: d.yr.enforcement[dongYear] ?? 0 }
+          : { comp: d.comp, enf: d.enf }
+      const max = Math.max(1, ...data.dong.flatMap((d) => [valOf(d).comp, valOf(d).enf]))
       const H = 72 // 최대 막대 높이(px)
       const n = data.dong.length
-      const rank = (key: "comp" | "enf", v: number) => data.dong.filter((x) => x[key] > v).length + 1
+      const rank = (key: "comp" | "enf", v: number) => data.dong.filter((x) => valOf(x)[key] > v).length + 1
       // 민원과 과태료는 집계 시작이 다르다(민원 2024.1~, 과태료 2022.3~). 막대를 나란히 두니 툴팁에 밝힌다
       const compFrom = `${Object.keys(data.yearly.complaints)[0]}.1`
       const enfFrom = (Object.keys(data.decision.fines.monthly)[0] ?? "").replace(/-0?/, ".")
@@ -613,11 +717,20 @@ export default function DumpingMap({
           `<div class="h"><i></i><b>${label}</b><em>${r}위<small>/${n}</small></em></div>` +
           `<div class="v">${v.toLocaleString()}<small>건</small><span class="k">천명당<b>${per.toFixed(1)}</b></span></div>` +
           `<div class="bar"><i style="width:${Math.round((v / max) * 100)}%"></i></div></div>`
+        const v = valOf(d)
+        const yearMode = dongMode === "year" && !!dongYear
+        // 연도 모드의 천명당은 그 해 건수 ÷ 등록인구(천명). 누계 천명당(d.cr)에 비례 환산
+        const perYear = (cnt: number, total: number, per: number) => (total ? (per * cnt) / total : 0)
+        const chLine =
+          dongMode === "channel"
+            ? `<div class="f">민원 채널 · 앱 ${d.ch.app.toLocaleString()} · 120 ${d.ch.c120.toLocaleString()} · 직접 ${d.ch.direct.toLocaleString()}</div>`
+            : ""
         return (
-          `<div class="dump-bartip"><div class="t">${d.d}<span>세대 ${d.hh.toLocaleString()}</span></div>` +
-          block("민원", "#2f5aa8", d.comp, d.cr, rank("comp", d.comp)) +
-          block("과태료", "#9a6a2a", d.enf, d.er, rank("enf", d.enf)) +
-          `<div class="f">막대: 구 최댓값 대비 · 순위: ${n}개 동 중<br>누계 시작: 민원 ${compFrom} · 과태료 ${enfFrom}</div></div>`
+          `<div class="dump-bartip"><div class="t">${d.d}<span>${yearMode ? `${dongYear}년` : `세대 ${d.hh.toLocaleString()}`}</span></div>` +
+          block("민원", "#2f5aa8", v.comp, yearMode ? perYear(v.comp, d.comp, d.cr) : d.cr, rank("comp", v.comp)) +
+          block("과태료", "#9a6a2a", v.enf, yearMode ? perYear(v.enf, d.enf, d.er) : d.er, rank("enf", v.enf)) +
+          chLine +
+          `<div class="f">막대: 구 최댓값 대비 · 순위: ${n}개 동 중<br>${yearMode ? `${dongYear}년 · 민원은 접수일, 과태료는 위반일 기준` : `누계 시작: 민원 ${compFrom} · 과태료 ${enfFrom}`}</div></div>`
         )
       }
       for (const d of data.dong) {
@@ -625,13 +738,19 @@ export default function DumpingMap({
         if (!pts.length) continue
         const lat = pts.reduce((s, p) => s + p[0], 0) / pts.length
         const lng = pts.reduce((s, p) => s + p[1], 0) / pts.length
-        const hc = Math.max(3, Math.round((d.comp / max) * H))
-        const he = Math.max(3, Math.round((d.enf / max) * H))
+        const v = valOf(d)
+        const hc = Math.max(3, Math.round((v.comp / max) * H))
+        const he = Math.max(3, Math.round((v.enf / max) * H))
+        // 채널 스택: 세 토막 높이 합 = hc. 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)
+        const segments =
+          dongMode === "channel" && d.comp > 0
+            ? (["direct", "c120", "app"] as const).map((c) => ({ h: Math.round((d.ch[c] / d.comp) * hc), face: CHANNEL_DEF[c] as Face }))
+            : undefined
         const mk = L.marker([lat, lng], {
           pane: "dumpInfra",
           icon: L.divIcon({
             className: "",
-            html: dongBarSvg(d.d, d.comp, d.enf, hc, he, H),
+            html: dongBarSvg(d.d, v.comp, v.enf, hc, he, H, segments),
             iconSize: [BAR_W, H + BAR_TOP + BAR_BOTTOM],
             iconAnchor: [BAR_W / 2, H + BAR_TOP],
           }),
@@ -662,7 +781,39 @@ export default function DumpingMap({
       dongBarsLayerRef.current = group
     }
     void draw()
-  }, [data, showDongBars, ready])
+  }, [data, showDongBars, dongMode, dongYear, ready])
+
+  // 격자 기둥(12라운드). 원 지표(민원·과태료, 없으면 과태료) 건수를 칸 가운데 기둥으로. 5건 이상 칸만(전부 세우면 지저분)
+  useEffect(() => {
+    const draw = async () => {
+      const map = mapRef.current
+      if (!map) return
+      gridBarsLayerRef.current?.remove()
+      gridBarsLayerRef.current = null
+      if (!grid3d || !data) return
+      const L = await import("leaflet")
+      const group = L.layerGroup()
+      const ids: CircleId[] = circles.length ? circles : ["enf"]
+      const H = 48
+      const maxV = Math.max(1, ...ids.flatMap((id) => data.grid.map((c) => c[CIRCLE_DEF[id].idx])))
+      for (const cell of data.grid) {
+        const vals = ids.map((id) => cell[CIRCLE_DEF[id].idx])
+        if (Math.max(...vals) < 5) continue
+        if (selectedDong && cell[7] !== selectedDong) continue
+        const bars = ids.map((id, i) => ({ v: vals[i], h: Math.max(2, Math.round((vals[i] / maxV) * H)), face: id === "comp" ? COMP_FACE : ENF_FACE }))
+        const w = 12 + bars.length * 16
+        L.marker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
+          pane: "dumpInfra",
+          icon: L.divIcon({ className: "", html: cellBarsSvg(bars, H), iconSize: [w, H + 18], iconAnchor: [w / 2, H + 14] }),
+        })
+          .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
+          .addTo(group)
+      }
+      group.addTo(map)
+      gridBarsLayerRef.current = group
+    }
+    void draw()
+  }, [data, grid3d, circles, selectedDong, ready])
 
   // 집중관리 상습격자 (12개월 10건 이상). 격자 외곽선 강조
   useEffect(() => {
@@ -675,6 +826,8 @@ export default function DumpingMap({
       const L = await import("leaflet")
       const renderer = infraRendererRef.current ?? undefined
       const group = L.layerGroup()
+      const CH = 60
+      const maxCrit = Math.max(1, ...data.decision.kpi.criticalCells.map((c) => c[4]))
       for (const c of data.decision.kpi.criticalCells) {
         L.rectangle(
           [
@@ -697,6 +850,18 @@ export default function DumpingMap({
             { sticky: true, direction: "top", opacity: 1 },
           )
           .addTo(group)
+        // 12라운드: 칸 가운데 기둥. 높이 = 12개월 건수(구 최댓값 대비). 성과지표라 정책 탭에서도 켠다
+        const ch = Math.max(4, Math.round((c[4] / maxCrit) * CH))
+        L.marker([(c[0] + c[2]) / 2, (c[1] + c[3]) / 2], {
+          pane: "dumpInfra",
+          icon: L.divIcon({
+            className: "",
+            html: columnSvg(ch, CH, CRIT_FACE, String(c[4])),
+            iconSize: [COL_W, CH + 20],
+            iconAnchor: [COL_W / 2, CH + 16],
+          }),
+          interactive: false,
+        }).addTo(group)
       }
       group.addTo(map)
       criticalLayerRef.current = group

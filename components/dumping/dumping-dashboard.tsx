@@ -146,6 +146,9 @@ export default function DumpingDashboard() {
       ...(viz.candidates !== undefined ? { candidates: viz.candidates } : {}),
       ...(viz.binRecos !== undefined ? { binRecos: viz.binRecos } : {}),
       ...(viz.routes !== undefined ? { routes: viz.routes } : {}),
+      // 날씨별 원은 바탕을 바꾸는 viz가 오면 끈다(둘이 겹치면 무슨 원인지 안 읽힌다). 명시하면 그대로
+      ...(viz.weather !== undefined ? { weather: viz.weather } : viz.mode ? { weather: null } : {}),
+      ...(viz.grid3d !== undefined ? { grid3d: viz.grid3d } : {}),
     }))
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
     // 그래서 viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
@@ -277,10 +280,14 @@ export default function DumpingDashboard() {
                   showCandidates={view.candidates}
                   showBinRecos={view.binRecos}
                   showHotspots={tab === "ops"}
-                  showCritical={showCritical && tab === "ops"}
+                  showCritical={showCritical && (tab === "ops" || tab === "policy")}
                   focusCandidate={focusCandidate}
                   showRoutes={view.routes}
                   showDongBars={view.dongBars}
+                  dongMode={view.dongMode}
+                  dongYear={view.dongYear}
+                  grid3d={view.grid3d}
+                  weather={view.weather}
                   resetSeq={resetSeq}
                 />
                 <MapOverlays data={mapData} view={view} onFocusCandidate={setFocusCandidate} selectedDong={selectedDong} />
@@ -370,6 +377,8 @@ export default function DumpingDashboard() {
                   data={mapData}
                   onShowMap={applyLeverViz}
                   activeLeverId={activeLever?.node.id ?? null}
+                  criticalOn={showCritical}
+                  onToggleCritical={() => setShowCritical((v) => !v)}
                 />
               )}
               {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} />}

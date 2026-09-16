@@ -21,6 +21,7 @@ import {
   type LeverView,
 } from "./lever-view"
 import LeverModal from "./lever-modal"
+import { Folded, SectionHead } from "./section-head"
 
 // 정책 제안 탭. 지식그래프를 결재권자 관점("무엇을 결정하면 되나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
@@ -163,39 +164,12 @@ interface PolicyBoardProps {
   data: DumpingMapData | null
   onShowMap: (lever: LeverView) => void
   activeLeverId: string | null
+  criticalOn: boolean // 집중관리 상습격자 강조 레이어(운영·전망 탭과 공유)
+  onToggleCritical: () => void
 }
 
 // 섹션 제목. 위계는 색이 아니라 번호와 hairline으로
-// 12라운드: 결재선이 훑는 항목 이름(결론·제안)은 본문보다 확실히 크게. 접힌 항목은 한 단계 아래
-function SectionHead({ n, children, sub, first = false }: { n: string; children: React.ReactNode; sub?: string; first?: boolean }) {
-  return (
-    <div className={first ? "mb-3" : "mb-3 border-t border-[var(--cp-border)] pt-5"}>
-      <h3 className="flex items-baseline gap-2.5 text-[23px] font-bold leading-tight text-[var(--cp-text-strong)]">
-        <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">{n}</span>
-        <span>{children}</span>
-      </h3>
-      {sub && <p className="mt-1.5 pl-8 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{sub}</p>}
-    </div>
-  )
-}
-
-// 접힌 섹션. 첫 화면 밖으로 밀어 두되 한 번의 클릭으로 열린다
-function Folded({ n, title, sub, children }: { n: string; title: string; sub?: string; children: React.ReactNode }) {
-  return (
-    <details className="group border-t border-[var(--cp-border)] pt-4">
-      <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
-        <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">{n}</span>
-        <span className="flex-1">{title}</span>
-        <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
-        <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
-      </summary>
-      {sub && <p className="mt-0.5 pl-8 text-[13.5px] text-[var(--cp-text-dim)]">{sub}</p>}
-      <div className="mt-3">{children}</div>
-    </details>
-  )
-}
-
-export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: PolicyBoardProps) {
+export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, criticalOn, onToggleCritical }: PolicyBoardProps) {
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
   const stats = useMemo(() => (graph ? factorStats(graph) : []), [graph])
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
@@ -221,6 +195,24 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: P
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })
   const active = activeLeverId ? levers.find((l) => l.node.id === activeLeverId) : null
+  // 성과지표 현재값. 12라운드: 이름만 나열하면 결재선이 "그래서 몇 곳인데"를 못 본다. 상습격자는 지도 토글까지
+  const kpiValue = (id: string): { v: string; sub: string } | null => {
+    if (!data) return null
+    const k = data.decision.kpi
+    if (id === "kpi-critical-cells")
+      return { v: `${k.criticalCellsNow}곳`, sub: `앱 제외 ${k.criticalCellsNowNoApp}곳 · ${k.thresholds?.months ?? 12}개월 ${k.thresholds?.critical ?? 10}건 넘는 100m 칸` }
+    if (id === "kpi-fixed-channel") {
+      const y = data.decision.channels.yearly
+      const years = Object.keys(y.c120 ?? {}).sort()
+      const last = years[years.length - 1]
+      if (!last) return null
+      const n = (y.c120?.[last] ?? 0) + (y.direct?.[last] ?? 0)
+      const partial = last === data.decision.asof.slice(0, 4) ? " · 부분 집계" : ""
+      return { v: `${n.toLocaleString()}건`, sub: `${last}년 120·직접 신고${partial}` }
+    }
+    if (id === "kpi-collection") return { v: `${data.decision.fines.collectionRatePct}%`, sub: "감면·진행 중 제외" }
+    return null
+  }
   const growth = data ? channelGrowth(data) : null
   // 8라운드: 관측 대상(단속 적발)과 한계(발생 증가 배제 아님)를 담는다. 검토서 A1
   // 10라운드: 앱 제외 신고·순찰 적발 배율을 결론 안에 병기해 "나빠졌다고 읽기 어렵다"가 지표와 따로 놀지 않게
@@ -270,7 +262,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: P
         >
           제안 {proposals.length}건
         </SectionHead>
-        <p className="mb-2.5 flex flex-wrap items-center gap-1.5 pl-8 text-[12.5px]">
+        <p className="mb-2.5 flex flex-wrap items-center gap-1.5 pl-9 text-[12.5px]">
           {costCounts.map((c) => (
             <span key={c.label} className={`rounded px-1.5 py-0.5 font-semibold ${c.cls}`}>
               {c.label} {c.n}건
@@ -298,11 +290,31 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: P
         <div className="flex flex-col gap-1">
           {kpisSorted.map((k) => {
             const main = KPI_ORDER.includes(k.id)
+            const val = kpiValue(k.id)
+            const critical = k.id === "kpi-critical-cells"
             return (
-              <div key={k.id} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+              <div key={k.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg px-2 py-1.5">
                 <i className={`h-2 w-2 shrink-0 rounded-full ${main ? "bg-[#a8322a]" : "bg-[var(--cp-text-faint)]"}`} />
                 <span className="min-w-0 flex-1 text-[15px] text-[var(--cp-text)]">{k.label}</span>
-                {main && (
+                {val && (
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-[17px] font-semibold tabular-nums text-[var(--cp-text-strong)]">{val.v}</span>
+                    <span className="text-[12.5px] text-[var(--cp-text-dim)]">{val.sub}</span>
+                  </span>
+                )}
+                {critical && data && (
+                  <button
+                    type="button"
+                    onClick={onToggleCritical}
+                    aria-pressed={criticalOn}
+                    className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[12.5px] font-semibold ${
+                      criticalOn ? "border-[#a8322a] bg-[#a8322a]/10 text-[#a8322a]" : "border-[var(--cp-border)] text-[#0c6155] hover:bg-[var(--cp-hover)]"
+                    }`}
+                  >
+                    {criticalOn ? "지도 표시 중 · 끄기" : "지도에 기둥으로 표시"}
+                  </button>
+                )}
+                {main && !val && (
                   <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12px] font-semibold text-[#a8322a]">
                     성과 평가용
                   </span>
@@ -320,7 +332,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId }: P
       {/* 원칙. CCTV 철회의 교훈 */}
       <section className="border-t border-[var(--cp-border)] pt-4">
         <h3 className="flex items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)]">
-          <span className="font-mono text-[13px] font-normal text-[var(--cp-text-faint)]">05</span>원칙 · 개입 사전등록(조치 대장)
+          <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">05</span>원칙 · 개입 사전등록(조치 대장)
         </h3>
         <p className="mt-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
           새로 시작하는 개입은 실행 전에 대상 격자·기간·비교 대상·판정 지표를 등록하고 평가는 등록한 설계 그대로만 합니다. 이동식 CCTV의

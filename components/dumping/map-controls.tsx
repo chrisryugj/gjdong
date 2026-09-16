@@ -1,12 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction } from "@/lib/dumping/types"
+import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
 import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./dumping-map"
 import { BIN_RECOS } from "@/lib/dumping/bin-recos"
 import { tallyInfra } from "@/lib/dumping/facts"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
+// 지도 모드 상수는 lib/dumping/labels.ts(순환 import 회피). 여기서는 다시 내보내기만
+export { CHANNEL_DEF, DONG_MODE_LABEL, WEATHER_DEF, type DongMode } from "@/lib/dumping/labels"
+import { CHANNEL_DEF, DONG_MODE_LABEL, WEATHER_DEF, type DongMode } from "@/lib/dumping/labels"
+
 export interface MapView {
   base: BaseMode
   circles: CircleId[]
@@ -15,10 +19,26 @@ export interface MapView {
   binRecos: boolean
   routes: boolean
   dongBars: boolean // 동별 민원·과태료 3D 막대(시연용 비교 뷰)
+  dongMode: DongMode // 12라운드: 합계 · 채널 스택 · 연도별
+  dongYear: string | null // 연도 모드에서 고른 해
+  grid3d: boolean // 격자 기둥(원 지표 건수, 5건 이상 칸)
+  weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신 그 조건의 민원(하루당 환산)
 }
 
 // 10라운드: 기본 원은 과태료. 회귀 판정의 결과지표가 과태료라 민원 원을 겹치면 화면의 겹침이 회귀 증거처럼 읽혔다(검토서 6절)
-export const DEFAULT_VIEW: MapView = { base: "unm", circles: ["enf"], layers: [], candidates: false, binRecos: false, routes: false, dongBars: false }
+export const DEFAULT_VIEW: MapView = {
+  base: "unm",
+  circles: ["enf"],
+  layers: [],
+  candidates: false,
+  binRecos: false,
+  routes: false,
+  dongBars: false,
+  dongMode: "total",
+  dongYear: null,
+  grid3d: false,
+  weather: null,
+}
 
 const BASE_LABEL: Record<BaseMode, string> = {
   unm: "다가구·단독",
@@ -72,6 +92,8 @@ export function vizDescription(viz: VizAction): string {
   if (viz.candidates) parts.push("재배치 후보")
   if (viz.binRecos) parts.push(BIN_RECO_LABEL)
   if (viz.routes) parts.push("청소차 노선")
+  if (viz.weather) parts.push(`${WEATHER_DEF[viz.weather].label} 민원 원(하루당 환산)`)
+  if (viz.grid3d) parts.push("격자 기둥")
   if (viz.dong) parts.push(`${viz.dong} 확대`)
   return parts.join(" · ")
 }
@@ -80,6 +102,7 @@ const CHIP =
   "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[14px] transition-colors"
 const CHIP_OFF = "border-[var(--cp-border)] bg-white text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
 const LABEL = "shrink-0 text-[13px] font-medium text-[var(--cp-text-dim)]"
+const CHIP_SM = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[12.5px] transition-colors"
 
 // ─── 툴바. 지도 위가 아니라 지도 위쪽 띠에 둔다. 지도 위 오버레이끼리 겹치던 문제를 배치로 없앤다 ───
 interface ToolbarProps {
@@ -90,6 +113,9 @@ interface ToolbarProps {
 }
 
 export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
+  // 동별 막대 연도 버튼. 민원 연도(접수)와 과태료 연도(위반)를 합친 목록
+  const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => [...Object.keys(d.yr.complaints), ...Object.keys(d.yr.enforcement)]))).sort() : []
+
   const [layersOpen, setLayersOpen] = useState(false)
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
   const layerCount =
@@ -151,13 +177,85 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           </svg>
           동별 막대
           {/* 막대 색 범례. 켜졌을 때만 */}
-          {view.dongBars && (
+          {view.dongBars && view.dongMode !== "channel" && (
             <span className="ml-0.5 flex items-center gap-1 text-[12.5px] font-normal text-[var(--cp-text-muted)]">
               <i className="h-2.5 w-2.5 rounded-[2px] bg-[#2f5aa8]" />민원
               <i className="ml-1 h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
             </span>
           )}
         </button>
+        {/* 12라운드: 동별 막대 모드. 합계 · 채널 스택(앱·120·직접) · 연도별 */}
+        {view.dongBars && (
+          <span className="flex shrink-0 items-center gap-1">
+            {(Object.keys(DONG_MODE_LABEL) as DongMode[]).map((m) => (
+              <button
+                key={m}
+                aria-pressed={view.dongMode === m}
+                onClick={() => patch({ dongMode: m, dongYear: m === "year" ? (view.dongYear ?? dongYears[dongYears.length - 1] ?? null) : view.dongYear })}
+                className={`${CHIP_SM} ${view.dongMode === m ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : CHIP_OFF}`}
+              >
+                {DONG_MODE_LABEL[m]}
+              </button>
+            ))}
+            {view.dongMode === "channel" && (
+              <span className="ml-0.5 flex items-center gap-1 text-[12.5px] text-[var(--cp-text-muted)]">
+                {(Object.keys(CHANNEL_DEF) as (keyof typeof CHANNEL_DEF)[]).map((c) => (
+                  <span key={c} className="flex items-center gap-0.5">
+                    <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: CHANNEL_DEF[c].front }} />
+                    {CHANNEL_DEF[c].label}
+                  </span>
+                ))}
+                <i className="ml-1 h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
+              </span>
+            )}
+            {view.dongMode === "year" &&
+              dongYears.map((y) => (
+                <button
+                  key={y}
+                  aria-pressed={view.dongYear === y}
+                  onClick={() => patch({ dongYear: y })}
+                  className={`${CHIP_SM} font-mono ${view.dongYear === y ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : CHIP_OFF}`}
+                >
+                  {y}
+                </button>
+              ))}
+          </span>
+        )}
+        <button
+          aria-pressed={view.grid3d}
+          title="칸마다 원 지표(민원·과태료) 건수를 기둥으로 세웁니다. 5건 이상 칸만"
+          onClick={() => patch({ grid3d: !view.grid3d })}
+          className={`${CHIP} ${view.grid3d ? "border-[#0c6155] bg-white font-semibold text-[#0c6155]" : CHIP_OFF}`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+            <path d="M2 14V9h2v5zM5 14V5h2v9zM8 14v-3h2v3zM11 14V7h2v7z" />
+          </svg>
+          격자 기둥
+        </button>
+        <button
+          aria-pressed={!!view.weather}
+          title="그 날씨 조건에 접수된 민원을 하루당 환산해 원으로 보입니다(접수일 기준)"
+          onClick={() => patch({ weather: view.weather ? null : "hot" })}
+          className={`${CHIP} ${view.weather ? "border-[#c2410c] bg-white font-semibold text-[#c2410c]" : CHIP_OFF}`}
+        >
+          날씨별
+        </button>
+        {view.weather && (
+          <span className="flex shrink-0 items-center gap-1">
+            {(Object.keys(WEATHER_DEF) as WeatherKey[]).map((w) => (
+              <button
+                key={w}
+                aria-pressed={view.weather === w}
+                title={WEATHER_DEF[w].label}
+                onClick={() => patch({ weather: w })}
+                className={`${CHIP_SM} ${view.weather === w ? "bg-white font-semibold" : CHIP_OFF}`}
+                style={view.weather === w ? { borderColor: WEATHER_DEF[w].color, color: WEATHER_DEF[w].color } : undefined}
+              >
+                {WEATHER_DEF[w].short}
+              </button>
+            ))}
+          </span>
+        )}
         <span className="mx-1 h-5 w-px shrink-0 bg-[var(--cp-border)]" />
         <button
           aria-expanded={layersOpen}
@@ -271,17 +369,35 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
           </div>
           <div className={`${legendOpen ? "flex" : "hidden md:flex"} flex-col gap-1.5`}>
           <p>{BASE_MEANING[view.base]}</p>
-          {view.circles.map((c) => (
-            <p key={c} className="flex items-center gap-1.5">
+          {view.weather ? (
+            <p className="flex items-center gap-1.5">
               <i
                 className="h-3 w-3 shrink-0 rounded-full border"
-                style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
+                style={{ borderColor: WEATHER_DEF[view.weather].color, background: `${WEATHER_DEF[view.weather].color}30` }}
               />
               <span>
-                {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록 많음
+                원은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, 클수록 많음. 접수일 기준이라 투기 시각은 아님
+                {data && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
               </span>
             </p>
-          ))}
+          ) : (
+            view.circles.map((c) => (
+              <p key={c} className="flex items-center gap-1.5">
+                <i
+                  className="h-3 w-3 shrink-0 rounded-full border"
+                  style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
+                />
+                <span>
+                  {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록 많음
+                </span>
+              </p>
+            ))
+          )}
+          {view.grid3d && (
+            <p className="text-[var(--cp-text-muted)]">
+              기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수(5건 이상 칸), 높을수록 많음
+            </p>
+          )}
           <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
             <i className="h-3 w-3 shrink-0 rounded-sm border" style={{ borderColor: ZERO_CELL, background: `${ZERO_CELL}20` }} />
             <span>옅은 칸은 {def.legend} 0. 흰 바탕은 민원·과태료·다가구 모두 0인 곳(한강·아차산·공원·아파트 단지)</span>

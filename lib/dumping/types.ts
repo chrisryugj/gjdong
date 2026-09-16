@@ -22,6 +22,8 @@ export interface DongRow {
   lpf: number | null // 장기체류 외국인 생활인구
   crl: number | null // 민원 생활인구 천명당
   erl: number | null // 과태료 생활인구 천명당
+  ch: { app: number; c120: number; direct: number } // 12라운드: 채널 분해(민원 접수 제목 접두 규칙, 격자 재귀속 동 기준)
+  yr: { complaints: Record<string, number>; enforcement: Record<string, number> } // 연도별(민원=접수일, 과태료=위반일)
 }
 
 // [lat, lng, 라벨, 행정동]
@@ -75,6 +77,8 @@ export interface DumpingMapData {
     temp: Record<string, EnvGroup>
     enfByHour: Record<string, number>
     enfByDow: Record<string, number>
+    cellWeather: [number, number, number, number][] // grid와 같은 순서. [더움(25도+), 온화, 추움(<5도), 비(1mm+)] 민원 접수 건수
+    weatherDays: { hot: number; mild: number; cold: number; rain: number } // 조건별 일수. 하루당 환산의 분모
   }
   // 의사결정 레이어 (build_decision_layer.py). 품목·퍼널·SLA·KPI·핫스팟·전망
   decision: DecisionLayer
@@ -108,8 +112,12 @@ export interface GeocodeQuality {
   bins?: GeocodeSource
 }
 
-// [lat, lng, 점수, 민원180일, 과태료180일, 행정동, 대표주소, 이동식CCTV유무(0/1)]
-export type HotspotRow = [number, number, number, number, number, string, string, number]
+// [lat, lng, 점수, 민원180일, 과태료180일, 행정동, 대표주소, 이동식CCTV유무(0/1),
+//  12개월 건수, 최근 90일 건수, 이전 90일 건수, 마지막 기록 경과일(-1=없음), 집중관리 상습격자 여부(0/1)] — 뒤 다섯은 "왜 이 칸인가"(12라운드)
+export type HotspotRow = [number, number, number, number, number, string, string, number, number, number, number, number, number]
+
+// 날씨 조건 키(지도 "날씨별" 원·시드 viz). 기온은 일평균, 비는 일강수 1mm 이상
+export type WeatherKey = "hot" | "mild" | "cold" | "rain"
 
 export interface DecisionLayer {
   asof: string
@@ -383,6 +391,8 @@ export interface VizAction {
   binRecos?: boolean // 가로쓰레기통 배치추천(데이터팀) 레이어
   routes?: boolean // 청소차 관리노선 레이어
   dong?: string | null
+  weather?: WeatherKey | null // 날씨별 원(그 조건에 접수된 민원, 하루당 환산). null이면 끔
+  grid3d?: boolean // 격자 기둥
 }
 
 export interface OntoNode {

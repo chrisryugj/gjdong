@@ -5,6 +5,7 @@ import type { DumpingMapData, OntoGraph } from "@/lib/dumping/types"
 import { DONG_THRESHOLDS, summarize } from "@/lib/dumping/facts"
 import { buildFindings, FINDING_GROUPS, type Finding } from "./findings-data"
 import ContrastPanel from "./contrast-panel"
+import { SectionHead } from "./section-head"
 
 // 10라운드: 17장을 결론 5·검증 8·한계 4로 묶는다. 결론만 펼치고 나머지는 접어 결재라인이 3~5장만 읽어도 되게
 const GROUP_SUB: Record<keyof typeof FINDING_GROUPS, string> = {
@@ -51,9 +52,9 @@ export default function FindingsPanel({
     <div className="flex flex-col gap-4 p-3">
       {/* 핵심 발견 카드가 먼저. 결론 그룹은 펼치고 검증·한계 그룹은 접는다 */}
       <section>
-        <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          핵심 발견 {findings.length} · 결론 {FINDING_GROUPS.결론.length}장 먼저 · 카드를 누르면 자세히 볼 수 있습니다
-        </h3>
+        <SectionHead n="01" first sub={`결론 ${FINDING_GROUPS.결론.length}장 먼저, 검증·한계는 접힘 · 카드를 누르면 자세히 볼 수 있습니다`}>
+          핵심 발견 {findings.length}
+        </SectionHead>
         {(Object.keys(FINDING_GROUPS) as (keyof typeof FINDING_GROUPS)[]).map((group) => {
           const tags = FINDING_GROUPS[group] as readonly string[]
           const cards = findings.filter((f) => tags.includes(f.tag))
@@ -121,9 +122,9 @@ export default function FindingsPanel({
 
       {/* 동별 랭킹 */}
       <section>
-        <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-          동별 민원 (천명당 · {periodLabel}) · 누르면 지도가 그 동에 맞춰집니다
-        </h3>
+        <SectionHead n="02" sub={`천명당 · ${periodLabel} · 누르면 지도가 그 동에 맞춰집니다`}>
+          동별 민원
+        </SectionHead>
         <div className="flex flex-col gap-1">
           {dongs.map((d, rank) => {
             const on = d.d === selectedDong
@@ -245,9 +246,9 @@ export default function FindingsPanel({
       {/* 환경요인. 계절·날씨·기온 일평균 (export env 집계) */}
       {data && (
         <section>
-          <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-            계절·날씨 요인 (일평균, {periodLabel})
-          </h3>
+          <SectionHead n="03" sub={`일평균 · ${periodLabel}`}>
+            계절·날씨 요인
+          </SectionHead>
           <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
             <div className="grid grid-cols-4 gap-1.5 text-center">
               {Object.entries(data.env.seasons).map(([k, v]) => {
@@ -282,8 +283,10 @@ export default function FindingsPanel({
       {/* 기존 해석 vs 이 분석. 결론이 어디서 뒤집혔는지 보는 대비 보드. 카드 뒤에 접어 둔다 */}
       {data && graph && (
         <details className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
-          <summary className="cursor-pointer text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-            통념·초기 분석과 이 분석의 차이 · 펼치기
+          <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
+            <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">04</span>
+            <span className="flex-1">통념·초기 분석과 이 분석의 차이</span>
+            <span className="text-[13px] font-medium text-[#0c6155]">펼치기</span>
           </summary>
           <div className="mt-2">
             <ContrastPanel data={data} graph={graph} />

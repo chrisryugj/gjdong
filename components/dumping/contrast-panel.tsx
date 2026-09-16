@@ -142,9 +142,7 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
   const [chart, setChart] = useState<ChartKind | null>(null)
   return (
     <section>
-      <h3 className="mb-2 text-[15px] font-semibold tracking-wide text-[var(--cp-text-dim)]">
-        통념·초기 분석과 이 분석의 차이 {pairs.length}
-      </h3>
+      <p className="mb-2 text-[13.5px] text-[var(--cp-text-dim)]">비교 {pairs.length}쌍 · 왼쪽이 통념·초기 분석, 오른쪽이 이 분석</p>
       <div className="flex flex-col gap-1.5">
         {pairs.map((p) => (
           <div key={p.k} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5">
