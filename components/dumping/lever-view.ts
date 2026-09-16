@@ -137,6 +137,17 @@ export function proposalRows(graph: OntoGraph): ProposalRow[] {
     }))
 }
 
+// 14라운드(심사 냉독 B-1): 결론은 "사람이 아니라 다가구·단독 골목의 배출 구조"인데 제안 2·4·5는 1인세대·외국인·학생을 겨냥해 모순으로 읽혔다.
+// 네 요인은 상관 0.85~0.97로 분리되지 않으므로, 사람 요인을 겨냥한 제안은 겨냥 지역을 바꾸는 것이 아니라 그 골목 주민에게 규칙이 닿게 하는
+// 전달 수단이다. 카드·모달·프롬프트가 이 한 문장을 같이 쓴다. 다가구·단독 자체를 겨냥한 제안(3·6)과 요인 없는 제안(1)은 null
+const PEOPLE_FACTORS: Record<string, string> = { "con-single-person": "1인세대", "con-foreign": "외국인", "con-youth": "청년·학생" }
+
+export function targetNote(lv: LeverView): string | null {
+  if (lv.targets.length === 0 || lv.targets.some((t) => !PEOPLE_FACTORS[t.id])) return null
+  const people = lv.targets.map((t) => PEOPLE_FACTORS[t.id]).join("·")
+  return `겨냥 지역은 다가구·단독 골목 그대로. ${people} 요인은 그 골목과 겹쳐 따로 떼어 볼 수 없어, 이 제안은 그 골목 주민에게 규칙이 닿게 하는 전달 수단입니다`
+}
+
 // ─── 지도 연계 ────────────────────────────────────────────────
 // 수단마다 "이 제안이 어디를 두고 하는 이야기인지" 지도로 바로 넘어가게 한다.
 // 바탕·레이어는 여기서 정하고, 대상 동은 실측값(map.json)에서 골라야 하므로

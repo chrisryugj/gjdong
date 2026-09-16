@@ -55,6 +55,7 @@ export interface BinRecoData {
 }
 
 export interface DumpingMapData {
+  binRecos?: BinRecoData // 데이터팀 배치추천. 대시보드가 인증 라우트(/api/dumping/data/bin-recos)에서 받아 붙인다. 없으면 레이어 비움
   grid: GridCell[]
   ring: [number, number][]
   dong: DongRow[]

@@ -36,11 +36,18 @@ export function dice(a: string, b: string): number {
 
 export const SEED_MATCH_MIN = 0.55
 export const SEED_MATCH_MARGIN = 0.12
+// 글자 겹침은 부정·반대 방향을 못 본다("놓으면 안 되나"≈"놓아야 하나", "절감되나"≈"드나", "나아졌나"≈"나빠졌나" 실측 0.63~0.67).
+// 질문과 시드 중 한쪽에만 이런 낱말이 있으면 붙이지 않는다(오탐이 오답보다 나쁘다)
+const POLARITY = /안\s|안\s?되|않|못\s|못하|없|아니|말고|절감|줄이|줄어|줄었|나아|좋아|나은/
 
 export function matchSeed<T extends { q: string }>(question: string, seeds: T[]): { seed: T; score: number } | null {
   const q = normalizeQ(question)
   if (q.length < 4) return null
-  const scored = seeds.map((seed) => ({ seed, score: dice(q, normalizeQ(seed.q)) })).sort((a, b) => b.score - a.score)
+  const polar = POLARITY.test(question)
+  const scored = seeds
+    .filter((seed) => POLARITY.test(seed.q) === polar)
+    .map((seed) => ({ seed, score: dice(q, normalizeQ(seed.q)) }))
+    .sort((a, b) => b.score - a.score)
   const [best, second] = scored
   if (!best || best.score < SEED_MATCH_MIN) return null
   if (second && best.score - second.score < SEED_MATCH_MARGIN && best.score < 0.9) return null

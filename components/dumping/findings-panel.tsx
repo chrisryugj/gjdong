@@ -185,7 +185,7 @@ export default function FindingsPanel({
               </div>
             </div>
             <p className="mb-2 text-[14.5px] font-medium text-[var(--cp-text-muted)]">
-              민원 발생률 15개 동 중{" "}
+              천명당 민원 {dongs.length}개 동 중{" "}
               <b className={dongs.findIndex((x) => x.d === sel.d) < 3 ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}>
                 {dongs.findIndex((x) => x.d === sel.d) + 1}위
               </b>
@@ -261,7 +261,7 @@ export default function FindingsPanel({
                       {hi && <b className="ml-1 text-[12.5px] text-[#a8322a]">최다</b>}
                     </p>
                     <p className={`font-mono text-[17px] font-semibold ${hi ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
-                      {v.compPerDay}
+                      {v.compPerDay.toFixed(2)}
                     </p>
                     <p className="text-[12.5px] text-[var(--cp-text-faint)]">민원/일</p>
                   </div>
@@ -280,12 +280,12 @@ export default function FindingsPanel({
         </section>
       )}
 
-      {/* 기존 해석 vs 이 분석. 결론이 어디서 뒤집혔는지 보는 대비 보드. 카드 뒤에 접어 둔다 */}
+      {/* 기존 해석 vs 이번 분석. 결론이 어디서 뒤집혔는지 보는 대비 보드. 카드 뒤에 접어 둔다 */}
       {data && graph && (
         <details className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2">
           <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
             <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">04</span>
-            <span className="flex-1">통념·초기 분석과 이 분석의 차이</span>
+            <span className="flex-1">통념·초기 분석과 이번 분석의 차이</span>
             <span className="text-[13px] font-medium text-[#0c6155]">펼치기</span>
           </summary>
           <div className="mt-2">

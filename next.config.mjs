@@ -19,7 +19,11 @@ const nextConfig = {
       // 암호 게이트 페이지 — 메타 noindex(page.tsx)에 더해 헤더로도 색인 거부 (API 응답까지 포함)
       {
         source: "/dumping/:path*",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          // 음성 질의응답(마이크·호출어). 전역 microphone=()가 이 경로에도 걸려 SpeechRecognition이 not-allowed였다(2026-09-16 실측). 같은 키는 뒤 항목이 이긴다
+          { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self)" },
+        ],
       },
       {
         source: "/api/dumping/:path*",

@@ -53,6 +53,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
   const q = d.kpi.persistentQuarterly
   // 기준일(asof)은 분기 진행 중 시점이라, 직전 "분기말" 값은 배열의 마지막 항목
   const prevCritical = q.length >= 1 ? q[q.length - 1].critical : null
+  // 14라운드: 타일의 큰 숫자는 성과 판단 기준인 앱 제외 수. 전분기도 같은 기준으로 비교
+  const prevCriticalNoApp = q.length >= 1 ? (q[q.length - 1].criticalNoApp ?? null) : null
   // 채널고정(앱 제외) 민원 연도별. 앱 보급 편향을 제거한 발생 근사
   const fixedYearly: Record<string, number> = {}
   for (const ch of ["c120", "direct"]) {
@@ -89,12 +91,14 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 : "border-[var(--cp-border)] bg-[var(--cp-panel)] hover:bg-[var(--cp-hover)]"
             }`}
           >
-            <p className="text-[13.5px] text-[var(--cp-text-dim)]">집중관리 상습격자</p>
-            <p className="font-mono text-[22px] font-bold text-[#a8322a]">{d.kpi.criticalCellsNow}</p>
+            <p className="text-[13.5px] text-[var(--cp-text-dim)]">집중관리 상습격자(앱 제외)</p>
+            <p className="font-mono text-[22px] font-bold text-[#a8322a]">{d.kpi.criticalCellsNowNoApp}</p>
             <p className="text-[12.5px] text-[var(--cp-text-faint)]">
-              {d.kpi.thresholds?.months ?? 12}개월 {d.kpi.thresholds?.critical ?? 10}건+ {prevCritical != null && ` · 전분기 ${prevCritical}`}
+              {d.kpi.thresholds?.months ?? 12}개월 {d.kpi.thresholds?.critical ?? 10}건+ {prevCriticalNoApp != null && ` · 전분기 ${prevCriticalNoApp}`}
             </p>
-            <p className="text-[12.5px] font-medium text-[var(--cp-text-muted)]">앱 제외 {d.kpi.criticalCellsNowNoApp}곳</p>
+            <p className="text-[12.5px] font-medium text-[var(--cp-text-muted)]">
+              앱 포함 {d.kpi.criticalCellsNow}곳(지도){prevCritical != null && ` · 전분기 ${prevCritical}`}
+            </p>
             <p className="mt-0.5 text-[12.5px] font-medium text-[#0c6155]">
               {showCritical ? "지도 표시 중 · 눌러서 끄기" : "지도에 표시 →"}
             </p>
@@ -131,7 +135,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
           민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
           채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하면 {d.kpi.criticalCellsNow}곳,
-          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 삼아 주세요.
+          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 삼아 주세요.{" "}
           {period.lastMonth < 12 && `채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
         </p>
       </section>
@@ -198,7 +202,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionHead n="03" sub="운영 참고용 행정수요 전망">민원 접수 전망</SectionHead>
         <DetailCard onOpen={() => setModal("forecast")}>
           <p className="mb-1 text-[15.5px] text-[var(--cp-text-muted)]">
-            {fcSoFar != null ? "이번 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
+            {fcSoFar != null ? "집계 중인 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
             <b className="font-mono text-[17px] text-[var(--cp-text-strong)]">{nextFc.yhat}건</b>
             <span className="ml-1 font-mono text-[14.5px] text-[var(--cp-text-dim)]">
               (80% 구간 {nextFc.lo}~{nextFc.hi})

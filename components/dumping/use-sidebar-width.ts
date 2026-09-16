@@ -7,6 +7,23 @@ import { useCallback, useEffect, useRef, useState } from "react"
 const KEY = "dumpSidebarW"
 const MIN = 380
 
+// 스토리지 차단 브라우저·sandbox iframe에서는 접근 자체가 던진다. 폭 기억은 편의라 조용히 건너뛴다
+const readStored = (): number => {
+  try {
+    return Number(localStorage.getItem(KEY))
+  } catch {
+    return 0
+  }
+}
+const writeStored = (w: number | null) => {
+  try {
+    if (w == null) localStorage.removeItem(KEY)
+    else localStorage.setItem(KEY, String(w))
+  } catch {
+    // 무시
+  }
+}
+
 export function defaultSidebarWidth(innerWidth: number): number {
   return Math.round(Math.min(640, Math.max(420, innerWidth * 0.4)))
 }
@@ -21,7 +38,7 @@ export function useSidebarWidth() {
   const drag = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
-    const stored = Number(localStorage.getItem(KEY))
+    const stored = readStored()
     setWidth(clamp(stored > 0 ? stored : defaultSidebarWidth(window.innerWidth), window.innerWidth))
   }, [])
 
@@ -43,14 +60,14 @@ export function useSidebarWidth() {
     drag.current = null
     setDragging(false)
     setWidth((w) => {
-      if (w != null) localStorage.setItem(KEY, String(w))
+      if (w != null) writeStored(w)
       return w
     })
   }, [])
   const reset = useCallback(() => {
     drag.current = null
     setDragging(false)
-    localStorage.removeItem(KEY)
+    writeStored(null)
     setWidth(defaultSidebarWidth(window.innerWidth))
   }, [])
 

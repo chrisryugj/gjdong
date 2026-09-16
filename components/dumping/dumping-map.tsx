@@ -13,7 +13,6 @@ import type {
   InfraLayerId,
   WeatherKey,
 } from "@/lib/dumping/types"
-import { BIN_RECOS } from "@/lib/dumping/bin-recos"
 import { tallyInfra, type InfraSpot } from "@/lib/dumping/facts"
 import { CHANNEL_DEF, WEATHER_DEF, type DongMode } from "@/lib/dumping/labels"
 
@@ -85,7 +84,7 @@ function candidateTooltip(rank: number, c: CctvCandidate): string {
   return (
     `<b>재배치 후보 ${rank}위</b> · ${escapeHtml(c[4])}<br/>` +
     `<b>${escapeHtml(c[5] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
-    `민원 ${c[2]}건 · 과태료 ${c[3]}건<br/>` +
+    `민원 ${c[2]}건 · 과태료 ${c[3]}건(전 기간)<br/>` +
     `<span style="color:#a8322a">발생이력 기준 자원배분 논리. 통계 효과 근거 아님</span>`
   )
 }
@@ -274,6 +273,8 @@ export default function DumpingMap({
   const boundaryDrawn = useRef(false)
   const prevDongRef = useRef<string | null>(null)
   const resizeObsRef = useRef<ResizeObserver | null>(null)
+  // 컨테이너 높이가 0일 때(모바일 지도 접힘) 미뤄 둔 구 전체 맞춤. 높이가 생기면 ResizeObserver가 실행한다
+  const pendingFitRef = useRef<(() => void) | null>(null)
   const routesLayerRef = useRef<LayerGroup | null>(null)
   const hotspotLayerRef = useRef<LayerGroup | null>(null)
   const criticalLayerRef = useRef<LayerGroup | null>(null)
@@ -322,7 +323,16 @@ export default function DumpingMap({
         setZoomedOut(map.getZoom() < 13.5)
         setZoomTick((t) => t + 1)
       })
-      const observer = new ResizeObserver(() => mapRef.current?.invalidateSize())
+      const observer = new ResizeObserver(() => {
+        const m = mapRef.current
+        // 탭 전환으로 컨테이너가 떨어져 나간 뒤 도착한 알림은 무시(제거된 지도에 invalidateSize를 부르면 _leaflet_pos 오류)
+        if (!m || !boxRef.current?.isConnected) return
+        m.invalidateSize()
+        if (pendingFitRef.current && m.getSize().y > 0) {
+          pendingFitRef.current()
+          pendingFitRef.current = null
+        }
+      })
       observer.observe(boxRef.current)
       resizeObsRef.current = observer
       mapRef.current = map
@@ -333,6 +343,7 @@ export default function DumpingMap({
       cancelled = true
       resizeObsRef.current?.disconnect()
       resizeObsRef.current = null
+      mapRef.current?.stop() // 진행 중인 이동·줌 애니메이션 프레임이 제거된 지도를 만지지 않게
       mapRef.current?.remove()
       mapRef.current = null
       rendererRef.current = null
@@ -355,6 +366,7 @@ export default function DumpingMap({
       if (!map || !data || boundaryDrawn.current) return
       boundaryDrawn.current = true
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       const world: [number, number][] = [
         [85, -180],
         [85, 180],
@@ -376,8 +388,14 @@ export default function DumpingMap({
         dashArray: "2 6",
         interactive: false,
       }).addTo(map)
-      map.fitBounds(L.latLngBounds(data.ring), { padding: [12, 12] })
-      setZoomedOut(map.getZoom() < 13.5)
+      // 높이 0인 컨테이너에 fitBounds를 하면 Leaflet이 줌을 최대(18)로 잡아 한 블록만 보인다(2026-09-16 폰 실측). 높이가 생길 때로 미룬다
+      // animate:false — 줌 애니메이션 중 탭을 바꾸면 Leaflet이 250ms 뒤 _onZoomTransitionEnd를 제거된 지도에 불러 _leaflet_pos 오류(실측: 데이터 도착 직후 전환)
+      const fit = () => {
+        map.fitBounds(L.latLngBounds(data.ring), { padding: [12, 12], animate: false })
+        setZoomedOut(map.getZoom() < 13.5)
+      }
+      if (map.getSize().y > 0) fit()
+      else pendingFitRef.current = fit
     }
     void draw()
   }, [data, ready])
@@ -389,6 +407,7 @@ export default function DumpingMap({
       const renderer = rendererRef.current ?? undefined
       if (!map || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       gridLayerRef.current?.remove()
       const group = L.layerGroup()
       const def = BASE_DEF[base]
@@ -475,16 +494,17 @@ export default function DumpingMap({
         for (const cell of busy) {
           const v = cell[cdef.idx]
           const dimmed = isDimmed(cell)
-          // 반경은 미터. 격자(약 100m)에 붙어 줌과 함께 커지고 작아진다. 픽셀 고정이면 전체보기에서 원끼리 덮는다
+          // 반경은 미터. 격자(약 100m)에 붙어 줌과 함께 커지고 작아진다. 픽셀 고정이면 전체보기에서 원끼리 덮는다.
+          // 14라운드: 반경 상한 48m로 원이 제 칸(반지름 50m)을 넘지 않게. 26건 이상은 크기 대신 진하기로 구분(칸을 넘던 원이 옆 칸 원과 겹쳐 오독)
           L.circle([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
             pane: "dumpGrid",
             renderer,
-            radius: Math.min(70, 8 + Math.pow(v, 0.6) * 6),
+            radius: Math.min(48, 8 + Math.pow(v, 0.6) * 6),
             color: cdef.color,
             weight: 1.1,
             opacity: dimmed ? 0.15 : 0.75,
             fillColor: cdef.color,
-            fillOpacity: dimmed ? 0.04 : 0.2,
+            fillOpacity: dimmed ? 0.04 : 0.15 + 0.4 * Math.min(1, v / 40),
           })
             .bindTooltip(cellTooltip(cell), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
@@ -511,6 +531,7 @@ export default function DumpingMap({
       const map = mapRef.current
       if (!map || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       dongLayerRef.current?.remove()
       const group = L.layerGroup()
       for (const [dong, rings] of Object.entries(data.dongOutlines)) {
@@ -564,6 +585,7 @@ export default function DumpingMap({
       const renderer = infraRendererRef.current ?? undefined
       if (!map || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       infraLayerRef.current?.remove()
       const group = L.layerGroup()
 
@@ -604,7 +626,7 @@ export default function DumpingMap({
 
       if (showBinRecos) {
         // 점선 원 = 아직 없는 것(제안). 설치 현황(bins)의 채운 점과 한눈에 갈린다
-        BIN_RECOS.items.forEach((r, i) => {
+        for (const [i, r] of (data.binRecos?.items ?? []).entries()) {
           L.circleMarker([r[0], r[1]], {
             pane: "dumpInfra",
             renderer,
@@ -617,7 +639,7 @@ export default function DumpingMap({
           })
             .bindTooltip(binRecoTooltip(i + 1, r), { sticky: true, direction: "top", opacity: 1 })
             .addTo(group)
-        })
+        }
       }
 
       group.addTo(map)
@@ -673,6 +695,7 @@ export default function DumpingMap({
       hotspotLayerRef.current = null
       if (!showHotspots || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       const group = L.layerGroup()
       const HH = 56
       const maxScore = Math.max(1, ...data.decision.hotspots.top.map((h) => h[2]))
@@ -709,7 +732,7 @@ export default function DumpingMap({
       dongBarsLayerRef.current = null
       if (!showDongBars || !data) return
       const L = await import("leaflet")
-      if (!mapRef.current) return
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다
       const group = L.layerGroup()
       // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 막대를 앱·120·직접 스택으로
       const valOf = (d: (typeof data.dong)[number]) =>
@@ -805,6 +828,7 @@ export default function DumpingMap({
       gridBarsLayerRef.current = null
       if (!grid3d || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       const group = L.layerGroup()
       const ids: CircleId[] = circles.length ? circles : ["enf"]
       const dense = map.getZoom() < 14.5 // 구 전체 보기(약 13.6)에선 237칸에 값 라벨까지 세우면 서로 겹쳐 읽히지 않는다
@@ -839,6 +863,7 @@ export default function DumpingMap({
       criticalLayerRef.current = null
       if (!showCritical || !data) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       const renderer = infraRendererRef.current ?? undefined
       const group = L.layerGroup()
       const CH = 60
@@ -893,6 +918,7 @@ export default function DumpingMap({
       focusLayerRef.current = null
       if (!focusCandidate) return
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       const group = L.layerGroup()
       const marker = L.marker(focusCandidate.latlng, {
         pane: "dumpInfra",
@@ -927,6 +953,7 @@ export default function DumpingMap({
     if (!resetSeq || !map || !data) return
     const run = async () => {
       const L = await import("leaflet")
+      if (mapRef.current !== map) return // 대기 중 탭 전환으로 지도가 제거됐으면 그리지 않는다(_leaflet_pos 오류 실측)
       map.flyToBounds(L.latLngBounds(data.ring), { padding: [12, 12], duration: 0.5 })
     }
     void run()

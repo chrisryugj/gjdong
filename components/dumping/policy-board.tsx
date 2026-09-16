@@ -17,6 +17,7 @@ import {
   splitParen,
   STATUS_FALLBACK,
   STATUS_STYLE,
+  targetNote,
   type FactorStat,
   type LeverView,
 } from "./lever-view"
@@ -71,6 +72,7 @@ function LeverCard({ lv, graph, stats, onOpen, i = 0, n }: CardProps) {
           ],
         ]
     rows.push(
+      ["겨냥", targetNote(lv)], // 사람 요인 제안(2·4·5)만. 결론(구조)과 모순으로 읽히지 않게
       ["담당", lv.owner ? splitParen(lv.owner).main : null],
       ["검증", lv.verificationPlan ? joinParen(lv.verificationPlan) : null],
     )
@@ -199,8 +201,9 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
   const kpiValue = (id: string): { v: string; sub: string } | null => {
     if (!data) return null
     const k = data.decision.kpi
+    // 14라운드: 성과 판단 기준은 앱 제외 수. 큰 숫자가 그것이어야 한다(냉독: "32만 남는다"). 지도 강조는 앱 포함 목록
     if (id === "kpi-critical-cells")
-      return { v: `${k.criticalCellsNow}곳`, sub: `앱 제외 ${k.criticalCellsNowNoApp}곳 · ${k.thresholds?.months ?? 12}개월 ${k.thresholds?.critical ?? 10}건 넘는 100m 칸` }
+      return { v: `${k.criticalCellsNowNoApp}곳`, sub: `앱 제외 기준 · 앱 포함 ${k.criticalCellsNow}곳(지도) · ${k.thresholds?.months ?? 12}개월 ${k.thresholds?.critical ?? 10}건 이상 100m 칸` }
     if (id === "kpi-fixed-channel") {
       const y = data.decision.channels.yearly
       const years = Object.keys(y.c120 ?? {}).sort()

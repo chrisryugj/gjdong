@@ -3,7 +3,6 @@
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
 import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./dumping-map"
-import { BIN_RECOS } from "@/lib/dumping/bin-recos"
 import { tallyInfra } from "@/lib/dumping/facts"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
@@ -113,10 +112,8 @@ interface ToolbarProps {
 }
 
 export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
-  // 동별 막대 연도 버튼. 민원 연도(접수)와 과태료 연도(위반)를 합친 목록
-  const dongYears = data
-    ? Array.from(new Set(data.dong.flatMap((d) => [...Object.keys(d.yr?.complaints ?? {}), ...Object.keys(d.yr?.enforcement ?? {})]))).sort()
-    : []
+  // 동별 막대 연도 버튼. 민원 연도(접수) 기준. 과태료 위반 연도에는 2022·2023 이월 키(구 전체 한 자리 건수)가 있어 합치면 빈 막대 칩이 생긴다
+  const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => Object.keys(d.yr?.complaints ?? {})))).sort() : []
 
   const [layersOpen, setLayersOpen] = useState(false)
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
@@ -125,7 +122,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
 
   return (
     <div className="shrink-0 border-b border-[var(--cp-border)] bg-[var(--cp-bg)]">
-      <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none]">
+      <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] md:flex-wrap md:overflow-visible">
         <span className={LABEL}>바탕</span>
         {/* 바탕은 하나만. 분절 컨트롤로 배타 선택임을 드러낸다 */}
         <span className="flex shrink-0 overflow-hidden rounded-full border border-[var(--cp-border)] bg-white">
@@ -324,7 +321,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
             title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 모달 참고"
           >
             <i className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: BIN_RECO_COLOR }} />
-            {BIN_RECO_LABEL} {BIN_RECOS.items.length}
+            {BIN_RECO_LABEL} {data?.binRecos ? data.binRecos.items.length : ""}
           </button>
         </div>
       )}
@@ -390,7 +387,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
                   style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
                 />
                 <span>
-                  {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록 많음
+                  {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)
                 </span>
               </p>
             ))
@@ -490,7 +487,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
                     {c[5] || `${c[4]} (주소 없음)`}
                   </span>
                   <span className="block text-[13px] text-[var(--cp-text-dim)]">
-                    {c[4]} · 민원 {c[2]} · 과태료 {c[3]}
+                    {c[4]} · 민원 {c[2]} · 과태료 {c[3]} · 전 기간
                   </span>
                 </span>
               </button>

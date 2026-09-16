@@ -5,7 +5,7 @@ import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
 import { buildFindings, FINDING_GROUPS, FINDING_ORDER } from "../components/dumping/findings-data"
 import { buildSeeds } from "../components/dumping/qa-seeds"
-import { expectedEffect, factorStats, joinParen, proposalRows, requestSentence } from "../components/dumping/lever-view"
+import { expectedEffect, factorStats, joinParen, proposalRows, requestSentence, targetNote } from "../components/dumping/lever-view"
 import { buildSystemPrompt } from "../lib/dumping/context"
 import { applyErrata } from "../lib/dumping/errata"
 import { detailLines, sentencesOf } from "../lib/dumping/answer-parts"
@@ -24,7 +24,7 @@ const CHATBOT = /좋은 질문|살펴보겠습니다|주의하세요|것으로 �
 // 8라운드(검토서 A1·A2·A6): 발생 증가 배제 단정, 비유의를 "연관 없음"으로 단정, 범례 "원인 쪽", "대부분 앱 보급 효과"도 금지
 // 10라운드: 초기 주장 라벨의 단정("발생 증가가 아니라", "관리주체 부재의 함수", "대부분이 신고편향"), 홍보 어휘, 내부 과정 누출, 발생/기록 혼용
 const FORBIDDEN =
-  /신고와 무관한 실측|인구를 통제했|등록인구는 넣지 않|관리주체가 없어서 생긴|반증|낙관 편향 없음|모든 수치 재현|모든 수치가 재현|원인 규명|효과 입증|AI가 답한|발생이 아니라 신고 창구|발생 증가가 아니라|관리주체 부재의 함수|대부분이 신고편향|연관이 없었습니다|연관이 없습니다|연관이 없다|연관이 없고|원인 쪽|대부분 앱 보급 효과|최강 예측변수|데이터가 뒤집은|착시 해명|빈칸 발견|주장 철회|심사에서 나온|문구를 고쳤|출품 검토|우연히 나올 확률|우연이 아님|통째로 비어|같은 착시|지금 바로 조정|무예산|실제 발생|전체 발생/
+  /신고와 무관한 실측|인구를 통제했|등록인구는 넣지 않|관리주체가 없어서 생긴|반증|낙관 편향 없음|모든 수치 재현|모든 수치가 재현|원인 규명|효과 입증|AI가 답한|발생이 아니라 신고 창구|발생 증가가 아니라|관리주체 부재의 함수|대부분이 신고편향|연관이 없었습니다|연관이 없습니다|연관이 없다|연관이 없고|원인 쪽|대부분 앱 보급 효과|최강 예측변수|데이터가 뒤집은|착시 해명|빈칸 발견|주장 철회|심사에서 나온|문구를 고쳤|출품 검토|우연히 나올 확률|우연이 아님|통째로 비어|같은 착시|지금 바로 조정|무예산|실제 발생|전체 발생|결재용 한 장/
 // 화면 문장은 "기록"을 말한다. "실제로 발생"처럼 관측을 발생으로 바꾸는 표현 금지
 const AS_IF_OCCURRENCE = /실제로 발생|발생이 많습니다|발생도 많다/
 // 프롬프트는 금지어를 따옴표로 인용하며 "쓰지 마라"고 지시한다. 그 인용 세 가지만 빼고 같은 게이트
@@ -135,6 +135,19 @@ test("괄호 붙은 담당·비용 문구는 ' · '로 이어 한 줄로 읽힌�
   assert.strictEqual(joinParen("동주민센터"), "동주민센터")
   const cctv = proposalRows(graph).find((r) => r.lever.node.id === "lev-cctv-relocate")!
   assert.strictEqual(joinParen(cctv.owner), "청소과·동주민센터 · 276대 보유")
+})
+
+// 14라운드(심사 냉독 B-1). 사람 요인(1인세대·외국인·청년)을 겨냥한 제안 2·4·5는 "겨냥 지역은 다가구·단독 골목 그대로"를 말한다.
+// 다가구·단독 자체를 겨냥한 3·6과 요인 없는 1은 이 문장이 없다(결론과의 모순 방어는 필요한 카드에만)
+test("사람 요인 제안 3건만 겨냥 문장이 있고, 그 문장은 금지 문구를 안 쓴다", () => {
+  const rows = proposalRows(graph)
+  const notes = Object.fromEntries(rows.map((r) => [r.lever.node.id, targetNote(r.lever)]))
+  for (const id of ["lev-movein-guide", "lev-multilingual", "lev-campus"]) {
+    assert.match(notes[id] ?? "", /겨냥 지역은 다가구·단독 골목 그대로/, id)
+    assert.doesNotMatch(notes[id]!, FORBIDDEN)
+    assert.doesNotMatch(notes[id]!, OLD_NAME)
+  }
+  for (const id of ["lev-collection-time", "lev-cctv-relocate", "lev-joint-disposal"]) assert.strictEqual(notes[id], null, id)
 })
 
 // 12라운드. 제안은 "사업"이 아니라 제안·수단. 기대효과 문장은 방향(감소·안정)과 겨냥 요인만 말하고 효과 크기를 단정하지 않는다

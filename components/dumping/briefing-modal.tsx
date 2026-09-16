@@ -57,7 +57,7 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
           </p>
           <h2 className="mt-0.5 text-xl font-bold text-[var(--cp-text-strong)]">{dong}</h2>
           <p className="mt-1 text-[15.5px] text-[var(--cp-text-muted)]">
-            과태료 발생률(천명당) {data.dong.length}개 동 중{" "}
+            천명당 과태료 {data.dong.length}개 동 중{" "}
             <b className={rank <= 3 ? "text-[#a8322a]" : ""}>{rank}위</b>
           </p>
         </>

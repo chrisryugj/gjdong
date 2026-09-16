@@ -216,7 +216,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       detail: lines(
         `수치: 추가 예산 없음 ${free.join(", ") || "없음"}`,
         `수치: 저비용 ${low.join(", ") || "없음"}, 예산 필요 ${budget.join(", ") || "없음"}`,
-        `근거: 정책 제안 탭 제안 6건, 결재용 한 장`,
+        `근거: 정책 제안 탭 제안 6건`,
         `한계: 설치비·인력 시간은 시범 동을 정한 뒤 산정`,
       ),
     },

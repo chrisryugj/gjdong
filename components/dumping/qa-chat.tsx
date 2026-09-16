@@ -220,8 +220,9 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     const q = question.trim()
     if (!q || busy) return
 
-    // 같은 질문을 다시 물으면 API 호출 없이 기존 답을 맨 위로 끌어올린다. 중단된 답은 완성 답이 아니라 다시 묻는다
-    const cachedIdx = exchanges.findIndex((e) => e.q === q && !e.pending && !e.aborted)
+    // 같은 질문을 다시 물으면 API 호출 없이 기존 답을 맨 위로 끌어올린다. 중단된 답은 완성 답이 아니라 다시 묻는다.
+    // "모델에게 새로 묻기"(force)는 준비된 답을 캐시로 잡지 않고 모델을 부른다
+    const cachedIdx = opts.force ? -1 : exchanges.findIndex((e) => e.q === q && !e.pending && !e.aborted)
     if (cachedIdx >= 0) {
       setExchanges((xs) => {
         const next = xs.filter((_, i) => i !== cachedIdx)
@@ -263,7 +264,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         { role: "model" as const, text: e.a },
       ])
       .slice(-8)
-    setExchanges((xs) => [...xs.filter((e) => !(e.q === q && e.aborted)), { q, a: "", pending: true }])
+    // 중단된 답과, 새로 묻기로 대체하는 준비된 답은 목록에서 뺀다(같은 질문 카드가 둘 남지 않게)
+    setExchanges((xs) => [...xs.filter((e) => !(e.q === q && (e.aborted || opts.force))), { q, a: "", pending: true }])
     scrollRef.current?.scrollTo({ top: 0 })
     const controller = new AbortController()
     abortRef.current = controller
@@ -322,16 +324,19 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
       setExchanges((xs) => {
         const next = [...xs]
         const last = next[next.length - 1]
-        next[next.length - 1] = { ...last, a: last.a || "(빈 응답)", pending: false }
+        // 본문 없이 끝난 스트림(안전 차단·상류 타임아웃)은 완성 답으로 재사용하지 않는다
+        next[next.length - 1] = { ...last, a: last.a || "(빈 응답)", pending: false, aborted: !last.a }
         return next
       })
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError")) {
-        setError(e instanceof Error ? e.message : "오류가 발생했습니다")
+        // fetch의 TypeError는 연결 단절. 영어 원문("Failed to fetch")을 화면에 내지 않는다
+        setError(e instanceof TypeError ? "네트워크 연결이 끊겼습니다. 다시 시도해 주세요" : e instanceof Error ? e.message : "오류가 발생했습니다")
         setExchanges((xs) => (xs[xs.length - 1]?.pending ? xs.slice(0, -1) : xs))
         speaker.stop()
       } else {
-        // 중단: 받은 데까지 보여 주되 완성 답으로 취급하지 않는다
+        // 중단: 받은 데까지 보여 주되 완성 답으로 취급하지 않는다. 읽기 큐에 넣어 둔 문장도 멈춘다
+        speaker.stop()
         setExchanges((xs) => {
           const next = [...xs]
           const last = next[next.length - 1]
@@ -395,7 +400,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   ? "네, 말씀해 주세요"
                   : wakeOn
                     ? `"${WAKE_WORD}" 하고 부른 뒤 물어보세요`
-                    : "이 분석의 결과와 대책을 물어보세요"
+                    : "이번 분석의 결과와 대책을 물어보세요"
             }
             aria-label="질문"
             maxLength={500}
@@ -498,8 +503,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             : wakeOn
               ? `"${WAKE_WORD}" 하고 부르면 알림음 뒤에 질문을 받습니다. 부르면서 바로 이어 물어도 됩니다.`
               : mic.supported
-                ? "마이크를 누르고 말하면 답을 소리로 읽어 드립니다. 답은 이 분석의 근거 그래프와 수치만 바탕으로 만들어집니다."
-                : "답은 이 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
+                ? "마이크를 누르고 말하면 답을 소리로 읽어 드립니다. 답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다."
+                : "답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
         </p>
       </form>
       {/* 목소리 고르기. 누르면 그 목소리로 한 문장을 바로 읽어 준다. 선택은 이 브라우저에 저장 */}

@@ -240,7 +240,7 @@ export function geocodeExcluded(data: DumpingMapData): { complaints: number; enf
   }
 }
 
-// 외부 산출물(데이터팀 배치추천)이 이 분석의 집중관리 격자·핫스팟 20과 얼마나 겹치는가. 두 산출물이 독립임을 숫자로 보인다
+// 외부 산출물(데이터팀 배치추천)이 이번 분석의 집중관리 격자·핫스팟 20과 얼마나 겹치는가. 두 산출물이 독립임을 숫자로 보인다
 export function binRecoOverlap(data: DumpingMapData, items: [number, number, ...unknown[]][]): { total: number; inCritical: number; inHotspot: number } {
   const crit = data.decision.kpi.criticalCells
   const top = data.decision.hotspots.top

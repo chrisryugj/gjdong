@@ -20,6 +20,19 @@ test("말투만 다른 질문은 준비된 답에 붙는다", () => {
   assert.strictEqual(hit("CCTV를 어디로 옮기면 되나?"), "CCTV는 어디에 놓아야 하나?")
 })
 
+// 14라운드: 부정·반대 방향 질문은 글자가 겹쳐도 붙지 않는다(심사 자리에서 던지기 쉬운 반문)
+test("부정·반대 방향 질문은 준비된 답에 붙지 않는다", () => {
+  const hit = (q: string) => matchSeed(q, SEEDS)?.seed.q ?? null
+  assert.strictEqual(hit("CCTV는 어디에 놓으면 안 되나?"), null)
+  assert.strictEqual(hit("예산은 얼마나 절감되나?"), null)
+  assert.strictEqual(hit("작년보다 나아졌나?"), null)
+  assert.strictEqual(hit("청소차는 어디를 안 청소하나?"), null)
+  assert.strictEqual(hit("재활용정거장은 효과가 없었나?"), null)
+  // 시드 자체가 부정형이면 그 말투는 그대로 붙는다
+  assert.strictEqual(hit("으슥한 골목에 많이 버리지 않나요?"), "으슥한 골목에 많이 버리지 않나?")
+  assert.strictEqual(hit("빠뜨린 대책은 없나요?"), "빠뜨린 대책은 없나?")
+})
+
 test("다른 질문은 붙지 않는다(평가셋 11문항 전부)", () => {
   const evalQs = [
     "이동식 CCTV를 설치하면 무단투기가 얼마나 줄어드나요?",

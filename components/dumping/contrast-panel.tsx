@@ -6,7 +6,7 @@ import { channelGrowth, collinearRange, fmtRatio, regressionBetas } from "@/lib/
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 
-// 기존 해석 vs 이 분석. 통념이나 초기 분석이 말하던 것과 데이터가 말하는 것을 나란히 놓는다.
+// 기존 해석 vs 이번 분석. 통념이나 초기 분석이 말하던 것과 데이터가 말하는 것을 나란히 놓는다.
 // 왼쪽은 흐리게(지운 결론), 오른쪽은 강조. 수치는 전부 map.json·graph.json에서 파생하고,
 // export에 없는 철회 전 값(−0.772·41,633)만 README 정본을 적는다. 차트는 물어보기 탭과 같은 QaChart.
 
@@ -14,7 +14,7 @@ interface Pair {
   k: string // 한 줄 주제
   before: string // 통념·초기 분석
   beforeTag: "통념" | "초기 분석(철회)" | "원자료" // 냉독이 "초기 분석"을 외부 비판으로 읽어 철회 사실을 태그에 밝혔다
-  after: string // 이 분석
+  after: string // 이번 분석
   chart?: ChartKind
 }
 
@@ -130,8 +130,8 @@ function buildPairs(data: DumpingMapData, graph: OntoGraph): Pair[] {
     {
       k: "원자료 그대로",
       beforeTag: "원자료",
-      before: "대장에 '다가구'라 적힌 건만 집계하면 다가구·단독 주거단위 41,633.",
-      after: `'단독주택'으로 적혔지만 가구수 2 이상인 562동을 교차검증으로 찾아 ${unmUnits}(+5.4%). 계수 변화는 ±0.007.`,
+      before: "대장에 '다가구'라 적힌 건만 집계하면 다가구·단독 주거단위 41,633(정정 전 표본).",
+      after: `'단독주택'으로 적혔지만 가구수 2 이상인 562동(2,800가구)을 교차검증으로 찾아 보정. 지금 표본(2026-09-13 폴백 제외 후) 기준 ${unmUnits}. 계수 변화는 ±0.007.`,
     },
     ...extra,
   ]
@@ -142,7 +142,7 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
   const [chart, setChart] = useState<ChartKind | null>(null)
   return (
     <section>
-      <p className="mb-2 text-[13.5px] text-[var(--cp-text-dim)]">비교 {pairs.length}쌍 · 왼쪽이 통념·초기 분석, 오른쪽이 이 분석</p>
+      <p className="mb-2 text-[13.5px] text-[var(--cp-text-dim)]">비교 {pairs.length}쌍 · 왼쪽이 통념·초기 분석, 오른쪽이 이번 분석</p>
       <div className="flex flex-col gap-1.5">
         {pairs.map((p) => (
           <div key={p.k} className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5">
@@ -160,7 +160,7 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
                 →
               </span>
               <div className="rounded-lg bg-[#0c6155]/8 px-2 py-1.5">
-                <span className="mb-0.5 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[12px] font-semibold text-white">이 분석</span>
+                <span className="mb-0.5 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[12px] font-semibold text-white">이번 분석</span>
                 <p className="text-[14px] font-medium leading-snug text-[#0a4a41]">{p.after}</p>
               </div>
             </div>

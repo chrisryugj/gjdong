@@ -332,7 +332,7 @@ export default function OpsModal({
         />
         <H>읽는 법</H>
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
-          "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.
+          "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.{" "}
           {best && last && best[0] !== last[0]
             ? `${best[0]}년에 크게 개선됐다가 ${last[0]}년 들어 오래 걸리는 건이 다시 늘었습니다. 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 넘어서기 시작했다는 신호로 읽을 수 있습니다.`
             : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄어듭니다."}
@@ -377,7 +377,7 @@ export default function OpsModal({
           rows={sc.rows.filter((r) => r.dumping > 0).map((r, i) => [i + 1, r.gu === "광진구" ? "광진구 ◀" : r.gu, r.dumping, r.total, `${((r.dumping / r.total) * 100).toFixed(1)}%`])}
         />
         <Note>
-          {sc.note}. 보고 구 {sc.reportingGus}개 중 광진 {sc.gwangjin.dumpingRank}위({sc.gwangjin.dumping}대). 이 표의 광진 수치는 연계분이고, 이 분석이
+          {sc.note}. 보고 구 {sc.reportingGus}개 중 광진 {sc.gwangjin.dumpingRank}위({sc.gwangjin.dumping}대). 이 표의 광진 수치는 연계분이고, 이번 분석이
           쓴 청소과 장부는 고정 {data.infra.cctvFixed.length}개소·이동식 {data.infra.cctvMobile.length}대입니다. 출처 OA-2722.
         </Note>
 
@@ -408,7 +408,7 @@ export default function OpsModal({
       />
       <H>왜 무단투기 대시보드에 건축 허가가 나오나</H>
       <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
-        이 분석에서 가장 강한 예측변수는 다가구·단독주택 밀집입니다. 150세대 미만 공동주택은
+        이번 분석에서 가장 강한 예측변수는 다가구·단독주택 밀집입니다. 150세대 미만 공동주택은
         공동주택관리법상 의무관리 대상이 아니어서 관리사무소와 경비, 공동 배출장이 없는 경우가
         많습니다. 다만 K-apt로 나눈 세 갈래 모형에서 미등록 공동주택(다세대·연립·소형)은 과태료와의 연관이
         확인되지 않았습니다. 지금 허가를 받아 지어지는 소형 주택 {pm.guTotal.smallAptUnits12m.toLocaleString()}세대는

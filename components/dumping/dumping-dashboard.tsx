@@ -34,7 +34,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "onto", label: "근거 그래프" },
 ]
 
-const DATA_URL = (name: "map" | "graph" | "interventions") => `/api/dumping/data/${name}`
+const DATA_URL = (name: "map" | "graph" | "interventions" | "bin-recos") => `/api/dumping/data/${name}`
 
 async function fetchJson<T>(url: string): Promise<T> {
   const r = await fetch(url)
@@ -121,10 +121,12 @@ export default function DumpingDashboard() {
       fetchJson<OntoGraph>(DATA_URL("graph")),
       // 조치 대장은 없어도 화면이 선다. 실패는 null(미확보)로만 표시
       fetchJson<{ entries?: InterventionEntry[] } | null>(DATA_URL("interventions")).catch(() => null),
+      // 배치추천은 인증 라우트로만 받는다(클라이언트 번들에 평문으로 실리지 않게). 없어도 화면이 선다
+      fetchJson<DumpingMapData["binRecos"]>(DATA_URL("bin-recos")).catch(() => undefined),
     ])
-      .then(([map, g, iv]) => {
+      .then(([map, g, iv, br]) => {
         if (!alive) return
-        setMapData(map)
+        setMapData(br ? { ...map, binRecos: br } : map)
         setGraph(g)
         // 예시 항목(registeredAt 빈값)은 목록에서 제외. 스키마 안내용으로만 파일에 남는다
         setInterventions(iv ? (iv.entries ?? []).filter((e) => e.registeredAt) : null)
@@ -366,9 +368,15 @@ export default function DumpingDashboard() {
                 <OpsPanel
                   data={mapData}
                   interventions={interventions}
-                  onFocus={(latlng, label) => setFocusCandidate({ seq: Date.now(), latlng, label })}
+                  onFocus={(latlng, label) => {
+                    setFocusCandidate({ seq: Date.now(), latlng, label })
+                    setMapCollapsed(false) // 모바일: 접힌 지도에 펄스를 찍으면 아무것도 안 보인다
+                  }}
                   showCritical={showCritical}
-                  onToggleCritical={() => setShowCritical((v) => !v)}
+                  onToggleCritical={() => {
+                    setShowCritical((v) => !v)
+                    if (!showCritical) setMapCollapsed(false)
+                  }}
                 />
               )}
               {tab === "policy" && (

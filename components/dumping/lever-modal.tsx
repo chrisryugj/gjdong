@@ -16,6 +16,7 @@ import {
   splitParen,
   STATUS_FALLBACK,
   STATUS_STYLE,
+  targetNote,
   vizForLever,
   type FactorStat,
   type LeverView,
@@ -233,6 +234,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
             기대 방향 · {expect}
             {expectCaveat && <> · {expectCaveat}</>}
           </p>
+          {targetNote(lever) && <p className="mt-1.5 text-[14px] leading-snug text-[#0a4a41]">겨냥 · {targetNote(lever)}</p>}
         </div>
       )}
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
