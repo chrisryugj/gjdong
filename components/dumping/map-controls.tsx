@@ -99,7 +99,7 @@ export function vizDescription(viz: VizAction): string {
 
 const CHIP =
   "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[14px] transition-colors"
-const CHIP_OFF = "border-[var(--cp-border)] bg-white text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
 const LABEL = "shrink-0 text-[13px] font-medium text-[var(--cp-text-dim)]"
 const CHIP_SM = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[12.5px] transition-colors"
 
@@ -125,7 +125,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
       <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] md:flex-wrap md:overflow-visible">
         <span className={LABEL}>바탕</span>
         {/* 바탕은 하나만. 분절 컨트롤로 배타 선택임을 드러낸다 */}
-        <span className="flex shrink-0 overflow-hidden rounded-full border border-[var(--cp-border)] bg-white">
+        <span className="flex shrink-0 overflow-hidden rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)]">
           {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => (
             <button
               key={m}
@@ -154,7 +154,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
               aria-pressed={on}
               title={sameAsBase ? "바탕과 같은 지표는 겹칠 필요가 없습니다" : undefined}
               onClick={() => patch({ circles: on ? view.circles.filter((x) => x !== c) : [...view.circles, c] })}
-              className={`${CHIP} disabled:opacity-35 ${on ? "bg-white font-semibold" : CHIP_OFF}`}
+              className={`${CHIP} disabled:opacity-35 ${on ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
               style={on ? { borderColor: CIRCLE_DEF[c].color, color: CIRCLE_DEF[c].color } : undefined}
             >
               <i
@@ -169,7 +169,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           aria-pressed={view.dongBars}
           title="행정동 15곳의 민원·과태료 건수를 입체 막대로 비교합니다"
           onClick={() => patch({ dongBars: !view.dongBars })}
-          className={`${CHIP} ${view.dongBars ? "border-[#0c6155] bg-white font-semibold text-[#0c6155]" : CHIP_OFF}`}
+          className={`${CHIP} ${view.dongBars ? "border-[#0c6155] bg-[var(--cp-panel)] font-semibold text-[#0c6155]" : CHIP_OFF}`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
             <path d="M2 14V8h3v6zM6.5 14V4h3v10zM11 14V6h3v8z" />
@@ -224,7 +224,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           aria-pressed={view.grid3d}
           title="칸마다 원 지표(민원·과태료) 건수를 기둥으로 세웁니다. 5건 이상 칸만"
           onClick={() => patch({ grid3d: !view.grid3d })}
-          className={`${CHIP} ${view.grid3d ? "border-[#0c6155] bg-white font-semibold text-[#0c6155]" : CHIP_OFF}`}
+          className={`${CHIP} ${view.grid3d ? "border-[#0c6155] bg-[var(--cp-panel)] font-semibold text-[#0c6155]" : CHIP_OFF}`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
             <path d="M2 14V9h2v5zM5 14V5h2v9zM8 14v-3h2v3zM11 14V7h2v7z" />
@@ -235,7 +235,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           aria-pressed={!!view.weather}
           title="그 날씨 조건에 접수된 민원을 하루당 환산해 원으로 보입니다(접수일 기준)"
           onClick={() => patch({ weather: view.weather ? null : "hot" })}
-          className={`${CHIP} ${view.weather ? "border-[#c2410c] bg-white font-semibold text-[#c2410c]" : CHIP_OFF}`}
+          className={`${CHIP} ${view.weather ? "border-[#c2410c] bg-[var(--cp-panel)] font-semibold text-[#c2410c]" : CHIP_OFF}`}
         >
           날씨별
         </button>
@@ -247,7 +247,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
                 aria-pressed={view.weather === w}
                 title={WEATHER_DEF[w].label}
                 onClick={() => patch({ weather: w })}
-                className={`${CHIP_SM} ${view.weather === w ? "bg-white font-semibold" : CHIP_OFF}`}
+                className={`${CHIP_SM} ${view.weather === w ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
                 style={view.weather === w ? { borderColor: WEATHER_DEF[w].color, color: WEATHER_DEF[w].color } : undefined}
               >
                 {WEATHER_DEF[w].short}
@@ -259,7 +259,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
         <button
           aria-expanded={layersOpen}
           onClick={() => setLayersOpen((v) => !v)}
-          className={`${CHIP} ${layerCount > 0 ? "border-[var(--cp-border-active)] bg-white font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF}`}
+          className={`${CHIP} ${layerCount > 0 ? "border-[var(--cp-border-active)] bg-[var(--cp-panel)] font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF}`}
         >
           시설 레이어 {layerCount > 0 ? `${layerCount}개 표시 중` : ""} {layersOpen ? "▴" : "▾"}
         </button>
@@ -287,7 +287,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
                 aria-pressed={on}
                 onClick={() => patch({ layers: on ? view.layers.filter((l) => l !== id) : [...view.layers, id] })}
                 className={`${CHIP} ${
-                  on ? "border-[var(--cp-border-active)] bg-white font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF
+                  on ? "border-[var(--cp-border-active)] bg-[var(--cp-panel)] font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF
                 }`}
               >
                 <i className="h-2.5 w-2.5 rounded-full" style={{ background: INFRA_STYLE[id].color, opacity: on ? 1 : 0.45 }} />
@@ -316,7 +316,7 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
           <button
             aria-pressed={view.binRecos}
             onClick={() => patch({ binRecos: !view.binRecos })}
-            className={`${CHIP} ${view.binRecos ? "bg-white font-semibold" : CHIP_OFF}`}
+            className={`${CHIP} ${view.binRecos ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
             style={view.binRecos ? { borderColor: BIN_RECO_COLOR, color: BIN_RECO_COLOR } : undefined}
             title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 모달 참고"
           >
@@ -347,7 +347,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
     <>
       {/* 범례 카드. 첫 5초에 지도가 무슨 그림인지 여기서 읽힌다: 바탕 뜻·원 뜻·빈 칸 뜻.
           모바일은 지도가 작아 색띠 한 줄만 두고 접는다 */}
-      <div className="absolute bottom-3 left-3 z-[1000] w-[min(22rem,calc(100%-5.5rem))] rounded-xl border border-[var(--cp-border)] bg-white/95 text-[13.5px] leading-snug text-[var(--cp-text)] shadow-sm backdrop-blur print:hidden">
+      <div className="absolute bottom-3 left-3 z-[1000] w-[min(22rem,calc(100%-5.5rem))] rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]/95 text-[13.5px] leading-snug text-[var(--cp-text)] shadow-sm backdrop-blur print:hidden">
         <div className="flex flex-col gap-1.5 px-3 py-2.5">
           <div className="flex items-center gap-2">
             <span className="flex overflow-hidden rounded-sm">
@@ -457,7 +457,7 @@ export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null 
 
       {/* 재배치 후보 주소 목록. 우상단. 줌 버튼(우하단)·범례(좌하단)와 자리가 다르다 */}
       {view.candidates && data && (
-        <div className="absolute right-3 top-3 z-[1000] w-72 max-w-[75%] overflow-hidden rounded-xl border border-[var(--cp-border)] bg-white/95 shadow-md backdrop-blur md:w-80">
+        <div className="absolute right-3 top-3 z-[1000] w-72 max-w-[75%] overflow-hidden rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]/95 shadow-md backdrop-blur md:w-80">
           <p className="border-b border-[var(--cp-border)] px-3 py-2 text-[14px] font-semibold text-[var(--cp-text-strong)]">
             이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
             <span className="block text-[12.5px] font-normal text-[var(--cp-text-dim)]">

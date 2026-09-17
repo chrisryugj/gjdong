@@ -1019,3 +1019,84 @@
 .dump-bartip .bar { height: 6px; margin-top: 6px; border-radius: 3px; background: rgba(15, 23, 42, 0.09); overflow: hidden; }
 .dump-bartip .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
 .dump-bartip .f { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(15, 23, 42, 0.08); font-size: 11.5px; line-height: 1.45; color: #64748b; }
+
+/* ── /dumping 프리미엄 에디토리얼(2026-09-17). 종이·잉크·단일 액센트(#0c6155), 숫자는 Fraunces 세리프.
+   .dump-page 스코프라 /crowd 무영향. 그라데이션·컬러바 없음, 질감은 100m 격자 점무늬 하나 ── */
+.crowd-page.crowd-light.dump-page {
+  --dump-paper: #f4f1ea;
+  --dump-paper-white: #fffdf9;
+  --dump-ink: #171a21;
+  --dump-display: var(--font-fraunces), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --cp-bg: var(--dump-paper);
+  --cp-overlay: rgba(244, 241, 234, 0.9);
+  --cp-tip-bg: var(--dump-paper-white);
+  --cp-panel: var(--dump-paper-white);
+  --cp-panel2: #f8f5ee;
+  --cp-hover: rgba(23, 26, 33, 0.045);
+  --cp-hover2: rgba(23, 26, 33, 0.08);
+  --cp-track: rgba(23, 26, 33, 0.08);
+  --cp-border: rgba(23, 26, 33, 0.13);
+  --cp-border-faint: rgba(23, 26, 33, 0.07);
+  --cp-border-strong: rgba(23, 26, 33, 0.26);
+  --cp-border-active: rgba(23, 26, 33, 0.5);
+  --cp-text-strong: var(--dump-ink);
+  --cp-text: #262a33;
+  --cp-text-muted: #4a4f5b;
+  --cp-text-dim: #6b7079;
+  --cp-text-faint: #979ca6;
+  --cp-card-shadow: none;
+}
+/* 숫자·연도·항목 번호(.font-mono)는 세리프 탭 숫자. 한글(건·곳)은 SUIT로 떨어진다 */
+.dump-page .font-mono {
+  font-family: var(--dump-display), var(--font-suit), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variation-settings: "SOFT" 30;
+  letter-spacing: 0;
+}
+/* 항목 번호(01·02)는 이탤릭 세리프 */
+.dump-page .dump-idx {
+  font-family: var(--dump-display), serif;
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: "SOFT" 70;
+}
+/* 헤더 수치 */
+.dump-page .dump-meta-v {
+  font-family: var(--dump-display), var(--font-suit), sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variation-settings: "SOFT" 20;
+  letter-spacing: -0.015em;
+}
+/* 작은 라벨(자간 넓게) */
+.dump-page .dump-kicker {
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+/* 헤더 종이 질감: 100m 격자 점무늬(액센트, 옅게). 오른쪽으로 갈수록 사라진다 */
+.dump-page .dump-header {
+  background-color: var(--dump-paper-white);
+  background-image: radial-gradient(rgba(12, 97, 85, 0.22) 1px, transparent 1.3px);
+  background-size: 14px 14px;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 55%, rgba(0, 0, 0, 0.35) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 55%, rgba(0, 0, 0, 0.35) 100%);
+}
+/* 탭: 에디토리얼 밑줄. 선택 탭 아래로 액센트 선이 그어진다 */
+.dump-page .dump-tab { position: relative; }
+.dump-page .dump-tab::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  background: #0c6155;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.dump-page .dump-tab[aria-selected="true"]::after { transform: scaleX(1); }
+/* 카드 호버: 그림자 대신 테두리가 잉크로 진해진다 */
+.dump-page .dump-rise:hover { border-color: var(--cp-border-strong); }
+

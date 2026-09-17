@@ -25,7 +25,7 @@ export function LawRef({ keys, up = false, children }: { keys: string[]; up?: bo
       {open && (
         <span
           role="tooltip"
-          className={`absolute left-0 z-30 w-[26rem] max-w-[calc(100vw-3rem)] rounded-lg border border-[var(--cp-border)] bg-white p-3 text-left shadow-xl ${
+          className={`absolute left-0 z-30 w-[26rem] max-w-[calc(100vw-3rem)] rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left shadow-xl ${
             up ? "bottom-full mb-1.5" : "top-full mt-1.5"
           }`}
         >

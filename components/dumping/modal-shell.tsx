@@ -81,7 +81,7 @@ export default function ModalShell({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 flex items-center justify-center bg-[rgba(23,26,33,0.42)] p-4 backdrop-blur-[2px] animate-in fade-in duration-150"
       style={{ zIndex }}
       onMouseDown={(e) => {
         downOnBackdrop.current = e.target === e.currentTarget
@@ -99,7 +99,7 @@ export default function ModalShell({
         aria-labelledby={titleId}
         tabIndex={-1}
         // --cp-panel은 라이트 테마에서 비치는 틴트. 떠 있는 모달은 불투명 흰색이어야 한다
-        className={`flex max-h-[88dvh] w-full ${SIZE[size]} flex-col overflow-hidden rounded-2xl border border-[var(--cp-border)] bg-white shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200`}
+        className={`flex max-h-[88dvh] w-full ${SIZE[size]} flex-col overflow-hidden rounded-xl border border-[var(--cp-border-strong)] bg-[var(--cp-panel,#fff)] shadow-[0_24px_64px_rgba(23,26,33,0.22)] outline-none animate-in fade-in zoom-in-95 duration-200`}
       >
         <header className="flex items-start justify-between gap-3 border-b border-[var(--cp-border)] px-6 py-4">
           <div id={titleId} className="min-w-0">

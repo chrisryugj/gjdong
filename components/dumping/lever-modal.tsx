@@ -68,7 +68,7 @@ function StatRow({ s, max, highlight, noun }: { s: FactorStat; max: number; high
         />
         {/* 0 기준선은 막대 위에. 아래 깔면 긴 막대에 가려 좌우 의미가 안 읽힌다 */}
         {signed && (
-          <i className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white shadow-[0_0_0_0.5px_rgba(15,23,42,0.35)]" />
+          <i className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[var(--cp-panel)] shadow-[0_0_0_0.5px_rgba(15,23,42,0.35)]" />
         )}
       </div>
     </div>

@@ -156,7 +156,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
               <p key={k} className="flex flex-wrap items-baseline gap-1 text-[14px]">
                 <span className="shrink-0 text-[var(--cp-text-dim)]">{k}</span>
                 {ids.map((id) => (
-                  <button key={id} onClick={() => onSelect(id)} className="rounded bg-white px-1.5 py-0.5 text-left text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]">
+                  <button key={id} onClick={() => onSelect(id)} className="rounded bg-[var(--cp-panel)] px-1.5 py-0.5 text-left text-[var(--cp-text)] hover:bg-[var(--cp-hover2)]">
                     {nodeById.get(id)?.label ?? id}
                   </button>
                 ))}

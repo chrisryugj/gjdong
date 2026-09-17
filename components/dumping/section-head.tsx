@@ -5,7 +5,7 @@ export function SectionHead({ n, children, sub, first = false }: { n: string; ch
   return (
     <div className={first ? "mb-3" : "mb-3 border-t border-[var(--cp-border)] pt-5"}>
       <h3 className="flex items-baseline gap-2.5 text-[23px] font-bold leading-tight text-[var(--cp-text-strong)]">
-        <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">{n}</span>
+        <span className="dump-idx text-[17px] text-[#0c6155]">{n}</span>
         <span>{children}</span>
       </h3>
       {sub && <p className="mt-1.5 pl-9 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{sub}</p>}
@@ -17,7 +17,7 @@ export function Folded({ n, title, sub, children, defaultOpen = false }: { n: st
   return (
     <details className="group border-t border-[var(--cp-border)] pt-4" open={defaultOpen}>
       <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
-        <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">{n}</span>
+        <span className="dump-idx text-[16px] text-[#0c6155]">{n}</span>
         <span className="flex-1">{title}</span>
         <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
         <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>

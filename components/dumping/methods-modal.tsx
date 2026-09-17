@@ -243,7 +243,7 @@ export default function MethodsModal({
             onClick={() => setSection(s.id)}
             className={`flex-1 rounded-md py-1.5 text-[15.5px] font-semibold transition-colors ${
               section === s.id
-                ? "bg-white text-[var(--cp-text-strong)] shadow-sm"
+                ? "bg-[var(--cp-panel)] text-[var(--cp-text-strong)] shadow-sm"
                 : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
             }`}
           >

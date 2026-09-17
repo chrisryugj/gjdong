@@ -521,7 +521,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   onClick={() => pickVoice(v.id)}
                   aria-pressed={on}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13.5px] transition-colors ${
-                    on ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : "border-[var(--cp-border)] bg-white text-[var(--cp-text-muted)] hover:border-[#0c6155]"
+                    on ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:border-[#0c6155]"
                   }`}
                 >
                   {v.label}
@@ -696,7 +696,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                         <button
                           onClick={() => setBigChart(s.chart!)}
                           title="누르면 크게 볼 수 있습니다"
-                          className="rounded-lg border border-[var(--cp-border)] bg-white p-2.5 text-left transition-shadow hover:border-[#0c6155]/60"
+                          className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5 text-left transition-shadow hover:border-[#0c6155]/60"
                         >
                           <span className="mb-1 flex items-baseline justify-between">
                             <b className="text-[14.5px] text-[var(--cp-text-strong)]">{chartTitle(s.chart, data)}</b>

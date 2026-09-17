@@ -19,6 +19,7 @@ import QaChat from "./qa-chat"
 import { vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "./use-sidebar-width"
+import DumpMark from "./dump-mark"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
@@ -204,31 +205,45 @@ export default function DumpingDashboard() {
       : null
 
   return (
-    <div className={`crowd-page crowd-light flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)] ${settled ? "dump-anim-off" : ""}`}>
-      {/* 헤더. 처음 온 사람이 5초 안에 "무엇을 분석한 화면인지" 읽어야 한다. 부제가 대상·자료·목적을 한 문장으로 */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-4 py-2.5">
-        <button onClick={resetAll} className="min-w-0 text-left" title="첫 화면으로 돌아가기">
-          <h1 className="truncate text-[19px] font-bold leading-tight text-[var(--cp-text-strong)]">클린광진 상황실</h1>
-          <p className="line-clamp-2 text-[14px] leading-snug text-[var(--cp-text-muted)] md:line-clamp-1">
-            광진구 쓰레기 무단투기{stats ? ` 민원 ${stats.complaints.toLocaleString()}건` : ""}이 어디에 몰리고 무엇과 함께 움직이는지 100m 격자로 분석한 결과와 대책 제안
-          </p>
+    <div className={`crowd-page crowd-light dump-page flex h-dvh flex-col bg-[var(--cp-bg)] tabular-nums text-[var(--cp-text)] ${settled ? "dump-anim-off" : ""}`}>
+      {/* 헤더. 처음 온 사람이 5초 안에 "무엇을 분석한 화면인지" 읽어야 한다. 마크(격자+원)·워드마크·꼬리표, 한 문장 부제, 오른쪽에 기준일·민원·과태료 수치 */}
+      <header className="dump-header flex shrink-0 items-center gap-4 border-b border-[var(--cp-border)] px-4 py-3 md:px-5">
+        <button onClick={resetAll} className="flex min-w-0 shrink-0 items-center gap-3 text-left" title="첫 화면으로 돌아가기">
+          <DumpMark size={38} className="shrink-0" />
+          <span className="min-w-0">
+            <h1 className="truncate text-[20px] font-extrabold leading-none tracking-[-0.012em] text-[var(--cp-text-strong)]">클린광진 상황실</h1>
+            <span className="dump-kicker mt-1.5 block truncate text-[10.5px] text-[#0c6155]">광진구 · 무단투기 100m 격자 분석</span>
+          </span>
         </button>
-        <div className="ml-auto flex items-center gap-5">
-          {/* 기간·민원·과태료만. 그래프 규모(노드·엣지)는 근거 그래프 탭 안으로 옮겼다(결재선에게 뜻이 없다) */}
-          {[
-            { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? `${stats.complaints.toLocaleString()}건` : "미산출" },
-            { k: `과태료 ${stats?.finesPeriod.label ?? ""}`.trim(), v: stats ? `${stats.enforcement.toLocaleString()}건` : "미산출" },
-          ].map((s) => (
-            <div key={s.k} className="hidden text-right lg:block">
-              <p className="text-[12.5px] text-[var(--cp-text-dim)]">{s.k}</p>
-              <p className="font-mono text-[15px] font-semibold leading-tight text-[var(--cp-text-strong)]">{s.v}</p>
-            </div>
-          ))}
+        <span className="hidden h-9 w-px shrink-0 bg-[var(--cp-border)] md:block" aria-hidden />
+        <p className="hidden min-w-0 flex-1 text-[13.5px] leading-snug text-[var(--cp-text-muted)] md:line-clamp-2 xl:line-clamp-1">
+          쓰레기 무단투기{stats ? ` 민원 ${stats.complaints.toLocaleString()}건` : ""}이 어디에 몰리고 무엇과 함께 움직이는지 100m 격자로 분석한 결과와 대책 제안
+        </p>
+        <div className="ml-auto flex shrink-0 items-center gap-4">
+          {/* 기준일·기간·민원·과태료. 그래프 규모(노드·엣지)는 근거 그래프 탭 안(결재선에게 뜻이 없다) */}
+          <dl className="hidden items-stretch divide-x divide-[var(--cp-border)] lg:flex">
+            {[
+              { k: "기준일", v: mapData?.decision.asof ?? "미산출", unit: "" },
+              { k: `민원 ${stats?.period.label ?? ""}`.trim(), v: stats ? stats.complaints.toLocaleString() : "미산출", unit: stats ? "건" : "" },
+              { k: `과태료 ${stats?.finesPeriod.label ?? ""}`.trim(), v: stats ? stats.enforcement.toLocaleString() : "미산출", unit: stats ? "건" : "" },
+            ].map((s) => (
+              <div key={s.k} className="px-4 text-right first:pl-0 last:pr-0">
+                <dt className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--cp-text-faint)]">{s.k}</dt>
+                <dd className="dump-meta-v mt-0.5 text-[21px] leading-none text-[var(--cp-text-strong)]">
+                  {s.v}
+                  {s.unit && <span className="ml-0.5 font-sans text-[12px] font-medium text-[var(--cp-text-dim)]">{s.unit}</span>}
+                </dd>
+              </div>
+            ))}
+          </dl>
           <button
             onClick={() => openMethods("data")}
-            className="shrink-0 rounded-lg border border-[var(--cp-border)] px-3 py-2 text-[14px] font-medium text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+            className="group shrink-0 rounded-full border border-[var(--cp-border-strong)] px-3.5 py-2 text-[13.5px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:border-[#0c6155] hover:text-[#0c6155]"
           >
             데이터·방법
+            <span className="ml-1 inline-block transition-transform group-hover:translate-x-0.5" aria-hidden>
+              →
+            </span>
           </button>
         </div>
       </header>
@@ -238,7 +253,7 @@ export default function DumpingDashboard() {
           데이터를 불러오지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.
           <button
             onClick={() => setLoadSeq((v) => v + 1)}
-            className="rounded-md border border-red-300 bg-white px-2 py-0.5 font-medium hover:bg-red-100"
+            className="rounded-md border border-red-300 bg-[var(--cp-panel)] px-2 py-0.5 font-medium hover:bg-red-100"
           >
             다시 시도
           </button>
@@ -327,9 +342,10 @@ export default function DumpingDashboard() {
           style={side.width != null ? ({ "--dump-side-w": `${side.width}px` } as React.CSSProperties) : undefined}
           className="flex min-h-0 flex-1 flex-col border-b border-[var(--cp-border)] md:order-1 md:w-[var(--dump-side-w,480px)] md:flex-none md:border-b-0"
         >
+          {/* 탭: 상자 대신 밑줄(에디토리얼). 선택 탭 아래로 액센트 선 */}
           <nav
             role="tablist"
-            className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--cp-border)] px-2 pt-2 [scrollbar-width:none]"
+            className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-[var(--cp-border)] px-2 [scrollbar-width:none]"
           >
             {TABS.map((t) => (
               <button
@@ -337,10 +353,8 @@ export default function DumpingDashboard() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => switchTab(t.id)}
-                className={`shrink-0 whitespace-nowrap rounded-t-lg px-3 py-2.5 text-[15px] font-medium transition-colors md:px-4 md:text-[16px] ${
-                  tab === t.id
-                    ? "border border-b-0 border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-strong)]"
-                    : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
+                className={`dump-tab shrink-0 whitespace-nowrap px-3 py-3 text-[15px] font-semibold transition-colors md:px-3.5 md:text-[15.5px] ${
+                  tab === t.id ? "text-[var(--cp-text-strong)]" : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
                 }`}
               >
                 {t.label}
@@ -423,7 +437,8 @@ export default function DumpingDashboard() {
       </div>
 
       {/* 한계 고지 푸터. 모바일은 첫 문장만 (지도·패널 공간이 우선). 결재를 유보하는 문장("정밀 분석을 권합니다")이 아니라 수치의 성격과 효과 판정 방법을 말한다 */}
-      <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-3 py-2 text-center text-[13px] leading-snug text-[var(--cp-text-dim)]">
+      <footer className="shrink-0 border-t border-[var(--cp-border)] bg-[var(--cp-bg)] px-4 py-2 text-center text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
+        <span className="dump-kicker mr-2 text-[10px] text-[var(--cp-text-faint)]">한계 고지</span>
         수치는 {mapData?.decision.asof ?? ""} 기준 민원·과태료 기록의 집계이며 실제 발생량이 아닙니다.{" "}
         <span className="hidden md:inline">
           대책 효과는 조치 대장에 등록한 시범으로 판정하고, 청소차 수거 시각 자료가 확보되면 다시 분석합니다.

@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next"
+import { Fraunces } from "next/font/google"
 import DumpingClient from "@/components/dumping/client"
+
+// 프리미엄 에디토리얼(2026-09-17): 숫자·항목 번호·헤더 수치는 Fraunces 세리프(가변, 광학 크기·SOFT 축). 한글 본문은 SUIT 그대로.
+// next/font가 빌드 때 받아 셀프호스팅하므로 런타임 외부 요청 없음
+const fraunces = Fraunces({ subsets: ["latin"], axes: ["opsz", "SOFT"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap" })
 
 // searchParams를 읽지 않는다. 라우트를 정적으로 유지해 CDN 캐시를 살린다 (crowd/page.tsx 규약)
 export const viewport: Viewport = {
@@ -17,5 +22,9 @@ export const metadata: Metadata = {
 }
 
 export default function DumpingPage() {
-  return <DumpingClient />
+  return (
+    <div className={`${fraunces.variable} contents`}>
+      <DumpingClient />
+    </div>
+  )
 }
