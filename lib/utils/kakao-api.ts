@@ -1,4 +1,5 @@
 import { FALLBACK_COORDS } from "@/lib/constants"
+import { neighborBuildingQueries, pickConsistentKeywordDoc, statedAdminDong, withoutGu } from "@/lib/utils/address-hints"
 import type {
   KakaoAddressDocument,
   KakaoKeywordDocument,
@@ -233,13 +234,23 @@ export async function kakaoCoord2Region(lon: number, lat: number): Promise<Kakao
 export type ResolvedAddressResult = ResolvedDisplay
 
 function fallbackResult(address: string, message: string): ResolvedDisplay {
+  // 검색은 실패해도 주소에 적힌 동명(1:1 법정동·폐지동·행정동 표기)으로 행정동만은 살린다
+  const adminDong = statedAdminDong(address)
   return {
     display: address,
-    meta: { sido: "", gu: "", ...FALLBACK_COORDS, source: "FALLBACK" },
+    meta: { sido: "", gu: "", ...(adminDong && { adminDong }), ...FALLBACK_COORDS, source: "FALLBACK" },
     fallback: true,
-    message,
+    message: adminDong ? `${message} 주소에 적힌 동명으로 행정동만 ${adminDong}(으)로 채웠습니다.` : message,
     originalInput: address,
   }
+}
+
+const ROAD_ONLY_MESSAGE = "건물번호 없이 도로명만 일치했습니다. 도로 대표 좌표 기준이라 행정동은 추정값입니다."
+const KEYWORD_UNVERIFIED_MESSAGE = "상호 검색 결과가 입력 주소의 도로명·동과 일치하지 않아 추정값입니다."
+
+// 좌표는 유효하지만 정확 매칭이 아닌 결과(도로명만 일치·인접번호·미검증 상호) 표시. fallback+partial 조합은 finalizeResolved와 동일 규약
+function markPartial(resolved: ResolvedDisplay, message: string): ResolvedDisplay {
+  return { ...resolved, fallback: true, partial: true, message }
 }
 
 // 매칭 좌표 → 역지오코딩으로 표준주소/행정동 등 완성 (resolveAddress / resolveAddressStrict 공용)
@@ -315,6 +326,7 @@ export async function resolveAddressStrict(address: string): Promise<ResolvedDis
     const { cleaned, unit } = removeApartmentUnit(address)
     const base = cleaned
       .replace(/\([^)]*\)/g, " ") // "(화양동)" 같은 보조표기 제거
+      .replace(/[(),]/g, " ") // 짝 안 맞는 괄호("주유소))")·쉼표("570,")는 토큰을 더럽혀 번호 인식을 막는다
       .replace(/\s+/g, " ")
       .trim()
     const tokens = base.split(" ").filter(Boolean)
@@ -325,21 +337,59 @@ export async function resolveAddressStrict(address: string): Promise<ResolvedDis
     const acceptDoc = (d: KakaoAddressDocument | null): KakaoAddressDocument | null =>
       d && d.address_type !== "REGION" ? d : null
 
+    // 뒤에서부터 한 토큰씩 떼며 주소 검색. 도로명만 일치한 ROAD 결과(건물번호 없음)는 정확 매칭이 아니라
+    // 바로 채택하지 않고 기억만 해 두고, 구 오기·인접번호 시도가 다 실패했을 때 마지막 수단으로 쓴다.
     const tried = new Set<string>()
-    let doc: KakaoAddressDocument | null = null
-    for (let end = tokens.length; end >= 2 && !doc; end--) {
-      const cand = tokens.slice(0, end).join(" ")
-      if (tried.has(cand)) continue
-      tried.add(cand)
-      doc = acceptDoc(await kakaoSearchAddress(cand))
+    let roadOnlyDoc: KakaoAddressDocument | null = null
+    const trimSearch = async (toks: string[]): Promise<KakaoAddressDocument | null> => {
+      for (let end = toks.length; end >= Math.min(2, toks.length); end--) {
+        const cand = toks.slice(0, end).join(" ")
+        if (tried.has(cand)) continue
+        tried.add(cand)
+        const found = acceptDoc(await kakaoSearchAddress(cand))
+        if (!found) continue
+        if (found.address_type !== "ROAD") return found
+        roadOnlyDoc ??= found
+      }
+      return null
     }
-    if (!doc && tokens.length === 1) doc = acceptDoc(await kakaoSearchAddress(tokens[0]))
+    let doc = await trimSearch(tokens)
+
+    // 구 오기: "서울 성동구 광나루로 614"(실제 광진구)는 그대로 0건, 구를 빼면 카카오가 맞는 구로 찾는다
+    if (!doc) {
+      const noGu = withoutGu(base)
+      if (noGu) doc = await trimSearch(noGu.split(" "))
+    }
+
+    // 없는 건물번호(폐업·재개발로 번호 소멸): 같은 홀짝 인접 번호로 위치를 추정하고 partial로 표시.
+    // 뒤에서부터 뗀 후보 중 '도로명 + 번호'로 끝나는 가장 긴 것 하나에만 시도한다.
+    let partialNote: string | undefined
+    for (let end = tokens.length; end >= 2 && !doc; end--) {
+      const queries = neighborBuildingQueries(tokens.slice(0, end).join(" "))
+      if (queries.length === 0) continue
+      for (const q of queries) {
+        const found = acceptDoc(await kakaoSearchAddress(q))
+        if (found && found.address_type !== "ROAD") {
+          doc = found
+          partialNote = `건물번호가 없어 인접 번호(${q})로 추정했습니다. 행정동은 추정값입니다.`
+          break
+        }
+      }
+      break
+    }
+
+    // 도로명만 일치(ROAD): 층·호만 남은 "능동로26길 101호" 같은 입력. 도로 대표점이라 정확 매칭처럼 내보내면 안 된다
+    if (!doc && roadOnlyDoc) {
+      doc = roadOnlyDoc
+      partialNote = ROAD_ONLY_MESSAGE
+    }
     if (!doc) return fallbackResult(address, "주소를 찾을 수 없습니다. 도로명/지번 주소를 확인하세요.")
 
     const lon = Number.parseFloat(doc.x)
     const lat = Number.parseFloat(doc.y)
     if (isNaN(lon) || isNaN(lat)) return fallbackResult(address, "좌표 정보를 파싱할 수 없습니다.")
-    return finalizeResolved(lon, lat, unit, address, "ADDRESS")
+    const resolved = await finalizeResolved(lon, lat, unit, address, "ADDRESS")
+    return partialNote ? markPartial(resolved, partialNote) : resolved
   } catch (error) {
     console.error("[v0] strict resolve error:", error instanceof Error ? error.message : error)
     return fallbackResult(address, "주소 변환 중 오류가 발생했습니다.")
@@ -362,17 +412,23 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
       }
     }
 
-    // 2. 주소 검색
+    // 2. 주소 검색 (구 오기면 구를 빼고 한 번 더)
     if (!result) {
       result = (await kakaoSearchAddress(cleanedAddress)) as (KakaoAddressDocument & KakaoKeywordDocument) | null
       searchMethod = "ADDRESS"
+      const noGu = result ? null : withoutGu(cleanedAddress)
+      if (noGu) result = (await kakaoSearchAddress(noGu)) as (KakaoAddressDocument & KakaoKeywordDocument) | null
     }
 
-    // 3. 주소 검색 실패 시 키워드 검색 시도
+    // 3. 주소 검색 실패 시 키워드 검색 시도 — 첫 결과를 그대로 쓰면 다른 지점·다른 동이 잡히므로
+    //    입력의 도로명/법정동/지점명과 맞는 결과를 고르고, 확인 못 하면 첫 결과를 partial로 표시
+    let keywordUnverified = false
     if (!result && !containsBuildingKeyword(cleanedAddress)) {
       const keywordResults = await kakaoKeywordSearch(cleanedAddress)
       if (keywordResults && keywordResults.length > 0) {
-        result = keywordResults[0] as KakaoAddressDocument & KakaoKeywordDocument
+        const { doc, checked } = pickConsistentKeywordDoc(cleanedAddress, keywordResults)
+        result = (doc ?? keywordResults[0]) as KakaoAddressDocument & KakaoKeywordDocument
+        keywordUnverified = checked && !doc
         searchMethod = "KEYWORD"
       }
     }
@@ -389,7 +445,7 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
     }
 
     // 5. 좌표 → 주소 변환
-    return finalizeResolved(
+    const resolved = await finalizeResolved(
       lon,
       lat,
       apartmentUnit,
@@ -397,6 +453,9 @@ export async function resolveAddress(address: string): Promise<ResolvedDisplay> 
       searchMethod,
       searchMethod === "KEYWORD" ? result.place_name : undefined,
     )
+    if (keywordUnverified) return markPartial(resolved, KEYWORD_UNVERIFIED_MESSAGE)
+    if (searchMethod === "ADDRESS" && result.address_type === "ROAD") return markPartial(resolved, ROAD_ONLY_MESSAGE)
+    return resolved
   } catch (error) {
     console.error("[v0] Address resolution error:", error instanceof Error ? error.message : error)
     return fallbackResult(address, "주소 변환 중 오류가 발생했습니다.")

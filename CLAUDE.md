@@ -76,9 +76,11 @@ Get API key from [Kakao Developers](https://developers.kakao.com/) - create app,
 
 The resolver uses a multi-step approach:
 1. If input contains building keywords (학교, 병원, 주민센터, etc.) → try keyword search first
-2. Try address search API
-3. If address search fails → fallback to keyword search
+2. Try address search API; if 0 results and the input names a 구, retry without the 구 token (wrong-gu inputs like "서울 성동구 광나루로 614" are common — Kakao returns nothing for them but resolves the gu-less form)
+3. If address search fails → fallback to keyword search, but only take a result whose 도로명/법정동/지점명 agrees with the input ([lib/utils/address-hints.ts](lib/utils/address-hints.ts) `pickConsistentKeywordDoc`); otherwise the first hit is returned as `partial` (2026-09-17 서울페이 실측: blind first-hit picked other branches/동 — "건대후문점"→"중곡점", "골드"→"모텔골드")
 4. Convert coordinates back to standardized address format
+
+`resolveAddressStrict` (facility import, address search only) trims tokens from the end, then: gu-less retry → same-parity neighbor building numbers ±2·±4 (`partial`, message names the number used) → road-only `ROAD` match as the very last resort (`partial`, "도로명만 일치" — never treat a road-representative point as an exact match; it can land in the wrong 동) → fallback. Fallbacks still carry `meta.adminDong` when the address itself states it (1:1 법정동 화양동·능동·광장동·군자동, defunct 노유동/노유1·2동→자양4동, 모진동→화양동, or a written 행정동 like 자양4동). The facility dashboard writes a `partial` result's message into the facility `memo` so estimates stay visible. Kakao itself already tolerates "(화양동)" 보조표기, trailing 층/호/상호, "번지", "로 N길" spacing and 행정동-written jibun ("자양4동 785-1") — don't add normalizers for those.
 
 ### Output Formats
 

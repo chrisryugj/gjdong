@@ -476,6 +476,8 @@ export default function FacilityDashboard() {
           jibun: m.legalDong ? `${m.legalDong} ${m.jibunNo ?? ""}`.trim() : undefined,
           adminDong: m.adminDong,
           postalCode: m.postalCode,
+          // 추정 매칭(도로명만 일치·인접번호·미검증 상호)은 사유를 메모에 남겨 담당자가 확인할 수 있게
+          memo: r.partial ? r.message : undefined,
           lat: m.lat,
           lon: m.lon,
         })
