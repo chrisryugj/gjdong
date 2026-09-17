@@ -191,7 +191,8 @@ export function layoutRadial(graph: OntoGraph, center: string | null): Map<strin
     const keyed = nodes.map((n) => ({ n, pa: parentAngle(n) }))
     keyed.sort((a, b) => (a.pa ?? 99) - (b.pa ?? 99) || spaceRank(a.n.space) - spaceRank(b.n.space) || a.n.id.localeCompare(b.n.id))
     const start = keyed[0].pa ?? 0
-    const r = d * RADIAL_STEP
+    // 고리 반지름은 연결 거리 d에 비례하되, 노드가 많으면 둘레를 노드당 17px(첫 고리)·9px(바깥)은 확보한다
+    const r = Math.max(d * RADIAL_STEP, nodes.length * (d === 1 ? 17 : 9))
     keyed.forEach(({ n }, i) => {
       const a = nodes.length === 1 && keyed[0].pa != null ? keyed[0].pa : start + (i / nodes.length) * 2 * Math.PI
       angle.set(n.id, a)

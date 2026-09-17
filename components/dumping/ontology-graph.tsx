@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { OntoGraph } from "@/lib/dumping/types"
 import { relLabel } from "@/lib/dumping/labels"
-import { DEFAULT_ZOOM, declutterLabels, labelVisible, projScale } from "./onto-view"
-import { fitZoom, LAYOUTS, layerColumns, layoutFor, type LayoutId, type P3 } from "./onto-layouts"
+import { DEFAULT_ZOOM, labelVisible, placeLabels, projScale, type LabelCandAlt } from "./onto-view"
+import { fitZoom, HUB, LAYOUTS, layerColumns, layoutFor, type LayoutId, type P3 } from "./onto-layouts"
 
 // 온톨로지 그래프. 의존성 없이 SVG로 직접 구현.
 // 배치 4종(onto-layouts.ts)을 칩으로 바꾼다. 구면·군집은 3D(드래그 = 회전, 가만두면 자동 회전), 층별·선택 중심은 평면(드래그 = 이동).
@@ -48,8 +48,8 @@ function rotate(p: P3, yaw: number, pitch: number): P3 {
   return { x: x1, y: y2, z: z2 }
 }
 
-function shortLabel(label: string): string {
-  return label.length > 20 ? `${label.slice(0, 19)}…` : label
+function shortLabel(label: string, max = 20): string {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label
 }
 
 interface OntologyGraphProps {
@@ -77,12 +77,32 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
   const panRef = useRef(pan)
   panRef.current = pan
 
+  // 선택 중심 맞춤 줌: 전체가 아니라 가운데 노드 + 2단계 이웃까지만 화면에 맞춘다(바깥 고리까지 맞추면 콩알이 된다)
+  const radialFit = (p: Map<string, P3>, center: string | null) => {
+    if (!graph) return DEFAULT_ZOOM
+    const c = center && p.has(center) ? center : HUB
+    const ring1 = new Set<string>()
+    for (const e of graph.edges) {
+      if (e.f === c) ring1.add(e.t)
+      if (e.t === c) ring1.add(e.f)
+    }
+    const keep = new Set<string>([c, ...ring1])
+    for (const e of graph.edges) {
+      if (ring1.has(e.f)) keep.add(e.t)
+      if (ring1.has(e.t)) keep.add(e.f)
+    }
+    const sub = new Map<string, P3>()
+    for (const [id, q] of p) if (keep.has(id)) sub.set(id, q)
+    return fitZoom(sub, W, H, 0.6, 2.2)
+  }
+
   const switchLayout = (id: LayoutId) => {
     setLayout(id)
     setPan({ x: 0, y: 0 })
-    // 평면 배치는 전체가 한 화면에 들어오는 줌으로 시작(층별 흐름은 폭이 넓다). 3D는 기본 줌
+    // 평면 배치는 한 화면에 들어오는 줌으로 시작(층별 흐름은 전체, 선택 중심은 2단계 이웃까지). 3D는 기본 줌
     const def = LAYOUTS.find((l) => l.id === id)
-    if (graph && def?.flat) setView((v) => ({ ...v, k: fitZoom(layoutFor(id, graph, id === "radial" ? selectedId : null), W, H) }))
+    if (graph && id === "radial") setView((v) => ({ ...v, k: radialFit(layoutFor(id, graph, selectedId), selectedId) }))
+    else if (graph && def?.flat) setView((v) => ({ ...v, k: fitZoom(layoutFor(id, graph, null), W, H) }))
     else setView((v) => ({ ...v, k: DEFAULT_ZOOM }))
   }
 
@@ -91,7 +111,8 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     if (!flat || !selectedId) return
     const p = pos.get(selectedId)
     if (!p) return
-    const k = viewRef.current.k
+    const k = layout === "radial" ? radialFit(pos, selectedId) : viewRef.current.k
+    if (layout === "radial") setView((v) => ({ ...v, k }))
     const target = { x: -p.x * k, y: -p.y * k }
     const start = { ...panRef.current }
     const t0 = performance.now()
@@ -105,7 +126,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [flat, selectedId, pos])
+  }, [flat, layout, selectedId, pos])
 
   // 3D 배치에서 노드 선택 → 그 노드가 정면 중앙에 오도록 회전 애니메이션 (화면 밖·뒷면 노드 대응)
   useEffect(() => {
@@ -179,7 +200,8 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     )
   }
 
-  const focus = hoverId ?? selectedId
+  // 선택 중심 배치는 고른 것이 없어도 허브 기준 에고 뷰(전체 라벨을 다 그리면 읽히지 않는다)
+  const focus = hoverId ?? selectedId ?? (layout === "radial" ? HUB : null)
   const focusSet = focus ? (neighbors.get(focus) ?? new Set()) : null
 
   // 회전·투영 후 z 내림차순(뒤 → 앞) 렌더
@@ -195,25 +217,68 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     .sort((a, b) => b.z - a.z)
   const byId = new Map(projected.map((p) => [p.n.id, p]))
 
-  // 라벨 겹침 제거. 앞쪽(z 작은) 노드부터 자리 선점, 포커스·이웃은 무조건 유지.
-  // 박스 추정은 렌더와 같은 폰트 공식(한글 폭 ≈ 폰트 크기)으로 한다.
-  const labelSet = declutterLabels(
-    [...projected].reverse().flatMap(({ n, x, y, z, s }) => {
-      const fon = focus === n.id || (focusSet?.has(n.id) ?? false)
-      if (!labelVisible(z, view.k, fon)) return []
-      const base = n.type === "KPI" || n.type === "Claim" ? 14 : n.type === "Lever" ? 12 : 10
-      const nodeR = Math.max(3, base * s)
-      const fs = flat ? 13.5 : 14.5 * Math.max(0.85, Math.min(1.3, s))
-      return [{
-        id: n.id,
-        x,
-        y: y - nodeR - 5 - fs / 2,
-        w: shortLabel(n.label).length * fs * 0.92 + 8,
-        h: fs + 8,
-        keep: fon,
-      }]
-    }),
-  )
+  // 라벨 배치와 겹침 제거. 박스 추정은 렌더와 같은 폰트 공식(한글 폭 ≈ 폰트 크기).
+  // 노드를 고르면(포커스) ① 무관한 노드 라벨은 아예 숨기고 ② 이웃 라벨은 포커스에서 바깥 방향(옆·위·아래)에 놓아 선과 안 겹치게 하며
+  // ③ 이웃끼리도 충돌 검사(전에는 이웃을 무조건 그려 서로 덮였다) ④ 관계 라벨은 선의 58% 지점 옆에 두고 노드 라벨보다 뒤에 자리를 잡는다
+  const focusP = focus ? byId.get(focus) : null
+  type Slot = { tx: number; ty: number; anchor: "start" | "middle" | "end"; x: number; y: number; w: number; h: number }
+  const slotsOf = new Map<string, Slot[]>()
+  const labelCands: LabelCandAlt[] = [...projected].reverse().flatMap(({ n, x, y, z, s }) => {
+    const isFocusNode = focus === n.id
+    const fon = isFocusNode || (focusSet?.has(n.id) ?? false)
+    if (focus && !fon) return []
+    if (!labelVisible(z, view.k, fon)) return []
+    const base = n.type === "KPI" || n.type === "Claim" ? 14 : n.type === "Lever" ? 12 : 10
+    const nodeR = Math.max(3, base * s)
+    const fs = isFocusNode ? 18 : flat ? 13.5 : 14.5 * Math.max(0.85, Math.min(1.3, s))
+    const w = shortLabel(n.label, isFocusNode ? 34 : 20).length * fs * 0.92 + 8
+    const h = fs + 6
+    // 자리 후보: 위 · 아래 · 오른쪽 · 왼쪽. 포커스 이웃은 포커스에서 바깥쪽 자리를 먼저 시도한다
+    const above: Slot = { tx: 0, ty: -nodeR - 5, anchor: "middle", x, y: y - nodeR - 5 - fs / 2, w, h }
+    const below: Slot = { tx: 0, ty: nodeR + 4 + fs, anchor: "middle", x, y: y + nodeR + 4 + fs / 2, w, h }
+    const right: Slot = { tx: nodeR + 7, ty: fs * 0.36, anchor: "start", x: x + nodeR + 7 + w / 2, y, w, h }
+    const left: Slot = { tx: -(nodeR + 7), ty: fs * 0.36, anchor: "end", x: x - nodeR - 7 - w / 2, y, w, h }
+    let order: Slot[] = [above, right, left, below]
+    if (focusP && !isFocusNode) {
+      const dx = x - focusP.x
+      const dy = y - focusP.y
+      const side = dx >= 0 ? right : left
+      const vert = dy > 0 ? below : above
+      order = Math.abs(dx) >= Math.abs(dy) * 0.9 ? [side, vert, dy > 0 ? above : below] : [vert, side, dx >= 0 ? left : right]
+    }
+    slotsOf.set(n.id, order)
+    const [first, ...alts] = order
+    return [{ id: n.id, x: first.x, y: first.y, w, h, keep: isFocusNode, alts }]
+  })
+  const edgeLabelPos = new Map<number, { x: number; y: number }>()
+  if (focusP) {
+    graph.edges.forEach((e, i) => {
+      if (e.f !== focus && e.t !== focus) return
+      const other = byId.get(e.f === focus ? e.t : e.f)
+      if (!other) return
+      const dx = other.x - focusP.x
+      const dy = other.y - focusP.y
+      const len = Math.hypot(dx, dy) || 1
+      // 선의 58% 지점에서 수직으로 9px 비켜 선 위에 글자가 앉지 않게
+      let px = -dy / len
+      let py = dx / len
+      if (py > 0) {
+        px = -px
+        py = -py
+      }
+      const lx = focusP.x + dx * 0.58 + px * 9
+      const ly = focusP.y + dy * 0.58 + py * 9
+      edgeLabelPos.set(i, { x: lx, y: ly })
+      labelCands.push({ id: `e:${i}`, x: lx, y: ly, w: relLabel(e.rel).length * 12.5 * 0.92 + 6, h: 16, keep: false })
+    })
+  }
+  const chosen = placeLabels(labelCands)
+  const labelSet = new Set(chosen.keys())
+  const placement = new Map<string, Slot>()
+  for (const [id, idx] of chosen) {
+    const sl = slotsOf.get(id)?.[idx]
+    if (sl) placement.set(id, sl)
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--cp-bg)]">
@@ -282,13 +347,13 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
                 stroke={active ? "var(--cp-text)" : "var(--cp-text-faint)"}
                 strokeWidth={active ? 1.8 : 0.8}
               />
-              {active && (
+              {active && labelSet.has(`e:${i}`) && edgeLabelPos.get(i) && (
                 <text
-                  x={(a.x + b.x) / 2}
-                  y={(a.y + b.y) / 2 - 4}
+                  x={edgeLabelPos.get(i)!.x}
+                  y={edgeLabelPos.get(i)!.y}
                   textAnchor="middle"
-                  fontSize={15}
-                  fill="var(--cp-text)"
+                  fontSize={12.5}
+                  fill="var(--cp-text-muted)"
                   style={{ paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 3.5 }}
                 >
                   {relLabel(e.rel)}
@@ -329,14 +394,15 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
               />
               {showLabel && (
                 <text
-                  y={-r - 5}
-                  textAnchor="middle"
+                  x={placement.get(n.id)?.tx ?? 0}
+                  y={placement.get(n.id)?.ty ?? -r - 5}
+                  textAnchor={placement.get(n.id)?.anchor ?? "middle"}
                   fontSize={isFocus ? 18 : flat ? 13.5 : 14.5 * Math.max(0.85, Math.min(1.3, s))}
                   fontWeight={isFocus ? 700 : 500}
                   fill={faded ? "var(--cp-text-faint)" : "var(--cp-text-strong)"}
                   style={{ paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 4.5 }}
                 >
-                  {shortLabel(n.label)}
+                  {shortLabel(n.label, isFocus ? 34 : 20)}
                 </text>
               )}
             </g>

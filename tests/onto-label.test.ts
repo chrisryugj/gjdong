@@ -52,3 +52,19 @@ test("기본 줌이 확대돼 그래프가 캔버스를 채운다 (정면 중앙
   assert.ok(projScale(0, DEFAULT_ZOOM) >= 1.2,
     `projScale(0, ${DEFAULT_ZOOM}) = ${projScale(0, DEFAULT_ZOOM)}. 기본 보기가 너무 작다`)
 })
+
+// 14라운드: 대안 자리. 첫 자리가 겹치면 alts 순서로 옮기고, 전부 겹치면 숨긴다. keep은 첫 자리 고정
+test("placeLabels는 겹치는 라벨을 대안 자리로 옮기고 자리가 없으면 숨긴다", async () => {
+  const { placeLabels } = await import("../components/dumping/onto-view")
+  const box = (x: number, y: number) => ({ x, y, w: 100, h: 20 })
+  const out = placeLabels([
+    { id: "a", ...box(0, 0), keep: true },
+    { id: "b", ...box(10, 0), keep: false, alts: [box(10, 40)] }, // 첫 자리는 a와 겹침 → alt로
+    { id: "c", ...box(5, 2), keep: false, alts: [box(10, 40)] }, // 첫 자리도 alt도 겹침 → 숨김
+    { id: "d", ...box(300, 0), keep: false },
+  ])
+  assert.strictEqual(out.get("a"), 0)
+  assert.strictEqual(out.get("b"), 1)
+  assert.strictEqual(out.has("c"), false)
+  assert.strictEqual(out.get("d"), 0)
+})

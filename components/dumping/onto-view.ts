@@ -42,3 +42,30 @@ export function declutterLabels(cands: LabelCand[]): Set<string> {
   }
   return out
 }
+
+// 대안 자리가 있는 라벨 배치. 첫 자리가 이미 놓인 라벨과 겹치면 alts 순서로 시도하고, 전부 겹치면 숨긴다.
+// keep(포커스)은 첫 자리 그대로. 반환은 id → 고른 자리 인덱스(0=첫 자리, 1부터 alts)
+export interface LabelSlot {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+export interface LabelCandAlt extends LabelCand {
+  alts?: LabelSlot[]
+}
+export function placeLabels(cands: LabelCandAlt[]): Map<string, number> {
+  const placed: LabelSlot[] = []
+  const out = new Map<string, number>()
+  const clash = (c: LabelSlot) => placed.some((p) => Math.abs(p.x - c.x) < (p.w + c.w) / 2 && Math.abs(p.y - c.y) < (p.h + c.h) / 2)
+  const ordered = [...cands.filter((c) => c.keep), ...cands.filter((c) => !c.keep)]
+  for (const c of ordered) {
+    const slots: LabelSlot[] = [c, ...(c.alts ?? [])]
+    const idx = c.keep ? 0 : slots.findIndex((sl) => !clash(sl))
+    if (idx < 0) continue
+    placed.push(slots[idx])
+    out.set(c.id, idx)
+  }
+  return out
+}
+

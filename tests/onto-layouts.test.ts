@@ -58,7 +58,9 @@ test("선택 중심: 고른 노드가 원점, 직접 이웃은 첫 고리, 평�
   assert.deepStrictEqual(pos.get(center), { x: 0, y: 0, z: 0 })
   const neighbors = new Set(graph.edges.flatMap((e) => (e.f === center ? [e.t] : e.t === center ? [e.f] : [])))
   assert.ok(neighbors.size >= 5)
-  for (const id of neighbors) assert.ok(Math.abs(Math.hypot(pos.get(id)!.x, pos.get(id)!.y) - RADIAL_STEP) < 1e-6, id)
+  // 직접 이웃은 모두 같은 반지름(첫 고리)이고 그 반지름은 기본 간격 이상
+  const radii = [...neighbors].map((id) => Math.hypot(pos.get(id)!.x, pos.get(id)!.y))
+  assert.ok(radii.every((r) => Math.abs(r - radii[0]) < 1e-6 && r >= RADIAL_STEP - 1e-6), JSON.stringify(radii))
   for (const p of pos.values()) assert.strictEqual(p.z, 0)
   assert.deepStrictEqual(layoutFor("radial", graph, null).get(HUB), { x: 0, y: 0, z: 0 })
   assert.deepStrictEqual(layoutFor("radial", graph, "없는-노드").get(HUB), { x: 0, y: 0, z: 0 })
