@@ -1074,13 +1074,9 @@
   letter-spacing: 0.14em;
   font-weight: 600;
 }
-/* 헤더 종이 질감: 100m 격자 점무늬(액센트, 옅게). 오른쪽으로 갈수록 사라진다 */
+/* 헤더: 질감 없이 종이 바탕과 헤어라인만. 점무늬 격자는 그래프용지처럼 보여 뺐다(2026-09-17 피드백) */
 .dump-page .dump-header {
   background-color: var(--dump-paper-white);
-  background-image: radial-gradient(rgba(12, 97, 85, 0.22) 1px, transparent 1.3px);
-  background-size: 14px 14px;
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 55%, rgba(0, 0, 0, 0.35) 100%);
-  mask-image: linear-gradient(90deg, #000 0, #000 55%, rgba(0, 0, 0, 0.35) 100%);
 }
 /* 탭: 에디토리얼 밑줄. 선택 탭 아래로 액센트 선이 그어진다 */
 .dump-page .dump-tab { position: relative; }
