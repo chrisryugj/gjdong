@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
-import DumpingMap, { type CandidateFocus } from "./dumping-map"
+import DumpingMap, { type CameraCue, type CandidateFocus } from "./dumping-map"
 import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, type MapView } from "./map-controls"
 import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
@@ -93,6 +93,8 @@ export default function DumpingDashboard() {
   const [mapCollapsed, setMapCollapsed] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false) // 모바일 레이어 덮개
   const [demo, setDemo] = useState<number | null>(null) // 시연 모드(18라운드): 장면 번호. ←→ 키로 이동, Esc로 나감
+  const [cameraCue, setCameraCue] = useState<CameraCue | null>(null) // 시연 장면의 카메라 이동
+  const demoTimers = useRef<number[]>([]) // 장면 안에서 미뤄 둔 단계(카메라 도착 뒤 기둥이 솟는다)
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
@@ -230,12 +232,26 @@ export default function DumpingDashboard() {
   // ─── 시연 모드(18라운드, WoW): 결론 → 동별 기둥 → 상습격자 → 드론 → 정책 제안. 장면마다 지도 상태를 바꾸고 데이터 한 줄을 캡션으로.
   // 장면 문장은 전부 데이터에서(수치는 map.json·graph.json), 원고 따로 없음 ───
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
+  // 장면 규칙: 카메라가 먼저 움직이고(2.4초), 도착 즈음 데이터가 솟는다(1.6초 뒤). 도착 뒤엔 천천히 돈다(orbit). 정지 화면에서 레이어만 바뀌지 않게
+  const bboxOf = (pts: [number, number][], pad = 0.0025): [[number, number], [number, number]] => {
+    const lngs = pts.map((p) => p[0])
+    const lats = pts.map((p) => p[1])
+    return [
+      [Math.min(...lngs) - pad, Math.min(...lats) - pad],
+      [Math.max(...lngs) + pad, Math.max(...lats) + pad],
+    ]
+  }
   const scenes = useMemo(() => {
     if (!mapData) return []
     const topDong = [...mapData.dong].sort((a, b) => b.comp - a.comp)[0]
     const kpi = mapData.decision.kpi
     const bt = mapData.decision.hotspots.backtest
     const cctv = levers.find((lv) => vizForLever(lv)?.candidates) ?? levers.find((lv) => vizForLever(lv)) ?? null
+    const critBox = kpi.criticalCells.length ? bboxOf(kpi.criticalCells.map((c) => [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2])) : undefined
+    // 후보 1·2위 주변으로 내려간다(상위 5곳은 구 전체에 흩어져 조망과 같아진다)
+    const candBox = mapData.cctvCandidates.length ? bboxOf(mapData.cctvCandidates.slice(0, 2).map((c) => [c[1], c[0]]), 0.003) : undefined
+    const later = (ms: number, fn: () => void) => demoTimers.current.push(window.setTimeout(fn, ms))
+    const cue = (c: Omit<CameraCue, "seq">) => setCameraCue({ seq: Date.now(), ...c })
     return [
       {
         title: "결론",
@@ -246,7 +262,9 @@ export default function DumpingDashboard() {
           setView({ ...DEFAULT_VIEW, orbit: true })
           setSelectedDong(null)
           setShowCritical(false)
+          setFocusCandidate(null)
           clearActive()
+          cue({ pitch: 55, bearingDelta: 30, duration: 2600 })
         },
       },
       {
@@ -255,10 +273,14 @@ export default function DumpingDashboard() {
         note: "파랑 기둥 = 민원, 갈색 기둥 = 과태료 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
         apply: () => {
           setTab("policy")
-          setView({ ...DEFAULT_VIEW, dongBars: true, dongMode: "total", circles: [] })
+          setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
           setSelectedDong(null)
           setShowCritical(false)
+          setFocusCandidate(null)
           clearActive()
+          // 낮게 내려가 기둥이 서는 걸 올려다본다. 도착 즈음 기둥이 솟는다
+          cue({ pitch: 63, bearingDelta: 40, duration: 2600 })
+          later(1600, () => setView((v) => ({ ...v, dongBars: true, dongMode: "total" })))
         },
       },
       {
@@ -267,10 +289,14 @@ export default function DumpingDashboard() {
         note: "빨간 기둥 = 12개월 민원+과태료 건수 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
         apply: () => {
           setTab("ops")
-          setView({ ...DEFAULT_VIEW, circles: [] })
+          setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
           setSelectedDong(null)
-          setShowCritical(true)
+          setShowCritical(false)
+          setFocusCandidate(null)
           clearActive()
+          // 상습격자가 모인 범위로 가까이. 도착 즈음 빨간 기둥이 솟는다
+          cue({ bounds: critBox, maxZoom: 14.6, pitch: 60, bearingDelta: -35, duration: 2600 })
+          later(1600, () => setShowCritical(true))
         },
       },
       {
@@ -282,17 +308,22 @@ export default function DumpingDashboard() {
           setView({ ...DEFAULT_VIEW, fly: true })
           setSelectedDong(null)
           setShowCritical(false)
+          setFocusCandidate(null)
           clearActive()
         },
       },
       {
         title: "정책 제안",
         caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
-        note: "빨간 말뚝 = 재배치 후보(발생이력 순, 자원배분 논리) · 효과는 조치 대장에 등록한 시범으로 판정",
+        note: "검은 말뚝 = 재배치 후보(발생이력 순, 자원배분 논리) · 보라 말뚝 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
           setShowCritical(false)
+          setFocusCandidate(null)
           if (cctv) applyLeverViz(cctv)
+          setView((v) => ({ ...v, fly: false, orbit: true }))
+          // 후보 상위 5곳이 든 범위로. 말뚝은 카메라 도착 즈음
+          cue({ bounds: candBox, maxZoom: 15.4, pitch: 60, bearingDelta: 45, duration: 3200 })
         },
       },
     ]
@@ -300,8 +331,14 @@ export default function DumpingDashboard() {
 
   useEffect(() => {
     if (demo === null || !scenes[demo]) return
+    for (const t of demoTimers.current) window.clearTimeout(t)
+    demoTimers.current = []
     scenes[demo].apply()
     setMapCollapsed(false)
+    return () => {
+      for (const t of demoTimers.current) window.clearTimeout(t)
+      demoTimers.current = []
+    }
   }, [demo])
 
   useEffect(() => {
@@ -327,6 +364,7 @@ export default function DumpingDashboard() {
 
   const endDemo = () => {
     setDemo(null)
+    setCameraCue(null)
     setView((v) => ({ ...v, fly: false, orbit: false }))
   }
 
@@ -406,6 +444,7 @@ export default function DumpingDashboard() {
             onOrbitStop={stopOrbit}
             resetSeq={resetSeq}
             fitPadding={fitPadding}
+            cameraCue={cameraCue}
           />
         ) : (
           // 근거 그래프는 제 툴바(범례·배치·확대)를 갖고 있어 상단 띠·카드 밖 영역에만 그린다

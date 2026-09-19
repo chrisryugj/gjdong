@@ -356,7 +356,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ candidates: !view.candidates })}
           className={`${ROW} ${view.candidates ? ROW_ON : ROW_OFF}`}
         >
-          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed border-red-600" style={{ opacity: view.candidates ? 1 : 0.7 }} />
+          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--dump-ink)]" style={{ opacity: view.candidates ? 1 : 0.7 }} />
           <span className="min-w-0 flex-1">CCTV 재배치 후보</span>
           <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data ? data.cctvCandidates.length : 20}</span>
         </button>
@@ -515,12 +515,12 @@ export function CandidateList({ data, onFocusCandidate }: { data: DumpingMapData
             key={i}
             onClick={() => onFocusCandidate({ seq: Date.now(), latlng: [c[0], c[1]], label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}` })}
             className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
-              i < 3 ? "bg-red-50/70" : ""
+              i < 3 ? "bg-(--dump-accent)/8" : ""
             }`}
           >
             <span
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold text-white ${
-                i < 3 ? "bg-red-600 ring-2 ring-red-300" : "bg-red-400"
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold text-[var(--dump-paper)] ${
+                i < 3 ? "bg-[var(--dump-ink)] ring-2 ring-(--dump-accent)/50" : "bg-[var(--dump-ink)] opacity-75"
               }`}
             >
               {i + 1}

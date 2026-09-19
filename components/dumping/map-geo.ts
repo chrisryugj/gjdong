@@ -25,6 +25,16 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
 
 // 배치 추천은 설치 현황이 아니라 제안이라 인프라 레이어와 색·모양을 갈라 둔다(점선 원 = 아직 없는 것)
 export const BIN_RECO_COLOR = "#be185d"
+// 재배치 후보(제안 위치)는 잉크색. 빨강은 과태료 램프·핫스팟 기둥과 겹쳐 "제안 위치와 과태료가 구분 안 됐다"(18라운드 실측). 라벨은 종이색
+export const CAND_COLOR = { light: "#1c1a15", dark: "#ece7dc" } as const
+export const CAND_LABEL_COLOR = { light: "#fbf9f3", dark: "#14181b" } as const
+
+// 두 hex 색을 섞는다(t=0이면 a). 점 레이어가 켜졌을 때 건물 히트맵을 중립색 쪽으로 눌러 말뚝이 앞에 서게
+export function mixHex(a: string, b: string, t: number): string {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16))
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16))
+  return `#${pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join("")}`
+}
 export const BIN_RECO_LABEL = "가로쓰레기통 배치추천(데이터팀)"
 
 // 바탕(면)은 하나만. 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
@@ -68,50 +78,145 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
-export function cellTooltip(cell: GridCell): string {
-  const dong = escapeHtml(cell[7] || "광진구")
+// ─── 카드형 툴팁(18라운드). 글자 나열 대신 머리(꼬리표·제목·배지) + 지표 타일(색 칩·큰 숫자·단위·구 최댓값 대비 막대) + 각주. 스타일은 globals.css .dump-tip ───
+export interface TipMetric {
+  label: string
+  value: number | string
+  unit?: string
+  color?: string
+  ratio?: number // 0~1, 막대 길이(구 최댓값 대비). 없으면 막대 없음
+  sub?: string // 숫자 옆 작은 보조(예: "하루당 0.12")
+}
+export interface TipCard {
+  kicker?: string
+  title: string
+  badges?: { label: string; color: string }[]
+  metrics?: TipMetric[]
+  lines?: string[] // 본문 줄(시설 이름 등). 이미 escape된 HTML
+  note?: string
+  noteColor?: string
+}
+export function tipCard(c: TipCard): string {
+  const badges = (c.badges ?? []).map((b) => `<span class="b" style="--c:${b.color}">${escapeHtml(b.label)}</span>`).join("")
+  const metrics = (c.metrics ?? [])
+    .map((m) => {
+      const v = typeof m.value === "number" ? m.value.toLocaleString() : escapeHtml(m.value)
+      const bar = m.ratio != null ? `<em><i style="width:${Math.round(Math.max(0, Math.min(1, m.ratio)) * 100)}%"></i></em>` : ""
+      const sub = m.sub ? `<span class="s">${escapeHtml(m.sub)}</span>` : ""
+      return `<div class="m" style="--c:${m.color ?? "#64748b"}"><span class="l">${m.color ? "<i></i>" : ""}${escapeHtml(m.label)}</span><b>${v}${m.unit ? `<small>${escapeHtml(m.unit)}</small>` : ""}</b>${sub}${bar}</div>`
+    })
+    .join("")
+  const lines = (c.lines ?? []).map((l) => `<div class="p">${l}</div>`).join("")
+  return (
+    `<div class="dump-tip">` +
+    (c.kicker ? `<div class="k">${escapeHtml(c.kicker)}</div>` : "") +
+    `<div class="t">${escapeHtml(c.title)}${badges}</div>` +
+    (metrics ? `<div class="g">${metrics}</div>` : "") +
+    lines +
+    (c.note ? `<div class="f"${c.noteColor ? ` style="color:${c.noteColor}"` : ""}>${escapeHtml(c.note)}</div>` : "") +
+    `</div>`
+  )
+}
+
+// 격자 지표 최댓값(막대 기준). 데이터 객체마다 한 번만
+const maxCache = new WeakMap<DumpingMapData, { comp: number; enf: number; unm: number; lp: number }>()
+export function gridMaxes(data: DumpingMapData): { comp: number; enf: number; unm: number; lp: number } {
+  let m = maxCache.get(data)
+  if (!m) {
+    m = { comp: 1, enf: 1, unm: 1, lp: 1 }
+    for (const c of data.grid) {
+      m.comp = Math.max(m.comp, c[4])
+      m.enf = Math.max(m.enf, c[5])
+      m.unm = Math.max(m.unm, c[6])
+      m.lp = Math.max(m.lp, c[8] ?? 0)
+    }
+    maxCache.set(data, m)
+  }
+  return m
+}
+const CELL_COLORS = { comp: "#a8322a", enf: "#5b21b6", unm: "#2f8267", lp: "#4c5d7c" } as const
+
+export function cellMetrics(cell: GridCell, max: ReturnType<typeof gridMaxes>): TipMetric[] {
+  const out: TipMetric[] = [
+    { label: "민원", value: cell[4], unit: "건", color: CELL_COLORS.comp, ratio: cell[4] / max.comp },
+    { label: "과태료", value: cell[5], unit: "건", color: CELL_COLORS.enf, ratio: cell[5] / max.enf },
+    { label: "다가구·단독", value: cell[6], unit: "세대", color: CELL_COLORS.unm, ratio: cell[6] / max.unm },
+  ]
   // 서울시 생활인구(2026-07 한 달, 24시간·31일 평균). 250m 격자를 100m 칸에 면적 비례로 나눈 값. 설명은 지도 도움말·방법 모달에
-  const lp = cell[8] ? `<br/>생활인구 ${cell[8].toLocaleString()}명` : ""
-  return `<b>${dong}</b><br/>민원 ${cell[4]}건 · 과태료 ${cell[5]}건<br/>다가구·단독 ${cell[6]}세대${lp}`
+  if (cell[8]) out.push({ label: "생활인구", value: Math.round(cell[8]), unit: "명", color: CELL_COLORS.lp, ratio: cell[8] / max.lp })
+  return out
+}
+export function cellTooltip(cell: GridCell, max: ReturnType<typeof gridMaxes>, extra?: TipMetric[], note?: string): string {
+  return tipCard({ kicker: "100m 칸 · 막대는 구 최댓값 대비", title: cell[7] || "광진구", metrics: [...cellMetrics(cell, max), ...(extra ?? [])], note })
 }
 
 export function candidateTooltip(rank: number, c: CctvCandidate): string {
-  return (
-    `<b>재배치 후보 ${rank}위</b> · ${escapeHtml(c[4])}<br/>` +
-    `<b>${escapeHtml(c[5] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
-    `민원 ${c[2]}건 · 과태료 ${c[3]}건(전 기간)<br/>` +
-    `<span style="color:#a8322a">발생이력 기준 자원배분 논리. 통계 효과 근거 아님</span>`
-  )
+  return tipCard({
+    kicker: `이동식 CCTV 재배치 후보 ${rank}위 · ${c[4]}`,
+    title: `${c[5] || "대표 주소 없음(격자 중심)"} 인근`,
+    metrics: [
+      { label: "민원", value: c[2], unit: "건", color: CELL_COLORS.comp },
+      { label: "과태료", value: c[3], unit: "건", color: CELL_COLORS.enf },
+    ],
+    note: "전 기간 · 발생이력 기준 자원배분 논리. 통계 효과 근거 아님",
+    noteColor: "#a8322a",
+  })
 }
 
 // 한 좌표에 여러 설치장소가 겹칠 때 전부 보여준다. 점 하나가 곧 한 곳이라는 오해를 여기서 끊는다
 export function infraTooltip(id: InfraLayerId, spot: InfraSpot): string {
-  const { label } = INFRA_STYLE[id]
-  const head = spot.at.length > 1 ? `<b>${label}</b> · 이 지점에 ${spot.at.length}곳` : `<b>${label}</b>`
-  const body = spot.at
-    .map((p) => `${escapeHtml(p[2])}${p[3] ? ` <span style="color:#64748b">${escapeHtml(p[3])}</span>` : ""}`)
-    .join("<br/>")
-  return `${head}<br/>${body}`
+  const { label, color } = INFRA_STYLE[id]
+  return tipCard({
+    kicker: spot.at.length > 1 ? `${label} · 이 지점에 ${spot.at.length}곳` : label,
+    title: spot.at[0] ? spot.at[0][2] : label,
+    badges: [{ label: `${spot.at.length}곳`, color }],
+    lines: spot.at.slice(spot.at.length > 1 ? 0 : 1).map((p) => `${escapeHtml(p[2])}${p[3] ? ` <span class="d">${escapeHtml(p[3])}</span>` : ""}`).concat(spot.at.length === 1 && spot.at[0][3] ? [`<span class="d">${escapeHtml(spot.at[0][3])}</span>`] : []),
+  })
 }
 
 export function binRecoTooltip(seq: number, r: BinReco): string {
-  return (
-    `<b>${BIN_RECO_LABEL} ${seq}번</b> · ${escapeHtml(r[2])}<br/>` +
-    `<b>${escapeHtml(r[3] || r[4])}</b><br/>` +
-    (r[3] && r[4] ? `${escapeHtml(r[4])}<br/>` : "") +
-    `<span style="color:#be185d">데이터팀 격자분석 제안. 번호는 자료 순서이지 우선순위가 아니고, 설치 지점은 현장 확인이 필요합니다</span>`
-  )
+  return tipCard({
+    kicker: `${BIN_RECO_LABEL} ${seq}번 · ${r[2]}`,
+    title: r[3] || r[4],
+    lines: r[3] && r[4] ? [escapeHtml(r[4])] : [],
+    note: "데이터팀 격자분석 제안. 번호는 자료 순서이지 우선순위가 아니고, 설치 지점은 현장 확인이 필요합니다",
+    noteColor: BIN_RECO_COLOR,
+  })
 }
 
 export function hotspotTooltip(rank: number, h: HotspotRow): string {
-  return (
-    `<b>예측 핫스팟 ${rank}위</b> · ${escapeHtml(h[5] || "광진구")}<br/>` +
-    `<b>${escapeHtml(h[6] || "대표 주소 없음 (격자 중심)")}</b> 인근<br/>` +
-    `최근 180일 민원 ${h[3]}건 · 과태료 ${h[4]}건<br/>` +
-    `<span style="color:#64748b">이유 · 최근 90일 ${h[9]}건(이전 90일 ${h[10]}건) · 12개월 ${h[8]}건${h[11] >= 0 ? ` · 마지막 기록 ${h[11]}일 전` : ""}</span>` +
-    (h[12] === 1 ? `<br/><span style="color:#a8322a">집중관리 상습격자</span>` : "") +
-    (h[7] === 0 ? `<br/><span style="color:#b45309">이동식 CCTV 없음</span>` : "")
-  )
+  const badges: { label: string; color: string }[] = []
+  if (h[12] === 1) badges.push({ label: "집중관리", color: "#a8322a" })
+  if (h[7] === 0) badges.push({ label: "CCTV 없음", color: "#b45309" })
+  return tipCard({
+    kicker: `예측 핫스팟 ${rank}위 · ${h[5] || "광진구"}`,
+    title: `${h[6] || "대표 주소 없음(격자 중심)"} 인근`,
+    badges,
+    metrics: [
+      { label: "최근 180일 민원", value: h[3], unit: "건", color: CELL_COLORS.comp },
+      { label: "최근 180일 과태료", value: h[4], unit: "건", color: CELL_COLORS.enf },
+      { label: "최근 90일", value: h[9], unit: "건", sub: `이전 90일 ${h[10]}건` },
+      { label: "12개월", value: h[8], unit: "건", sub: h[11] >= 0 ? `마지막 기록 ${h[11]}일 전` : undefined },
+    ],
+    note: "순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수",
+  })
+}
+
+export function criticalTooltip(c: DumpingMapData["decision"]["kpi"]["criticalCells"][number], max: number): string {
+  return tipCard({
+    kicker: `집중관리 상습격자 · ${c[5] || "광진구"}`,
+    title: "최근 12개월 10건 이상 칸",
+    metrics: [{ label: "12개월 민원+과태료", value: c[4], unit: "건", color: CRIT_COLOR, ratio: c[4] / Math.max(1, max) }],
+  })
+}
+
+export function routeTooltip(name: string, focus: boolean): string {
+  return tipCard({
+    kicker: focus ? "집중관리도로" : "일반관리도로",
+    title: name,
+    lines: [focus ? "겨울 4회/일 · 평상시 1회/일" : "평상시 1회/2일 이상"],
+    note: "도로명 기준 표시(광진 구간 전체) · 2026 도로청소 종합계획",
+  })
 }
 
 export interface CandidateFocus {
@@ -160,11 +265,12 @@ export const colHeight = (v: number, max: number): number => COL_MIN_M + (Math.m
 
 // 격자 폴리곤 전체. 바탕·툴팁·0칸 판정에 쓰는 속성만 담는다
 export function gridFC(data: DumpingMapData): FC {
+  const max = gridMaxes(data)
   return fc(
     data.grid.map((c, i) => ({
       type: "Feature",
       id: i,
-      properties: { i, comp: c[4], enf: c[5], unm: c[6], lp: c[8], dong: c[7] || "", tip: cellTooltip(c) },
+      properties: { i, comp: c[4], enf: c[5], unm: c[6], lp: c[8], dong: c[7] || "", tip: cellTooltip(c, max) },
       geometry: cellPolygon(c[0], c[1], c[2], c[3]),
     })),
   )
@@ -173,6 +279,7 @@ export function gridFC(data: DumpingMapData): FC {
 // 원 오버레이(민원·과태료). 반경은 미터(원은 제 칸 안, 상한 48m). 26건 이상은 크기 대신 진하기(14라운드)
 export function circlesFC(data: DumpingMapData, circles: CircleId[]): FC {
   const feats: Feature[] = []
+  const max = gridMaxes(data)
   for (const cid of circles) {
     const cdef = CIRCLE_DEF[cid]
     for (const c of data.grid) {
@@ -185,7 +292,7 @@ export function circlesFC(data: DumpingMapData, circles: CircleId[]): FC {
           r: Math.min(48, 8 + Math.pow(v, 0.6) * 6),
           color: cdef.color,
           fill: 0.15 + 0.4 * Math.min(1, v / 40),
-          tip: cellTooltip(c),
+          tip: cellTooltip(c, max),
         },
         geometry: { type: "Point", coordinates: cellCenter(c) },
       })
@@ -203,6 +310,7 @@ export function weatherFC(data: DumpingMapData, weather: WeatherKey): FC {
   const days = Math.max(1, data.env.weatherDays[weather])
   const wdef = WEATHER_DEF[weather]
   const maxCnt = Math.max(1, ...data.env.cellWeather.map((v) => v[k]))
+  const max = gridMaxes(data)
   const feats: Feature[] = []
   data.grid.forEach((c, i) => {
     const cnt = data.env.cellWeather[i]?.[k] ?? 0
@@ -214,7 +322,7 @@ export function weatherFC(data: DumpingMapData, weather: WeatherKey): FC {
         dong: c[7] || "",
         r: 6 + Math.sqrt(cnt / maxCnt) * 64,
         color: wdef.color,
-        tip: `${cellTooltip(c)}<br/><span style="color:${wdef.color}">${wdef.label} 민원 ${cnt}건 · 하루당 ${(cnt / days).toFixed(2)}건(100일 환산 ${per100.toFixed(1)})</span>`,
+        tip: cellTooltip(c, max, [{ label: `${wdef.label} 민원`, value: cnt, unit: "건", color: wdef.color, ratio: cnt / maxCnt, sub: `하루당 ${(cnt / days).toFixed(2)} · 100일 환산 ${per100.toFixed(1)}` }], "접수일 기준이라 투기 시각은 아님"),
       },
       geometry: { type: "Point", coordinates: cellCenter(c) },
     })
@@ -225,6 +333,7 @@ export function weatherFC(data: DumpingMapData, weather: WeatherKey): FC {
 // 격자 기둥: 칸마다 원 지표 1~2개(민원·과태료). 지표가 둘이면 칸을 좌우로 갈라 나란히 세운다
 export function gridColumnsFC(data: DumpingMapData, ids: CircleId[], selectedDong: string | null): FC {
   const maxV = Math.max(1, ...ids.flatMap((id) => data.grid.map((c) => c[CIRCLE_DEF[id].idx])))
+  const max = gridMaxes(data)
   const feats: Feature[] = []
   for (const c of data.grid) {
     if (selectedDong && c[7] !== selectedDong) continue
@@ -243,7 +352,7 @@ export function gridColumnsFC(data: DumpingMapData, ids: CircleId[], selectedDon
             })()
       feats.push({
         type: "Feature",
-        properties: { v, h: colHeight(v, maxV), color: COL_COLOR[id], metric: CIRCLE_DEF[id].label, tip: cellTooltip(c) },
+        properties: { v, h: colHeight(v, maxV), color: COL_COLOR[id], metric: CIRCLE_DEF[id].label, tip: cellTooltip(c, max) },
         geometry,
       })
     })
@@ -259,7 +368,7 @@ export function criticalFC(data: DumpingMapData): { cells: FC; cols: FC; labels:
   const cols: Feature[] = []
   const labels: Feature[] = []
   for (const c of rows) {
-    const tip = `<b>집중관리 상습격자</b> · ${escapeHtml(c[5] || "광진구")}<br/>최근 12개월 민원+과태료 ${c[4]}건`
+    const tip = criticalTooltip(c, maxCrit)
     cells.push({ type: "Feature", properties: { tip }, geometry: cellPolygon(c[0], c[1], c[2], c[3]) })
     cols.push({ type: "Feature", properties: { h: colHeight(c[4], maxCrit), tip }, geometry: cellPolygon(c[0], c[1], c[2], c[3], 0.22) })
     labels.push({ type: "Feature", properties: { label: String(c[4]) }, geometry: { type: "Point", coordinates: [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2] } })
@@ -383,10 +492,7 @@ export function routesFC(links: { n?: string; p: number[][] }[]): FC {
       type: "Feature",
       properties: {
         focus: focus ? 1 : 0,
-        tip:
-          `<b>${focus ? "집중관리도로" : "일반관리도로"}</b> · ${escapeHtml(name)}<br/>` +
-          (focus ? "겨울 4회/일 · 평상시 1회/일" : "평상시 1회/2일 이상") +
-          `<br/><span style="color:#64748b">도로명 기준 표시(광진 구간 전체)</span>`,
+        tip: routeTooltip(name, focus),
       },
       geometry: { type: "LineString", coordinates: link.p.map((p) => [p[1], p[0]]) },
     })
@@ -540,8 +646,8 @@ export const CYL_MIN_M = 30 // 원기둥 최소 높이. 3층 다가구(약 10m) 
 export const CYL_MAX_M = 240
 export const POST_R_M = 9 // 시설 말뚝 반지름(m)
 export const POST_H_M = 34
-export const CAND_POST_R_M = 14 // 재배치 후보 말뚝
-export const CAND_POST_H_M = 70
+export const CAND_POST_R_M = 13 // 재배치 후보 말뚝(잉크색, 시설 말뚝보다 높다)
+export const CAND_POST_H_M = 96
 export const RECO_RING_R_M = 17 // 배치추천 고리(아직 없는 것이라 속이 빈 고리)
 export const RECO_RING_H_M = 12
 export const FOCUS_RING_R_M = 46 // 초점 고리(목록 클릭·드론 목표)
@@ -569,6 +675,7 @@ export function ringPolygon(lng: number, lat: number, r: number, t: number, n = 
 export function circleColumnsFC(data: DumpingMapData, circles: CircleId[]): FC {
   const feats: Feature[] = []
   const both = circles.length > 1
+  const max = gridMaxes(data)
   circles.forEach((cid, k) => {
     const cdef = CIRCLE_DEF[cid]
     const maxV = Math.max(1, ...data.grid.map((c) => c[cdef.idx]))
@@ -580,7 +687,7 @@ export function circleColumnsFC(data: DumpingMapData, circles: CircleId[]): FC {
       const lng = both ? lng0 + ((k === 0 ? -1 : 1) * 20) / (111320 * Math.cos((lat * Math.PI) / 180)) : lng0
       feats.push({
         type: "Feature",
-        properties: { dong: c[7] || "", v, h: CYL_MIN_M + (v / maxV) * (CYL_MAX_M - CYL_MIN_M), color: cdef.color, tip: cellTooltip(c) },
+        properties: { dong: c[7] || "", v, h: CYL_MIN_M + (v / maxV) * (CYL_MAX_M - CYL_MIN_M), color: cdef.color, tip: cellTooltip(c, max) },
         geometry: discPolygon(lng, lat, r),
       })
     }

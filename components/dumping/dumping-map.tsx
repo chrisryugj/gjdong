@@ -20,6 +20,8 @@ import { BASEMAP_BOUNDS, BASEMAP_SOURCE, DEM_SOURCE, HAS_NSDI_BUILDINGS, HILLSHA
 import {
   BASE_DEF,
   BIN_RECO_COLOR,
+  CAND_COLOR,
+  CAND_LABEL_COLOR,
   CAND_POST_H_M,
   CAND_POST_R_M,
   CRIT_COLOR,
@@ -49,6 +51,7 @@ import {
   gridFC,
   hotspotsFC,
   infraFC,
+  mixHex,
   postsFC,
   radiusMetersExpr,
   ringFC,
@@ -70,6 +73,14 @@ import {
 // 레이어는 처음 한 번 전부 선언하고(빈 데이터) 이후에는 setData·setPaintProperty·visibility만 바꾼다(엔진 관용구, 재생성 비용 0)
 // 상수·툴팁·GeoJSON 조립은 map-geo.ts(엔진 없이 테스트 가능. 이 파일은 CSS를 임포트해 tsx 테스트가 못 읽는다)
 export type { CandidateFocus } from "./map-geo"
+export interface CameraCue {
+  seq: number
+  bounds?: [[number, number], [number, number]] // [lng,lat] 최소·최대. 없으면 구 전체
+  maxZoom?: number
+  pitch?: number
+  bearingDelta?: number // 현재 방위에서 이만큼 돌며 간다(도)
+  duration?: number // ms
+}
 
 // 입체 보기 카메라. 기울기 55도·살짝 돌린 방위(구가 화면 대각선에 눕는다)
 export const TILT_PITCH = 55
@@ -181,6 +192,8 @@ interface DumpingMapProps {
   fly: boolean // 드론 비행(시연용). 구 전체 → 핫스팟 상위 5곳을 천천히 돌고 돌아온다. 만지면 onOrbitStop
   onOrbitStop?: () => void
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
+  // 카메라 큐(18라운드 시연): seq가 바뀌면 그 구도로 천천히 간다. bounds 없으면 구 전체. 도착 뒤 orbit이 켜져 있으면 회전이 이어진다
+  cameraCue?: CameraCue | null
   fitPadding?: { tl: [number, number]; br: [number, number] } // 지도 위에 뜬 카드·열이 가리는 영역(px). 구 전체 맞춤이 보이는 부분에만 맞춘다(2026-09-18 지도 전면)
 }
 
@@ -208,6 +221,7 @@ export default function DumpingMap({
   onOrbitStop,
   resetSeq,
   fitPadding,
+  cameraCue,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
@@ -426,14 +440,16 @@ export default function DumpingMap({
     const colFilter: FilterSpecification | null = selectedDong ? ["==", ["get", "dong"], selectedDong] : muted ? ["==", ["get", "dong"], "\u0000"] : null
     map.setFilter(S.circleCols, colFilter)
     map.setFilter(S.weatherCols, colFilter)
-    // 건물 색 = 그 건물이 선 칸의 바탕 값(feature-state). 값 0·칸 밖·흐림·다른 동은 중립색. 평면 격자와 같은 램프라 범례가 그대로 통한다
+    // 건물 색 = 그 건물이 선 칸의 바탕 값(feature-state). 값 0·칸 밖·다른 동은 중립색. 평면 격자와 같은 램프라 범례가 그대로 통한다.
+    // 시설·후보·배치추천 말뚝이 서면 히트맵을 중립색 쪽으로 55% 눌러 말뚝이 앞에 선다(빨간 후보가 주황 건물에 묻혔던 실측). 동별 기둥은 기둥이 주인공이라 건물은 중립
     const neutral = NEUTRAL_BUILDING[themeRef.current]
     const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
-    // 건물은 동 선택 때만 흐린다(다른 동 중립색). 시설·핫스팟이 켜져도 유지: 말뚝·기둥은 입체라 바닥 격자처럼 묻히지 않는다
-    const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", false]
+    const pointsOn = layers.length > 0 || showCandidates || showBinRecos
+    const pal = pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
+    const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", showDongBars]
     if (map.getLayer(L_BUILDINGS_NSDI))
-      map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, def.pal, val), neutral])
-  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme])
+      map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val), neutral])
+  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme, showDongBars])
 
   // 동 선택. 전체 동은 상시 얇게, 선택 동은 굵게 + 은은한 채움 + 동 전체가 화면에 들어오게
   useEffect(() => {
@@ -582,7 +598,8 @@ export default function DumpingMap({
     const step = (t: number) => {
       const m = mapRef.current
       if (!m) return
-      m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
+      // 카메라 큐(easeTo)가 움직이는 동안은 기다린다. setBearing은 jumpTo라 진행 중인 이동을 끊는다
+      if (!m.isEasing()) m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
       last = t
       raf = requestAnimationFrame(step)
     }
@@ -725,6 +742,21 @@ export default function DumpingMap({
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [ready, focusCandidate, fly])
+
+  // 카메라 큐(시연 장면). 경계 상자를 보이는 영역에 맞추되 기울기·방위·시간은 큐대로. 부드러운 가감속
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !cameraCue) return
+    const bounds = cameraCue.bounds ?? ringBoundsRef.current
+    if (!bounds) return
+    map.setPadding(padding())
+    const bearing = map.getBearing() + (cameraCue.bearingDelta ?? 0)
+    const cam = map.cameraForBounds(bounds, { bearing, ...(cameraCue.maxZoom != null ? { maxZoom: cameraCue.maxZoom } : {}) })
+    if (!cam) return
+    const pitch = cameraCue.pitch ?? (tiltRef.current ? TILT_PITCH : 0)
+    const zoom = Math.min(cameraCue.maxZoom ?? 99, (cam.zoom ?? map.getZoom()) - (pitch > 0 ? TILT_ZOOM_BACK : 0))
+    map.easeTo({ center: cam.center, zoom, bearing, pitch, duration: cameraCue.duration ?? 2400, easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), essential: true })
+  }, [ready, cameraCue?.seq])
 
   // 헤더 배너 리셋 → 구 전체 뷰(기본 방위로)
   useEffect(() => {
@@ -884,7 +916,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
   solid(S.weatherCols, S.weatherCols, ["get", "color"])
   solid(S.infraPosts, S.infraPosts, ["get", "color"])
   solid(S.recoRings, S.recoRings, BIN_RECO_COLOR)
-  solid(S.candPosts, S.candPosts, "#dc2626")
+  solid(S.candPosts, S.candPosts, CAND_COLOR.light)
   // 초점 고리(목록 클릭·드론 목표). 높이·투명도는 맥동 effect가 프레임마다 바꾼다
   under({
     id: S.focusRing,
@@ -905,7 +937,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: S.cand,
     type: "circle",
     source: S.cand,
-    paint: { "circle-radius": 13, "circle-color": "#dc2626", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
+    paint: { "circle-radius": 13, "circle-color": CAND_COLOR.light, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
   })
   // 기둥 3종. 위에서 아래로 갈수록 밝아지는 면 그라데이션이 입체감을 만든다. 불투명(반투명끼리 교차하면 건물이 기둥 속에 비친다)
   const col = (id: string, source: string, color: ExpressionSpecification | string) =>
@@ -969,8 +1001,9 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: S.dongColLabels,
     type: "symbol",
     source: S.dongColLabels,
-    layout: { "text-field": ["get", "label"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": "top", "text-offset": [0, 0.6], "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
-    paint: { "text-color": "#14201c", ...halo },
+    // 18라운드: 기둥 사이 바닥 글자가 건물·기둥에 묻혔다 → 15px·후광 2.6(건물은 동별 기둥 모드에서 중립색)
+    layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": "top", "text-offset": [0, 0.5], "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
+    paint: { "text-color": "#14201c", "text-halo-color": "rgba(255,255,255,0.96)", "text-halo-width": 2.6 },
   })
   map.addLayer({
     id: S.flyPts,
@@ -983,8 +1016,8 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: L_CAND_LABEL,
     type: "symbol",
     source: S.cand,
-    layout: { "text-field": ["get", "label"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-pitch-alignment": "viewport" },
-    paint: { "text-color": "#ffffff" },
+    layout: { "text-field": ["get", "label"], "text-size": 13, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-pitch-alignment": "viewport" },
+    paint: { "text-color": CAND_LABEL_COLOR.light },
   })
 }
 
@@ -1001,6 +1034,11 @@ function applyThemePaint(map: MlMap, theme: BasemapTheme) {
   map.setPaintProperty(S.flyPath, "line-color", accent)
   map.setPaintProperty(S.flyPts, "text-color", accent)
   map.setPaintProperty(S.flyPts, "text-halo-color", halo)
+  map.setPaintProperty(S.candPosts, "fill-extrusion-color", dark ? CAND_COLOR.dark : CAND_COLOR.light)
+  map.setPaintProperty(S.cand, "circle-color", dark ? CAND_COLOR.dark : CAND_COLOR.light)
+  map.setPaintProperty(S.cand, "circle-stroke-color", dark ? "#14181b" : "#ffffff")
+  map.setPaintProperty(L_CAND_LABEL, "text-color", dark ? CAND_LABEL_COLOR.dark : CAND_LABEL_COLOR.light)
+  map.setPaintProperty(S.dongColLabels, "text-halo-width", 2.6)
   if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
   for (const id of [S.dongLabel, S.critLabels, S.hotLabels, L_COL_LABEL, S.dongColLabels]) {
     if (!map.getLayer(id)) continue
