@@ -1,10 +1,13 @@
 // /dumping 입체 시설 아이콘(18라운드 후속, 2026-09-19). maplibre 커스텀 레이어(renderingMode 3d) 위의 Three.js 장면.
 // 시설 종류마다 작은 모델(이동식 CCTV=기둥+머리, 고정 CCTV=기둥+돔, 의류수거함=상자+뚜껑+투입구, 재활용정거장=받침+통 3개, 가로쓰레기통=통+뚜껑),
-// 재배치 후보=앰버 핀(바늘+구슬) + 머리 위 순위 배지(숫자 띠를 감은 회전 구, 상위 3은 액센트), 배치추천=반투명 분홍 통.
+// 재배치 후보=앰버 핀(바늘+구슬) + 머리 위 입체 순위 숫자(회전, 상위 3은 액센트), 배치추천=반투명 분홍 통.
 // 크기는 화면 기준 최소 높이를 지킨다(마커처럼): 조망에서도 점이 아니라 모양이 보이고, 확대하면 실제 크기에 가까워진다.
 // 깊이 버퍼를 지도와 공유해 건물·기둥이 아이콘을 자연스럽게 가린다. 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약).
 // 툴팁은 같은 자리의 투명 fill-extrusion(dumping-map S.infraPosts 등)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
 import * as THREE from "three"
+import { Font } from "three/examples/jsm/loaders/FontLoader.js"
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
+import digitFont from "./digit-font.json"
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
 import { INFRA_STYLE, BIN_RECO_COLOR, type RouteChain } from "./map-geo"
 
@@ -21,9 +24,6 @@ export interface IconPoint {
 const ANCHOR: [number, number] = [127.085, 37.546] // 모델 원점(구 중심). 모든 인스턴스는 여기서의 미터 오프셋
 const TARGET_PX = 26 // 아이콘 목표 화면 높이. 이보다 작아지면 확대하되 종류별 maxScale배까지만(조망에서 857개 정거장이 구를 덮었다)
 const DENSE_MAX = 4 // 빽빽한 시설의 확대 상한. 후보 핀은 마커처럼 항상 읽히게 상한을 크게
-const BADGE_PX = 24
-const DONG_BADGE_PX = 26 // 동별 기둥 꼭대기 순위 배지(1~3위)는 조금 크게
-const COIN_SPIN = 0.5 // 배지 구 회전(라디안/초). 숫자가 3번 감겨 있어 항상 하나는 정면 근처
 const TRUCK_PX = 26 // 청소차 목표 화면 길이
 const TRUCK_MAX_SCALE = 10
 const TRUCK_SPEED = 9 // m/s(약 32km/h)
@@ -128,7 +128,7 @@ interface KindState {
   points: IconPoint[]
   pos: { x: number; z: number; y: number }[] // 원점 기준 미터. y는 지형 고도
   meshes: THREE.InstancedMesh[]
-  coins: THREE.Mesh[] // 순위 배지 구(숫자 띠, 세로축으로 천천히 돈다)
+  coins: THREE.Group[] // 순위 입체 숫자(기둥·핀 꼭대기, 카메라 방위를 따라 선다)
   appearAt: number
   elevated: boolean // 지형 고도를 한 번이라도 받았나
 }
@@ -149,45 +149,29 @@ const TRUCK_PARTS: Part[] = [
   { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: new THREE.MeshLambertMaterial({ color: "#262626" }), local: at(-2.0, 0.55, 0) },
 ]
 
-// 순위 배지 텍스처: 구(球) 표면에 감는 띠. 숫자를 적도에 3번 반복해 어느 방향에서 봐도 하나는 정면이다. 상위 3은 액센트 채움+흰 숫자, 나머지는 흰 바탕+액센트 숫자
-const badgeCache = new Map<string, THREE.CanvasTexture>()
-function badgeTexture(rank: number, accent: string): THREE.CanvasTexture {
-  const key = `${rank}:${accent}`
-  const hit = badgeCache.get(key)
+// 순위 숫자(18라운드 후속): 배지 원·구는 기둥 폭과 안 맞아 화면을 덮었다(유저 실측) → 기둥 꼭대기에 선 **입체 숫자**(SUIT Bold 윤곽 압출, digit-font.json).
+// 세로축으로 천천히 돌아 어느 방향에서든 읽힌다(뒤에서 보는 반쪽은 거울상이지만 숫자라 읽힌다). 높이는 기둥 폭 기준(세계 좌표), 화면 최소 높이만 보장
+const DIGIT_FONT = new Font(digitFont as unknown as ConstructorParameters<typeof Font>[0])
+const digitCache = new Map<string, THREE.BufferGeometry>()
+function digitGeometry(text: string): THREE.BufferGeometry {
+  const hit = digitCache.get(text)
   if (hit) return hit
-  const W = 1024
-  const H = 512
-  const c = document.createElement("canvas")
-  c.width = W
-  c.height = H
-  const ctx = c.getContext("2d")!
-  const top = rank <= 3
-  ctx.fillStyle = top ? accent : "#ffffff"
-  ctx.fillRect(0, 0, W, H)
-  // 적도 띠 경계선(상하)로 구가 매끈한 공이 아니라 배지임을 알린다
-  ctx.fillStyle = top ? "rgba(255,255,255,0.35)" : `${accent}55`
-  ctx.fillRect(0, H * 0.22, W, 6)
-  ctx.fillRect(0, H * 0.78 - 6, W, 6)
-  ctx.fillStyle = top ? "#ffffff" : accent
-  ctx.font = `700 ${rank >= 10 ? 190 : 220}px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif`
-  ctx.textAlign = "center"
-  ctx.textBaseline = "middle"
-  // 3번(120도 간격). 4번이면 정면에 두 개가 같이 보여 "14 1"처럼 붙어 읽혔다(실측)
-  for (let i = 0; i < 3; i++) ctx.fillText(String(rank), (W / 3) * (i + 0.5), H / 2 + 8)
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 4
-  badgeCache.set(key, tex)
-  return tex
+  // 높이 1(대문자 높이 기준), 두께 0.28. 바닥 가운데가 원점이 되게 옮긴다
+  const g = new TextGeometry(text, { font: DIGIT_FONT, size: 1, depth: 0.22, curveSegments: 6, bevelEnabled: false })
+  g.computeBoundingBox()
+  const b = g.boundingBox!
+  g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2)
+  digitCache.set(text, g)
+  return g
 }
-
-// 배지 구: 숫자 띠를 감은 공. 세로축으로 천천히 돌고 깊이 검사를 안 해 건물 뒤에서도 읽힌다
-const BADGE_GEOM = new THREE.SphereGeometry(1, 40, 28)
-function makeBadge(tex: THREE.Texture): THREE.Mesh {
-  const m = new THREE.Mesh(BADGE_GEOM, new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false }))
-  m.renderOrder = 10
-  return m
+// 입체 숫자 한 장. 세로축은 카메라 방위를 따라 돌려 항상 정면이 보인다(두 장 교차는 비스듬히 보면 덩어리로 뭉쳤고, 자유 회전은 옆면만 보이는 순간이 있었다)
+function makeDigit(text: string, color: string): THREE.Group {
+  const g = new THREE.Group()
+  g.add(new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3 })))
+  return g
 }
+const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 96m 안에 든다
+const DIGIT_MIN_PX = 22 // 조망에서 읽히는 최소 높이(px). 기둥 폭(10px)보다 크면 폭만큼 바깥으로 비킨다
 
 export class Icons3DLayer implements CustomLayerInterface {
   id = "dump-icons3d"
@@ -239,7 +223,14 @@ export class Icons3DLayer implements CustomLayerInterface {
       pin.emissive.set(this.accent)
     }
     const st = this.kinds.get("cand")
-    if (st) st.coins.forEach((c, i) => ((c.material as THREE.MeshBasicMaterial).map = badgeTexture(st.points[i].rank ?? i + 1, this.accent)))
+    if (st)
+      st.coins.forEach((c, i) => {
+        if ((st.points[i].rank ?? i + 1) <= 3) {
+          const m = (c.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial
+          m.color.set(this.accent)
+          m.emissive.set(this.accent)
+        }
+      })
     this.map?.triggerRepaint()
   }
 
@@ -291,7 +282,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       for (const m of prev.meshes) this.scene.remove(m)
       for (const c of prev.coins) {
         this.scene.remove(c)
-        ;(c.material as THREE.Material).dispose()
+        ;((c.children[0] as THREE.Mesh).material as THREE.Material).dispose()
       }
     }
     if (!points.length) {
@@ -310,10 +301,13 @@ export class Icons3DLayer implements CustomLayerInterface {
       this.scene.add(mesh)
       return mesh
     })
-    const coins: THREE.Mesh[] = []
+    const coins: THREE.Group[] = []
     if (kind === "cand" || kind === "dongRank") {
       points.forEach((p, i) => {
-        const coin = makeBadge(badgeTexture(p.rank ?? i + 1, p.color ?? this.accent))
+        const rank = p.rank ?? i + 1
+        // 동별: 제 기둥 색(숫자는 기둥 위에 서서 하늘·종이를 배경으로 보인다). 후보: 상위 3 앰버, 나머지 잉크
+        const color = kind === "dongRank" ? (p.color ?? this.accent) : rank <= 3 ? this.accent : "#1c1a15"
+        const coin = makeDigit(String(rank), color)
         coins.push(coin)
         this.scene.add(coin)
       })
@@ -330,7 +324,8 @@ export class Icons3DLayer implements CustomLayerInterface {
     if (!map || !defs) return false
     const zoom = map.getZoom()
     const mpp = metersPerPixel(zoom)
-    const spin = (now / 1000) * COIN_SPIN
+    // 숫자는 카메라 방위를 따라 선다. 모델 행렬이 x를 뒤집어(getMatrixForModel scale -x) 부호가 반대: rotation.y = -bearing(방위 90·-18 실측)
+    const face = (-map.getBearing() * Math.PI) / 180
     let animating = false
     const tmp = new THREE.Matrix4()
     const sc = new THREE.Matrix4()
@@ -339,7 +334,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       const def = defs[kind]
       const appearing = st.appearAt > 0 && now - st.appearAt < APPEAR_MS
       const zoomChanged = Math.abs(zoom - this.lastZoom) >= 0.01
-      animating ||= appearing || st.coins.length > 0
+      animating ||= appearing
       const k = Math.min(def.maxScale, Math.max(1, (TARGET_PX * mpp) / def.height))
       const a = appearing ? easeOutBack(Math.min(1, (now - st.appearAt) / APPEAR_MS)) : 1
       if (st.meshes.length && (appearing || zoomChanged)) {
@@ -356,11 +351,13 @@ export class Icons3DLayer implements CustomLayerInterface {
         const coin = st.coins[i]
         if (!coin) return
         const pt = st.points[i]
-        const r = ((pt.h != null ? DONG_BADGE_PX : BADGE_PX) * mpp * a) / 2
-        // 같은 자리 배지 둘(민원·과태료)은 좌우로 반지름 1.1배 비킨다
-        coin.position.set(p.x + (pt.side ?? 0) * r * 1.1, p.y + (pt.h ?? 12.4 * k * a) + r, p.z)
-        coin.scale.set(r, r, r)
-        coin.rotation.y = spin + i * 0.7
+        // 높이: 동별은 기둥 폭 기준(78m), 후보는 핀 크기 기준. 조망에서 13px 아래로는 안 내려간다
+        const hgt = Math.max(DIGIT_MIN_PX * mpp, pt.h != null ? DONG_DIGIT_M : 11 * k) * a
+        // 동별 기둥은 제 기둥 위에 선다(민원 왼쪽·과태료 오른쪽 기둥 중심 = 이미 pos에 반영). 숫자가 기둥 폭보다 크면 폭만큼 바깥으로 비킨다
+        const dx = pt.side && hgt > DONG_DIGIT_M ? pt.side * (hgt - DONG_DIGIT_M) * 0.5 : 0
+        coin.position.set(p.x + dx, p.y + (pt.h ?? 12.4 * k * a), p.z)
+        coin.scale.set(hgt, hgt, hgt)
+        coin.rotation.y = face
       })
       if (!appearing) st.appearAt = 0
     }
