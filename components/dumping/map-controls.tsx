@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./map-geo"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
@@ -283,11 +283,11 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
                 ))
               ) : (
                 <span className="flex items-center gap-1">
-                  <i className="h-2.5 w-2.5 rounded-[2px] bg-[#2f5aa8]" />민원
+                  <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: COMP_COLOR }} />민원
                 </span>
               )}
               <span className="flex items-center gap-1">
-                <i className="h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
+                <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: ENF_COLOR }} />과태료
               </span>
             </span>
           </div>
@@ -356,7 +356,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ candidates: !view.candidates })}
           className={`${ROW} ${view.candidates ? ROW_ON : ROW_OFF}`}
         >
-          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--dump-ink)]" style={{ opacity: view.candidates ? 1 : 0.7 }} />
+          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-(--dump-accent) bg-white" style={{ opacity: view.candidates ? 1 : 0.7 }} />
           <span className="min-w-0 flex-1">CCTV 재배치 후보</span>
           <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data ? data.cctvCandidates.length : 20}</span>
         </button>
@@ -430,15 +430,15 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
               />
               <span>
                 {view.tilt && !view.grid3d
-                  ? `${c === "comp" ? "빨간" : "보라"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
-                  : `${c === "comp" ? "빨간" : "보라"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
+                  ? `${c === "comp" ? "청회" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
+                  : `${c === "comp" ? "청회" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
               </span>
             </p>
           ))
         )}
         {view.grid3d && (
           <p className="text-[var(--cp-text-muted)]">
-            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 빨강·과태료 보라). 5건 이상 칸만, 확대하면 값도 보임
+            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 청회·과태료 앰버). 5건 이상 칸만, 확대하면 값도 보임
           </p>
         )}
         <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
@@ -502,13 +502,19 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
 }
 
 // ─── 재배치 후보 주소 목록. 레이어 패널 아래에 이어 붙는다 ───
-export function CandidateList({ data, onFocusCandidate }: { data: DumpingMapData; onFocusCandidate: (f: CandidateFocus) => void }) {
+export function CandidateList({ data, onFocusCandidate, onClose }: { data: DumpingMapData; onFocusCandidate: (f: CandidateFocus) => void; onClose: () => void }) {
   return (
     <div className="flex min-h-0 flex-col">
-      <p className="shrink-0 border-b border-[var(--cp-border)] px-3 py-2 text-[13.5px] font-semibold text-[var(--cp-text-strong)]">
-        이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
-        <span className="block text-[12px] font-normal text-[var(--cp-text-dim)]">발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)</span>
-      </p>
+      <div className="flex shrink-0 items-start gap-2 border-b border-[var(--cp-border)] py-2 pl-3 pr-2">
+        <p className="min-w-0 flex-1 text-[13.5px] font-semibold text-[var(--cp-text-strong)]">
+          이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
+          <span className="block text-[12px] font-normal text-[var(--cp-text-dim)]">발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)</span>
+        </p>
+        {/* 18라운드 후속: 들어왔다가 나갈 길이 없었다(유저 실측). 목록 닫기 = 후보 레이어 끄기 */}
+        <button onClick={onClose} aria-label="후보 목록 닫기" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] text-[var(--cp-text-dim)] hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]">
+          ✕
+        </button>
+      </div>
       <div className="min-h-0 overflow-y-auto">
         {data.cctvCandidates.map((c, i) => (
           <button
@@ -519,8 +525,8 @@ export function CandidateList({ data, onFocusCandidate }: { data: DumpingMapData
             }`}
           >
             <span
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold text-[var(--dump-paper)] ${
-                i < 3 ? "bg-[var(--dump-ink)] ring-2 ring-(--dump-accent)/50" : "bg-[var(--dump-ink)] opacity-75"
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold ${
+                i < 3 ? "bg-(--dump-accent) text-white ring-2 ring-white" : "border-[1.5px] border-(--dump-accent) bg-white text-(--dump-accent)"
               }`}
             >
               {i + 1}

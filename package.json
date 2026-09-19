@@ -67,6 +67,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.186.0",
     "vaul": "^1.1.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "3.25.76"
@@ -78,6 +79,7 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/three": "^0.186.0",
     "baseline-browser-mapping": "^2.10.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.1.6",

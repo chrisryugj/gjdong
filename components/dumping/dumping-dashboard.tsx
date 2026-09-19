@@ -256,7 +256,7 @@ export default function DumpingDashboard() {
       {
         title: "결론",
         caption: "단속에 잡히는 무단투기는 사람이 많은 곳보다 다가구·단독주택 골목에 더 많습니다.",
-        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 보라 원기둥 = 과태료 건수 · 지도가 천천히 돕니다`,
+        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥 = 과태료 건수 · 지도가 천천히 돕니다`,
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, orbit: true })
@@ -270,7 +270,7 @@ export default function DumpingDashboard() {
       {
         title: "동별 비교",
         caption: topDong ? `${topDong.d}이 민원 ${topDong.comp.toLocaleString()}건 · 과태료 ${topDong.enf.toLocaleString()}건으로 ${mapData.dong.length}개 동 가운데 1위입니다.` : "",
-        note: "파랑 기둥 = 민원, 갈색 기둥 = 과태료 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
+        note: "청회 기둥 = 민원, 앰버 기둥 = 과태료 · 1~3위는 꼭대기 배지 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
@@ -286,7 +286,7 @@ export default function DumpingDashboard() {
       {
         title: "집중관리 상습격자",
         caption: `최근 12개월 10건 이상 상습격자는 ${kpi.criticalCellsNow}곳, 앱 신고를 빼도 ${kpi.criticalCellsNowNoApp}곳입니다.`,
-        note: "빨간 기둥 = 12개월 민원+과태료 건수 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
+        note: "벽돌색 기둥 = 12개월 민원+과태료 건수 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
         apply: () => {
           setTab("ops")
           setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
@@ -315,7 +315,7 @@ export default function DumpingDashboard() {
       {
         title: "정책 제안",
         caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
-        note: "검은 말뚝 = 재배치 후보(발생이력 순, 자원배분 논리) · 보라 말뚝 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
+        note: "앰버 핀·순위 배지 = 재배치 후보(발생이력 순, 자원배분 논리) · 보라 카메라 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
           setShowCritical(false)
@@ -373,10 +373,17 @@ export default function DumpingDashboard() {
   }
 
   const rightPane = tab === "onto" ? "graph" : "map"
+  // 반영 해제(✕) = 배지만 지우는 게 아니라 지도도 기본 상태로(후보·시설·노선·동 선택 해제). 들어왔다가 못 나가던 문제(18라운드 후속)
+  const clearApplied = () => {
+    clearActive()
+    setView((v) => ({ ...DEFAULT_VIEW, tilt: v.tilt, orbit: v.orbit, fly: v.fly }))
+    setSelectedDong(null)
+    setFocusCandidate(null)
+  }
   const active = activeLever
-    ? { label: activeLever.node.label.split("(")[0].trim(), onClear: () => setActiveLever(null) }
+    ? { label: activeLever.node.label.split("(")[0].trim(), onClear: clearApplied }
     : activeFinding
-      ? { label: activeFinding.title, onClear: () => setActiveFinding(null) }
+      ? { label: activeFinding.title, onClear: clearApplied }
       : null
   const onLayerChange = (next: MapView) => {
     setView(next)
@@ -401,6 +408,11 @@ export default function DumpingDashboard() {
           setFocusCandidate(f)
           setLayersOpen(false)
           setMapCollapsed(false)
+        }}
+        onClose={() => {
+          setView((v) => ({ ...v, candidates: false }))
+          setFocusCandidate(null)
+          if (activeLever) clearActive()
         }}
       />
     ) : null
@@ -665,7 +677,7 @@ export default function DumpingDashboard() {
           style={{ width: RIGHT_W }}
         >
           <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>
-          {candidates && <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
+          {candidates && <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex max-h-[38%] min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
           <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
         </div>
       )}

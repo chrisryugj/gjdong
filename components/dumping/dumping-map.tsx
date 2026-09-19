@@ -13,6 +13,8 @@ import maplibregl, {
   type Popup as MlPopup,
 } from "maplibre-gl"
 import { Protocol } from "pmtiles"
+import type { IconKind, IconPoint, Icons3DLayer } from "./icons3d"
+import { tallyInfra } from "@/lib/dumping/facts"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, WeatherKey } from "@/lib/dumping/types"
 import type { DongMode } from "@/lib/dumping/labels"
@@ -21,7 +23,7 @@ import {
   BASE_DEF,
   BIN_RECO_COLOR,
   CAND_COLOR,
-  CAND_LABEL_COLOR,
+  INFRA_STYLE,
   CAND_POST_H_M,
   CAND_POST_R_M,
   CRIT_COLOR,
@@ -122,7 +124,8 @@ const S = {
   flyPts: "dump-fly-pts",
 } as const
 // 평면(원·점)과 입체(원기둥·말뚝·고리)는 같은 데이터의 두 그림. 기울기에 따라 한쪽만 보인다
-const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco] as string[]
+const L_CAND_LABEL = "dump-cand-label"
+const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco, L_CAND_LABEL] as string[]
 const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings] as string[]
 const ACCENT = { light: "#c0741a", dark: "#e39a3f" } as const
 const L_BUILDINGS = "dump-buildings"
@@ -133,7 +136,6 @@ const L_ROUTES_GENERAL = "dump-routes-general"
 const L_ROUTES_FOCUS = "dump-routes-focus"
 const L_CRIT_FILL = "dump-crit-fill"
 const L_CRIT_LINE = "dump-crit-line"
-const L_CAND_LABEL = "dump-cand-label"
 // 호버 툴팁을 읽는 레이어. 위에 그린 것부터(queryRenderedFeatures가 위→아래 순으로 준다)
 const HOVER_LAYERS = [
   L_CAND_LABEL, S.cand, S.candPosts, S.binReco, S.recoRings, S.infra, S.infraPosts, S.flyPts, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols,
@@ -248,6 +250,9 @@ export default function DumpingMap({
   const joinedRef = useRef<Set<string>>(new Set())
   const lookupRef = useRef<((lat: number, lng: number) => number) | null>(null)
   const joinRef = useRef<(() => void) | null>(null)
+  // 입체 시설 아이콘(Three.js 커스텀 레이어, icons3d.ts). three는 무거워 지도가 뜬 뒤 동적으로 싣는다
+  const iconsRef = useRef<Icons3DLayer | null>(null)
+  const [iconsReady, setIconsReady] = useState(false)
   const focusMarkerRef = useRef<MlMarker | null>(null) // 초점 라벨(글자는 DOM). 고리는 지도 레이어(S.focusRing)
 
   const padding = (): PaddingOptions => {
@@ -303,6 +308,15 @@ export default function DumpingMap({
       declareLayers(map, { type: "Polygon", coordinates: [data.ring.map((p) => [p[1], p[0]])] })
       applyThemePaint(map, themeRef.current)
       setReady(true)
+      void import("./icons3d").then(({ Icons3DLayer }) => {
+        if (mapRef.current !== map) return
+        const icons = new Icons3DLayer()
+        icons.visible = tiltRef.current
+        icons.setTheme(themeRef.current === "dark")
+        map.addLayer(icons, S.infraPosts) // 투명 말뚝(툴팁 조회용) 바로 아래. 라벨은 그 위
+        iconsRef.current = icons
+        setIconsReady(true)
+      })
     })
     // 스타일을 바꾸면(테마) 등록한 이미지가 사라진다. 없다고 할 때 다시 그린다
     map.on("styleimagemissing", (e) => {
@@ -338,7 +352,10 @@ export default function DumpingMap({
     map.on("sourcedata", (e) => {
       if (e.sourceId === NSDI_SOURCE && e.isSourceLoaded) joinBuildings()
     })
-    map.on("idle", joinBuildings)
+    map.on("idle", () => {
+      joinBuildings()
+      iconsRef.current?.refreshElevation()
+    })
     // 호버 툴팁: 맨 위 레이어의 피처 하나. 격자→원→시설 순으로 위가 이긴다
     map.on("mousemove", (e) => {
       const m = mapRef.current
@@ -382,6 +399,8 @@ export default function DumpingMap({
       popupRef.current = null
       focusMarkerRef.current?.remove()
       focusMarkerRef.current = null
+      iconsRef.current = null
+      setIconsReady(false)
       setReady(false)
     }
     // data는 첫 도착 때만 스타일에 쓴다(경계는 불변). 이후 갱신은 아래 effect들이 setData로
@@ -492,11 +511,20 @@ export default function DumpingMap({
     setFC(map, S.infra, infra)
     setFC(map, S.cand, cand)
     setFC(map, S.binReco, reco)
-    // 입체: 점 → 말뚝, 배치추천 → 빈 고리(아직 없는 자리)
+    // 입체: 투명 말뚝·고리(툴팁 조회용 자리) + Three.js 아이콘(모양은 icons3d.ts)
     setFC(map, S.infraPosts, postsFC(infra, POST_R_M, POST_H_M))
     setFC(map, S.candPosts, postsFC(cand, CAND_POST_R_M, CAND_POST_H_M))
     setFC(map, S.recoRings, ringsFC(reco, RECO_RING_R_M, 5, RECO_RING_H_M))
-  }, [data, ready, layers, showCandidates, showBinRecos])
+    const icons = iconsRef.current
+    if (icons) {
+      for (const id of Object.keys(INFRA_STYLE) as InfraLayerId[]) {
+        const pts: IconPoint[] = layers.includes(id) ? tallyInfra(data.infra[id]).spots.map((sp) => ({ lng: sp.lng, lat: sp.lat })) : []
+        icons.setPoints(id as IconKind, pts)
+      }
+      icons.setPoints("cand", showCandidates ? data.cctvCandidates.map((c, i) => ({ lng: c[1], lat: c[0], rank: i + 1 })) : [])
+      icons.setPoints("binReco", showBinRecos ? (data.binRecos?.items ?? []).map((r) => ({ lng: r[1], lat: r[0] })) : [])
+    }
+  }, [data, ready, layers, showCandidates, showBinRecos, iconsReady])
 
   // 청소차 관리노선. road-links.json 동적 임포트(번들 제외), 도로명으로 필터
   useEffect(() => {
@@ -559,7 +587,7 @@ export default function DumpingMap({
     const next = buildBasemapStyle(data.ring, theme)
     for (const [id, src] of Object.entries(cur.sources)) if (id.startsWith("dump-")) next.sources[id] = src
     const firstSym = cur.layers.findIndex((l) => l.type === "symbol" && !l.id.startsWith("dump-"))
-    const ours = cur.layers.filter((l) => l.id.startsWith("dump-") && l.id !== HILLSHADE_LAYER)
+    const ours = cur.layers.filter((l) => l.id.startsWith("dump-") && l.id !== HILLSHADE_LAYER && (l.type as string) !== "custom")
     const under = ours.filter((l) => cur.layers.indexOf(l) < firstSym)
     const top = ours.filter((l) => cur.layers.indexOf(l) >= firstSym)
     const at = next.layers.findIndex((l) => l.type === "symbol")
@@ -570,6 +598,11 @@ export default function DumpingMap({
       applyThemePaint(map, theme)
       joinedRef.current = new Set() // 소스가 새로 만들어져 feature-state가 비었다. idle에서 다시 붙는다
       if (tiltRef.current) map.setTerrain({ source: DEM_SOURCE, exaggeration: 1.4 })
+      const icons = iconsRef.current
+      if (icons && !map.getLayer(icons.id)) {
+        map.addLayer(icons, S.infraPosts)
+        icons.setTheme(theme === "dark")
+      }
     })
     // 지형을 켠 채 스타일을 갈면 maplibre가 옛 지형 렌더러를 만져 shaderPreludeCode 오류(실측). 잠깐 끄고 style.load에서 다시 켠다
     map.setTerrain(null)
@@ -584,7 +617,8 @@ export default function DumpingMap({
     if (map.getLayer(L_BUILDINGS_NSDI)) map.setLayoutProperty(L_BUILDINGS_NSDI, "visibility", tilt ? "visible" : "none")
     for (const id of FLAT_ONLY) map.setLayoutProperty(id, "visibility", tilt ? "none" : "visible")
     for (const id of TILT_ONLY) map.setLayoutProperty(id, "visibility", tilt ? "visible" : "none")
-    if (tilt) for (const id of [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts]) riseColumns(map, id)
+    iconsRef.current?.setVisible(tilt)
+    if (tilt) for (const id of [S.circleCols, S.weatherCols]) riseColumns(map, id)
     map.setTerrain(tilt ? { source: DEM_SOURCE, exaggeration: 1.4 } : null)
     map.easeTo({ pitch: tilt ? TILT_PITCH : 0, bearing: tilt ? TILT_BEARING : 0, duration: 700 })
   }, [ready, tilt])
@@ -696,13 +730,22 @@ export default function DumpingMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
-    const d = showDongBars ? dongColumnsFC(data, dongMode, dongYear) : { cols: emptyFC(), labels: emptyFC() }
+    const d = showDongBars ? dongColumnsFC(data, dongMode, dongYear) : { cols: emptyFC(), labels: emptyFC(), ranks: [] }
     setFC(map, S.dongCols, d.cols)
     setFC(map, S.dongColLabels, d.labels)
     if (showDongBars) riseColumns(map, S.dongCols, true, 1100)
+    // 1~3위 배지를 기둥 꼭대기에(입체에서만 보이는 아이콘 레이어). 기둥이 다 솟은 뒤 나타나게 살짝 늦춘다
     // 기둥 값 라벨이 동 이름을 같이 달고 있으니 지도 동 라벨은 겹치지 않게 숨긴다
     map.setLayoutProperty(S.dongLabel, "visibility", showDongBars ? "none" : "visible")
-  }, [data, ready, showDongBars, dongMode, dongYear])
+    const icons = iconsRef.current
+    if (!icons) return
+    if (!showDongBars) {
+      icons.setPoints("dongRank", [])
+      return
+    }
+    const t = window.setTimeout(() => iconsRef.current?.setPoints("dongRank", d.ranks), 900)
+    return () => window.clearTimeout(t)
+  }, [data, ready, showDongBars, dongMode, dongYear, iconsReady])
 
   // 목록 클릭 → 해당 지점으로 당겨가기 + 땅 위 고리로 위치를 확실히 표시(18라운드: DOM 펄스 점은 3D 지도 위에서 2D로 떠 보여 고리 레이어로). 글자는 DOM 라벨
   useEffect(() => {
@@ -720,7 +763,7 @@ export default function DumpingMap({
       const lb = document.createElement("div")
       lb.className = "dump-focus-label"
       lb.textContent = focusCandidate.label
-      focusMarkerRef.current = new maplibregl.Marker({ element: lb, anchor: "bottom", offset: [0, -26] }).setLngLat(lnglat).addTo(map)
+      focusMarkerRef.current = new maplibregl.Marker({ element: lb, anchor: "bottom", offset: [0, -54] }).setLngLat(lnglat).addTo(map)
     }
     map.flyTo({ center: lnglat, zoom: 16, duration: 600 })
   }, [ready, focusCandidate])
@@ -914,9 +957,10 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     })
   solid(S.circleCols, S.circleCols, ["get", "color"])
   solid(S.weatherCols, S.weatherCols, ["get", "color"])
-  solid(S.infraPosts, S.infraPosts, ["get", "color"])
-  solid(S.recoRings, S.recoRings, BIN_RECO_COLOR)
-  solid(S.candPosts, S.candPosts, CAND_COLOR.light)
+  // 말뚝·고리는 보이지 않는 조회용(opacity 0). 모양은 Three.js 아이콘(icons3d)이 같은 자리에 그린다. queryRenderedFeatures는 그려진 픽셀이 아니라 도형으로 찾는다
+  solid(S.infraPosts, S.infraPosts, ["get", "color"], { "fill-extrusion-opacity": 0 })
+  solid(S.recoRings, S.recoRings, BIN_RECO_COLOR, { "fill-extrusion-opacity": 0 })
+  solid(S.candPosts, S.candPosts, CAND_COLOR.light, { "fill-extrusion-opacity": 0 })
   // 초점 고리(목록 클릭·드론 목표). 높이·투명도는 맥동 effect가 프레임마다 바꾼다
   under({
     id: S.focusRing,
@@ -937,7 +981,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: S.cand,
     type: "circle",
     source: S.cand,
-    paint: { "circle-radius": 13, "circle-color": CAND_COLOR.light, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
+    paint: { "circle-radius": 13, "circle-color": ACCENT.light, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
   })
   // 기둥 3종. 위에서 아래로 갈수록 밝아지는 면 그라데이션이 입체감을 만든다. 불투명(반투명끼리 교차하면 건물이 기둥 속에 비친다)
   const col = (id: string, source: string, color: ExpressionSpecification | string) =>
@@ -958,7 +1002,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true },
   })
   // 라벨. 순위·값은 겹쳐도 보이게, 동 이름은 서로 피한다. 글자는 화면에 세워 기울여도 읽힌다
-  const halo = { "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.6 }
+  const halo = { "text-halo-color": "rgba(251,249,243,0.94)", "text-halo-width": 1.6 } // 종이색 후광
   map.addLayer({
     id: S.dongLabel,
     type: "symbol",
@@ -994,7 +1038,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
       "text-offset": [0, -1],
       "text-pitch-alignment": "viewport",
     },
-    paint: { "text-color": ["case", ["==", ["get", "top"], 1], CRIT_COLOR, "#7c2d5e"], ...halo },
+    paint: { "text-color": ["case", ["==", ["get", "top"], 1], CRIT_COLOR, "#7a3b33"], ...halo },
   })
   // 동별 기둥 값·동 이름. 두 기둥 사이 바닥에
   map.addLayer({
@@ -1003,7 +1047,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     source: S.dongColLabels,
     // 18라운드: 기둥 사이 바닥 글자가 건물·기둥에 묻혔다 → 15px·후광 2.6(건물은 동별 기둥 모드에서 중립색)
     layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": "top", "text-offset": [0, 0.5], "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
-    paint: { "text-color": "#14201c", "text-halo-color": "rgba(255,255,255,0.96)", "text-halo-width": 2.6 },
+    paint: { "text-color": "#1c1a15", "text-halo-color": "rgba(251,249,243,0.96)", "text-halo-width": 2.6 },
   })
   map.addLayer({
     id: S.flyPts,
@@ -1017,7 +1061,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     type: "symbol",
     source: S.cand,
     layout: { "text-field": ["get", "label"], "text-size": 13, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-pitch-alignment": "viewport" },
-    paint: { "text-color": CAND_LABEL_COLOR.light },
+    paint: { "text-color": "#ffffff" },
   })
 }
 
@@ -1025,7 +1069,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
 function applyThemePaint(map: MlMap, theme: BasemapTheme) {
   const dark = theme === "dark"
   const ink = dark ? "#ece7dc" : "#14201c"
-  const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(255,255,255,0.92)"
+  const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(251,249,243,0.94)"
   if (map.getLayer(S.mask)) map.setPaintProperty(S.mask, "fill-color", dark ? "#0c1114" : "#ffffff")
   // NSDI 건물은 바탕 effect가 칸 값으로 칠한다(중립색도 거기서 테마별로). 여기서는 구 밖 OSM 건물만
   map.setPaintProperty(L_BUILDINGS, "fill-extrusion-color", dark ? NEUTRAL_BUILDING.dark : NEUTRAL_BUILDING.light)
@@ -1034,10 +1078,10 @@ function applyThemePaint(map: MlMap, theme: BasemapTheme) {
   map.setPaintProperty(S.flyPath, "line-color", accent)
   map.setPaintProperty(S.flyPts, "text-color", accent)
   map.setPaintProperty(S.flyPts, "text-halo-color", halo)
-  map.setPaintProperty(S.candPosts, "fill-extrusion-color", dark ? CAND_COLOR.dark : CAND_COLOR.light)
-  map.setPaintProperty(S.cand, "circle-color", dark ? CAND_COLOR.dark : CAND_COLOR.light)
+  map.setPaintProperty(S.cand, "circle-color", accent)
   map.setPaintProperty(S.cand, "circle-stroke-color", dark ? "#14181b" : "#ffffff")
-  map.setPaintProperty(L_CAND_LABEL, "text-color", dark ? CAND_LABEL_COLOR.dark : CAND_LABEL_COLOR.light)
+  const icons = map.getLayer("dump-icons3d") as unknown as { implementation?: { setTheme: (d: boolean) => void } } | undefined
+  icons?.implementation?.setTheme(dark)
   map.setPaintProperty(S.dongColLabels, "text-halo-width", 2.6)
   if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
   for (const id of [S.dongLabel, S.critLabels, S.hotLabels, L_COL_LABEL, S.dongColLabels]) {

@@ -46,15 +46,19 @@ export const BASE_DEF: Record<BaseMode, { idx: 4 | 5 | 6 | 8; stops: number[]; u
 }
 
 // 원(점) 오버레이는 바탕 위에 자유 중첩
+// 18라운드 후속: 지도 색을 테마 계열로 통일. 민원 = 잉크 청회(차가움), 과태료 = 앰버(따뜻함, 결과지표라 액센트), 상습·핫스팟 = 벽돌.
+// 옛 빨강·보라는 종이·앰버 테마 위에서 튀었다(유저 지적)
+export const COMP_COLOR = "#3f4f66"
+export const ENF_COLOR = "#c0741a"
 export const CIRCLE_DEF: Record<CircleId, { idx: 4 | 5; color: string; label: string }> = {
-  comp: { idx: 4, color: "#a8322a", label: "민원" },
-  enf: { idx: 5, color: "#5b21b6", label: "과태료" },
+  comp: { idx: 4, color: COMP_COLOR, label: "민원" },
+  enf: { idx: 5, color: ENF_COLOR, label: "과태료" },
 }
 
-// 격자 기둥·상습격자·핫스팟 기둥 색. 기둥은 원 지표를 세운 것이라 원과 같은 색(민원 빨강·과태료 보라)
-export const COL_COLOR: Record<CircleId, string> = { comp: "#a8322a", enf: "#5b21b6" }
+// 격자 기둥·상습격자·핫스팟 기둥 색. 기둥은 원 지표를 세운 것이라 원과 같은 색
+export const COL_COLOR: Record<CircleId, string> = { comp: COMP_COLOR, enf: ENF_COLOR }
 export const CRIT_COLOR = "#a8322a"
-export const HOT_COLOR = "#b45309"
+export const HOT_COLOR = "#b8756a" // 핫스팟 4~20위(벽돌 옅게). 상위 3은 CRIT_COLOR
 // 기둥 높이(m). 구 전체 보기(줌 13.4·기울기 55도)에서 가장 높은 기둥이 화면 1/4쯤. 값이 0에 가까워도 바닥에서 보이게 최소 높이
 export const COL_MAX_M = 280
 export const COL_MIN_M = 18
@@ -134,7 +138,7 @@ export function gridMaxes(data: DumpingMapData): { comp: number; enf: number; un
   }
   return m
 }
-const CELL_COLORS = { comp: "#a8322a", enf: "#5b21b6", unm: "#2f8267", lp: "#4c5d7c" } as const
+const CELL_COLORS = { comp: COMP_COLOR, enf: ENF_COLOR, unm: "#2f8267", lp: "#4c5d7c" } as const
 
 export function cellMetrics(cell: GridCell, max: ReturnType<typeof gridMaxes>): TipMetric[] {
   const out: TipMetric[] = [
@@ -513,11 +517,16 @@ export const DONG_COL_MAX_M = 720
 export const DONG_COL_MIN_M = 24
 const DONG_COL_SIDE = 96 // 기둥 한 변(m)
 const DONG_COL_GAP = 70 // 두 기둥 중심 간격(m)
-export const COMP_COLOR = "#2f5aa8"
-export const ENF_COLOR = "#9a6a2a"
 const dongColHeight = (v: number, max: number) => DONG_COL_MIN_M + (Math.max(0, v) / Math.max(1, max)) * (DONG_COL_MAX_M - DONG_COL_MIN_M)
 
-export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear: string | null): { cols: FC; labels: FC } {
+export interface DongRankBadge {
+  lng: number
+  lat: number
+  rank: number
+  h: number // 기둥 높이(m)
+  color: string
+}
+export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear: string | null): { cols: FC; labels: FC; ranks: DongRankBadge[] } {
   // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 기둥을 앱·120·직접 세 토막으로
   const valOf = (d: (typeof data.dong)[number]) =>
     dongMode === "year" && dongYear
@@ -554,12 +563,17 @@ export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear
   }
   const cols: Feature[] = []
   const labels: Feature[] = []
+  const ranks: DongRankBadge[] = [] // 1~3위 배지(지표별). 기둥 꼭대기에 띄운다(dumping-map → icons3d)
   for (const d of data.dong) {
     const c = dongCenter(data.dongOutlines[d.d] ?? [])
     if (!c) continue
     const [lng, lat] = c
     const v = valOf(d)
     const dLng = DONG_COL_GAP / 2 / (111320 * Math.cos((lat * Math.PI) / 180))
+    const rc = rank("comp", v.comp)
+    if (rc <= 3 && v.comp > 0) ranks.push({ lng: lng - dLng, lat, rank: rc, h: dongColHeight(v.comp, max), color: COMP_COLOR })
+    const re = rank("enf", v.enf)
+    if (re <= 3 && v.enf > 0) ranks.push({ lng: lng + dLng, lat, rank: re, h: dongColHeight(v.enf, max), color: ENF_COLOR })
     const card = tip(d)
     const props = { tip: card, card: 1, dong: d.d }
     // 민원 기둥(왼쪽). 채널 모드는 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)
@@ -577,7 +591,7 @@ export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear
     cols.push({ type: "Feature", properties: { ...props, color: ENF_COLOR, base: 0, h: dongColHeight(v.enf, max) }, geometry: squareAround(lat, lng + dLng, DONG_COL_SIDE) })
     labels.push({ type: "Feature", properties: { label: `${d.d}\n${v.comp.toLocaleString()} · ${v.enf.toLocaleString()}` }, geometry: { type: "Point", coordinates: [lng, lat] } })
   }
-  return { cols: fc(cols), labels: fc(labels) }
+  return { cols: fc(cols), labels: fc(labels), ranks }
 }
 
 // ─── 드론 비행(17라운드 시연 → 18라운드 연속 비행). 구 전체(내려다봄) → 핫스팟 상위 5곳 → 다시 구 전체.

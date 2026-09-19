@@ -232,7 +232,7 @@ export function buildSystemPrompt(): string {
 ${PROPOSALS.map((r, i) => `${i + 1}. ${r.name} · ${r.cost}${r.costNote !== "미기재" ? `(${r.costNote})` : ""} · 담당 ${r.owner} · 검증 ${r.verify} · 가정한 작동 원리: ${r.mechanism}(${r.mechanismDetail})${targetNote(r.lever) ? ` · 겨냥: ${targetNote(r.lever)}` : ""}`).join("\n")}
 비용 등급은 "추가 예산 없음"(직원 시간·이전 비용은 별도), "저비용", "예산 필요"(산정 전)로 말하라. "무예산"·"0원"이라고 단정하지 마라. 총예산은 산정하지 않았다고 답하라.
 
-## 이동식 CCTV 재배치 후보 (지도 검은 번호, 발생이력 순. 통계 효과 근거 아님, 자원 배분 논리)
+## 이동식 CCTV 재배치 후보 (지도 앰버 핀·순위 배지, 발생이력 순. 통계 효과 근거 아님, 자원 배분 논리)
 후보 ${CANDIDATES.length}곳. 상위: ${CANDIDATES.slice(0, 10).map((c, i) => `${i + 1}위 ${c[5] || c[4]}(민원 ${c[2]}·과태료 ${c[3]})`).join(", ")}
 세 목록을 섞지 마라. 재배치 후보 ${CANDIDATES.length}곳(카메라를 옮길 자리) ≠ 예측 핫스팟 20곳(다음 분기 순찰 대상) ≠ 집중관리 상습격자 ${MAP.decision.kpi.criticalCellsNow}곳(앱 제외 ${MAP.decision.kpi.criticalCellsNowNoApp}, 성과지표). 재배치를 말할 때는 후보 ${CANDIDATES.length}곳이다.
 

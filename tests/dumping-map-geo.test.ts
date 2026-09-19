@@ -21,6 +21,7 @@ import {
   ringPolygon,
   CYL_MIN_M,
   CYL_MAX_M,
+  ENF_COLOR,
   gridColumnsFC,
   hotspotsFC,
   radiusMetersExpr,
@@ -110,7 +111,7 @@ test("동별 기둥은 동마다 민원·과태료 두 기둥, 채널 모드는 
   const ch = dongColumnsFC(map!, "channel", null)
   assert.ok(ch.cols.features.length > total.cols.features.length)
   const first = map!.dong[0].d
-  const segs = ch.cols.features.filter((f) => f.properties.dong === first && f.properties.color !== "#9a6a2a")
+  const segs = ch.cols.features.filter((f) => f.properties.dong === first && f.properties.color !== ENF_COLOR)
   for (let i = 1; i < segs.length; i++) assert.ok(Math.abs((segs[i].properties.base as number) - (segs[i - 1].properties.h as number)) < 1e-9)
   // 툴팁은 카드형(card=1)
   assert.equal(total.cols.features[0].properties.card, 1)
