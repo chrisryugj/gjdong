@@ -13,7 +13,7 @@ const DEM_HILL_SOURCE = "dump-dem-hill" // 음영과 지형이 같은 소스를 
 export const HILLSHADE_LAYER = "dump-hillshade"
 // 국가공간정보포털 GIS건물통합정보(광진구) 타일. scripts/dumping-buildings.mjs로 만든 buildings.pmtiles가 public에 있으면 true로.
 // 구 안 건물은 이 소스(전수·층수·높이)로, OSM 건물은 구 밖만 그린다(dumping-map declareLayers)
-export const HAS_NSDI_BUILDINGS = false
+export const HAS_NSDI_BUILDINGS = true
 export const NSDI_SOURCE = "dump-nsdi"
 // 추출 범위. 그 밖은 타일이 없어 빈 바탕이라 카메라를 안에 가둔다
 export const BASEMAP_BOUNDS: [[number, number], [number, number]] = [

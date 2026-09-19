@@ -2,12 +2,14 @@
 // /dumping 지도의 건물 입체를 OSM 대신 국가공간정보포털 "GIS건물통합정보"(광진구)로 바꾸는 변환기(17라운드, 2026-09-19).
 // OSM은 구의·자양 일부 다가구 골목이 비어 있어 "저층 다가구 vs 아파트" 대비가 끊긴다. 건축물대장 연계 건물 윤곽·층수·높이는 전수라 그 공백이 메워진다.
 //
-// 자료 받기(로그인 필요, 무료 회원): https://www.nsdi.go.kr → 오픈마켓 → 검색 "GIS건물통합정보" → 서울특별시 광진구(시군구 단위 SHP) → 다운로드(zip)
-//   zip 안: *.shp/*.shx/*.dbf/*.prj (좌표계는 .prj가 말한다. 보통 EPSG:5174 또는 5186. 속성은 CP949)
-//   쓰는 필드: GRND_FLR(지상 층수) · HEIGHT(높이 m, 0이면 미기재) · BLD_NM · UFID
+// 자료 받기(로그인 필요, 무료 회원): 브이월드 데이터마켓 https://www.vworld.kr/dtmk/dtmk_ntads_s002.do?svcCde=NA&dsId=18
+//   (국가공간정보포털 nsdi.go.kr은 2024-01 폐쇄·브이월드로 이관) → 시·도 서울특별시 → 전체데이터 SHP(서울 전체 AL_D010_11_YYYYMMDD, 695,754동·dbf 1.2GB)
+//   좌표계 EPSG:5186(기준일 2023-08-08 이후), 속성 CP949, 필드는 A0~A28(컬럼 정의서):
+//   A1 UFID · A2 PNU · A3 법정동코드(광진 11215*) · A4 법정동명 · A16 높이(m, 0=미기재) · A24 건물명 · A26 지상층수 · A27 지하층수
+//   여기서 광진구만(A3 LIKE '11215%') 잘라 쓴다
 //
 // 쓰는 법: node scripts/dumping-buildings.mjs <zip 또는 shp 경로>
-//   → public/dumping/basemap/buildings.pmtiles (z13~16). 이어서 lib/dumping/basemap-style.ts HAS_NSDI_BUILDINGS를 true로 바꾸고 커밋
+//   → public/dumping/basemap/buildings.pmtiles (z13~16, 광진구만). 이어서 lib/dumping/basemap-style.ts HAS_NSDI_BUILDINGS를 true로 바꾸고 커밋
 // 필요한 도구: brew install gdal tippecanoe (ogr2ogr·tippecanoe). 임시 파일은 시스템 임시 폴더에
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
@@ -48,7 +50,7 @@ execFileSync(
     "-f", "GeoJSON", geojson, shp,
     "-t_srs", "EPSG:4326",
     "-nlt", "PROMOTE_TO_MULTI",
-    "-sql", `SELECT CAST(GRND_FLR AS integer) AS flr, CAST(HEIGHT AS real) AS h, BLD_NM AS nm, UFID AS id FROM "${path.basename(shp, ".shp")}"`,
+    "-sql", `SELECT A26 AS flr, A16 AS h, A24 AS nm, A1 AS id, A4 AS dong FROM "${path.basename(shp, ".shp")}" WHERE A3 LIKE '11215%'`,
     "--config", "SHAPE_ENCODING", "CP949",
     "-lco", "RFC7946=YES",
   ],
