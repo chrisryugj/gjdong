@@ -97,53 +97,78 @@ export function vizDescription(viz: VizAction): string {
   return parts.join(" · ")
 }
 
-const CHIP =
-  "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[14px] transition-colors"
-const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-const LABEL = "shrink-0 text-[13px] font-medium text-[var(--cp-text-dim)]"
+// ─── 공용 스타일. 떠 있는 패널 안의 줄(row) 단위 토글 ───
+const ROW = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13.5px] transition-colors hover:bg-[var(--cp-hover)] disabled:opacity-35"
+const ROW_ON = "bg-[var(--cp-hover)] font-semibold text-[var(--cp-text-strong)]"
+const ROW_OFF = "text-[var(--cp-text-muted)]"
+const GROUP = "dump-kicker px-2.5 pb-1 pt-3 text-[10.5px] text-[var(--cp-text-faint)] first:pt-1"
 const CHIP_SM = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[12.5px] transition-colors"
+const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+const CHIP_ON = "border-[#c2410c] bg-[#c2410c]/10 font-semibold text-[#c2410c]"
 
-// ─── 툴바. 지도 위가 아니라 지도 위쪽 띠에 둔다. 지도 위 오버레이끼리 겹치던 문제를 배치로 없앤다 ───
-interface ToolbarProps {
+// 줄 왼쪽 표식. 바탕은 네모, 원은 동그라미, 시설은 점
+function Swatch({ kind, color, on }: { kind: "square" | "circle" | "dot" | "line"; color: string; on: boolean }) {
+  if (kind === "line") return <i className="h-0.5 w-3.5 shrink-0 rounded-full" style={{ background: color, opacity: on ? 1 : 0.45 }} />
+  const shape = kind === "square" ? "rounded-[3px]" : "rounded-full"
+  const size = kind === "dot" ? "h-2.5 w-2.5" : "h-3 w-3"
+  return (
+    <i
+      className={`${size} shrink-0 border-[1.5px] ${shape}`}
+      style={on ? { borderColor: color, background: color } : { borderColor: color, background: `${color}22`, opacity: 0.75 }}
+    />
+  )
+}
+
+// ─── 레이어 패널. 지도 오른쪽에 떠 있는 세로 목록. 바탕 · 원 겹치기 · 보기 · 시설(2026-09-18, 지도 전면 디자인) ───
+// 예전 툴바(지도 위쪽 띠)와 같은 상태(MapView)를 같은 방식으로 바꾼다. 칩 두 줄이 지도 높이를 먹던 문제가 사라진다
+interface LayerPanelProps {
   data: DumpingMapData | null
   view: MapView
-  onChange: (next: MapView) => void // 사용자가 칩을 만졌을 때. 부모는 "반영 중" 배지를 내린다
+  onChange: (next: MapView) => void // 사용자가 줄을 만졌을 때. 부모는 "반영 중" 배지를 내린다
   active: { label: string; onClear: () => void } | null // 지도에 반영 중인 발견·정책 수단
 }
 
-export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
+export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps) {
   // 동별 막대 연도 버튼. 민원 연도(접수) 기준. 과태료 위반 연도에는 2022·2023 이월 키(구 전체 한 자리 건수)가 있어 합치면 빈 막대 칩이 생긴다
   const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => Object.keys(d.yr?.complaints ?? {})))).sort() : []
-
-  const [layersOpen, setLayersOpen] = useState(false)
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
-  const layerCount =
-    view.layers.length + (view.routes ? 1 : 0) + (view.candidates ? 1 : 0) + (view.binRecos ? 1 : 0)
 
   return (
-    <div className="shrink-0 border-b border-[var(--cp-border)] bg-[var(--cp-bg)]">
-      <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] md:flex-wrap md:overflow-visible">
-        <span className={LABEL}>바탕</span>
-        {/* 바탕은 하나만. 분절 컨트롤로 배타 선택임을 드러낸다 */}
-        <span className="flex shrink-0 overflow-hidden rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)]">
-          {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => (
+    <div className="flex min-h-0 flex-col">
+      {active && (
+        <div className="mb-1 flex items-center gap-2 rounded-lg border border-[#c2410c]/35 bg-[#c2410c]/8 py-1.5 pl-2.5 pr-1.5">
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#c2410c]">{active.label} · 반영 중</span>
+          <button
+            onClick={active.onClear}
+            aria-label="지도 반영 해제"
+            className="shrink-0 rounded-full bg-[#c2410c]/10 px-2 py-0.5 text-[12.5px] text-[#c2410c] hover:bg-[#c2410c]/20"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {/* 목록이 열 높이를 넘으면 스크롤. 바닥을 살짝 흐려 더 있음을 알린다 */}
+      <div className="min-h-0 overflow-y-auto pb-3 pr-0.5 [scrollbar-width:thin] [mask-image:linear-gradient(to_bottom,#000_calc(100%-18px),transparent)]">
+        <p className={GROUP}>바탕</p>
+        {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => {
+          const on = view.base === m
+          const pal = BASE_DEF[m].pal
+          return (
             <button
               key={m}
-              aria-pressed={view.base === m}
+              role="radio"
+              aria-checked={on}
               // 자기 자신을 원으로 또 겹치는 건 무의미. 자동 해제
               onClick={() => patch({ base: m, circles: view.circles.filter((c) => c !== m) })}
-              className={`h-8 whitespace-nowrap px-3 text-[14px] transition-colors ${
-                view.base === m
-                  ? "bg-[#0c6155] font-semibold text-white"
-                  : "text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-              }`}
+              className={`${ROW} ${on ? ROW_ON : ROW_OFF}`}
             >
-              {BASE_LABEL[m]}
+              <Swatch kind="square" color={pal[4]} on={on} />
+              <span className="min-w-0 flex-1">{BASE_LABEL[m]}</span>
             </button>
-          ))}
-        </span>
-        <span className="mx-1 h-5 w-px shrink-0 bg-[var(--cp-border)]" />
-        <span className={LABEL}>원 겹치기</span>
+          )
+        })}
+
+        <p className={GROUP}>원 겹치기</p>
         {(Object.keys(CIRCLE_DEF) as CircleId[]).map((c) => {
           const on = view.circles.includes(c)
           const sameAsBase = view.base === c
@@ -154,93 +179,92 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
               aria-pressed={on}
               title={sameAsBase ? "바탕과 같은 지표는 겹칠 필요가 없습니다" : undefined}
               onClick={() => patch({ circles: on ? view.circles.filter((x) => x !== c) : [...view.circles, c] })}
-              className={`${CHIP} disabled:opacity-35 ${on ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
-              style={on ? { borderColor: CIRCLE_DEF[c].color, color: CIRCLE_DEF[c].color } : undefined}
+              className={`${ROW} ${on ? ROW_ON : ROW_OFF}`}
             >
-              <i
-                className="h-3 w-3 rounded-full border-2"
-                style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
-              />
-              {CIRCLE_DEF[c].label}
+              <Swatch kind="circle" color={CIRCLE_DEF[c].color} on={on} />
+              <span className="min-w-0 flex-1">{CIRCLE_DEF[c].label} 원</span>
             </button>
           )
         })}
+
+        <p className={GROUP}>보기</p>
         <button
           aria-pressed={view.dongBars}
           title="행정동 15곳의 민원·과태료 건수를 입체 막대로 비교합니다"
           onClick={() => patch({ dongBars: !view.dongBars })}
-          className={`${CHIP} ${view.dongBars ? "border-[#0c6155] bg-[var(--cp-panel)] font-semibold text-[#0c6155]" : CHIP_OFF}`}
+          className={`${ROW} ${view.dongBars ? ROW_ON : ROW_OFF}`}
         >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
             <path d="M2 14V8h3v6zM6.5 14V4h3v10zM11 14V6h3v8z" />
           </svg>
-          동별 막대
-          {/* 막대 색 범례. 켜졌을 때만 */}
-          {view.dongBars && view.dongMode !== "channel" && (
-            <span className="ml-0.5 flex items-center gap-1 text-[12.5px] font-normal text-[var(--cp-text-muted)]">
-              <i className="h-2.5 w-2.5 rounded-[2px] bg-[#2f5aa8]" />민원
-              <i className="ml-1 h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
-            </span>
-          )}
+          <span className="min-w-0 flex-1">동별 막대</span>
         </button>
         {/* 12라운드: 동별 막대 모드. 합계 · 채널 스택(앱·120·직접) · 연도별 */}
         {view.dongBars && (
-          <span className="flex shrink-0 items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2 pt-0.5">
             {(Object.keys(DONG_MODE_LABEL) as DongMode[]).map((m) => (
               <button
                 key={m}
                 aria-pressed={view.dongMode === m}
                 onClick={() => patch({ dongMode: m, dongYear: m === "year" ? (view.dongYear ?? dongYears[dongYears.length - 1] ?? null) : view.dongYear })}
-                className={`${CHIP_SM} ${view.dongMode === m ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : CHIP_OFF}`}
+                className={`${CHIP_SM} ${view.dongMode === m ? CHIP_ON : CHIP_OFF}`}
               >
                 {DONG_MODE_LABEL[m]}
               </button>
             ))}
-            {view.dongMode === "channel" && (
-              <span className="ml-0.5 flex items-center gap-1 text-[12.5px] text-[var(--cp-text-muted)]">
-                {(Object.keys(CHANNEL_DEF) as (keyof typeof CHANNEL_DEF)[]).map((c) => (
-                  <span key={c} className="flex items-center gap-0.5">
-                    <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: CHANNEL_DEF[c].front }} />
-                    {CHANNEL_DEF[c].label}
-                  </span>
-                ))}
-                <i className="ml-1 h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
-              </span>
-            )}
             {view.dongMode === "year" &&
               dongYears.map((y) => (
                 <button
                   key={y}
                   aria-pressed={view.dongYear === y}
                   onClick={() => patch({ dongYear: y })}
-                  className={`${CHIP_SM} font-mono ${view.dongYear === y ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : CHIP_OFF}`}
+                  className={`${CHIP_SM} font-mono ${view.dongYear === y ? CHIP_ON : CHIP_OFF}`}
                 >
                   {y}
                 </button>
               ))}
-          </span>
+            {/* 막대 색 범례 */}
+            <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 pt-1 text-[12px] text-[var(--cp-text-dim)]">
+              {view.dongMode === "channel" ? (
+                (Object.keys(CHANNEL_DEF) as (keyof typeof CHANNEL_DEF)[]).map((c) => (
+                  <span key={c} className="flex items-center gap-1">
+                    <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: CHANNEL_DEF[c].front }} />
+                    {CHANNEL_DEF[c].label}
+                  </span>
+                ))
+              ) : (
+                <span className="flex items-center gap-1">
+                  <i className="h-2.5 w-2.5 rounded-[2px] bg-[#2f5aa8]" />민원
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <i className="h-2.5 w-2.5 rounded-[2px] bg-[#9a6a2a]" />과태료
+              </span>
+            </span>
+          </div>
         )}
         <button
           aria-pressed={view.grid3d}
           title="칸마다 원 지표(민원·과태료) 건수를 기둥으로 세웁니다. 5건 이상 칸만"
           onClick={() => patch({ grid3d: !view.grid3d })}
-          className={`${CHIP} ${view.grid3d ? "border-[#0c6155] bg-[var(--cp-panel)] font-semibold text-[#0c6155]" : CHIP_OFF}`}
+          className={`${ROW} ${view.grid3d ? ROW_ON : ROW_OFF}`}
         >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
             <path d="M2 14V9h2v5zM5 14V5h2v9zM8 14v-3h2v3zM11 14V7h2v7z" />
           </svg>
-          격자 기둥
+          <span className="min-w-0 flex-1">격자 기둥</span>
         </button>
         <button
           aria-pressed={!!view.weather}
           title="그 날씨 조건에 접수된 민원을 하루당 환산해 원으로 보입니다(접수일 기준)"
           onClick={() => patch({ weather: view.weather ? null : "hot" })}
-          className={`${CHIP} ${view.weather ? "border-[#c2410c] bg-[var(--cp-panel)] font-semibold text-[#c2410c]" : CHIP_OFF}`}
+          className={`${ROW} ${view.weather ? ROW_ON : ROW_OFF}`}
         >
-          날씨별
+          <Swatch kind="circle" color={view.weather ? WEATHER_DEF[view.weather].color : "#9aa5a1"} on={!!view.weather} />
+          <span className="min-w-0 flex-1">날씨별 민원 원</span>
         </button>
         {view.weather && (
-          <span className="flex shrink-0 items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2 pt-0.5">
             {(Object.keys(WEATHER_DEF) as WeatherKey[]).map((w) => (
               <button
                 key={w}
@@ -253,248 +277,208 @@ export function MapToolbar({ data, view, onChange, active }: ToolbarProps) {
                 {WEATHER_DEF[w].short}
               </button>
             ))}
-          </span>
+          </div>
         )}
-        <span className="mx-1 h-5 w-px shrink-0 bg-[var(--cp-border)]" />
-        <button
-          aria-expanded={layersOpen}
-          onClick={() => setLayersOpen((v) => !v)}
-          className={`${CHIP} ${layerCount > 0 ? "border-[var(--cp-border-active)] bg-[var(--cp-panel)] font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF}`}
-        >
-          시설 레이어 {layerCount > 0 ? `${layerCount}개 표시 중` : ""} {layersOpen ? "▴" : "▾"}
-        </button>
-        {active && (
-          <span className="ml-auto flex shrink-0 items-center gap-2 rounded-full border border-[#0c6155]/40 bg-[#0c6155]/8 py-1 pl-3 pr-1.5">
-            <span className="max-w-[16rem] truncate text-[14px] font-medium text-[#0c6155]">{active.label} · 지도에 반영 중</span>
+
+        <p className={GROUP}>시설</p>
+        {INFRA_IDS.map((id) => {
+          const on = view.layers.includes(id)
+          return (
             <button
-              onClick={active.onClear}
-              aria-label="지도 반영 해제"
-              className="shrink-0 rounded-full bg-[#0c6155]/10 px-2 py-0.5 text-[13px] text-[#0c6155] hover:bg-[#0c6155]/20"
+              key={id}
+              aria-pressed={on}
+              onClick={() => patch({ layers: on ? view.layers.filter((l) => l !== id) : [...view.layers, id] })}
+              className={`${ROW} ${on ? ROW_ON : ROW_OFF}`}
             >
-              ✕
+              <Swatch kind="dot" color={INFRA_STYLE[id].color} on={on} />
+              <span className="min-w-0 flex-1">{INFRA_STYLE[id].label}</span>
+              {/* 원자료 행이 아니라 중복을 뺀 기록 수. 가로쓰레기통은 128행이 실은 64곳이다 */}
+              {data && <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{tallyInfra(data.infra[id]).records.length}</span>}
             </button>
+          )
+        })}
+        <button aria-pressed={view.routes} onClick={() => patch({ routes: !view.routes })} className={`${ROW} ${view.routes ? ROW_ON : ROW_OFF}`}>
+          <Swatch kind="line" color="#d97706" on={view.routes} />
+          <span className="min-w-0 flex-1">청소차 노선</span>
+        </button>
+        <button
+          aria-pressed={view.candidates}
+          onClick={() => patch({ candidates: !view.candidates })}
+          className={`${ROW} ${view.candidates ? ROW_ON : ROW_OFF}`}
+        >
+          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed border-red-600" style={{ opacity: view.candidates ? 1 : 0.7 }} />
+          <span className="min-w-0 flex-1">CCTV 재배치 후보</span>
+          <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data ? data.cctvCandidates.length : 20}</span>
+        </button>
+        <button
+          aria-pressed={view.binRecos}
+          onClick={() => patch({ binRecos: !view.binRecos })}
+          className={`${ROW} ${view.binRecos ? ROW_ON : ROW_OFF}`}
+          title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 참고"
+        >
+          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed" style={{ borderColor: BIN_RECO_COLOR, opacity: view.binRecos ? 1 : 0.7 }} />
+          {/* 바로 위 가로쓰레기통 줄에 이어지니 "배치추천(데이터팀)"만. 전체 이름은 범례·툴팁(BIN_RECO_LABEL) */}
+          <span className="min-w-0 flex-1 [word-break:keep-all]">배치추천(데이터팀)</span>
+          {data?.binRecos && <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data.binRecos.items.length}</span>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── 범례. 지도 우하단 작은 카드. 첫 5초에 지도가 무슨 그림인지 여기서 읽힌다: 바탕 뜻·원 뜻·빈 칸 뜻 ───
+interface LegendProps {
+  data: DumpingMapData | null
+  view: MapView
+  selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
+}
+
+export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
+  const [showHelp, setShowHelp] = useState(false)
+  const [showTable, setShowTable] = useState(false)
+  const def = BASE_DEF[view.base]
+
+  return (
+    <div className="text-[12.5px] leading-snug text-[var(--cp-text)]">
+      <div className="flex flex-col gap-1.5 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="dump-kicker text-[10.5px] text-[var(--cp-text-faint)]">{def.legend} · 100m</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex overflow-hidden rounded-[3px]">
+            {def.pal.map((c) => (
+              <i key={c} className="h-2.5 w-5" style={{ background: c }} />
+            ))}
           </span>
+          <span className="font-mono text-[11px] leading-none text-[var(--cp-text-dim)]">
+            {def.stops[1]}+ … {def.stops[def.stops.length - 1]}+ {def.unit}
+          </span>
+        </div>
+        <p className="text-[var(--cp-text-muted)]">{BASE_MEANING[view.base]}</p>
+        {(showHelp || view.weather || view.grid3d) && (
+          <>
+        {view.weather ? (
+          <p className="flex items-center gap-1.5">
+            <i
+              className="h-3 w-3 shrink-0 rounded-full border"
+              style={{ borderColor: WEATHER_DEF[view.weather].color, background: `${WEATHER_DEF[view.weather].color}30` }}
+            />
+            <span>
+              원은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, 클수록 많음. 접수일 기준이라 투기 시각은 아님
+              {data?.env.weatherDays && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
+            </span>
+          </p>
+        ) : (
+          view.circles.map((c) => (
+            <p key={c} className="flex items-center gap-1.5">
+              <i
+                className="h-3 w-3 shrink-0 rounded-full border"
+                style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
+              />
+              <span>
+                {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)
+              </span>
+            </p>
+          ))
+        )}
+        {view.grid3d && (
+          <p className="text-[var(--cp-text-muted)]">
+            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 빨강·과태료 보라). 구 전체 보기는 10건 이상 칸, 확대하면 5건 이상 칸과 값
+          </p>
+        )}
+        <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
+          <i className="h-3 w-3 shrink-0 rounded-sm border" style={{ borderColor: ZERO_CELL, background: `${ZERO_CELL}20` }} />
+          <span>옅은 칸은 {def.legend} 0. 흰 바탕은 민원·과태료·다가구 모두 0인 곳</span>
+        </p>
+          </>
+        )}
+        <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[var(--cp-text-dim)]">
+          <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-[#c2410c] hover:underline">
+            {showHelp ? "설명 접기" : "자세한 설명"}
+          </button>
+          {data && (
+            <button onClick={() => setShowTable((v) => !v)} aria-expanded={showTable} className="font-medium text-[#c2410c] hover:underline">
+              {showTable ? "표 닫기" : "상위 20칸 표"}
+            </button>
+          )}
+        </div>
+        {showHelp && (
+          <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[12.5px] leading-relaxed text-[var(--cp-text-muted)]">
+            {baseDesc(view.base, data)}
+            {view.circles.length > 0 &&
+              ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
+          </p>
         )}
       </div>
-      {/* 시설 레이어 줄. 눌러서 연다. 상시 노출하면 칩 두 줄이 지도 높이를 먹는다 */}
-      {layersOpen && (
-        <div className="flex items-center gap-2 overflow-x-auto border-t border-[var(--cp-border-faint)] px-3 py-2 [scrollbar-width:none] md:flex-wrap md:overflow-visible">
-          {INFRA_IDS.map((id) => {
-            const on = view.layers.includes(id)
-            return (
-              <button
-                key={id}
-                aria-pressed={on}
-                onClick={() => patch({ layers: on ? view.layers.filter((l) => l !== id) : [...view.layers, id] })}
-                className={`${CHIP} ${
-                  on ? "border-[var(--cp-border-active)] bg-[var(--cp-panel)] font-semibold text-[var(--cp-text-strong)]" : CHIP_OFF
-                }`}
-              >
-                <i className="h-2.5 w-2.5 rounded-full" style={{ background: INFRA_STYLE[id].color, opacity: on ? 1 : 0.45 }} />
-                {INFRA_STYLE[id].label}
-                {/* 원자료 행이 아니라 중복을 뺀 기록 수. 가로쓰레기통은 128행이 실은 64곳이다 */}
-                {data ? ` ${tallyInfra(data.infra[id]).records.length}` : ""}
-              </button>
-            )
-          })}
-          <button
-            aria-pressed={view.routes}
-            onClick={() => patch({ routes: !view.routes })}
-            className={`${CHIP} ${view.routes ? "border-[#d97706] bg-[#d97706]/10 font-semibold text-[#92500a]" : CHIP_OFF}`}
-          >
-            <i className="h-0.5 w-4 rounded-full bg-[#d97706]" />
-            청소차 노선
-          </button>
-          <button
-            aria-pressed={view.candidates}
-            onClick={() => patch({ candidates: !view.candidates })}
-            className={`${CHIP} ${view.candidates ? "border-red-500 bg-red-500/10 font-semibold text-red-600" : CHIP_OFF}`}
-          >
-            <i className="h-2.5 w-2.5 rounded-full border border-dashed border-red-500" />
-            CCTV 재배치 후보 {data ? data.cctvCandidates.length : 20}
-          </button>
-          <button
-            aria-pressed={view.binRecos}
-            onClick={() => patch({ binRecos: !view.binRecos })}
-            className={`${CHIP} ${view.binRecos ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
-            style={view.binRecos ? { borderColor: BIN_RECO_COLOR, color: BIN_RECO_COLOR } : undefined}
-            title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 모달 참고"
-          >
-            <i className="h-2.5 w-2.5 rounded-full border border-dashed" style={{ borderColor: BIN_RECO_COLOR }} />
-            {BIN_RECO_LABEL} {data?.binRecos ? data.binRecos.items.length : ""}
-          </button>
+      {/* 격자 대체 표. 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸 */}
+      {showTable && data && (
+        <div className="max-h-[32dvh] overflow-y-auto border-t border-[var(--cp-border)] px-1 pb-1 text-[12.5px]">
+          <table className="w-full">
+            <caption className="sr-only">{def.legend} 상위 20개 100m 격자. 행정동, 값, 민원, 과태료 순</caption>
+            <thead>
+              <tr className="text-left text-[var(--cp-text-dim)]">
+                <th scope="col" className="px-1.5 py-1">순위</th>
+                <th scope="col" className="px-1.5 py-1">행정동</th>
+                <th scope="col" className="px-1.5 py-1 text-right">{def.legend}({def.unit})</th>
+                <th scope="col" className="px-1.5 py-1 text-right">민원</th>
+                <th scope="col" className="px-1.5 py-1 text-right">과태료</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...data.grid]
+                .filter((c) => selectedDong === null || c[7] === selectedDong)
+                .sort((a, b) => b[def.idx] - a[def.idx])
+                .slice(0, 20)
+                .map((c, i) => (
+                  <tr key={`${c[0]}-${c[1]}`} className="border-t border-[var(--cp-border-faint)]">
+                    <td className="px-1.5 py-1 font-mono">{i + 1}</td>
+                    <td className="px-1.5 py-1">{c[7] || "광진구"}</td>
+                    <td className="px-1.5 py-1 text-right font-mono">{c[def.idx].toLocaleString()}</td>
+                    <td className="px-1.5 py-1 text-right font-mono">{c[4]}</td>
+                    <td className="px-1.5 py-1 text-right font-mono">{c[5]}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   )
 }
 
-// ─── 지도 위 오버레이. 범례 카드(좌하단)와 재배치 후보 목록(우상단)뿐. 서로 겹칠 자리가 없다 ───
-interface OverlayProps {
-  data: DumpingMapData | null
-  view: MapView
-  onFocusCandidate: (f: CandidateFocus) => void
-  selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
-}
-
-export function MapOverlays({ data, view, onFocusCandidate, selectedDong = null }: OverlayProps) {
-  const [showHelp, setShowHelp] = useState(false)
-  const [showTable, setShowTable] = useState(false)
-  const [legendOpen, setLegendOpen] = useState(false) // 모바일에서만 뜻이 있다. 데스크톱은 항상 펼침
-  const def = BASE_DEF[view.base]
-
+// ─── 재배치 후보 주소 목록. 레이어 패널 아래에 이어 붙는다 ───
+export function CandidateList({ data, onFocusCandidate }: { data: DumpingMapData; onFocusCandidate: (f: CandidateFocus) => void }) {
   return (
-    <>
-      {/* 범례 카드. 첫 5초에 지도가 무슨 그림인지 여기서 읽힌다: 바탕 뜻·원 뜻·빈 칸 뜻.
-          모바일은 지도가 작아 색띠 한 줄만 두고 접는다 */}
-      <div className="absolute bottom-3 left-3 z-[1000] w-[min(22rem,calc(100%-5.5rem))] rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]/95 text-[13.5px] leading-snug text-[var(--cp-text)] shadow-sm backdrop-blur print:hidden">
-        <div className="flex flex-col gap-1.5 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex overflow-hidden rounded-sm">
-              {def.pal.map((c) => (
-                <i key={c} className="h-3.5 w-4" style={{ background: c }} />
-              ))}
-            </span>
-            <span className="font-mono text-[11px] leading-none text-[var(--cp-text-dim)]">
-              {def.stops[1]}+ … {def.stops[def.stops.length - 1]}+ {def.unit}
-            </span>
-            <button
-              onClick={() => setLegendOpen((v) => !v)}
-              aria-expanded={legendOpen}
-              className="ml-auto text-[13px] font-medium text-[#0c6155] md:hidden"
+    <div className="flex min-h-0 flex-col">
+      <p className="shrink-0 border-b border-[var(--cp-border)] px-3 py-2 text-[13.5px] font-semibold text-[var(--cp-text-strong)]">
+        이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
+        <span className="block text-[12px] font-normal text-[var(--cp-text-dim)]">발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)</span>
+      </p>
+      <div className="min-h-0 overflow-y-auto">
+        {data.cctvCandidates.map((c, i) => (
+          <button
+            key={i}
+            onClick={() => onFocusCandidate({ seq: Date.now(), latlng: [c[0], c[1]], label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}` })}
+            className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
+              i < 3 ? "bg-red-50/70" : ""
+            }`}
+          >
+            <span
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold text-white ${
+                i < 3 ? "bg-red-600 ring-2 ring-red-300" : "bg-red-400"
+              }`}
             >
-              {legendOpen ? "범례 접기" : "범례 뜻"}
-            </button>
-          </div>
-          <div className={`${legendOpen ? "flex" : "hidden md:flex"} flex-col gap-1.5`}>
-          <p>{BASE_MEANING[view.base]}</p>
-          {view.weather ? (
-            <p className="flex items-center gap-1.5">
-              <i
-                className="h-3 w-3 shrink-0 rounded-full border"
-                style={{ borderColor: WEATHER_DEF[view.weather].color, background: `${WEATHER_DEF[view.weather].color}30` }}
-              />
-              <span>
-                원은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, 클수록 많음. 접수일 기준이라 투기 시각은 아님
-                {data?.env.weatherDays && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
-              </span>
-            </p>
-          ) : (
-            view.circles.map((c) => (
-              <p key={c} className="flex items-center gap-1.5">
-                <i
-                  className="h-3 w-3 shrink-0 rounded-full border"
-                  style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
-                />
-                <span>
-                  {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)
-                </span>
-              </p>
-            ))
-          )}
-          {view.grid3d && (
-            <p className="text-[var(--cp-text-muted)]">
-              기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 구 전체 보기는 10건 이상 칸, 확대하면 5건 이상 칸과 값
-            </p>
-          )}
-          <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
-            <i className="h-3 w-3 shrink-0 rounded-sm border" style={{ borderColor: ZERO_CELL, background: `${ZERO_CELL}20` }} />
-            <span>옅은 칸은 {def.legend} 0. 흰 바탕은 민원·과태료·다가구 모두 0인 곳(한강·아차산·공원·아파트 단지)</span>
-          </p>
-          <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-[var(--cp-text-dim)]">
-            <span>칸 하나 = 100m</span>
-            <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-[#0c6155] hover:underline">
-              {showHelp ? "설명 접기" : "자세한 설명"}
-            </button>
-            {data && (
-              <button onClick={() => setShowTable((v) => !v)} aria-expanded={showTable} className="font-medium text-[#0c6155] hover:underline">
-                {showTable ? "표 닫기" : "상위 20칸 표"}
-              </button>
-            )}
-          </div>
-          {showHelp && (
-            <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
-              {baseDesc(view.base, data)}
-              {view.circles.length > 0 &&
-                ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
-            </p>
-          )}
-          </div>
-        </div>
-        {/* 격자 대체 표. 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸 */}
-        {showTable && data && (
-          <div className="max-h-[32dvh] overflow-y-auto border-t border-[var(--cp-border)] px-1 pb-1 text-[13px]">
-            <table className="w-full">
-              <caption className="sr-only">{def.legend} 상위 20개 100m 격자. 행정동, 값, 민원, 과태료 순</caption>
-              <thead>
-                <tr className="text-left text-[var(--cp-text-dim)]">
-                  <th scope="col" className="px-1.5 py-1">순위</th>
-                  <th scope="col" className="px-1.5 py-1">행정동</th>
-                  <th scope="col" className="px-1.5 py-1 text-right">{def.legend}({def.unit})</th>
-                  <th scope="col" className="px-1.5 py-1 text-right">민원</th>
-                  <th scope="col" className="px-1.5 py-1 text-right">과태료</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...data.grid]
-                  .filter((c) => selectedDong === null || c[7] === selectedDong)
-                  .sort((a, b) => b[def.idx] - a[def.idx])
-                  .slice(0, 20)
-                  .map((c, i) => (
-                    <tr key={`${c[0]}-${c[1]}`} className="border-t border-[var(--cp-border-faint)]">
-                      <td className="px-1.5 py-1 font-mono">{i + 1}</td>
-                      <td className="px-1.5 py-1">{c[7] || "광진구"}</td>
-                      <td className="px-1.5 py-1 text-right font-mono">{c[def.idx].toLocaleString()}</td>
-                      <td className="px-1.5 py-1 text-right font-mono">{c[4]}</td>
-                      <td className="px-1.5 py-1 text-right font-mono">{c[5]}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* 재배치 후보 주소 목록. 우상단. 줌 버튼(우하단)·범례(좌하단)와 자리가 다르다 */}
-      {view.candidates && data && (
-        <div className="absolute right-3 top-3 z-[1000] w-72 max-w-[75%] overflow-hidden rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]/95 shadow-md backdrop-blur md:w-80">
-          <p className="border-b border-[var(--cp-border)] px-3 py-2 text-[14px] font-semibold text-[var(--cp-text-strong)]">
-            이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
-            <span className="block text-[12.5px] font-normal text-[var(--cp-text-dim)]">
-              발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)
+              {i + 1}
             </span>
-          </p>
-          <div className="max-h-[22dvh] overflow-y-auto md:max-h-[42dvh]">
-            {data.cctvCandidates.map((c, i) => (
-              <button
-                key={i}
-                onClick={() =>
-                  onFocusCandidate({ seq: Date.now(), latlng: [c[0], c[1]], label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}` })
-                }
-                className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
-                  i < 3 ? "bg-red-50" : ""
-                }`}
-              >
-                <span
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white ${
-                    i < 3 ? "bg-red-600 ring-2 ring-red-300" : "bg-red-400"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-[14px] font-medium text-[var(--cp-text-strong)]">
-                    {c[5] || `${c[4]} (주소 없음)`}
-                  </span>
-                  <span className="block text-[13px] text-[var(--cp-text-dim)]">
-                    {c[4]} · 민원 {c[2]} · 과태료 {c[3]} · 전 기간
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+            <span className="min-w-0">
+              <span className="block truncate text-[13.5px] font-medium text-[var(--cp-text-strong)]">{c[5] || `${c[4]} (주소 없음)`}</span>
+              <span className="block text-[12.5px] text-[var(--cp-text-dim)]">
+                {c[4]} · 민원 {c[2]} · 과태료 {c[3]} · 전 기간
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

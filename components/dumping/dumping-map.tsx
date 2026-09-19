@@ -24,10 +24,10 @@ const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">Open
 
 // 모드별 팔레트를 분리해 "지금 뭘 보고 있는지"가 색으로 구분되게 한다
 // 원인(다가구·단독 밀집)=초록 · 민원=파랑 · 과태료=주황
-const PAL_GREEN = ["#e7edea", "#cfe2db", "#a8cfc2", "#7ab8a4", "#3f8f79", "#0c6155"]
+const PAL_GREEN = ["#dfe9e3", "#b9d6ca", "#8ec2ae", "#5ea78d", "#2f8267", "#0b4f45"] // 낮은 단계를 바탕(#e8ebe6)에서 띄움. 줌을 빼면 첫 단계 칸이 지도에 묻혔다(2026-09-18)
 const PAL_BLUE = ["#e9eef7", "#cfddf0", "#a6c3e3", "#78a3d2", "#4377b8", "#1c4f96"]
-const PAL_AMBER = ["#f6efe3", "#eedcc0", "#e3c28c", "#d19e56", "#b07327", "#8a530e"]
-const PAL_SLATE = ["#eef0f3", "#d9dee6", "#b7c0cf", "#8b98af", "#5b6b8a", "#2f3e5e"] // 생활인구(노출). 결과·원인 색과 겹치지 않게
+const PAL_AMBER = ["#faeee6", "#f5d3c0", "#eeab8a", "#e27f52", "#d9480f", "#8f2f08"]
+const PAL_SLATE = ["#e6e9ee", "#c5ccd8", "#9faabd", "#75849e", "#4c5d7c", "#2f3e5e"] // 생활인구(노출). 결과·원인 색과 겹치지 않게. 낮은 단계는 바탕에서 띄움
 const UNM_STOPS = [0, 20, 60, 150, 300, 600]
 const CNT_STOPS = [0, 1, 2, 4, 8, 20]
 const LP_STOPS = [0, 100, 300, 600, 1000, 2000] // 100m 격자 생활인구(명, 시간·일 평균)
@@ -143,6 +143,7 @@ interface DumpingMapProps {
   grid3d: boolean // 격자 기둥(원 지표 건수, 5건 이상 칸)
   weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
+  fitPadding?: { tl: [number, number]; br: [number, number] } // 지도 위에 뜬 카드·열이 가리는 영역(px). 구 전체 맞춤이 보이는 부분에만 맞춘다(2026-09-18 지도 전면)
 }
 
 // 동별 3D 막대 SVG. 등축 막대 2개(민원 파랑·과태료 갈색), 앞면·옆면·윗면 세 조각. 값은 위, 동 이름은 아래.
@@ -164,6 +165,9 @@ function isoBar(x: number, base: number, y0: number, h: number, bw: number, D: n
 }
 const COMP_FACE: Face = { front: "#2f5aa8", side: "#1d3f78", top: "#6b93d6" }
 const ENF_FACE: Face = { front: "#9a6a2a", side: "#6e4a1b", top: "#c99a55" }
+// 격자 기둥은 원 지표를 세운 것이라 원과 같은 색(민원 빨강·과태료 보라). 동별 막대(파랑·갈색)와 같은 색이면 둘을 같이 켰을 때 구분이 안 됐다(2026-09-18)
+const GRID_COMP_FACE: Face = { front: "#a8322a", side: "#7a2420", top: "#cf6a63" }
+const GRID_ENF_FACE: Face = { front: "#5b21b6", side: "#3f1683", top: "#9b6fe0" }
 const CRIT_FACE: Face = { front: "#a8322a", side: "#7a2420", top: "#d0605a" }
 const HOT_FACE: Face = { front: "#b45309", side: "#7c3a06", top: "#e0873a" }
 
@@ -262,8 +266,15 @@ export default function DumpingMap({
   grid3d,
   weather,
   resetSeq,
+  fitPadding,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
+  const fitPadRef = useRef(fitPadding)
+  fitPadRef.current = fitPadding
+  const fitOpts = () => {
+    const p = fitPadRef.current
+    return p ? { paddingTopLeft: p.tl, paddingBottomRight: p.br } : { padding: [12, 12] as [number, number] }
+  }
   const mapRef = useRef<LeafletMap | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const infraRendererRef = useRef<Renderer | null>(null)
@@ -391,7 +402,7 @@ export default function DumpingMap({
       // 높이 0인 컨테이너에 fitBounds를 하면 Leaflet이 줌을 최대(18)로 잡아 한 블록만 보인다(2026-09-16 폰 실측). 높이가 생길 때로 미룬다
       // animate:false — 줌 애니메이션 중 탭을 바꾸면 Leaflet이 250ms 뒤 _onZoomTransitionEnd를 제거된 지도에 불러 _leaflet_pos 오류(실측: 데이터 도착 직후 전환)
       const fit = () => {
-        map.fitBounds(L.latLngBounds(data.ring), { padding: [12, 12], animate: false })
+        map.fitBounds(L.latLngBounds(data.ring), { ...fitOpts(), animate: false })
         setZoomedOut(map.getZoom() < 13.5)
       }
       if (map.getSize().y > 0) fit()
@@ -428,10 +439,13 @@ export default function DumpingMap({
           [cell[2], cell[3]],
         ]
         if (v > 0) {
+          // 칸 사이 흰 헤어라인. 다가구·단독·생활인구처럼 이웃 칸이 같은 단계로 이어지는 바탕은 선이 없으면 줌을 빼면 한 덩어리로 보인다(2026-09-18)
           L.rectangle(bounds, {
             pane: "dumpGrid",
             renderer,
-            stroke: false,
+            color: "#ffffff",
+            weight: 0.8,
+            opacity: dimmed ? 0.25 : 0.7,
             fillColor: colorOf(v, def.stops, def.pal),
             fillOpacity: dimmed ? (muted ? 0.25 : 0.18) : 0.8,
           })
@@ -540,7 +554,7 @@ export default function DumpingMap({
         // 실제 행정동 폴리곤 링. 선택 동은 은은한 채움까지
         L.polyline(rings as [number, number][][], {
           pane: "dumpDong",
-          color: on ? "#0c6155" : "#64748b",
+          color: on ? "#c2410c" : "#64748b",
           weight: on ? 3.2 : 1,
           opacity: on ? 0.95 : 0.4,
           interactive: false,
@@ -549,7 +563,7 @@ export default function DumpingMap({
           L.polygon(rings as [number, number][][], {
             pane: "dumpDong",
             stroke: false,
-            fillColor: "#0c6155",
+            fillColor: "#c2410c",
             fillOpacity: 0.06,
             interactive: false,
           }).addTo(group)
@@ -571,7 +585,7 @@ export default function DumpingMap({
         }
       } else if (prevDongRef.current) {
         // 선택 해제 → 구 전체 뷰로 복귀 (viz 적용·해제 버튼 모두)
-        map.flyToBounds(L.latLngBounds(data.ring), { padding: [12, 12], duration: 0.5 })
+        map.flyToBounds(L.latLngBounds(data.ring), { ...fitOpts(), duration: 0.5 })
       }
       prevDongRef.current = selectedDong
     }
@@ -839,7 +853,7 @@ export default function DumpingMap({
         const vals = ids.map((id) => cell[CIRCLE_DEF[id].idx])
         if (Math.max(...vals) < minV) continue
         if (selectedDong && cell[7] !== selectedDong) continue
-        const bars = ids.map((id, i) => ({ v: vals[i], h: Math.max(2, Math.round((vals[i] / maxV) * H)), face: id === "comp" ? COMP_FACE : ENF_FACE }))
+        const bars = ids.map((id, i) => ({ v: vals[i], h: Math.max(2, Math.round((vals[i] / maxV) * H)), face: id === "comp" ? GRID_COMP_FACE : GRID_ENF_FACE }))
         const w = 12 + bars.length * 16
         L.marker([(cell[0] + cell[2]) / 2, (cell[1] + cell[3]) / 2], {
           pane: "dumpInfra",
@@ -959,5 +973,5 @@ export default function DumpingMap({
     void run()
   }, [resetSeq])
 
-  return <div ref={boxRef} className="dumping-map h-full w-full bg-white" />
+  return <div ref={boxRef} className="dumping-map h-full w-full" />
 }

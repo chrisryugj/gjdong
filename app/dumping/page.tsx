@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next"
-import { Fraunces } from "next/font/google"
+import { Manrope, Noto_Serif_KR } from "next/font/google"
 import DumpingClient from "@/components/dumping/client"
 
-// 프리미엄 에디토리얼(2026-09-17): 숫자·항목 번호·헤더 수치는 Fraunces 세리프(가변, 광학 크기·SOFT 축). 한글 본문은 SUIT 그대로.
+// 지도 전면 디자인(2026-09-18): 숫자·항목 번호·수치는 Manrope, 결론 머리기사는 Noto Serif KR. 한글 본문은 SUIT 그대로.
 // next/font가 빌드 때 받아 셀프호스팅하므로 런타임 외부 요청 없음
-const fraunces = Fraunces({ subsets: ["latin"], axes: ["opsz", "SOFT"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap" })
+const manrope = Manrope({ subsets: ["latin"], weight: ["500", "600", "700", "800"], variable: "--font-manrope", display: "swap" })
+const serifKr = Noto_Serif_KR({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-serif-kr", display: "swap" })
 
 // searchParams를 읽지 않는다. 라우트를 정적으로 유지해 CDN 캐시를 살린다 (crowd/page.tsx 규약)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0b0f14",
+  themeColor: "#14201c",
 }
 
 export const metadata: Metadata = {
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function DumpingPage() {
   return (
-    <div className={`${fraunces.variable} contents`}>
+    <div className={`${manrope.variable} ${serifKr.variable} contents`}>
       <DumpingClient />
     </div>
   )

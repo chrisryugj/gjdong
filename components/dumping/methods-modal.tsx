@@ -229,6 +229,7 @@ export default function MethodsModal({
       title="데이터·분석 방법"
       sub="무엇을 근거로 어떻게 계산했는지, 통계를 모르는 분도 읽을 수 있게 정리했습니다"
       onClose={onClose}
+      size="xl"
     >
       {/* 섹션 전환. 데이터 출처와 방법론을 나란히 확인 */}
       <div className="mb-3 flex gap-1 rounded-lg bg-[var(--cp-hover)] p-1">
@@ -263,7 +264,7 @@ export default function MethodsModal({
           />
           <DatasetGroup
             badge="직접 수집"
-            badgeCls="bg-[#0c6155]/12 text-[#0c6155]"
+            badgeCls="bg-[#c2410c]/12 text-[#c2410c]"
             title={`공개 데이터 직접 수집 ${collected(data, topBeta, ledgerRows).length}종`}
             desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
             items={collected(data, topBeta, ledgerRows)}
@@ -289,7 +290,7 @@ export default function MethodsModal({
           <p
             ref={reproRef}
             className={`rounded-lg px-2.5 py-2 text-[14px] leading-relaxed ${
-              initialSection === "reproduce" ? "border border-[#0c6155]/40 bg-[#0c6155]/5 text-[var(--cp-text)]" : "text-[var(--cp-text-faint)]"
+              initialSection === "reproduce" ? "border border-[#c2410c]/40 bg-[#c2410c]/5 text-[var(--cp-text)]" : "text-[var(--cp-text-faint)]"
             }`}
           >
             <b className="text-[var(--cp-text-strong)]">재현.</b> 원자료의 컬럼 사전과 입력·산출물·코드 파일 해시(SHA-256) {rp?.hashes ?? "미산출"}개는 재현 패키지(REPRODUCE)에 고정돼 있고,
@@ -308,7 +309,7 @@ export default function MethodsModal({
           <p className="text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             상세 수식·검증 절차는 재현 패키지(비공개 저장소, 요청 시 열람)에 있습니다. 고정 산출물의 무결성은 해시로, 핵심 수치는 검증 스크립트 재계산으로 확인하며 모형 재추정은 각 스크립트로 합니다.
             한계·검정 세부는{" "}
-            <a href={EXPLAINER_URL} target="_blank" rel="noreferrer" className="font-medium text-[#0c6155] hover:underline">
+            <a href={EXPLAINER_URL} target="_blank" rel="noreferrer" className="font-medium text-[#c2410c] hover:underline">
               통계 해설서(공개)
             </a>
             에 있습니다.

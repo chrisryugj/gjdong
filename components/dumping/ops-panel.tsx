@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { DumpingMapData, InterventionEntry } from "@/lib/dumping/types"
 import { partialYearSuffix, summarize } from "@/lib/dumping/facts"
 import { SectionHead } from "./section-head"
+import { nb } from "@/lib/dumping/nobreak"
 import OpsModal, { ForecastChart, KRW, type OpsModalId } from "./ops-modal"
 
 // 운영·전망 탭. KPI 보드 · 예측 핫스팟 · 수요 전망 · 품목 분해 · 처분 퍼널 · 처리 SLA · 구조 전망 · 조치 대장.
@@ -31,16 +32,16 @@ function DetailCard({
   return (
     <button
       onClick={onOpen}
-      className={`dump-rise relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#0c6155]/60 ${className ?? ""}`}
+      className={`dump-rise relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#c2410c]/60 ${className ?? ""}`}
     >
-      <span className="absolute right-3 top-2.5 text-[13.5px] font-medium text-[#0c6155]">자세히 →</span>
+      <span className="absolute right-3 top-2.5 text-[13.5px] font-medium text-[#c2410c]">자세히 →</span>
       {children}
     </button>
   )
 }
 
 const STATUS_KO: Record<InterventionEntry["status"], { label: string; cls: string }> = {
-  registered: { label: "등록", cls: "bg-[#0c6155]/10 text-[#0c6155]" },
+  registered: { label: "등록", cls: "bg-[#c2410c]/10 text-[#c2410c]" },
   active: { label: "실행 중", cls: "bg-amber-100 text-amber-800" },
   evaluated: { label: "평가 완료", cls: "bg-slate-200 text-slate-700" },
   abandoned: { label: "중단", cls: "bg-slate-100 text-slate-500" },
@@ -82,76 +83,104 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       {/* KPI 보드. 신고편향에 오염되지 않는 성과지표. 민원 총건수로 성과 평가 금지 */}
       <section>
         <SectionHead n="01" first sub={`신고편향에 덜 민감한 지표 · ${d.asof} 기준`}>성과지표</SectionHead>
-        <div className="grid grid-cols-3 gap-1.5 text-center">
-          <button
-            onClick={onToggleCritical}
-            className={`rounded-lg border px-1 py-2 transition-colors ${
-              showCritical
-                ? "border-[#a8322a] bg-[#a8322a]/8 ring-2 ring-[#a8322a]/25"
-                : "border-[var(--cp-border)] bg-[var(--cp-panel)] hover:bg-[var(--cp-hover)]"
-            }`}
-          >
-            <p className="text-[13.5px] text-[var(--cp-text-dim)]">집중관리 상습격자(앱 제외)</p>
-            <p className="font-mono text-[22px] font-bold text-[#a8322a]">{d.kpi.criticalCellsNowNoApp}</p>
-            <p className="text-[12.5px] text-[var(--cp-text-faint)]">
-              {d.kpi.thresholds?.months ?? 12}개월 {d.kpi.thresholds?.critical ?? 10}건+ {prevCriticalNoApp != null && ` · 전분기 ${prevCriticalNoApp}`}
-            </p>
-            <p className="text-[12.5px] font-medium text-[var(--cp-text-muted)]">
-              앱 포함 {d.kpi.criticalCellsNow}곳(지도){prevCritical != null && ` · 전분기 ${prevCritical}`}
-            </p>
-            <p className="mt-0.5 text-[12.5px] font-medium text-[#0c6155]">
-              {showCritical ? "지도 표시 중 · 눌러서 끄기" : "지도에 표시 →"}
-            </p>
-          </button>
-          <button
-            onClick={() => setModal("funnel")}
-            className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
-          >
-            <p className="text-[13.5px] text-[var(--cp-text-dim)]">과태료 징수율</p>
-            <p className="font-mono text-[22px] font-bold text-[var(--cp-text-strong)]">
-              {d.fines.collectionRatePct}%
-            </p>
-            <p className="text-[12.5px] text-[var(--cp-text-faint)]">
-              체납 {d.fines.arrearsN}건 {KRW(d.fines.arrearsAmount)}
-            </p>
-            <p className="mt-0.5 text-[12.5px] font-medium text-[#0c6155]">자세히 →</p>
-          </button>
-          <button
-            onClick={() => setModal("channels")}
-            className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-1 py-2 hover:bg-[var(--cp-hover)]"
-          >
-            <p className="text-[13.5px] text-[var(--cp-text-dim)]">채널고정 민원</p>
-            <p className="font-mono text-[22px] font-bold text-[var(--cp-text-strong)]">
-              {Object.values(fixedYearly).slice(-1)[0] ?? "-"}
-            </p>
-            <p className="text-[12.5px] text-[var(--cp-text-faint)]">
-              {Object.entries(fixedYearly)
-                .map(([yr, n]) => `${yr.slice(2)}년 ${n}`)
-                .join(" · ")}
-            </p>
-            <p className="mt-0.5 text-[12.5px] font-medium text-[#0c6155]">자세히 →</p>
-          </button>
+        {/* 세 줄 목록(2026-09-18). 카드 폭 440px에 세 칸을 나란히 두면 라벨이 세 줄로 깨졌다. 왼쪽 이름·풀이, 오른쪽 큰 숫자·동작 */}
+        <div className="flex flex-col overflow-hidden rounded-xl border border-[var(--cp-border)] bg-[var(--cp-panel)]">
+          {(
+            [
+              {
+                key: "critical",
+                label: "집중관리 상습격자",
+                tag: "앱 제외",
+                value: String(d.kpi.criticalCellsNowNoApp),
+                unit: "곳",
+                sub: `${d.kpi.thresholds?.months ?? 12}개월 ${d.kpi.thresholds?.critical ?? 10}건 이상 칸${prevCriticalNoApp != null ? ` · 전분기 ${prevCriticalNoApp}` : ""} · 앱 포함 ${d.kpi.criticalCellsNow}곳(지도)${prevCritical != null ? ` · 전분기 ${prevCritical}` : ""}`,
+                action: showCritical ? "지도 표시 중 · 끄기" : "지도에 표시",
+                onClick: onToggleCritical,
+                on: showCritical,
+                red: true,
+              },
+              {
+                key: "collection",
+                label: "과태료 징수율",
+                tag: null,
+                value: `${d.fines.collectionRatePct}`,
+                unit: "%",
+                sub: `체납 ${d.fines.arrearsN}건 ${KRW(d.fines.arrearsAmount)}`,
+                action: "자세히",
+                onClick: () => setModal("funnel"),
+                on: false,
+                red: false,
+              },
+              {
+                key: "fixed",
+                label: "채널고정 민원",
+                tag: "120·직접",
+                value: String(Object.values(fixedYearly).slice(-1)[0] ?? "-"),
+                unit: "건",
+                sub: Object.entries(fixedYearly)
+                  .map(([yr, n]) => `${yr}년 ${n}`)
+                  .join(" · ") + (period.lastMonth < 12 ? ` · ${period.lastYear}년은 ${period.lastMonth}월까지` : ""),
+                action: "자세히",
+                onClick: () => setModal("channels"),
+                on: false,
+                red: false,
+              },
+            ] as const
+          ).map((k) => (
+            <button
+              key={k.key}
+              onClick={k.onClick}
+              aria-pressed={k.key === "critical" ? k.on : undefined}
+              className={`flex items-center gap-3 border-t border-[var(--cp-border)] px-3.5 py-3 text-left transition-colors first:border-t-0 hover:bg-[var(--cp-hover)] ${k.on ? "bg-[#a8322a]/6" : ""}`}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-baseline gap-x-1.5 text-[14.5px] font-semibold text-[var(--cp-text-strong)]">
+                  {k.label}
+                  {k.tag && <span className="text-[12px] font-medium text-[var(--cp-text-dim)]">{k.tag}</span>}
+                </span>
+                <span className="mt-0.5 block text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{nb(k.sub)}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className={`dump-meta-v block text-[24px] leading-none ${k.red ? "text-[#a8322a]" : "text-[var(--cp-text-strong)]"}`}>
+                  {k.value}
+                  <span className="ml-0.5 font-sans text-[12px] font-medium text-[var(--cp-text-dim)]">{k.unit}</span>
+                </span>
+                <span className="mt-1 block text-[12.5px] font-semibold text-[#c2410c]">{k.action} →</span>
+              </span>
+            </button>
+          ))}
         </div>
-        <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          민원 총건수에는 앱 보급 편향이 섞여 있어 성과지표로 쓰지 않습니다. 연도 비교는
-          채널고정(120·직접)과 상습격자 수로 합니다. 상습격자 수는 앱 민원을 포함하면 {d.kpi.criticalCellsNow}곳,
-          빼면 {d.kpi.criticalCellsNowNoApp}곳입니다. 앱을 뺀 수치를 성과 판단의 기준으로 삼아 주세요.{" "}
-          {period.lastMonth < 12 && `채널고정 ${period.lastYear}년 수치는 ${period.lastMonth}월까지의 부분 집계입니다.`}
+        <p className="mt-2 text-[13px] leading-relaxed text-[var(--cp-text-faint)]">
+          민원 총건수는 앱 보급 편향이 섞여 성과지표로 쓰지 않습니다. 성과 판단은 앱을 뺀 상습격자 수와 채널고정 민원으로 합니다.
         </p>
       </section>
 
       {/* 예측 핫스팟. 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
       <section>
         <SectionHead n="02" sub="순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수. 최근에 기록이 몰린 칸이 위로 옵니다 · 누르면 지도에서 기둥으로 표시">다음 분기 예측 핫스팟 20</SectionHead>
-        <p className="mb-1.5 rounded-lg bg-[#0c6155]/10 px-2.5 py-1.5 text-[14.5px] font-medium leading-snug text-[#0a4a41]">
-          지난 {bt.windows.length}개 분기 백테스트: 상위 20곳 중 평균 {bt.avgPrecision20}%에서 다음
-          분기 민원·과태료 기록. 전체 기록의 {bt.avgCapture20}%를 20곳이 포착 (무작위 기대 {bt.avgRandomCapture}%).
-          {bt.baselines && (
-            <span className="block font-normal text-[#0a4a41]/80">
-              실무 기준모형 포착률 {Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(" · ")}. 동급이며 우열 미확정.
-            </span>
-          )}
-        </p>
+        {/* 백테스트 요약은 문단 대신 수치 3칸(2026-09-18: 여섯 줄 문단은 읽히지 않았다) */}
+        <div className="mb-2 grid grid-cols-3 gap-1.5 rounded-lg bg-[#c2410c]/8 px-3 py-2">
+          {[
+            { k: "적중률", v: `${bt.avgPrecision20}%`, s: "20곳 중 다음 분기 기록" },
+            { k: "포착률", v: `${bt.avgCapture20}%`, s: `무작위 기대 ${bt.avgRandomCapture}%` },
+            // 단순 집계(누적·최근 90일·반감기 동일가중) 3종으로 뽑아도 같은 수준이라는 고지. 범위 하나로 보인다
+            {
+              k: "단순 집계로 뽑아도",
+              v: (() => {
+                const vs = Object.values(bt.baselines ?? {}).map((b) => b.avgCapture20).filter((x): x is number => typeof x === "number")
+                return vs.length ? `${Math.min(...vs)}~${Math.max(...vs)}%` : "미산출"
+              })(),
+              s: `우리 점수 ${bt.avgCapture20}%와 같은 수준`,
+            },
+          ].map((x) => (
+            <div key={x.k} className="min-w-0">
+              <p className="truncate text-[12px] text-[#9a3412]/80">{x.k}</p>
+              <p className="dump-meta-v text-[18px] leading-tight text-[#9a3412]">{x.v}</p>
+              <p className="text-[11.5px] leading-snug text-[#9a3412]/70">{x.s}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mb-1.5 text-[12.5px] text-[var(--cp-text-faint)]">지난 {bt.windows.length}개 분기마다 그 시점으로 돌아가 뽑은 20곳을 채점한 값입니다.</p>
         <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
           {d.hotspots.top.map((h, i) => (
             <button
@@ -167,28 +196,26 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14.5px] font-medium text-[var(--cp-text-strong)]">
-                  {h[6] || `${h[5]} (대표 주소 없음, 격자 중심)`}
+                {/* 배지는 첫 줄 끝에. 오른쪽 열로 빼 두면 아래 두 줄까지 폭이 줄어 세 줄로 깨진다(2026-09-18) */}
+                <span className="flex items-center gap-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-[var(--cp-text-strong)]">
+                    {h[6] || `${h[5]} (대표 주소 없음, 격자 중심)`}
+                  </span>
+                  {h[12] === 1 && (
+                    <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[11.5px] font-medium text-[#a8322a]">집중관리</span>
+                  )}
+                  {h[7] === 0 && (
+                    <span className="shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[11.5px] font-medium text-amber-800">CCTV 없음</span>
+                  )}
                 </span>
-                <span className="block text-[13.5px] text-[var(--cp-text-dim)]">
-                  {h[5]} · 최근 180일 민원 {h[3]} · 과태료 {h[4]}
+                <span className="block text-[13px] text-[var(--cp-text-dim)]">
+                  {h[5]} · 180일 민원 {h[3]} · 과태료 {h[4]}
                 </span>
-                {/* 12라운드: 왜 이 칸인가. 최근 90일 vs 이전 90일, 12개월 누계, 마지막 기록 */}
-                <span className="block text-[13px] text-[var(--cp-text-faint)]">
-                  이유 · 최근 90일 {h[9]}건({h[9] > h[10] ? `이전 90일 ${h[10]}건보다 증가` : h[9] < h[10] ? `이전 90일 ${h[10]}건보다 감소` : "이전 90일과 같음"}) · 12개월 {h[8]}건
-                  {h[11] >= 0 ? ` · 마지막 기록 ${h[11]}일 전` : ""}
+                {/* 12라운드: 왜 이 칸인가. 최근 90일 vs 이전 90일, 12개월 누계, 마지막 기록. 한 줄 안에 */}
+                <span className="block text-[12.5px] text-[var(--cp-text-faint)]">
+                  최근 90일 {h[9]}건{h[9] > h[10] ? "↑" : h[9] < h[10] ? "↓" : "="}이전 {h[10]}건 · 12개월 {h[8]}건{h[11] >= 0 ? ` · 마지막 ${h[11]}일 전` : ""}
                 </span>
               </span>
-              {h[12] === 1 && (
-                <span className="mt-0.5 shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12.5px] font-medium text-[#a8322a]">
-                  집중관리
-                </span>
-              )}
-              {h[7] === 0 && (
-                <span className="mt-0.5 shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[12.5px] font-medium text-amber-800">
-                  CCTV 없음
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -201,23 +228,30 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       <section>
         <SectionHead n="03" sub="운영 참고용 행정수요 전망">민원 접수 전망</SectionHead>
         <DetailCard onOpen={() => setModal("forecast")}>
-          <p className="mb-1 text-[15.5px] text-[var(--cp-text-muted)]">
-            {fcSoFar != null ? "집계 중인 달" : "다음 달"}({nextFc.m}) 예상 접수{" "}
-            <b className="font-mono text-[17px] text-[var(--cp-text-strong)]">{nextFc.yhat}건</b>
-            <span className="ml-1 font-mono text-[14.5px] text-[var(--cp-text-dim)]">
-              (80% 구간 {nextFc.lo}~{nextFc.hi})
-            </span>
-            {fcSoFar != null && (
-              <span className="block font-mono text-[13.5px] text-[var(--cp-text-dim)]">
-                {d.asof.slice(5).replace("-", "/")}까지 {fcSoFar}건 접수
+          <div className="mb-1 flex items-end gap-3 pr-16">
+            <span className="min-w-0">
+              <span className="block text-[13px] text-[var(--cp-text-dim)]">
+                {fcSoFar != null ? "집계 중인 달" : "다음 달"} {nextFc.m} 예상 접수
               </span>
-            )}
-          </p>
+              <span className="dump-meta-v block text-[24px] leading-none text-[var(--cp-text-strong)]">
+                {nextFc.yhat}
+                <span className="ml-0.5 font-sans text-[12px] font-medium text-[var(--cp-text-dim)]">건</span>
+              </span>
+            </span>
+            <span className="min-w-0 pb-0.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
+              80% 구간 {nextFc.lo}~{nextFc.hi}건
+              {fcSoFar != null && (
+                <>
+                  <br />
+                  {d.asof.slice(5).replace("-", "/")}까지 {fcSoFar}건 접수
+                </>
+              )}
+            </span>
+          </div>
           <ForecastChart data={data} />
-          <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">
-            홀트윈터스 계절 모형이며, 롤링 원점 백테스트 오차는 {d.forecast.backtest.mapePct}%입니다(전년 동월 값을
-            쓰는 기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%). 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%는 같은 잔차로 계산한
-            값이라 독립 검증 전입니다. 신고 접수량(앱 보급 추세 포함) 전망이라 인력과 순찰 배치 참고용이고, 발생 예측은 아닙니다.
+          <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--cp-text-faint)]">
+            홀트윈터스 계절 모형 · 백테스트 오차 {d.forecast.backtest.mapePct}%(기준모형 {d.forecast.backtest.naiveMapePct ?? "미산출"}%) · 80% 구간 적중 {d.forecast.backtest.coverage80Pct ?? "미산출"}%(독립 검증 전).
+            신고 접수량 전망이라 인력·순찰 배치 참고용이며 발생 예측은 아닙니다.
           </p>
         </DetailCard>
       </section>
@@ -239,14 +273,14 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 </div>
                 <span className="relative mt-0.5 block h-2 overflow-hidden rounded-full bg-[var(--cp-track,rgba(100,116,139,.18))]">
                   <i
-                    className="absolute inset-y-0 left-0 rounded-full bg-[#0c6155]"
+                    className="absolute inset-y-0 left-0 rounded-full bg-[#c2410c]"
                     style={{ width: `${(c.n / maxCat) * 100}%` }}
                   />
                 </span>
               </div>
             ))}
           </div>
-          <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+          <p className="mt-2 border-l-2 border-[#c2410c] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
             담배꽁초(차량) {cigShare}%는 주거 구조와 연관이 확인되지 않은 도로 현상입니다. 생활쓰레기 대책과 나눠
             관리해야 합니다.
           </p>
@@ -365,11 +399,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
-              의무관리 기준 미달 소형 주거가{" "}
-              {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에
-              몰려 공급되고 있습니다. 세 갈래 모형에서 미등록 공동주택은 연관이 확인되지 않았으므로 발생 예고가
-              아니라, 준공 시점부터 배출안내와 공동배출 협의를 미리 적용할 후보 지역입니다.
+            <p className="mt-2 border-l-2 border-[#c2410c] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+              의무관리 미달 소형 주거가 {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에 몰립니다. 발생 예고는 아니고, 준공 때부터 배출안내·공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>
         </section>
@@ -417,7 +448,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
         <SectionHead n="09" sub="개입 사전등록부">조치 대장</SectionHead>
         <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3">
           <p className="mb-2 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
-            새 개입(재배치·수거시간 조정·안내 등)은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을 등록하고 평가는 등록한 설계 그대로만 합니다. CCTV 효과 철회(평균회귀 오염)를 되풀이하지 않기 위한 장치입니다.
+            새 개입은 <b>실행 전에</b> 대상·기간·비교 대상·판정 기준을 등록하고, 등록한 설계대로만 평가합니다. CCTV 효과 철회를 되풀이하지 않기 위한 장치입니다.
           </p>
           {interventions === null ? (
             <p className="text-[14.5px] text-[var(--cp-text-dim)]">대장을 불러오지 못했습니다.</p>

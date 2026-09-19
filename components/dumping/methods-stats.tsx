@@ -201,9 +201,10 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
 
 // ─── 도식. 숫자 없이 원리만. 폭 100%, 높이 96 고정 ───
 const INK = "var(--cp-text-muted)"
-const ACC = "#0c6155"
+const ACC = "#c2410c"
 const WARN = "#a8322a"
-const T = { fontSize: 11, fill: INK } as const
+// 글자에 바탕색 테두리(halo). 선·막대와 겹쳐도 읽힌다
+const T = { fontSize: 11, fill: INK, paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 3, strokeLinejoin: "round" } as const
 
 function FigGrid() {
   return (
@@ -220,7 +221,7 @@ function FigGrid() {
       </g>
       <text x="200" y="62" {...T}>같은 100m 칸에</text>
       <text x="200" y="76" {...T}>모두 넣는다</text>
-      <text x="262" y="92" {...T} fill={ACC}>→ "이 칸은 적발도 다가구도 많다"</text>
+      <text x="200" y="92" {...T} fill={ACC}>→ "이 칸은 적발도 다가구도 많다"</text>
     </svg>
   )
 }
@@ -230,16 +231,17 @@ function FigRegression({ rows }: { rows: { label: string; beta: number }[] }) {
   return (
     <svg viewBox="0 0 360 96" className="h-24 w-full">
       <text x="4" y="12" {...T}>한꺼번에 넣고 각 조건의 몫(β)을 따로 잰다</text>
-      <line x1="150" y1="20" x2="150" y2="94" stroke={INK} strokeWidth="0.6" />
+      {/* 라벨은 왼쪽 칸(x≤112)에 고정, 0축은 x=200. 음수 막대는 왼쪽으로 뻗되 라벨 칸을 넘지 않는 배율(2026-09-18: 막대가 라벨을 덮던 것 수정) */}
+      <line x1="200" y1="20" x2="200" y2="94" stroke={INK} strokeWidth="0.6" />
       {rows.slice(0, 4).map((r, i) => {
-        const w = (Math.abs(r.beta) / max) * 130
+        const w = (Math.abs(r.beta) / max) * 110
         const y = 24 + i * 18
         const neg = r.beta < 0
         return (
           <g key={r.label}>
-            <text x="146" y={y + 10} textAnchor="end" {...T}>{r.label.length > 11 ? `${r.label.slice(0, 10)}…` : r.label}</text>
-            <rect x={neg ? 150 - w * 0.5 : 150} y={y} width={neg ? w * 0.5 : w} height="12" fill={neg ? WARN : ACC} opacity={i === 0 ? 1 : 0.55} />
-            <text x={neg ? 150 - w * 0.5 - 4 : 154 + w} y={y + 10} textAnchor={neg ? "end" : "start"} {...T}>{signed(r.beta)}</text>
+            <text x="112" y={y + 10} textAnchor="end" {...T}>{r.label.length > 11 ? `${r.label.slice(0, 10)}…` : r.label}</text>
+            <rect x={neg ? 200 - Math.min(w, 80) : 200} y={y} width={neg ? Math.min(w, 80) : w} height="12" fill={neg ? WARN : ACC} opacity={i === 0 ? 1 : 0.55} />
+            <text x={neg ? 204 : 204 + w} y={y + 10} {...T}>{signed(r.beta)}</text>
           </g>
         )
       })}
@@ -255,9 +257,9 @@ function FigDid() {
       <text x="180" y="12" textAnchor="middle" {...T}>설치 시점</text>
       <path d="M40 30 L180 40 L320 62" stroke={WARN} strokeWidth="2" fill="none" />
       <path d="M40 34 L180 44 L320 64" stroke={INK} strokeWidth="2" fill="none" strokeDasharray="5 4" />
-      <text x="44" y="24" {...T} fill={WARN}>설치한 곳</text>
-      <text x="44" y="50" {...T}>비교 대상(설치 안 함)</text>
-      <text x="205" y="88" {...T} fill={WARN}>둘 다 똑같이 줄었다 → 효과가 아니라 평균회귀</text>
+      <text x="40" y="22" {...T} fill={WARN}>설치한 곳</text>
+      <text x="60" y="62" {...T}>비교 대상(설치 안 함)</text>
+      <text x="150" y="92" {...T} fill={WARN}>둘 다 똑같이 줄었다 → 효과가 아니라 평균회귀</text>
     </svg>
   )
 }
@@ -296,6 +298,8 @@ function FigBacktest({ windows, avg }: { windows: { cutoff: string; precision20:
     <svg viewBox="0 0 360 96" className="h-24 w-full">
       <text x="4" y="12" {...T}>분기마다 과거 시점으로 돌아가 뽑은 20곳의 적중률</text>
       <line x1="30" y1="86" x2="340" y2="86" stroke={INK} strokeWidth="0.6" />
+      {/* 평균선은 막대·숫자보다 먼저 그려 숫자의 흰 테두리가 선을 덮게 */}
+      {avg != null && <line x1="30" y1={86 - (avg / 100) * 60} x2="340" y2={86 - (avg / 100) * 60} stroke={WARN} strokeWidth="1" strokeDasharray="4 3" />}
       {w.map((x, i) => {
         const h = (x.precision20 / 100) * 60
         return (
@@ -306,7 +310,6 @@ function FigBacktest({ windows, avg }: { windows: { cutoff: string; precision20:
           </g>
         )
       })}
-      {avg != null && <line x1="30" y1={86 - (avg / 100) * 60} x2="340" y2={86 - (avg / 100) * 60} stroke={WARN} strokeWidth="1" strokeDasharray="4 3" />}
       {avg != null && <text x="342" y={90 - (avg / 100) * 60} {...T} fill={WARN}>평균</text>}
     </svg>
   )
@@ -382,15 +385,18 @@ export function StatMethodCard({ m, i, data, graph }: { m: StatMethod; i: number
         <span className="font-mono text-[14.5px] text-[var(--cp-text-faint)]">{String(i + 1).padStart(2, "0")}</span>
         {m.name}
         {m.explainer && (
-          <a href={`${EXPLAINER_URL}${m.explainer}`} target="_blank" rel="noreferrer" className="ml-auto text-[13px] font-medium text-[#0c6155] hover:underline">
+          <a href={`${EXPLAINER_URL}${m.explainer}`} target="_blank" rel="noreferrer" className="ml-auto text-[13px] font-medium text-[#c2410c] hover:underline">
             해설서
           </a>
         )}
       </h3>
-      <p className="mt-1 text-[15px] font-medium text-[#0a4a41]">{m.question}</p>
+      <p className="mt-1 text-[15px] font-medium text-[#9a3412]">{m.question}</p>
       {m.figure && (
-        <div className="mt-2 rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-2 py-1">
-          <Figure id={m.figure} data={data} graph={graph} />
+        <div className="mt-2 rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-3 py-2">
+          {/* 도식은 폭에 맞춰 커진다(최대 560px). 96px 고정 높이에선 글자가 11px로 작았다 */}
+          <div className="mx-auto w-full max-w-[560px] [&_svg]:h-auto [&_svg]:w-full">
+            <Figure id={m.figure} data={data} graph={graph} />
+          </div>
         </div>
       )}
       <p className="mt-2 text-[15px] leading-relaxed text-[var(--cp-text-muted)]">
@@ -409,12 +415,12 @@ export function StatMethodCard({ m, i, data, graph }: { m: StatMethod; i: number
       )}
       <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
         {m.checks.length > 0 && (
-          <div className="rounded-lg bg-[#0c6155]/6 px-2.5 py-2">
-            <p className="text-[13.5px] font-bold text-[#0a4a41]">믿어도 되나 · 같은 결론이 유지된 검증</p>
+          <div className="rounded-lg bg-[#c2410c]/6 px-2.5 py-2">
+            <p className="text-[13.5px] font-bold text-[#9a3412]">믿어도 되나 · 같은 결론이 유지된 검증</p>
             <ul className="mt-1 flex flex-col gap-1 text-[14px] leading-snug text-[var(--cp-text)]">
               {m.checks.map((c) => (
                 <li key={c} className="flex gap-1.5">
-                  <span className="shrink-0 font-bold text-[#0c6155]">✓</span>
+                  <span className="shrink-0 font-bold text-[#c2410c]">✓</span>
                   <span>{c}</span>
                 </li>
               ))}

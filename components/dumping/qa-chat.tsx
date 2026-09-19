@@ -11,6 +11,7 @@ import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 import { buildSeeds, type Seed } from "./qa-seeds"
 import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from "./use-voice"
 import { SectionHead } from "./section-head"
+import { nb } from "@/lib/dumping/nobreak"
 
 // 물어보기 탭. 지도 앱처럼 검색이 기본. 상단 검색바에 뭐든 물어보면
 // /api/dumping/ask 평문 스트리밍으로 답이 검색바 바로 아래 내려온다(최신순).
@@ -34,7 +35,7 @@ function renderAnswer(text: string) {
           key={i}
           className={`block ${i === 0 ? (s.length <= BOLD_MAX ? "font-bold text-[var(--cp-text-strong)]" : "font-semibold text-[var(--cp-text-strong)]") : "mt-1"}`}
         >
-          {s}
+          {nb(s)}
         </span>
       ))}
     </>
@@ -46,7 +47,7 @@ const SLOT_CLS: Record<string, string> = {
   수치: "bg-[#1c4f96]/10 text-[#1c4f96]",
   근거: "bg-[var(--cp-hover2)] text-[var(--cp-text-muted)]",
   한계: "bg-[#8a530e]/12 text-[#8a530e]",
-  "다음 행동": "bg-[#0c6155]/12 text-[#0a4a41]",
+  "다음 행동": "bg-[#c2410c]/12 text-[#9a3412]",
 }
 function renderDetail(detail: string, asof?: string) {
   const ls = detailLines(detail)
@@ -61,7 +62,7 @@ function renderDetail(detail: string, asof?: string) {
         {ls.map((l, i) => (
           <li key={i} className="flex items-start gap-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-dim)]">
             {l.slot && <span className={`mt-[3px] shrink-0 rounded px-1 text-[11.5px] font-semibold ${SLOT_CLS[l.slot]}`}>{l.slot}</span>}
-            <span className="min-w-0">{l.text}</span>
+            <span className="min-w-0">{nb(l.text)}</span>
           </li>
         ))}
       </ul>
@@ -363,8 +364,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         title={active ? "읽기 멈춤" : "소리로 듣기"}
         className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] transition-colors ${
           active
-            ? "border-[#0c6155] bg-[#0c6155] text-white"
-            : "border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
+            ? "border-[#c2410c] bg-[#c2410c] text-white"
+            : "border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#c2410c] hover:text-[#c2410c]"
         }`}
       >
         <SpeakerIcon />
@@ -385,7 +386,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         className="shrink-0 border-b border-[var(--cp-border)] p-2.5"
       >
         <div
-          className={`flex items-center gap-1.5 rounded-full border bg-[var(--cp-panel)] py-1 pl-4 pr-1 shadow-sm transition-colors focus-within:border-[#0c6155] ${
+          className={`flex items-center gap-1.5 rounded-full border bg-[var(--cp-panel)] py-1 pl-4 pr-1 shadow-sm transition-colors focus-within:border-[#c2410c] ${
             mic.listening || wake.state === "awake" ? "border-[#b42318]" : "border-[var(--cp-border)]"
           }`}
         >
@@ -417,60 +418,12 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-35 ${
                 mic.listening
                   ? "animate-pulse bg-[#b42318] text-white"
-                  : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
+                  : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#c2410c] hover:text-[#c2410c]"
               }`}
             >
               <MicIcon />
             </button>
           )}
-          {wake.supported && (
-            <button
-              type="button"
-              onClick={toggleWake}
-              aria-label={wakeOn ? "호출어 대기 끄기" : "호출어 대기 켜기"}
-              aria-pressed={wakeOn}
-              title={wakeOn ? `"${WAKE_WORD}" 호출어 대기 중. 누르면 끕니다` : `"${WAKE_WORD}" 하고 부르면 응답하도록 켭니다`}
-              className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
-                wake.state === "awake"
-                  ? "bg-[#b42318] text-white"
-                  : wakeOn
-                    ? "bg-[#0c6155]/12 text-[#0c6155]"
-                    : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
-              }`}
-            >
-              <EarIcon />
-              {WAKE_WORD}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (speaker.speaking) speaker.stop()
-              speaker.unlock()
-              setVoiceOn((v) => !v)
-            }}
-            aria-label={voiceOn ? "소리 답변 끄기" : "소리 답변 켜기"}
-            aria-pressed={voiceOn}
-            title={voiceOn ? "답을 소리로 읽는 중. 누르면 끕니다" : "답을 소리로 읽기"}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-              voiceOn
-                ? "bg-[#0c6155]/12 text-[#0c6155]"
-                : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
-            }`}
-          >
-            <SpeakerIcon muted={!voiceOn} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setVoicePick((v) => !v)}
-            aria-expanded={voicePick}
-            title={`읽어 주는 목소리: ${currentVoice.label}. 누르면 다른 목소리를 골라 미리 들을 수 있습니다`}
-            className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
-              voicePick ? "bg-[#0c6155]/12 text-[#0c6155]" : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#0c6155] hover:text-[#0c6155]"
-            }`}
-          >
-            목소리
-          </button>
           {busy ? (
             <button
               type="button"
@@ -485,7 +438,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               type="submit"
               disabled={!input.trim() || mic.listening}
               aria-label="질문하기"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0c6155] text-white disabled:opacity-35"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#c2410c] text-white disabled:opacity-35"
             >
               <svg viewBox="0 0 20 20" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="8.5" cy="8.5" r="5.5" />
@@ -494,9 +447,61 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             </button>
           )}
         </div>
-        <p className="mt-1.5 flex items-start gap-1.5 px-2 text-[14px] leading-snug text-[var(--cp-text-faint)]">
+        {/* 모드 토글은 둘째 줄. 입력 알약 안에 다 넣으면 카드 폭 440px에서 안내 문구가 잘린다(2026-09-18) */}
+        <div className="mt-2 flex items-start gap-1.5 px-1">
+          <div className="flex shrink-0 items-center gap-1.5">
+          {wake.supported && (
+              <button
+                type="button"
+                onClick={toggleWake}
+                aria-label={wakeOn ? "호출어 대기 끄기" : "호출어 대기 켜기"}
+                aria-pressed={wakeOn}
+                title={wakeOn ? `"${WAKE_WORD}" 호출어 대기 중. 누르면 끕니다` : `"${WAKE_WORD}" 하고 부르면 응답하도록 켭니다`}
+                className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
+                  wake.state === "awake"
+                    ? "bg-[#b42318] text-white"
+                    : wakeOn
+                      ? "bg-[#c2410c]/12 text-[#c2410c]"
+                      : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#c2410c] hover:text-[#c2410c]"
+                }`}
+              >
+                <EarIcon />
+                {WAKE_WORD}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (speaker.speaking) speaker.stop()
+                speaker.unlock()
+                setVoiceOn((v) => !v)
+              }}
+              aria-label={voiceOn ? "소리 답변 끄기" : "소리 답변 켜기"}
+              aria-pressed={voiceOn}
+              title={voiceOn ? "답을 소리로 읽는 중. 누르면 끕니다" : "답을 소리로 읽기"}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                voiceOn
+                  ? "bg-[#c2410c]/12 text-[#c2410c]"
+                  : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#c2410c] hover:text-[#c2410c]"
+              }`}
+            >
+              <SpeakerIcon muted={!voiceOn} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setVoicePick((v) => !v)}
+              aria-expanded={voicePick}
+              title={`읽어 주는 목소리: ${currentVoice.label}. 누르면 다른 목소리를 골라 미리 들을 수 있습니다`}
+              className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
+                voicePick ? "bg-[#c2410c]/12 text-[#c2410c]" : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-[#c2410c] hover:text-[#c2410c]"
+              }`}
+            >
+              목소리
+            </button>
+          </div>
+        <p className="min-w-0 flex-1 pl-1 pt-1 text-[12.5px] leading-snug text-[var(--cp-text-faint)]">
           {wakeOn && wake.state !== "awake" && (
-            <span className="dump-breathe mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#0c6155]" aria-hidden />
+            <span className="dump-breathe mt-[5px] h-2 w-2 shrink-0 rounded-full bg-[#c2410c]" aria-hidden />
           )}
           {wake.state === "awake"
             ? "듣고 있습니다. 질문을 말씀하시면 바로 답합니다."
@@ -506,6 +511,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 ? "마이크를 누르고 말하면 답을 소리로 읽어 드립니다. 답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다."
                 : "답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
         </p>
+        </div>
       </form>
       {/* 목소리 고르기. 누르면 그 목소리로 한 문장을 바로 읽어 준다. 선택은 이 브라우저에 저장 */}
       {voicePick && (
@@ -521,7 +527,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                   onClick={() => pickVoice(v.id)}
                   aria-pressed={on}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13.5px] transition-colors ${
-                    on ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:border-[#0c6155]"
+                    on ? "border-[#c2410c] bg-[#c2410c]/10 font-semibold text-[#c2410c]" : "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:border-[#c2410c]"
                   }`}
                 >
                   {v.label}
@@ -580,28 +586,28 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 <div
                   key={ex.q}
                   className={`dump-rise rounded-lg border bg-[var(--cp-panel)] p-3 transition-colors ${
-                    reading ? "border-[#0c6155] shadow-[0_0_0_3px_rgba(12,97,85,0.12)]" : ex.pending ? "border-[#0c6155]/50" : "border-[var(--cp-border)]"
+                    reading ? "border-[#c2410c] shadow-[0_0_0_3px_rgba(194,65,12,0.12)]" : ex.pending ? "border-[#c2410c]/50" : "border-[var(--cp-border)]"
                   }`}
                 >
                   <div className="mb-1.5 flex items-start gap-1.5">
                     <p className="flex min-w-0 flex-1 items-start gap-1.5 text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">
-                      <span className="mt-0.5 shrink-0 rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[12.5px] font-bold text-[#0c6155]">
+                      <span className="mt-0.5 shrink-0 rounded bg-[#c2410c]/10 px-1.5 py-0.5 text-[12.5px] font-bold text-[#c2410c]">
                         Q
                       </span>
-                      {ex.q}
+                      {nb(ex.q)}
                     </p>
                     {ex.seedQ && !ex.pending && (
                       <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                         <span
                           title={`준비된 답 「${ex.seedQ}」와 같은 뜻의 질문으로 판단해 바로 답했습니다`}
-                          className="rounded-full bg-[#0c6155]/10 px-2 py-0.5 text-[12.5px] font-semibold text-[#0c6155]"
+                          className="rounded-full bg-[#c2410c]/10 px-2 py-0.5 text-[12.5px] font-semibold text-[#c2410c]"
                         >
                           준비된 답
                         </span>
                         <button
                           type="button"
                           onClick={() => void askFree(ex.q, false, { force: true })}
-                          className="rounded-full border border-[var(--cp-border)] px-2 py-0.5 text-[12.5px] text-[var(--cp-text-muted)] hover:border-[#0c6155] hover:text-[#0c6155]"
+                          className="rounded-full border border-[var(--cp-border)] px-2 py-0.5 text-[12.5px] text-[var(--cp-text-muted)] hover:border-[#c2410c] hover:text-[#c2410c]"
                         >
                           모델에게 새로 묻기
                         </button>
@@ -617,7 +623,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       </button>
                     )}
                     {reading && (
-                      <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#0c6155]" aria-live="off">
+                      <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#c2410c]" aria-live="off">
                         <span className="dump-eq" aria-hidden>
                           <i />
                           <i />
@@ -677,10 +683,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       <span className="block text-[16px] font-semibold leading-snug text-[var(--cp-text-strong)]">
                         {s.q}
                       </span>
-                      {!open && <span className="block truncate text-[14.5px] text-[var(--cp-text-dim)]">{s.hint}</span>}
+                      {!open && <span className="block truncate text-[14.5px] text-[var(--cp-text-dim)]">{nb(s.hint)}</span>}
                     </span>
                     {onMap && (
-                      <span className="shrink-0 rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">
+                      <span className="shrink-0 rounded bg-[#c2410c] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">
                         지도 반영 중
                       </span>
                     )}
@@ -696,11 +702,11 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                         <button
                           onClick={() => setBigChart(s.chart!)}
                           title="누르면 크게 볼 수 있습니다"
-                          className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5 text-left transition-shadow hover:border-[#0c6155]/60"
+                          className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5 text-left transition-shadow hover:border-[#c2410c]/60"
                         >
                           <span className="mb-1 flex items-baseline justify-between">
                             <b className="text-[14.5px] text-[var(--cp-text-strong)]">{chartTitle(s.chart, data)}</b>
-                            <span className="text-[13.5px] text-[#0c6155]">크게 보기 +</span>
+                            <span className="text-[13.5px] text-[#c2410c]">크게 보기 +</span>
                           </span>
                           <QaChart kind={s.chart} data={data} graph={graph} />
                         </button>
@@ -713,7 +719,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                             disabled={onMap}
                             title={vizDesc}
                             className={`flex flex-col items-center rounded-lg px-3 py-2 transition-colors ${
-                              onMap ? "border border-[#0c6155]/30 bg-[#0c6155]/8 text-[#0c6155]" : "border border-[#0c6155] text-[#0c6155] hover:bg-[#0c6155]/8"
+                              onMap ? "border border-[#c2410c]/30 bg-[#c2410c]/8 text-[#c2410c]" : "border border-[#c2410c] text-[#c2410c] hover:bg-[#c2410c]/8"
                             }`}
                           >
                             <span className="text-[15.5px] font-semibold">{onMap ? "✓ 지도에 반영됨" : "지도에서 확인"}</span>
@@ -722,7 +728,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                             )}
                           </button>
                           {onMap && s.vizNote && (
-                            <p className="rounded-lg border border-dashed border-[#0c6155]/40 bg-[#0c6155]/5 px-2.5 py-1.5 text-[14.5px] leading-snug text-[#0c6155]">
+                            <p className="rounded-lg border border-dashed border-[#c2410c]/40 bg-[#c2410c]/5 px-2.5 py-1.5 text-[14.5px] leading-snug text-[#c2410c]">
                               {s.vizNote}
                             </p>
                           )}
@@ -738,7 +744,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             <button
               type="button"
               onClick={() => setMoreSeeds(true)}
-              className="mt-2 w-full rounded-lg border border-dashed border-[var(--cp-border-strong)] py-2 text-[14.5px] font-medium text-[#0c6155] hover:bg-[var(--cp-hover)]"
+              className="mt-2 w-full rounded-lg border border-dashed border-[var(--cp-border-strong)] py-2 text-[14.5px] font-medium text-[#c2410c] hover:bg-[var(--cp-hover)]"
             >
               질문 {allSeeds.length - seeds.length}개 더 보기 (검증·자료 질문)
             </button>
@@ -776,7 +782,7 @@ function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
   }, [])
   return (
     <div className="flex flex-col gap-2.5 py-1" role="status" aria-label="답변 생성 중">
-      <div className="flex items-center gap-2.5 text-[15px] font-semibold text-[#0c6155]">
+      <div className="flex items-center gap-2.5 text-[15px] font-semibold text-[#c2410c]">
         <span className="dump-dots" aria-hidden>
           <i />
           <i />
@@ -788,7 +794,7 @@ function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
       <div className="flex items-center gap-1.5 text-[12.5px] text-[var(--cp-text-dim)]" aria-hidden>
         {(["sending", "writing"] as ThinkPhase[]).map((p, i) => (
           <span key={p} className="flex items-center gap-1.5">
-            <i className={`h-1.5 w-8 rounded-full ${phase === p ? "dump-breathe bg-[#0c6155]" : i < ["sending", "writing"].indexOf(phase) ? "bg-[#0c6155]/50" : "bg-[var(--cp-hover2)]"}`} />
+            <i className={`h-1.5 w-8 rounded-full ${phase === p ? "dump-breathe bg-[#c2410c]" : i < ["sending", "writing"].indexOf(phase) ? "bg-[#c2410c]/50" : "bg-[var(--cp-hover2)]"}`} />
             {i === 0 ? "전송" : "생각·작성"}
           </span>
         ))}

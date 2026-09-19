@@ -86,7 +86,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
         return (
           <span
             className={`mt-1.5 inline-block rounded px-2 py-0.5 text-[13.5px] font-semibold ${
-              sig ? "bg-[#0c6155]/12 text-[#0a4a41]" : "bg-[var(--cp-hover2)] text-[var(--cp-text-dim)]"
+              sig ? "bg-[#c2410c]/12 text-[#9a3412]" : "bg-[var(--cp-hover2)] text-[var(--cp-text-dim)]"
             }`}
           >
             {sig ? "연관 확인 (p<0.05, 원인을 뜻하지는 않음)" : "연관 미확인 (p≥0.05)"}
@@ -183,7 +183,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
                     onClick={() => onSelect(otherId)}
                     className="rounded-lg border border-[var(--cp-border-faint)] px-2 py-1.5 text-left hover:bg-[var(--cp-hover)]"
                   >
-                    <span className="rounded bg-[#0c6155]/10 px-1.5 py-0.5 text-[13.5px] font-medium text-[#0c6155]">
+                    <span className="rounded bg-[#c2410c]/10 px-1.5 py-0.5 text-[13.5px] font-medium text-[#c2410c]">
                       {dir === "out" ? `${relLabel(e.rel)} →` : `← ${relLabel(e.rel)}`}
                     </span>{" "}
                     <span className="text-[15.5px] text-[var(--cp-text)]">{other?.label ?? otherId}</span>
@@ -209,7 +209,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
       <div className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 text-[14.5px] leading-relaxed text-[var(--cp-text-muted)]">
         이 상황판이 근거로 삼은 자료·주장·수단을 한 장의 지식그래프로 정리한 곳입니다. 지식 {graph.nodes.length}개와
         연결 {graph.edges.length}개입니다. 오른쪽 그래프나 아래 목록에서 항목을 고르시면 내용과 연결 관계가 여기에 나타납니다.{" "}
-        <button onClick={() => setShowSchema(true)} className="font-semibold text-[#0c6155] underline-offset-2 hover:underline">
+        <button onClick={() => setShowSchema(true)} className="font-semibold text-[#c2410c] underline-offset-2 hover:underline">
           스키마 보기
         </button>
       </div>

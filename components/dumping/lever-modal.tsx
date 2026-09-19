@@ -28,7 +28,7 @@ import {
 
 const POS = "#a8322a" // 발생을 늘리는 방향
 const NEG = "#1c4f96" // 발생을 줄이는 방향
-const HI = "#0c6155" // 이 제안이 겨냥하는 요인
+const HI = "#c2410c" // 이 제안이 겨냥하는 요인
 
 // 요인 강도 막대 한 줄. beta는 0을 가운데 두고 좌우로, rho는 왼쪽에서 오른쪽으로
 function StatRow({ s, max, highlight, noun }: { s: FactorStat; max: number; highlight: boolean; noun: string }) {
@@ -37,16 +37,16 @@ function StatRow({ s, max, highlight, noun }: { s: FactorStat; max: number; high
   const width = `${ratio * (signed ? 50 : 100)}%`
   const color = highlight ? HI : s.value < 0 ? NEG : POS
   return (
-    <div className={`rounded-lg px-2 py-1.5 ${highlight ? "bg-[#0c6155]/8" : ""}`}>
+    <div className={`rounded-lg px-2 py-1.5 ${highlight ? "bg-[#c2410c]/8" : ""}`}>
       <div className="flex items-baseline gap-2">
         <span
           className={`min-w-0 flex-1 text-[15px] leading-snug ${
-            highlight ? "font-bold text-[#0a4a41]" : "text-[var(--cp-text-muted)]"
+            highlight ? "font-bold text-[#9a3412]" : "text-[var(--cp-text-muted)]"
           }`}
         >
           {s.easy}
           {highlight && (
-            <span className="ml-1.5 whitespace-nowrap rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-bold text-white">
+            <span className="ml-1.5 whitespace-nowrap rounded bg-[#c2410c] px-1.5 py-0.5 text-[12.5px] font-bold text-white">
               이 {noun}이 겨냥
             </span>
           )}
@@ -155,7 +155,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
         viz ? (
           <button
             onClick={() => onShowMap(lever)}
-            className="w-full rounded-lg bg-[#0c6155] py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
+            className="w-full rounded-lg bg-[#c2410c] py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
           >
             {viz.label}
           </button>
@@ -175,7 +175,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
                 key={i}
                 className={
                   i === 0
-                    ? "text-[17px] font-bold leading-[1.6] text-[#0a4a41]"
+                    ? "text-[17px] font-bold leading-[1.6] text-[#9a3412]"
                     : "text-[16px] leading-[1.75] text-[var(--cp-text)]"
                 }
               >
@@ -205,11 +205,11 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
       )}
 
       {proposal && (
-        <div className="mb-3 rounded-lg bg-[#0c6155]/8 px-3 py-2.5">
-          <p className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-[#0a4a41]">
+        <div className="mb-3 rounded-lg bg-[#c2410c]/8 px-3 py-2.5">
+          <p className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-[#9a3412]">
             가정한 작동 원리
             {lever.mechanism && (
-              <span className="rounded-full border border-[#0c6155]/40 px-2 py-0.5 text-[12.5px] font-semibold">{lever.mechanism}</span>
+              <span className="rounded-full border border-[#c2410c]/40 px-2 py-0.5 text-[12.5px] font-semibold">{lever.mechanism}</span>
             )}
           </p>
           {lever.mechanismSlots ? (
@@ -222,7 +222,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
                 ] as [string, string][]
               ).map(([k, v]) => (
                 <div key={k} className="flex gap-2.5">
-                  <dt className="w-8 shrink-0 font-semibold text-[#0a4a41]">{k}</dt>
+                  <dt className="w-8 shrink-0 font-semibold text-[#9a3412]">{k}</dt>
                   <dd className="min-w-0">{v}</dd>
                 </div>
               ))}
@@ -234,7 +234,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
             기대 방향 · {expect}
             {expectCaveat && <> · {expectCaveat}</>}
           </p>
-          {targetNote(lever) && <p className="mt-1.5 text-[14px] leading-snug text-[#0a4a41]">겨냥 · {targetNote(lever)}</p>}
+          {targetNote(lever) && <p className="mt-1.5 text-[14px] leading-snug text-[#9a3412]">겨냥 · {targetNote(lever)}</p>}
         </div>
       )}
       {/* 결재에 먼저 필요한 셋(돈·담당·검증)은 근거 막대보다 위에. 냉독에서 스크롤 아래라 못 찾았다 */}
@@ -306,7 +306,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
           <details className="group rounded-xl border border-dashed border-[var(--cp-border)] px-2.5 py-2">
             <summary className="flex cursor-pointer list-none items-baseline gap-2 text-[14px] font-semibold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
               <span className="flex-1">다른 조건과 견주어 보기</span>
-              <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
+              <span className="text-[13px] font-medium text-[#c2410c] group-open:hidden">펼치기</span>
               <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
             </summary>
             <div className="mt-2 flex flex-col gap-2">

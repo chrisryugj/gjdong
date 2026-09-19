@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-// 데스크톱 좌측 패널 폭. 세로로 긴 광진구는 지도 좌우가 남으니 패널을 넓게 잡고, 경계선 드래그로 조절한다.
-// 기본은 화면 폭의 40%(420~640px). 더블클릭이면 기본으로 복귀. localStorage에 남는다.
+// 데스크톱 떠 있는 카드 폭. 지도가 전면이라 기본은 440px(2026-09-18), 경계선 드래그로 조절한다.
+// 더블클릭이면 기본으로 복귀. localStorage에 남는다.
 const KEY = "dumpSidebarW"
 const MIN = 380
 
@@ -25,7 +25,7 @@ const writeStored = (w: number | null) => {
 }
 
 export function defaultSidebarWidth(innerWidth: number): number {
-  return Math.round(Math.min(640, Math.max(420, innerWidth * 0.4)))
+  return Math.min(440, Math.round(innerWidth * 0.62))
 }
 
 function clamp(w: number, innerWidth: number): number {

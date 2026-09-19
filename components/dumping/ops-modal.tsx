@@ -22,7 +22,7 @@ function Note({ children }: { children: React.ReactNode }) {
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-2 rounded-lg bg-[#0c6155]/10 px-3 py-2 text-[15.5px] font-semibold leading-relaxed text-[#0a4a41]">
+    <p className="mt-2 rounded-lg bg-[#c2410c]/10 px-3 py-2 text-[15.5px] font-semibold leading-relaxed text-[#9a3412]">
       {children}
     </p>
   )
@@ -37,7 +37,7 @@ function Table({ head, rows, align }: { head: string[]; rows: (string | number)[
         <thead>
           <tr className="border-b border-[var(--cp-border)] bg-[var(--cp-hover)] text-left">
             {head.map((h, i) => (
-              <th key={h} className={`px-2.5 py-1.5 font-semibold text-[var(--cp-text-muted)] ${right(i) ? "text-right" : ""}`}>
+              <th key={h} className={`whitespace-nowrap px-2.5 py-1.5 font-semibold text-[var(--cp-text-muted)] ${right(i) ? "text-right" : ""}`}>
                 {h}
               </th>
             ))}
@@ -49,7 +49,8 @@ function Table({ head, rows, align }: { head: string[]; rows: (string | number)[
               {r.map((c, ci) => (
                 <td
                   key={ci}
-                  className={`px-2.5 py-1.5 ${right(ci) ? "text-right font-mono text-[var(--cp-text)]" : "text-[var(--cp-text-strong)]"}`}
+                  // 숫자 칸은 절대 안 꺾는다(2026-09-18 모바일: "1,"/"285"로 갈라졌다). 좁으면 첫 열(이름)이 꺾인다
+                  className={`px-2.5 py-1.5 ${right(ci) ? "whitespace-nowrap text-right font-mono text-[var(--cp-text)]" : "text-[var(--cp-text-strong)]"}`}
                 >
                   {typeof c === "number" ? c.toLocaleString() : c}
                 </td>
@@ -81,9 +82,9 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
   ].join(" ")
   return (
     <svg viewBox={`0 0 ${W} ${HH}`} className="w-full">
-      <polygon points={band} fill="#0c6155" opacity="0.12" />
+      <polygon points={band} fill="#c2410c" opacity="0.12" />
       <polyline points={histPts} fill="none" stroke="var(--cp-text-muted)" strokeWidth="1.4" />
-      <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#0c6155" strokeWidth="1.8" strokeDasharray="4 3" />
+      <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#c2410c" strokeWidth="1.8" strokeDasharray="4 3" />
       {/* 실적/전망 경계. 라벨 대신 세로 점선 (가운데 라벨은 우측 끝 라벨과 겹침) */}
       <line
         x1={x(hist.length - 1)}
@@ -131,7 +132,8 @@ function CategoryTrendChart({ data }: { data: DumpingMapData }) {
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${HH}`} className="w-full">
-        <polyline points={line(life)} fill="none" stroke="#0c6155" strokeWidth="1.8" />
+        {/* 두 계열은 색을 확실히 가른다. 액센트 치환 뒤 둘 다 주황이 돼 구분이 안 됐다(2026-09-18) */}
+        <polyline points={line(life)} fill="none" stroke="#1c4f96" strokeWidth="1.8" />
         <polyline points={line(cig)} fill="none" stroke="#b45309" strokeWidth="1.8" />
         {[months[0], months[months.length - 1]].map((m, i) => (
           <text
@@ -145,9 +147,9 @@ function CategoryTrendChart({ data }: { data: DumpingMapData }) {
           </text>
         ))}
       </svg>
-      <p className="mt-1 flex gap-4 text-[13.5px] text-[var(--cp-text-dim)]">
-        <span><i className="mr-1 inline-block h-0.5 w-4 bg-[#0c6155] align-middle" />생활쓰레기 계열(음식물·봉투·이동·시간외 등)</span>
-        <span><i className="mr-1 inline-block h-0.5 w-4 bg-[#b45309] align-middle" />담배꽁초(차량)</span>
+      <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-[var(--cp-text-dim)]">
+        <span className="whitespace-nowrap"><i className="mr-1 inline-block h-0.5 w-4 bg-[#1c4f96] align-middle" />생활쓰레기 계열(음식물·봉투·이동·시간외)</span>
+        <span className="whitespace-nowrap"><i className="mr-1 inline-block h-0.5 w-4 bg-[#b45309] align-middle" />담배꽁초(차량)</span>
       </p>
     </div>
   )

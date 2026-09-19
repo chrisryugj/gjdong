@@ -159,15 +159,15 @@ export default function ContrastPanel({ data, graph }: { data: DumpingMapData; g
               <span className="self-center text-[15.5px] text-[var(--cp-text-faint)]" aria-hidden>
                 →
               </span>
-              <div className="rounded-lg bg-[#0c6155]/8 px-2 py-1.5">
-                <span className="mb-0.5 inline-block rounded bg-[#0c6155] px-1.5 py-0.5 text-[12px] font-semibold text-white">이번 분석</span>
-                <p className="text-[14px] font-medium leading-snug text-[#0a4a41]">{p.after}</p>
+              <div className="rounded-lg bg-[#c2410c]/8 px-2 py-1.5">
+                <span className="mb-0.5 inline-block rounded bg-[#c2410c] px-1.5 py-0.5 text-[12px] font-semibold text-white">이번 분석</span>
+                <p className="text-[14px] font-medium leading-snug text-[#9a3412]">{p.after}</p>
               </div>
             </div>
             {p.chart && (
               <button
                 onClick={() => setChart(p.chart!)}
-                className="mt-1.5 text-[13.5px] font-medium text-[#0c6155] hover:underline"
+                className="mt-1.5 text-[13.5px] font-medium text-[#c2410c] hover:underline"
               >
                 차트로 보기 +
               </button>

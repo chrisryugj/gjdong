@@ -441,7 +441,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
             title={l.help}
             onClick={() => switchLayout(l.id)}
             className={`rounded-full border px-2.5 py-0.5 text-[13px] transition-colors ${
-              layout === l.id ? "border-[#0c6155] bg-[#0c6155]/10 font-semibold text-[#0c6155]" : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
+              layout === l.id ? "border-[#c2410c] bg-[#c2410c]/10 font-semibold text-[#c2410c]" : "border-[var(--cp-border)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
             }`}
           >
             {l.label}

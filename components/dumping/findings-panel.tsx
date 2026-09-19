@@ -6,6 +6,8 @@ import { DONG_THRESHOLDS, summarize } from "@/lib/dumping/facts"
 import { buildFindings, FINDING_GROUPS, type Finding } from "./findings-data"
 import ContrastPanel from "./contrast-panel"
 import { SectionHead } from "./section-head"
+import { nb } from "@/lib/dumping/nobreak"
+import { sentencesOf } from "@/lib/dumping/answer-parts"
 
 // 10라운드: 17장을 결론 5·검증 8·한계 4로 묶는다. 결론만 펼치고 나머지는 접어 결재라인이 3~5장만 읽어도 되게
 const GROUP_SUB: Record<keyof typeof FINDING_GROUPS, string> = {
@@ -67,11 +69,11 @@ export default function FindingsPanel({
                     key={f.title}
                     onClick={() => onOpenFinding(f)}
                     style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
-                    className={`dump-rise rounded-lg border p-3 text-left transition-all hover:border-[#0c6155]/60 ${
+                    className={`dump-rise rounded-lg border p-3 text-left transition-all hover:border-[#c2410c]/60 ${
                       active
-                        ? "border-[#0c6155] bg-[#0c6155]/10  ring-2 ring-[#0c6155]/30"
+                        ? "border-[#c2410c] bg-[#c2410c]/10  ring-2 ring-[#c2410c]/30"
                         : f.accent
-                          ? "border-[#0c6155]/50 bg-[#0c6155]/5"
+                          ? "border-[#c2410c]/50 bg-[#c2410c]/5"
                           : "border-[var(--cp-border)] bg-[var(--cp-panel)]"
                     }`}
                   >
@@ -85,16 +87,20 @@ export default function FindingsPanel({
                         {f.tag}
                       </span>
                       {active && (
-                        <span className="rounded bg-[#0c6155] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">✓ 지도 반영 중</span>
+                        <span className="rounded bg-[#c2410c] px-1.5 py-0.5 text-[12.5px] font-semibold text-white">✓ 지도 반영 중</span>
                       )}
                     </span>
-                    <h4 className="text-[16.5px] font-bold leading-snug text-[var(--cp-text-strong)]">{f.title}</h4>
-                    {/* 한 줄 결론이 본문보다 먼저. 근거 수치 문장은 두 줄로 접고, 전문은 모달(수치 칸·상세)에 있다 */}
-                    <p className="mt-2 border-l-[3px] border-[#0c6155] pl-2.5 text-[15px] font-semibold leading-snug text-[#0a4a41]">
-                      {f.takeaway}
+                    <h4 className="text-[16.5px] font-bold leading-snug text-[var(--cp-text-strong)]">{nb(f.title)}</h4>
+                    {/* 결론(주장)이 본문보다 먼저. 문장마다 한 줄(2026-09-18: 두 문장이 한 덩어리면 둘째가 첫째의 부연으로 읽혔다). 근거 수치 문장은 두 줄로 접고, 전문은 모달에 */}
+                    <p className="mt-2 flex flex-col gap-1 border-l-[3px] border-[#c2410c] pl-2.5 text-[15px] font-semibold leading-snug text-[#9a3412]">
+                      {sentencesOf(f.takeaway).map((s, k) => (
+                        <span key={k} className="block">
+                          {nb(s)}
+                        </span>
+                      ))}
                     </p>
-                    <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{f.body}</p>
-                    <span className="mt-1.5 inline-block text-[13.5px] font-medium text-[#0c6155]">자세히 보기 →</span>
+                    <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-[var(--cp-text-dim)]">{nb(f.body)}</p>
+                    <span className="mt-1.5 inline-block text-[13.5px] font-medium text-[#c2410c]">자세히 보기 →</span>
                   </button>
                 )
               })}
@@ -108,7 +114,7 @@ export default function FindingsPanel({
                   {group} {cards.length}장
                   <span className="ml-1.5 text-[13.5px] font-normal text-[var(--cp-text-dim)]">{GROUP_SUB[group]}</span>
                 </span>
-                <span className="text-[13px] font-medium text-[#0c6155] group-open:hidden">펼치기</span>
+                <span className="text-[13px] font-medium text-[#c2410c] group-open:hidden">펼치기</span>
                 <span className="hidden text-[13px] font-medium text-[var(--cp-text-dim)] group-open:inline">접기</span>
               </summary>
               <div className="mt-2">{list}</div>
@@ -149,7 +155,7 @@ export default function FindingsPanel({
                 </span>
                 <span className="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--cp-track,rgba(100,116,139,.18))]">
                   <i
-                    className="absolute inset-y-0 left-0 rounded-full bg-[#0c6155]"
+                    className="absolute inset-y-0 left-0 rounded-full bg-[#c2410c]"
                     style={{ width: `${(d.cr / maxCr) * 100}%` }}
                   />
                 </span>
@@ -172,7 +178,7 @@ export default function FindingsPanel({
               <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => onOpenBriefing(sel.d)}
-                  className="rounded-md bg-[#0c6155] px-2 py-0.5 text-[14.5px] font-medium text-white"
+                  className="rounded-md bg-[#c2410c] px-2 py-0.5 text-[14.5px] font-medium text-white"
                 >
                   동 브리핑 인쇄
                 </button>
@@ -225,7 +231,7 @@ export default function FindingsPanel({
                 <svg viewBox="0 0 200 36" className="h-9 w-full">
                   <polyline
                     fill="none"
-                    stroke="#0c6155"
+                    stroke="#c2410c"
                     strokeWidth="1.6"
                     points={tsClean
                       .map((v, i) => {
@@ -268,7 +274,7 @@ export default function FindingsPanel({
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-[#0c6155] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+            <p className="mt-2 border-l-2 border-[#c2410c] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               여름과 더운 날(25도 이상)에는 민원이 겨울의 {(data.env.seasons["여름"].compPerDay / Math.max(data.env.seasons["겨울"].compPerDay, 0.01)).toFixed(1)}배입니다. 비 오는 날에는 단속 적발이
               {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>
@@ -286,7 +292,7 @@ export default function FindingsPanel({
           <summary className="flex cursor-pointer list-none items-baseline gap-2.5 text-[18px] font-bold text-[var(--cp-text-strong)] [&::-webkit-details-marker]:hidden">
             <span className="font-mono text-[15px] font-semibold text-[var(--cp-text-faint)]">04</span>
             <span className="flex-1">통념·초기 분석과 이번 분석의 차이</span>
-            <span className="text-[13px] font-medium text-[#0c6155]">펼치기</span>
+            <span className="text-[13px] font-medium text-[#c2410c]">펼치기</span>
           </summary>
           <div className="mt-2">
             <ContrastPanel data={data} graph={graph} />

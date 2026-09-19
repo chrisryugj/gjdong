@@ -66,7 +66,7 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
         <div className="flex gap-2">
           <button
             onClick={() => window.print()}
-            className="flex-1 rounded-lg bg-[#0c6155] py-2 text-[15.5px] font-semibold text-white hover:bg-[#0a5449]"
+            className="flex-1 rounded-lg bg-[#c2410c] py-2 text-[15.5px] font-semibold text-white hover:bg-[#0a5449]"
           >
             인쇄 / PDF 저장
           </button>
@@ -120,8 +120,8 @@ export default function BriefingModal({ dong, data, graph, onClose }: BriefingMo
         <h3 className="text-[14.5px] font-semibold text-[var(--cp-text-dim)]">권고 검토 대책</h3>
         <ul className="mt-1 flex flex-col gap-1">
           {recs.map((r) => (
-            <li key={r.t} className="rounded-lg bg-[#0c6155]/8 px-2.5 py-1.5 text-[14.5px] leading-snug">
-              <span className="font-medium text-[#0a4a41]">{r.t}</span>
+            <li key={r.t} className="rounded-lg bg-[#c2410c]/8 px-2.5 py-1.5 text-[14.5px] leading-snug">
+              <span className="font-medium text-[#9a3412]">{r.t}</span>
               <span className="ml-1 text-[13.5px] text-[var(--cp-text-dim)]">근거: {r.why}</span>
             </li>
           ))}
