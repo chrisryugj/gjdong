@@ -166,6 +166,8 @@ export default function DumpingDashboard() {
     }
   }, [auth, loadSeq])
 
+  // 자동 회전 중 지도를 만지면 회전을 끈다(지도가 부른다). 다른 상태는 건드리지 않는다. 로그인 게이트 분기보다 위(훅 순서)
+  const stopOrbit = useCallback(() => setView((v) => (v.orbit ? { ...v, orbit: false } : v)), [])
   const applyViz = useCallback((viz: VizAction) => {
     setView((v) => ({
       ...v,
@@ -177,6 +179,8 @@ export default function DumpingDashboard() {
       // 날씨별 원은 바탕을 바꾸는 viz가 오면 끈다(둘이 겹치면 무슨 원인지 안 읽힌다). 명시하면 그대로
       ...(viz.weather !== undefined ? { weather: viz.weather } : viz.mode ? { weather: null } : {}),
       ...(viz.grid3d !== undefined ? { grid3d: viz.grid3d } : {}),
+      // 기둥 높이는 기울여야 보인다(16라운드). 기둥을 켜는 viz는 입체 보기도 켠다
+      ...(viz.grid3d ? { tilt: true } : {}),
     }))
     // 동이 선택된 채로 두면 격자가 그 동만 남고 줌도 안 풀려 "반영이 무시된 것처럼" 보인다
     // 그래서 viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
@@ -286,6 +290,9 @@ export default function DumpingDashboard() {
             dongYear={view.dongYear}
             grid3d={view.grid3d}
             weather={view.weather}
+            tilt={view.tilt}
+            orbit={view.orbit}
+            onOrbitStop={stopOrbit}
             resetSeq={resetSeq}
             fitPadding={fitPadding}
           />
@@ -494,7 +501,7 @@ export default function DumpingDashboard() {
       {/* 오른쪽 열(데스크톱, 지도일 때): 레이어 패널 · 재배치 후보 목록 · 범례. 한 열이라 서로 겹칠 자리가 없다. 바닥은 줌 버튼 자리를 비운다 */}
       {rightPane === "map" && (
         <div
-          className={`pointer-events-none absolute bottom-[84px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`}
+          className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`}
           style={{ width: RIGHT_W }}
         >
           <div className="dump-fl pointer-events-auto flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>

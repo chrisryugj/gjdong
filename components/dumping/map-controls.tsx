@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./dumping-map"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
@@ -22,6 +22,8 @@ export interface MapView {
   dongYear: string | null // 연도 모드에서 고른 해
   grid3d: boolean // 격자 기둥(원 지표 건수, 5건 이상 칸)
   weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신 그 조건의 민원(하루당 환산)
+  tilt: boolean // 16라운드: 입체 보기(기울기·건물 3D·지형). 끄면 위에서 본 평면
+  orbit: boolean // 자동 회전(시연용). 지도를 만지면 꺼진다
 }
 
 // 10라운드: 기본 원은 과태료. 회귀 판정의 결과지표가 과태료라 민원 원을 겹치면 화면의 겹침이 회귀 증거처럼 읽혔다(검토서 6절)
@@ -37,6 +39,8 @@ export const DEFAULT_VIEW: MapView = {
   dongYear: null,
   grid3d: false,
   weather: null,
+  tilt: true,
+  orbit: false,
 }
 
 const BASE_LABEL: Record<BaseMode, string> = {
@@ -188,6 +192,32 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
         })}
 
         <p className={GROUP}>보기</p>
+        {/* 16라운드: 입체 보기(기울기·OSM 건물·아차산 지형). 기둥은 입체에서만 높이가 보인다 */}
+        <button
+          aria-pressed={view.tilt}
+          title="지도를 기울여 건물·지형·기둥을 입체로 봅니다. 끄면 위에서 본 평면 격자"
+          onClick={() => patch({ tilt: !view.tilt, orbit: false })}
+          className={`${ROW} ${view.tilt ? ROW_ON : ROW_OFF}`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
+            <path d="M8 1.5 14.5 5v6L8 14.5 1.5 11V5zM3 6.1v4.3l4.25 2.3V8.4zm10 0-4.25 2.3v4.3L13 10.4zM8 3.2 4.1 5.3 8 7.4l3.9-2.1z" />
+          </svg>
+          <span className="min-w-0 flex-1">입체 보기</span>
+        </button>
+        {view.tilt && (
+          <button
+            aria-pressed={view.orbit}
+            title="구 전체를 천천히 돌려 봅니다(시연용). 지도를 만지면 멈춥니다"
+            onClick={() => patch({ orbit: !view.orbit })}
+            className={`${ROW} ${view.orbit ? ROW_ON : ROW_OFF}`}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+              <path d="M13.6 1.8v3.4h-3.4" />
+            </svg>
+            <span className="min-w-0 flex-1">자동 회전</span>
+          </button>
+        )}
         <button
           aria-pressed={view.dongBars}
           title="행정동 15곳의 민원·과태료 건수를 입체 막대로 비교합니다"
@@ -245,8 +275,9 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
         )}
         <button
           aria-pressed={view.grid3d}
-          title="칸마다 원 지표(민원·과태료) 건수를 기둥으로 세웁니다. 5건 이상 칸만"
-          onClick={() => patch({ grid3d: !view.grid3d })}
+          title="칸마다 원 지표(민원·과태료) 건수를 기둥으로 세웁니다. 5건 이상 칸만. 켜면 입체 보기로 바뀝니다"
+          // 기둥 높이는 기울여야 보인다. 켜는 순간 입체 보기로
+          onClick={() => patch({ grid3d: !view.grid3d, ...(!view.grid3d ? { tilt: true } : {}) })}
           className={`${ROW} ${view.grid3d ? ROW_ON : ROW_OFF}`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
@@ -383,7 +414,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
         )}
         {view.grid3d && (
           <p className="text-[var(--cp-text-muted)]">
-            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 빨강·과태료 보라). 구 전체 보기는 10건 이상 칸, 확대하면 5건 이상 칸과 값
+            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 빨강·과태료 보라). 5건 이상 칸만, 확대하면 값도 보임
           </p>
         )}
         <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">

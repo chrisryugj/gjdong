@@ -98,6 +98,11 @@ const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): D
     use: "골목 비율·간선 이격거리 계산(은폐 가설 검정), 상권 통제 변수",
   },
   {
+    name: "지도 바탕·건물 입체·지형",
+    scale: "OpenStreetMap(Protomaps 2026-09-18 추출) · Mapzen 지형 타일",
+    use: "지도 바탕과 입체 보기의 건물 높이·아차산 지형. 분석 수치에는 쓰지 않음. 정적 파일로 자체 호스팅",
+  },
+  {
     name: "행정동 경계",
     scale: "행안부 KIKcd_H (admdongkor)",
     use: "동 경계 지도, 동별 집계의 기준",

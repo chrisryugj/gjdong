@@ -751,32 +751,64 @@
   }
 }
 
-/* ── 무단투기 상황판(/dumping). OSM 타일을 라이트 미니멀로 뮤트 (이 지도에만 스코프) */
+/* ── 무단투기 상황판(/dumping). 16라운드(2026-09-19) MapLibre: 자체 호스팅 벡터 바탕(lib/dumping/basemap-style.ts)이라 타일 뮤트 필터 없음 */
 .dumping-map {
-  background: #e8ebe6; /* 지도 바탕. 타일이 비치는 뮤트 그린그레이 */
+  background: #e8ebe6; /* 지도 바탕. 타일이 오기 전 바탕과 같은 뮤트 그린그레이 */
+  font-family: inherit;
 }
-.dumping-map .leaflet-tile-pane {
-  filter: grayscale(1) brightness(1.05) contrast(0.9) opacity(0.45);
+/* 호버 툴팁. 예전 leaflet 툴팁과 같은 종이 카드(화살표 없음) */
+.dumping-map .maplibregl-popup {
+  pointer-events: none;
+  z-index: 5;
 }
-.dumping-map .leaflet-tooltip {
+.dumping-map .maplibregl-popup-tip {
+  display: none;
+}
+.dumping-map .maplibregl-popup-content {
+  font-family: inherit;
   font-size: 15px;
   line-height: 1.55;
   padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--cp-tip-bg, #fff);
+  color: var(--cp-text, #24302c);
+  border: 1px solid var(--cp-border-strong, rgba(20, 32, 28, 0.24));
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
 }
-
-.dumping-map .dump-cand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 9999px;
-  background: #dc2626;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+/* 줌·나침반 버튼. 유리 패널과 같은 종이 카드 */
+.dumping-map .maplibregl-ctrl-group {
+  border-radius: 10px;
+  background: var(--cp-panel, #fff);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12), 0 0 0 1px var(--cp-border, rgba(20, 32, 28, 0.12));
+}
+.dumping-map .maplibregl-ctrl-group button {
+  width: 30px;
+  height: 30px;
+}
+.dumping-map .maplibregl-ctrl-group button + button {
+  border-top-color: var(--cp-border-faint, rgba(20, 32, 28, 0.07));
+}
+/* 출처 표기는 (i) 버튼으로 접어 두고 올리면 펼친다. maplibre 기본은 첫 화면에 펼쳐진 채라 줌 버튼을 범례 카드 뒤로 밀었다 */
+.dumping-map .maplibregl-ctrl-attrib {
+  font-size: 11px;
+  max-width: 250px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 6px;
+}
+.dumping-map .maplibregl-ctrl-attrib.maplibregl-compact:not(:hover) .maplibregl-ctrl-attrib-inner {
+  display: none;
+}
+.dumping-map .maplibregl-ctrl-attrib.maplibregl-compact:not(:hover) {
+  padding: 0;
+  min-height: 24px;
+  min-width: 24px;
+}
+.dumping-map .maplibregl-ctrl-attrib a {
+  color: var(--cp-text-dim, #6b7571);
+}
+/* 동별 막대 마커. 기울여도 화면에 선 채로 위치만 따라간다 */
+.dumping-map .dump-dongbar {
+  cursor: default;
 }
 
 /* ── /dumping 인쇄. 동별 브리핑(#dump-brief)과 결재용 한 장(#dump-policy) 모달만 출력 */
@@ -812,34 +844,6 @@
     max-height: none;
     overflow: visible;
   }
-}
-
-/* ── /dumping 예측 핫스팟 배지. 재배치 후보(원형 빨강)와 구분되는 각진 자주색 */
-.dumping-map .dump-hot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: #7c2d5e;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-.dumping-map .dump-hot-top {
-  background: #a8322a;
-  box-shadow: 0 0 0 3px rgba(168, 50, 42, 0.25), 0 1px 4px rgba(0, 0, 0, 0.35);
-}
-/* 줌 14 미만. 순위 숫자 대신 점 */
-.dumping-map .dump-hot-sm {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  border-width: 1.5px;
-  font-size: 0;
 }
 
 /* ── /dumping 목록 클릭 지점 하이라이트. 중심점 + 퍼지는 링 */
@@ -884,6 +888,14 @@
 .dumping-map .dump-focus-label {
   font-weight: 600;
   font-size: 13px;
+  line-height: 1.4;
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  background: var(--cp-tip-bg, #fff);
+  color: var(--cp-text, #24302c);
+  border: 1px solid var(--cp-border-strong, rgba(20, 32, 28, 0.24));
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
 }
 
 /* ── /dumping 시연 다듬기 (2026-09-15). 모노 숫자 옆 한글 폴백·등장 애니메이션·청취/생각 중 표시·동별 3D 막대 ── */
@@ -994,8 +1006,8 @@
 }
 
 /* 동별 3D 막대 툴팁 카드. 헤더 · 지표마다 색띠 블록(칩·순위·큰 숫자·천명당·구 최댓값 대비 막대) · 각주.
-   leaflet 기본 white-space:nowrap 을 풀어야 각주가 카드 밖으로 삐져나가지 않는다 */
-.crowd-page .leaflet-tooltip.dump-bartip-wrap {
+   16라운드: maplibre 팝업에 같은 클래스. 각주가 카드 밖으로 나가지 않게 white-space normal */
+.dumping-map .maplibregl-popup.dump-bartip-wrap .maplibregl-popup-content {
   padding: 0;
   border: 0;
   border-radius: 12px;
@@ -1005,7 +1017,6 @@
   white-space: normal;
   line-height: 1.3;
 }
-.crowd-page .leaflet-tooltip.dump-bartip-wrap::before { display: none; }
 .dump-bartip { width: 252px; padding: 11px 13px 10px; color: #1f2937; }
 .dump-bartip .t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 800; color: #0f172a; }
 .dump-bartip .t span { font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
