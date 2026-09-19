@@ -1008,7 +1008,7 @@
 .dump-bartip { width: 252px; padding: 11px 13px 10px; color: #1f2937; }
 .dump-bartip .t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 800; color: #0f172a; }
 .dump-bartip .t span { font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
-.dump-bartip .m { margin-top: 8px; padding: 7px 10px 9px; border-radius: 8px; border-left: 3px solid var(--c); background: #f4f6f9; }
+.dump-bartip .m { margin-top: 8px; padding: 7px 10px 9px; border-radius: 8px; background: #f4f6f9; } /* 18라운드: 왼쪽 세로 색띠 제거. 색은 칩·막대로만 */
 .dump-bartip .h { display: flex; align-items: center; gap: 6px; }
 .dump-bartip .h i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
 .dump-bartip .h b { font-size: 13px; font-weight: 700; color: #334155; }
@@ -1026,7 +1026,10 @@
    따뜻한 도면지 위에 전면 지도, 그 위로 떠 있는 유리 패널. 글꼴은 둘: 결론 문장은 고운바탕, 나머지 글과 숫자는 IBM Plex Sans KR(숫자 강조는 굵기 600과 크기로만).
    액센트는 햇빛 앰버 하나. 데이터 색(초록·파랑·주황 램프, 원 빨강·보라)은 테마가 아니라 지도 문법이라 그대로.
    .dump-page 스코프라 /crowd 무영향. 재질 하이라이트(상단 radial·림·잉크 광택) 외 장식 그라데이션 금지 ── */
+:root { --lg: 1; } /* 유리 강도 0~1.6 (components/dumping/glass-dial.tsx가 html 인라인으로 덮는다). 투명도·흐림·굴절·하이라이트가 같이 움직인다 */
 .crowd-page.crowd-light.dump-page {
+  --lg-lo: min(var(--lg), 1); /* 0~1 구간: 불투명 → 기본 */
+  --lg-hi: max(var(--lg) - 1, 0); /* 1~1.6 구간: 기본 → 아주 맑음 (0~0.6) */
   --dump-ground: #e9e3d3; /* 지도 바탕(타일 아래) = 도면지 2 */
   --dump-paper: #f1ecdf;
   --dump-paper-white: #fbf9f3;
@@ -1138,9 +1141,9 @@
 .dump-page .dump-fl {
   background:
     radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%),
-    rgba(251, 249, 243, 0.7);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5) brightness(1.04);
-  backdrop-filter: blur(24px) saturate(1.5) brightness(1.04);
+    rgba(251, 249, 243, calc(0.98 - var(--lg-lo) * 0.28 - var(--lg-hi) * 0.6));
+  -webkit-backdrop-filter: blur(calc(24px * var(--lg-lo) - var(--lg-hi) * 20px)) saturate(1.5) brightness(1.04);
+  backdrop-filter: blur(calc(24px * var(--lg-lo) - var(--lg-hi) * 20px)) saturate(1.5) brightness(1.04);
   border: 1px solid rgba(255, 255, 255, 0.58);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -1154,7 +1157,7 @@
   .dump-page .dump-fl { background: #fbf9f3; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 :root[data-theme="dark"] .dump-page .dump-fl {
-  background: radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%), rgba(20, 27, 32, 0.72);
+  background: radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%), rgba(20, 27, 32, calc(0.9 - var(--lg-lo) * 0.28 - var(--lg-hi) * 0.4));
   border-color: rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 1px 0 0 rgba(255, 255, 255, 0.08), inset -1px 0 0 rgba(0, 0, 0, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3), 0 18px 48px rgba(0, 0, 0, 0.45);
 }
@@ -1171,6 +1174,88 @@
 .dump-page .dump-tab { position: relative; border-radius: 9999px; }
 .dump-page .dump-tab[aria-selected="true"] { background: var(--dump-ink); color: var(--dump-paper); }
 :root[data-theme="dark"] .dump-page .dump-tab[aria-selected="true"] { background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 50%), #ece7dc; color: #14181b; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 #fff; }
+/* 액체 탭(18라운드, sunlight-fund liquid-tabs 이식): 잉크 캡슐 하나가 선택된 탭 자리로 스프링처럼 흘러간다. 선택된 버튼은 투명, 캡슐이 그 뒤를 채운다 */
+.dump-page .lq-tabs .lq-ink {
+  position: absolute; top: 0; left: 0; height: 0; width: 0; border-radius: 9999px; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 50%), var(--dump-ink);
+  box-shadow: 0 6px 16px rgba(28, 26, 21, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform .45s cubic-bezier(.3,1.4,.4,1), width .45s cubic-bezier(.3,1.4,.4,1), height .3s;
+  will-change: transform, width;
+}
+.dump-page .lq-tabs .dump-tab { z-index: 1; }
+.dump-page .lq-tabs .dump-tab[aria-selected="true"] { background: transparent; box-shadow: none; }
+:root[data-theme="dark"] .dump-page .lq-tabs .lq-ink { background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 50%), #ece7dc; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 #fff; }
+:root[data-theme="dark"] .dump-page .lq-tabs .dump-tab[aria-selected="true"] { background: transparent; box-shadow: none; }
+
+/* ── Liquid Glass 굴절 모드(html.lg-on, components/dumping/liquid-glass.tsx가 붙인다. sunlight-fund 이식)
+   .lg-shell: 뒤 콘텐츠가 굴절되는 맑은 유리. 배경은 아주 옅게, 테두리 대신 빛 링(::before), 스펙큘러는 포인터를 따라(::after).
+   .lg-inner: 글이 올라가는 안쪽 서리 층(왼쪽 카드). 굴절 띠가 보이도록 쉘과 6px 띄운다 ── */
+.dump-page .lg-shell { isolation: isolate; }
+.lg-on .dump-page .lg-shell {
+  background: rgba(251, 249, 243, calc(0.82 - var(--lg-lo) * 0.6 - var(--lg-hi) * 0.28));
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(28, 26, 21, 0.06), 0 1px 2px rgba(28, 26, 21, 0.05), 0 24px 60px rgba(28, 26, 21, 0.16);
+  -webkit-backdrop-filter: none; backdrop-filter: none; /* 굴절 필터(url)는 런타임이 인라인으로 붙인다 */
+}
+.lg-on .dump-page .lg-shell::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; padding: 1.5px;
+  background: conic-gradient(from 210deg at var(--px, 30%) var(--py, 20%), rgba(255,255,255,0.95), rgba(255,255,255,0.15) 25%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.1) 75%, rgba(255,255,255,0.95));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: calc(.9 * min(var(--lg), 1));
+}
+.lg-on .dump-page .lg-shell::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  background: radial-gradient(60% 50% at var(--px, 30%) var(--py, 20%), rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 70%);
+  mix-blend-mode: soft-light; transition: opacity .3s; opacity: min(var(--lg), 1.3);
+}
+.lg-on .dump-page .lg-inner {
+  background: rgba(251, 249, 243, calc(0.98 - var(--lg-lo) * 0.3 - var(--lg-hi) * 0.55));
+  -webkit-backdrop-filter: blur(calc(10px * var(--lg-lo) - var(--lg-hi) * 7px)) saturate(1.2); backdrop-filter: blur(calc(10px * var(--lg-lo) - var(--lg-hi) * 7px)) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+/* 서리 층이 없는 쉘(오른쪽 열·알약·띠): 라이트는 기본 0.56, 진하게 가면 0.1까지 */
+.lg-on .dump-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(251, 249, 243, calc(0.92 - var(--lg-lo) * 0.36 - var(--lg-hi) * 0.5)); }
+.lg-on .dump-page button.dump-fl.lg-shell:hover { background: rgba(255, 255, 255, 0.75); }
+/* 글이 빽빽한 쉘(오른쪽 열 목록·범례·캡션): 뒤에 보라 기둥이 비치면 못 읽는다 → 서리를 더 두껍게(0.5 아래로 안 내려간다) */
+.lg-on .dump-page .lg-shell.lg-dense { background: rgba(251, 249, 243, calc(0.94 - var(--lg-lo) * 0.24 - var(--lg-hi) * 0.2)) !important; }
+:root[data-theme="dark"].lg-on .dump-page .lg-shell.lg-dense { background: rgba(14, 20, 24, calc(0.94 - var(--lg-lo) * 0.2 - var(--lg-hi) * 0.2)) !important; }
+:root[data-theme="dark"].lg-on .dump-page .lg-shell { background: rgba(14, 20, 24, calc(0.88 - var(--lg-lo) * 0.6 - var(--lg-hi) * 0.35)); border-color: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px rgba(0, 0, 0, 0.5); }
+:root[data-theme="dark"].lg-on .dump-page .lg-shell::before { background: conic-gradient(from 210deg at var(--px, 30%) var(--py, 20%), rgba(255,255,255,0.7), rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.04) 75%, rgba(255,255,255,0.7)); opacity: .8; }
+:root[data-theme="dark"].lg-on .dump-page .lg-shell::after { background: radial-gradient(60% 50% at var(--px, 30%) var(--py, 20%), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 70%); mix-blend-mode: screen; }
+:root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, calc(0.98 - var(--lg-lo) * 0.24 - var(--lg-hi) * 0.6)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"].lg-on .dump-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(14, 20, 24, calc(0.9 - var(--lg-lo) * 0.3 - var(--lg-hi) * 0.6)); }
+:root[data-theme="dark"].lg-on .dump-page button.dump-fl.lg-shell:hover { background: rgba(255, 255, 255, 0.14); }
+/* 폰: 시트 뒤로 지도가 비쳐 글이 안 읽힌다 → 서리 층은 유리 강도와 무관하게 0.94 이상 */
+@media (max-width: 767px) {
+  .dump-page .lg-inner, .lg-on .dump-page .lg-inner { background: rgba(251, 249, 243, 0.94); }
+  :root[data-theme="dark"] .dump-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, 0.94); }
+}
+/* 유리 끔(--lg≈0): 굴절·흐림 없이 불투명 종이 패널 */
+.lg-flat .dump-page .lg-shell, .lg-flat .dump-page .dump-fl { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--dump-paper) !important; }
+.lg-flat .dump-page .lg-inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: transparent; }
+.lg-flat .dump-page .lg-shell::before, .lg-flat .dump-page .lg-shell::after { display: none; }
+/* 유리 다이얼: 평소엔 물방울 하나, 누르면 옆으로 늘어나 슬라이더가 나온다 */
+.dump-page .lg-dial { display: inline-flex; align-items: center; gap: 0; height: 38px; padding: 0; overflow: hidden; transition: width .45s cubic-bezier(.3,1.3,.4,1), padding .3s; width: 38px; }
+.dump-page .lg-dial.is-open { width: 176px; }
+.dump-page .lg-dial.is-compact.is-open { width: 150px; }
+.dump-page .lg-dial .lg-dial-btn { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border: 0; background: transparent; color: var(--cp-text); cursor: pointer; border-radius: 9999px; }
+.dump-page .lg-dial .lg-dial-body { display: flex; align-items: center; gap: 8px; padding-right: 12px; opacity: 0; transform: translateX(-6px); transition: opacity .25s .1s, transform .35s cubic-bezier(.2,.8,.2,1) .05s; white-space: nowrap; }
+.dump-page .lg-dial.is-open .lg-dial-body { opacity: 1; transform: none; }
+.dump-page input[type="range"].dump-range { -webkit-appearance: none; height: 20px; background: transparent; }
+.dump-page input[type="range"].dump-range::-webkit-slider-runnable-track { height: 2px; background: var(--cp-border-strong); border-radius: 2px; }
+.dump-page input[type="range"].dump-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border-radius: 9999px; cursor: pointer; background: rgba(255, 255, 255, 0.9); border: 1.5px solid rgba(28, 26, 21, 0.55); box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(28, 26, 21, 0.18); transition: transform .15s cubic-bezier(.34,1.56,.64,1); }
+.dump-page input[type="range"].dump-range:active::-webkit-slider-thumb { transform: scale(1.2); }
+.dump-page input[type="range"].dump-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--dump-accent-ink); outline-offset: 2px; }
+:root[data-theme="dark"] .dump-page input[type="range"].dump-range::-webkit-slider-thumb { background: #ece7dc; border-color: rgba(0, 0, 0, 0.4); box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(0, 0, 0, 0.5); }
+/* 드론 비행 안내 띠의 드론 표식: 앰버 점 + 도는 고리 */
+.dump-page .dump-fly-drone { position: relative; width: 22px; height: 22px; flex: none; border-radius: 9999px; border: 1.5px dashed var(--dump-accent); animation: dump-fly-spin 4s linear infinite; }
+.dump-page .dump-fly-drone::after { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: var(--dump-accent); }
+@keyframes dump-fly-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .dump-page .lq-tabs .lq-ink, .dump-page .lg-dial, .dump-page .lg-dial .lg-dial-body, .lg-on .dump-page .lg-shell::after { transition: none; }
+  .dump-page .dump-fly-drone { animation: none; }
+}
 /* 흰 글자 하드코딩(text-white)은 잉크 바탕 위의 것들. 다크에서 잉크 바탕이 밝아지니 글자는 종이색 반전 */
 :root[data-theme="dark"] .dump-page .dump-tab[aria-selected="true"] .text-white { color: #14181b; }
 

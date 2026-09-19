@@ -58,8 +58,8 @@ export function colorOf(v: number, stops: number[], pal: string[]): string {
 }
 
 // maplibre step 표현식용. colorOf와 같은 경계(v > stop → 다음 단계)
-export function stepExpr(prop: string, stops: number[], pal: string[]): unknown[] {
-  const out: unknown[] = ["step", ["get", prop], pal[0]]
+export function stepExpr(prop: string, stops: number[], pal: string[], input: unknown[] = ["get", prop]): unknown[] {
+  const out: unknown[] = ["step", input, pal[0]]
   for (let i = 0; i < stops.length; i++) out.push(stops[i] + 1, pal[Math.min(i + 1, 5)])
   return out
 }
@@ -474,17 +474,174 @@ export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear
   return { cols: fc(cols), labels: fc(labels) }
 }
 
-// ─── 드론 비행 경로(17라운드, 시연). 구 전체(내려다봄) → 핫스팟 상위 5곳을 낮게 천천히 → 다시 구 전체. 순위마다 방위를 조금씩 돌려 한 바퀴 도는 느낌 ───
-export interface FlyLeg {
-  camera: { center: [number, number]; zoom: number; pitch: number; bearing: number }
-  duration: number // ms
-  hold: number // 도착 뒤 머무는 시간(ms)
+// ─── 드론 비행(17라운드 시연 → 18라운드 연속 비행). 구 전체(내려다봄) → 핫스팟 상위 5곳 → 다시 구 전체.
+// 구간마다 easeTo를 이어 붙이면 방향이 휙휙 꺾였다(유저 실측). 지금은 경유지를 지나는 Catmull-Rom 곡선 위를 한 카메라가 연속으로 난다:
+// 지점마다 부드럽게 감속해 잠시 머물고(dwell) 다시 출발, 방위는 일정한 속도로 천천히 돈다(급회전 없음), 지점 사이에서는 살짝 떠올랐다 내려앉는다(lift) ───
+export interface FlyWaypoint {
+  center: [number, number]
+  zoom: number
+  pitch: number
+  dwell: number // 도착해 머무는 시간(ms)
+  target?: { rank: number; label: string; lnglat: [number, number] } // 핫스팟이면 그 지점(화면 안내·초점 고리)
 }
-export function flyTour(data: DumpingMapData, overview: { center: [number, number]; zoom: number; bearing: number }): FlyLeg[] {
-  const legs: FlyLeg[] = [{ camera: { ...overview, pitch: 50 }, duration: 5000, hold: 1500 }]
-  data.decision.hotspots.top.slice(0, 5).forEach((h, i) => {
-    legs.push({ camera: { center: [h[1], h[0]], zoom: 15.7, pitch: 62, bearing: overview.bearing + (i + 1) * 48 }, duration: 8000, hold: 2500 })
+export const FLY_BEARING_DEG_PER_S = 2.6 // 방위 회전 속도(도/초). 한 바퀴 약 2분 20초
+export const FLY_HOT_ZOOM = 15.6
+export const FLY_HOT_PITCH = 62
+export function flyWaypoints(data: DumpingMapData, overview: { center: [number, number]; zoom: number }): FlyWaypoint[] {
+  const top = data.decision.hotspots.top.slice(0, 5)
+  const out: FlyWaypoint[] = [{ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1200 }]
+  top.forEach((h, i) => {
+    out.push({
+      center: [h[1], h[0]],
+      zoom: FLY_HOT_ZOOM,
+      pitch: FLY_HOT_PITCH,
+      dwell: 2600,
+      target: { rank: i + 1, label: `예측 핫스팟 ${i + 1}위 · ${h[5] || "광진구"} · ${h[6] || "대표 주소 없음"}`, lnglat: [h[1], h[0]] },
+    })
   })
-  legs.push({ camera: { ...overview, bearing: overview.bearing + 360, pitch: 50 }, duration: 7000, hold: 1500 })
-  return legs
+  out.push({ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1500 })
+  return out
 }
+// 구간 비행 시간(ms): 거리에 비례하되 너무 짧거나 길지 않게. 조망↔핫스팟은 줌 변화가 커서 조금 더
+export function flySegmentMs(a: FlyWaypoint, b: FlyWaypoint): number {
+  const km = Math.hypot((b.center[0] - a.center[0]) * 111.32 * Math.cos((a.center[1] * Math.PI) / 180), (b.center[1] - a.center[1]) * 111.32)
+  const zoomGap = Math.abs(b.zoom - a.zoom)
+  return Math.round(Math.min(11000, Math.max(5000, 3800 + km * 2200 + zoomGap * 1200)))
+}
+const smooth = (t: number) => t * t * (3 - 2 * t) // smoothstep: 양 끝 속도 0(지점에서 부드럽게 서고 떠난다)
+const catmull = (p0: number, p1: number, p2: number, p3: number, t: number) =>
+  0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t)
+// 구간 i(경유지 i → i+1)의 진행률 f(0~1)에서의 카메라. 위치는 경유지를 지나는 곡선, 줌·기울기는 같은 곡선으로 보간 + 지점 사이 떠오름
+export function flyCameraAt(wps: FlyWaypoint[], i: number, f: number): { center: [number, number]; zoom: number; pitch: number } {
+  const at = (k: number) => wps[Math.max(0, Math.min(wps.length - 1, k))]
+  const [a, b, c, d] = [at(i - 1), at(i), at(i + 1), at(i + 2)]
+  const t = smooth(Math.max(0, Math.min(1, f)))
+  const lng = catmull(a.center[0], b.center[0], c.center[0], d.center[0], t)
+  const lat = catmull(a.center[1], b.center[1], c.center[1], d.center[1], t)
+  // 핫스팟 사이는 살짝 떠올라(줌 -0.7) 다음 지점을 내려다보다 내려앉는다. 조망↔핫스팟 구간은 그냥 보간
+  const lift = b.target && c.target ? 0.7 * Math.sin(Math.PI * t) : 0
+  const zoom = b.zoom + (c.zoom - b.zoom) * t - lift
+  const pitch = b.pitch + (c.pitch - b.pitch) * t - lift * 6
+  return { center: [lng, lat], zoom, pitch }
+}
+// 드론 비행 경로 그림: 핫스팟 상위 5곳을 잇는 점선 + 번호 지점
+export function flyRouteFC(data: DumpingMapData): { path: FC; points: FC } {
+  const top = data.decision.hotspots.top.slice(0, 5)
+  const coords = top.map((h) => [h[1], h[0]] as [number, number])
+  return {
+    path: coords.length > 1 ? fc([{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }]) : emptyFC(),
+    points: fc(top.map((h, i) => ({ type: "Feature", properties: { n: String(i + 1), tip: hotspotTooltip(i + 1, h) }, geometry: { type: "Point", coordinates: [h[1], h[0]] } }))),
+  }
+}
+
+// ─── 18라운드(2026-09-19): 입체 보기 전용 도형. 평면의 원·점은 지형 위에 드레이핑되어 건물 아래 깔린다(maplibre는 fill·line·circle을 지형 텍스처로 굽고
+// fill-extrusion·symbol만 3D로 그린다). 그래서 입체에서는 원을 원기둥으로, 시설·후보 점을 말뚝으로, 초점 링을 땅 위 고리로 세운다 ───
+export const CYL_MIN_M = 30 // 원기둥 최소 높이. 3층 다가구(약 10m) 위로 머리가 나오게
+export const CYL_MAX_M = 240
+export const POST_R_M = 9 // 시설 말뚝 반지름(m)
+export const POST_H_M = 34
+export const CAND_POST_R_M = 14 // 재배치 후보 말뚝
+export const CAND_POST_H_M = 70
+export const RECO_RING_R_M = 17 // 배치추천 고리(아직 없는 것이라 속이 빈 고리)
+export const RECO_RING_H_M = 12
+export const FOCUS_RING_R_M = 46 // 초점 고리(목록 클릭·드론 목표)
+export const NEUTRAL_BUILDING = { light: "#d7d5cd", dark: "#2a343b" } as const
+
+// 중심 둘레 반지름 r(m)인 정다각형(원 근사). n=20이면 화면에서 원으로 읽힌다
+export function discPolygon(lng: number, lat: number, r: number, n = 20): GeoJSON.Polygon {
+  const dLat = r / 111320
+  const dLng = r / (111320 * Math.cos((lat * Math.PI) / 180))
+  const ring: [number, number][] = []
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2
+    ring.push([lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat])
+  }
+  return { type: "Polygon", coordinates: [ring] }
+}
+// 속이 빈 고리(바깥 반지름 r, 두께 t)
+export function ringPolygon(lng: number, lat: number, r: number, t: number, n = 24): GeoJSON.Polygon {
+  const outer = discPolygon(lng, lat, r, n).coordinates[0]
+  const inner = discPolygon(lng, lat, Math.max(1, r - t), n).coordinates[0].reverse()
+  return { type: "Polygon", coordinates: [outer, inner] }
+}
+
+// 원 겹치기(민원·과태료)를 원기둥으로. 발자국은 평면 원과 같은 반지름(m), 높이는 그 지표의 구 최댓값 대비. 두 지표가 한 칸에 있으면 좌우로 비켜 세운다
+export function circleColumnsFC(data: DumpingMapData, circles: CircleId[]): FC {
+  const feats: Feature[] = []
+  const both = circles.length > 1
+  circles.forEach((cid, k) => {
+    const cdef = CIRCLE_DEF[cid]
+    const maxV = Math.max(1, ...data.grid.map((c) => c[cdef.idx]))
+    for (const c of data.grid) {
+      const v = c[cdef.idx]
+      if (v <= 0) continue
+      const r = Math.min(48, 8 + Math.pow(v, 0.6) * 6)
+      const [lng0, lat] = cellCenter(c)
+      const lng = both ? lng0 + ((k === 0 ? -1 : 1) * 20) / (111320 * Math.cos((lat * Math.PI) / 180)) : lng0
+      feats.push({
+        type: "Feature",
+        properties: { dong: c[7] || "", v, h: CYL_MIN_M + (v / maxV) * (CYL_MAX_M - CYL_MIN_M), color: cdef.color, tip: cellTooltip(c) },
+        geometry: discPolygon(lng, lat, r),
+      })
+    }
+  })
+  return fc(feats)
+}
+
+// 날씨별 원을 원기둥으로. 평면과 같은 상대 크기(조건 안 최댓값 대비)
+export function weatherColumnsFC(data: DumpingMapData, weather: WeatherKey): FC {
+  const flat = weatherFC(data, weather)
+  return fc(
+    flat.features.map((f) => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      const r = f.properties.r as number
+      return { type: "Feature", properties: { ...f.properties, h: CYL_MIN_M + ((r - 6) / 64) * (CYL_MAX_M - CYL_MIN_M) }, geometry: discPolygon(lng, lat, r) }
+    }),
+  )
+}
+
+// 점(시설·후보)을 말뚝으로. 같은 속성(tip·color)을 그대로 들고 발자국만 네모(원기둥=건수와 모양으로 갈라 보인다. 이동식 CCTV 보라와 과태료 보라가 같이 서도 구분)
+export function postsFC(points: FC, r: number, h: number): FC {
+  return fc(
+    points.features.map((f) => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      return { type: "Feature", properties: { ...f.properties, h }, geometry: squareAround(lat, lng, r * 2) }
+    }),
+  )
+}
+export function ringsFC(points: FC, r: number, t: number, h: number): FC {
+  return fc(
+    points.features.map((f) => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      return { type: "Feature", properties: { ...f.properties, h }, geometry: ringPolygon(lng, lat, r, t) }
+    }),
+  )
+}
+
+// 좌표 → 격자 칸 번호. 건물(GIS건물통합정보) 중심점을 칸에 붙여 건물 색을 칸 값으로 칠할 때 쓴다.
+// 격자가 완전한 정규 격자는 아니라(칸 크기 1.000~1.002배) 칸 크기 단위 버킷에 칸을 등록해 두고 점이 든 버킷의 후보만 포함 검사
+export function cellLookup(grid: GridCell[]): (lat: number, lng: number) => number {
+  if (!grid.length) return () => -1
+  const dLat = grid[0][2] - grid[0][0]
+  const dLng = grid[0][3] - grid[0][1]
+  const key = (lat: number, lng: number) => `${Math.floor(lat / dLat)}:${Math.floor(lng / dLng)}`
+  const buckets = new Map<string, number[]>()
+  grid.forEach((c, i) => {
+    for (const lat of [c[0], c[2]]) for (const lng of [c[1], c[3]]) {
+      const k = key(lat, lng)
+      const b = buckets.get(k)
+      if (b) b.push(i)
+      else buckets.set(k, [i])
+    }
+  })
+  return (lat, lng) => {
+    const b = buckets.get(key(lat, lng))
+    if (!b) return -1
+    for (const i of b) {
+      const c = grid[i]
+      if (lat >= c[0] && lat < c[2] && lng >= c[1] && lng < c[3]) return i
+    }
+    return -1
+  }
+}
+

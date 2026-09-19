@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import maplibregl, {
   type ExpressionSpecification,
+  type FilterSpecification,
   type GeoJSONSource,
   type LayerSpecification,
   type LngLatBoundsLike,
@@ -19,29 +20,51 @@ import { BASEMAP_BOUNDS, BASEMAP_SOURCE, DEM_SOURCE, HAS_NSDI_BUILDINGS, HILLSHA
 import {
   BASE_DEF,
   BIN_RECO_COLOR,
+  CAND_POST_H_M,
+  CAND_POST_R_M,
   CRIT_COLOR,
+  FOCUS_RING_R_M,
+  NEUTRAL_BUILDING,
+  POST_H_M,
+  POST_R_M,
+  RECO_RING_H_M,
+  RECO_RING_R_M,
   ZERO_CELL,
   binRecosFC,
   candidatesFC,
+  cellLookup,
+  circleColumnsFC,
   circlesFC,
   criticalFC,
   dongColumnsFC,
   dongFC,
   emptyFC,
+  fc,
+  flyCameraAt,
+  flyRouteFC,
+  flySegmentMs,
+  flyWaypoints,
+  FLY_BEARING_DEG_PER_S,
   gridColumnsFC,
   gridFC,
   hotspotsFC,
   infraFC,
+  postsFC,
   radiusMetersExpr,
   ringFC,
+  ringPolygon,
+  ringsFC,
   routesFC,
-  flyTour,
   stepExpr,
+  weatherColumnsFC,
   weatherFC,
   type CandidateFocus,
   type FC,
 } from "./map-geo"
 
+// 18라운드(2026-09-19): 입체 보기를 3D 문법으로 다시 그렸다. maplibre는 지형이 켜지면 fill·line·circle을 지형 텍스처로 굽고(건물 아래 깔림)
+// fill-extrusion·symbol만 3D로 그린다. 그래서 입체에서는 ① 건물을 격자 칸 값으로 칠하고(feature-state 조인, 바탕 히트맵이 건물에 실린다)
+// ② 원을 원기둥으로 ③ 시설·후보 점을 말뚝으로, 배치추천을 빈 고리로 ④ 초점·드론 목표를 땅 위 고리로 세운다. 기둥은 전부 불투명(반투명끼리 교차하면 건물이 기둥 속에 비쳤다)
 // 16라운드(2026-09-19): Leaflet → MapLibre GL. 서울 3D Atlas를 보고 "지도가 분석 결론을 그림으로 말하게" 바꿨다.
 // 바탕은 자체 호스팅 벡터 타일(lib/dumping/basemap-style.ts) + 건물 3D + 아차산 지형, 기둥은 진짜 입체(fill-extrusion).
 // 레이어는 처음 한 번 전부 선언하고(빈 데이터) 이후에는 setData·setPaintProperty·visibility만 바꾼다(엔진 관용구, 재생성 비용 0)
@@ -77,7 +100,20 @@ const S = {
   hotLabels: "dump-hot-labels",
   dongCols: "dump-dong-cols",
   dongColLabels: "dump-dong-col-labels",
+  // 입체 전용(18라운드)
+  circleCols: "dump-circle-cols",
+  weatherCols: "dump-weather-cols",
+  infraPosts: "dump-infra-posts",
+  candPosts: "dump-cand-posts",
+  recoRings: "dump-reco-rings",
+  focusRing: "dump-focus-ring",
+  flyPath: "dump-fly-path",
+  flyPts: "dump-fly-pts",
 } as const
+// 평면(원·점)과 입체(원기둥·말뚝·고리)는 같은 데이터의 두 그림. 기울기에 따라 한쪽만 보인다
+const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco] as string[]
+const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings] as string[]
+const ACCENT = { light: "#c0741a", dark: "#e39a3f" } as const
 const L_BUILDINGS = "dump-buildings"
 const L_BUILDINGS_NSDI = "dump-buildings-nsdi"
 const L_GRID_LINE = "dump-grid-line"
@@ -89,7 +125,8 @@ const L_CRIT_LINE = "dump-crit-line"
 const L_CAND_LABEL = "dump-cand-label"
 // 호버 툴팁을 읽는 레이어. 위에 그린 것부터(queryRenderedFeatures가 위→아래 순으로 준다)
 const HOVER_LAYERS = [
-  L_CAND_LABEL, S.cand, S.binReco, S.infra, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols, L_ROUTES_FOCUS, L_ROUTES_GENERAL, S.weather, S.circles, S.grid,
+  L_CAND_LABEL, S.cand, S.candPosts, S.binReco, S.recoRings, S.infra, S.infraPosts, S.flyPts, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols,
+  L_ROUTES_FOCUS, L_ROUTES_GENERAL, S.weather, S.weatherCols, S.circles, S.circleCols, S.grid,
 ]
 const BIN_RECO_ICON = "dump-binreco-icon"
 
@@ -186,12 +223,18 @@ export default function DumpingMap({
   const prevDongRef = useRef<string | null>(null)
   const themeRef = useRef(theme)
   themeRef.current = theme
-  const focusMarkersRef = useRef<MlMarker[]>([])
   const ringBoundsRef = useRef<LngLatBoundsLike | null>(null)
   // 컨테이너 높이가 0일 때(모바일 지도 접힘) 미뤄 둔 구 전체 맞춤. 높이가 생기면 ResizeObserver가 실행한다
   const pendingFitRef = useRef<(() => void) | null>(null)
   // 스타일·레이어가 다 선언된 뒤에야 데이터 effect가 돈다. 데이터가 먼저 와도 ready로 재트리거
   const [ready, setReady] = useState(false)
+  // 드론 비행 안내(지도 위 띠): 몇 번째 구간, 어디로 가는지
+  const [flyInfo, setFlyInfo] = useState<{ i: number; total: number; label: string } | null>(null)
+  // 건물 조인(18라운드): 격자 칸 값을 건물 feature-state로. 처리한 건물 id는 기억해 두고, 스타일을 갈면(테마) 상태가 사라지니 비운다
+  const joinedRef = useRef<Set<string>>(new Set())
+  const lookupRef = useRef<((lat: number, lng: number) => number) | null>(null)
+  const joinRef = useRef<(() => void) | null>(null)
+  const focusMarkerRef = useRef<MlMarker | null>(null) // 초점 라벨(글자는 DOM). 고리는 지도 레이어(S.focusRing)
 
   const padding = (): PaddingOptions => {
     const p = fitPadRef.current
@@ -236,6 +279,8 @@ export default function DumpingMap({
     })
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right")
     mapRef.current = map
+    // 개발 진단용 손잡이(프로덕션 번들에는 안 실린다). Playwright에서 레이어·feature-state를 들여다볼 때
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __dumpMap?: MlMap }).__dumpMap = map
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "dump-pop", maxWidth: "340px", offset: 14 })
     popupRef.current = popup
 
@@ -249,6 +294,37 @@ export default function DumpingMap({
     map.on("styleimagemissing", (e) => {
       if (e.id === BIN_RECO_ICON && !map.hasImage(BIN_RECO_ICON)) map.addImage(BIN_RECO_ICON, dashedCircleIcon().data, { pixelRatio: 2 })
     })
+    // 건물 조인: 타일이 오면 보이는 건물마다 중심점이 든 칸의 값을 feature-state로 붙인다(한 번 붙인 id는 건너뜀)
+    const joinBuildings = () => {
+      const m = mapRef.current
+      const lookup = lookupRef.current
+      const grid = dataRef.current?.grid
+      if (!m || !lookup || !grid || !HAS_NSDI_BUILDINGS || !m.getSource(NSDI_SOURCE)) return
+      const done = joinedRef.current
+      for (const f of m.querySourceFeatures(NSDI_SOURCE, { sourceLayer: "buildings" })) {
+        const id = f.id
+        if (id == null || done.has(String(id))) continue
+        done.add(String(id))
+        const g = f.geometry
+        const ring = g.type === "Polygon" ? g.coordinates[0] : g.type === "MultiPolygon" ? g.coordinates[0]?.[0] : null
+        if (!ring?.length) continue
+        let lng = 0
+        let lat = 0
+        for (const p of ring) {
+          lng += p[0]
+          lat += p[1]
+        }
+        const i = lookup(lat / ring.length, lng / ring.length)
+        if (i < 0) continue
+        const c = grid[i]
+        m.setFeatureState({ source: NSDI_SOURCE, sourceLayer: "buildings", id }, { comp: c[4], enf: c[5], unm: c[6], lp: c[8], dong: c[7] || "" })
+      }
+    }
+    joinRef.current = joinBuildings
+    map.on("sourcedata", (e) => {
+      if (e.sourceId === NSDI_SOURCE && e.isSourceLoaded) joinBuildings()
+    })
+    map.on("idle", joinBuildings)
     // 호버 툴팁: 맨 위 레이어의 피처 하나. 격자→원→시설 순으로 위가 이긴다
     map.on("mousemove", (e) => {
       const m = mapRef.current
@@ -290,7 +366,8 @@ export default function DumpingMap({
       map.remove()
       mapRef.current = null
       popupRef.current = null
-      focusMarkersRef.current = []
+      focusMarkerRef.current?.remove()
+      focusMarkerRef.current = null
       setReady(false)
     }
     // data는 첫 도착 때만 스타일에 쓴다(경계는 불변). 이후 갱신은 아래 effect들이 setData로
@@ -302,6 +379,9 @@ export default function DumpingMap({
     if (!map || !ready || !data) return
     const ring = ringFC(data.ring)
     ringBoundsRef.current = ring.bounds
+    lookupRef.current = cellLookup(data.grid)
+    joinedRef.current = new Set()
+    joinRef.current?.()
     setFC(map, S.mask, ring.mask)
     setFC(map, S.ring, ring.line)
     setFC(map, S.grid, gridFC(data))
@@ -339,7 +419,21 @@ export default function DumpingMap({
     setFC(map, S.weather, weather ? weatherFC(data, weather) : emptyFC())
     map.setPaintProperty(S.weather, "circle-opacity", ["case", dimPt, 0.04, 0.22])
     map.setPaintProperty(S.weather, "circle-stroke-opacity", ["case", dimPt, 0.15, 0.8])
-  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather])
+    // 입체: 원 → 원기둥. 격자 기둥이 켜져 있으면 같은 자리에 두 기둥이 겹치니 원기둥은 쉰다. 흐림(다른 레이어 켜짐)은 평면의 0.04처럼 숨김, 동 선택은 그 동만
+    setFC(map, S.circleCols, weather || grid3d ? emptyFC() : circleColumnsFC(data, circles))
+    setFC(map, S.weatherCols, weather ? weatherColumnsFC(data, weather) : emptyFC())
+    if (tiltRef.current) riseColumns(map, weather ? S.weatherCols : S.circleCols)
+    const colFilter: FilterSpecification | null = selectedDong ? ["==", ["get", "dong"], selectedDong] : muted ? ["==", ["get", "dong"], "\u0000"] : null
+    map.setFilter(S.circleCols, colFilter)
+    map.setFilter(S.weatherCols, colFilter)
+    // 건물 색 = 그 건물이 선 칸의 바탕 값(feature-state). 값 0·칸 밖·흐림·다른 동은 중립색. 평면 격자와 같은 램프라 범례가 그대로 통한다
+    const neutral = NEUTRAL_BUILDING[themeRef.current]
+    const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
+    // 건물은 동 선택 때만 흐린다(다른 동 중립색). 시설·핫스팟이 켜져도 유지: 말뚝·기둥은 입체라 바닥 격자처럼 묻히지 않는다
+    const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", false]
+    if (map.getLayer(L_BUILDINGS_NSDI))
+      map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, def.pal, val), neutral])
+  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme])
 
   // 동 선택. 전체 동은 상시 얇게, 선택 동은 굵게 + 은은한 채움 + 동 전체가 화면에 들어오게
   useEffect(() => {
@@ -376,9 +470,16 @@ export default function DumpingMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
-    setFC(map, S.infra, infraFC(data, layers))
-    setFC(map, S.cand, showCandidates ? candidatesFC(data) : emptyFC())
-    setFC(map, S.binReco, showBinRecos ? binRecosFC(data) : emptyFC())
+    const infra = infraFC(data, layers)
+    const cand = showCandidates ? candidatesFC(data) : emptyFC()
+    const reco = showBinRecos ? binRecosFC(data) : emptyFC()
+    setFC(map, S.infra, infra)
+    setFC(map, S.cand, cand)
+    setFC(map, S.binReco, reco)
+    // 입체: 점 → 말뚝, 배치추천 → 빈 고리(아직 없는 자리)
+    setFC(map, S.infraPosts, postsFC(infra, POST_R_M, POST_H_M))
+    setFC(map, S.candPosts, postsFC(cand, CAND_POST_R_M, CAND_POST_H_M))
+    setFC(map, S.recoRings, ringsFC(reco, RECO_RING_R_M, 5, RECO_RING_H_M))
   }, [data, ready, layers, showCandidates, showBinRecos])
 
   // 청소차 관리노선. road-links.json 동적 임포트(번들 제외), 도로명으로 필터
@@ -408,6 +509,7 @@ export default function DumpingMap({
     const hot = showHotspots ? hotspotsFC(data) : { cols: emptyFC(), labels: emptyFC() }
     setFC(map, S.hotCols, hot.cols)
     setFC(map, S.hotLabels, hot.labels)
+    if (showHotspots) riseColumns(map, S.hotCols)
   }, [data, ready, showHotspots])
 
   // 집중관리 상습격자 (12개월 10건 이상). 칸 외곽선 + 기둥(높이=12개월 건수)
@@ -418,6 +520,7 @@ export default function DumpingMap({
     setFC(map, S.critCells, crit.cells)
     setFC(map, S.critCols, crit.cols)
     setFC(map, S.critLabels, crit.labels)
+    if (showCritical) riseColumns(map, S.critCols)
   }, [data, ready, showCritical])
 
   // 격자 기둥. 원 지표(민원·과태료, 없으면 과태료) 건수를 칸 가운데 기둥으로. 5건 이상 칸만
@@ -426,6 +529,7 @@ export default function DumpingMap({
     if (!map || !ready || !data) return
     const ids: CircleId[] = circles.length ? circles : ["enf"]
     setFC(map, S.cols, grid3d ? gridColumnsFC(data, ids, selectedDong) : emptyFC())
+    if (grid3d) riseColumns(map, S.cols)
   }, [data, ready, grid3d, circles, selectedDong])
 
   // 테마(17라운드). 바탕 스타일을 통째로 바꾸되 우리 소스(현재 데이터 포함)·레이어(현재 paint 포함)는 그대로 옮겨 싣는다.
@@ -448,6 +552,7 @@ export default function DumpingMap({
     map.once("style.load", () => {
       if (mapRef.current !== map) return
       applyThemePaint(map, theme)
+      joinedRef.current = new Set() // 소스가 새로 만들어져 feature-state가 비었다. idle에서 다시 붙는다
       if (tiltRef.current) map.setTerrain({ source: DEM_SOURCE, exaggeration: 1.4 })
     })
     // 지형을 켠 채 스타일을 갈면 maplibre가 옛 지형 렌더러를 만져 shaderPreludeCode 오류(실측). 잠깐 끄고 style.load에서 다시 켠다
@@ -461,6 +566,9 @@ export default function DumpingMap({
     if (!map || !ready) return
     map.setLayoutProperty(L_BUILDINGS, "visibility", tilt ? "visible" : "none")
     if (map.getLayer(L_BUILDINGS_NSDI)) map.setLayoutProperty(L_BUILDINGS_NSDI, "visibility", tilt ? "visible" : "none")
+    for (const id of FLAT_ONLY) map.setLayoutProperty(id, "visibility", tilt ? "none" : "visible")
+    for (const id of TILT_ONLY) map.setLayoutProperty(id, "visibility", tilt ? "visible" : "none")
+    if (tilt) for (const id of [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts]) riseColumns(map, id)
     map.setTerrain(tilt ? { source: DEM_SOURCE, exaggeration: 1.4 } : null)
     map.easeTo({ pitch: tilt ? TILT_PITCH : 0, bearing: tilt ? TILT_BEARING : 0, duration: 700 })
   }, [ready, tilt])
@@ -482,33 +590,88 @@ export default function DumpingMap({
     return () => cancelAnimationFrame(raf)
   }, [ready, orbit])
 
-  // 드론 비행(시연, 17라운드). 구 전체를 내려다보다 핫스팟 상위 5곳을 낮게 천천히 돌고 다시 올라온다. 경로는 map-geo.flyTour(데이터에서)
-  // easeTo를 이어 붙인다: 한 구간이 끝나면(moveend) 다음 구간. 사용자가 만지면 stopOrbit → fly=false → 정리에서 map.stop()
+  // 드론 비행(시연). 18라운드: 구간별 easeTo(휙휙 꺾임) → 한 카메라가 경유지 곡선 위를 연속으로 난다(map-geo flyWaypoints·flyCameraAt).
+  // 프레임마다 jumpTo. 방위는 일정 속도로 천천히. 지점에 닿으면 감속해 머물고(dwell) 다시 출발. 끝(조망 복귀)까지 가면 처음부터 반복.
+  // 어디를 나는지: 경로 점선 + 번호 지점(지도), 목표 지점 땅 위 고리, 화면 위 안내 띠(flyInfo). 사용자가 만지면 stopOrbit → fly=false
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !fly || !data || !ringBoundsRef.current) return
-    let alive = true
     map.setPadding(padding())
     const cam = map.cameraForBounds(ringBoundsRef.current, { bearing: TILT_BEARING })
     if (!cam) return
     const c = maplibregl.LngLat.convert(cam.center as maplibregl.LngLatLike)
-    const legs = flyTour(data, { center: [c.lng, c.lat], zoom: (cam.zoom ?? 13.4) - TILT_ZOOM_BACK, bearing: TILT_BEARING })
-    let i = 0
-    const next = () => {
-      const m = mapRef.current
-      if (!alive || !m) return
-      const leg = legs[i % legs.length]
-      i += 1
-      m.once("moveend", () => {
-        if (!alive) return
-        window.setTimeout(next, leg.hold)
-      })
-      m.easeTo({ ...leg.camera, duration: leg.duration, easing: (t) => 1 - Math.pow(1 - t, 3), essential: true })
+    const wps = flyWaypoints(data, { center: [c.lng, c.lat], zoom: (cam.zoom ?? 13.4) - TILT_ZOOM_BACK })
+    const segs = wps.slice(0, -1).map((w, i) => flySegmentMs(w, wps[i + 1]))
+    const stops = wps.filter((w) => w.target).length
+    const route = flyRouteFC(data)
+    setFC(map, S.flyPath, route.path)
+    setFC(map, S.flyPts, route.points)
+    // 현재 위치에서 첫 경유지(조망)까지는 짧게 이어 붙인다(갑자기 순간이동하지 않게)
+    const start = { center: [map.getCenter().lng, map.getCenter().lat] as [number, number], zoom: map.getZoom(), pitch: map.getPitch(), dwell: 0 }
+    const lead = flySegmentMs(start, wps[0]) * 0.5
+    const bearing0 = map.getBearing()
+    let shown = -1 // 안내를 띄운 경유지 번호
+    const announce = (k: number) => {
+      if (shown === k) return
+      shown = k
+      const w = wps[k]
+      if (w.target) {
+        setFC(map, S.focusRing, fc([{ type: "Feature", properties: { h: 16 }, geometry: ringPolygon(w.target.lnglat[0], w.target.lnglat[1], FOCUS_RING_R_M, 9) }]))
+        setFlyInfo({ i: w.target.rank, total: stops, label: w.target.label })
+      } else {
+        setFC(map, S.focusRing, emptyFC())
+        setFlyInfo({ i: 0, total: stops, label: k === 0 ? "구 전체 조망 · 예측 핫스팟 상위 5곳으로" : "구 전체 조망으로 복귀" })
+      }
     }
-    next()
+    let raf = 0
+    const t0 = performance.now()
+    const loopMs = segs.reduce((a, b) => a + b, 0) + wps.reduce((a, w) => a + w.dwell, 0)
+    const step = (now: number) => {
+      const m = mapRef.current
+      if (!m) return
+      const bearing = bearing0 + ((now - t0) / 1000) * FLY_BEARING_DEG_PER_S
+      let t = now - t0
+      if (t < lead) {
+        // 진입: 지금 시점 → 조망
+        const f = t / lead
+        const k = f * f * (3 - 2 * f)
+        announce(0)
+        m.jumpTo({ center: [start.center[0] + (wps[0].center[0] - start.center[0]) * k, start.center[1] + (wps[0].center[1] - start.center[1]) * k], zoom: start.zoom + (wps[0].zoom - start.zoom) * k, pitch: start.pitch + (wps[0].pitch - start.pitch) * k, bearing })
+        raf = requestAnimationFrame(step)
+        return
+      }
+      t = (t - lead) % loopMs
+      // 시각 t가 어느 경유지의 머무름 또는 어느 구간에 있는지
+      let i = 0
+      for (;;) {
+        if (t < wps[i].dwell) {
+          announce(i)
+          const w = wps[i]
+          m.jumpTo({ center: w.center, zoom: w.zoom, pitch: w.pitch, bearing })
+          break
+        }
+        t -= wps[i].dwell
+        if (i >= segs.length) break
+        if (t < segs[i]) {
+          announce(i + 1) // 출발하면서 다음 목표를 먼저 알린다
+          m.jumpTo({ ...flyCameraAt(wps, i, t / segs[i]), bearing })
+          break
+        }
+        t -= segs[i]
+        i += 1
+      }
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
     return () => {
-      alive = false
-      mapRef.current?.stop()
+      cancelAnimationFrame(raf)
+      const m = mapRef.current
+      if (m) {
+        setFC(m, S.flyPath, emptyFC())
+        setFC(m, S.flyPts, emptyFC())
+        setFC(m, S.focusRing, emptyFC())
+      }
+      setFlyInfo(null)
     }
   }, [ready, fly, data])
 
@@ -519,30 +682,49 @@ export default function DumpingMap({
     const d = showDongBars ? dongColumnsFC(data, dongMode, dongYear) : { cols: emptyFC(), labels: emptyFC() }
     setFC(map, S.dongCols, d.cols)
     setFC(map, S.dongColLabels, d.labels)
+    if (showDongBars) riseColumns(map, S.dongCols, true, 1100)
     // 기둥 값 라벨이 동 이름을 같이 달고 있으니 지도 동 라벨은 겹치지 않게 숨긴다
     map.setLayoutProperty(S.dongLabel, "visibility", showDongBars ? "none" : "visible")
   }, [data, ready, showDongBars, dongMode, dongYear])
 
-  // 목록 클릭 → 해당 지점으로 당겨가기 + 펄스 하이라이트로 위치를 확실히 표시
+  // 목록 클릭 → 해당 지점으로 당겨가기 + 땅 위 고리로 위치를 확실히 표시(18라운드: DOM 펄스 점은 3D 지도 위에서 2D로 떠 보여 고리 레이어로). 글자는 DOM 라벨
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    for (const mk of focusMarkersRef.current) mk.remove()
-    focusMarkersRef.current = []
-    if (!focusCandidate) return
+    focusMarkerRef.current?.remove()
+    focusMarkerRef.current = null
+    if (!focusCandidate) {
+      if (!fly) setFC(map, S.focusRing, emptyFC())
+      return
+    }
     const lnglat: [number, number] = [focusCandidate.latlng[1], focusCandidate.latlng[0]]
-    const el = document.createElement("div")
-    el.className = "dump-focus"
-    el.innerHTML = `<i class="dump-focus-dot"></i><i class="dump-focus-ring"></i>`
-    focusMarkersRef.current.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat(lnglat).addTo(map))
+    setFC(map, S.focusRing, fc([{ type: "Feature", properties: { h: 16 }, geometry: ringPolygon(lnglat[0], lnglat[1], FOCUS_RING_R_M, 9) }]))
     if (focusCandidate.label) {
       const lb = document.createElement("div")
       lb.className = "dump-focus-label"
       lb.textContent = focusCandidate.label
-      focusMarkersRef.current.push(new maplibregl.Marker({ element: lb, anchor: "bottom", offset: [0, -20] }).setLngLat(lnglat).addTo(map))
+      focusMarkerRef.current = new maplibregl.Marker({ element: lb, anchor: "bottom", offset: [0, -26] }).setLngLat(lnglat).addTo(map)
     }
     map.flyTo({ center: lnglat, zoom: 16, duration: 600 })
   }, [ready, focusCandidate])
+
+  // 초점 고리 맥동: 높이·투명도를 숨 쉬듯. 고리가 있을 때만 프레임을 돈다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || (!focusCandidate && !fly)) return
+    let raf = 0
+    const t0 = performance.now()
+    const step = (t: number) => {
+      const m = mapRef.current
+      if (!m || !m.getLayer(S.focusRing)) return
+      const k = (Math.sin(((t - t0) / 1400) * Math.PI * 2) + 1) / 2 // 0~1
+      m.setPaintProperty(S.focusRing, "fill-extrusion-height", 10 + k * 14)
+      m.setPaintProperty(S.focusRing, "fill-extrusion-opacity", 0.55 + k * 0.4)
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [ready, focusCandidate, fly])
 
   // 헤더 배너 리셋 → 구 전체 뷰(기본 방위로)
   useEffect(() => {
@@ -551,7 +733,33 @@ export default function DumpingMap({
     fitTo(ringBoundsRef.current, { duration: 500 })
   }, [resetSeq])
 
-  return <div ref={boxRef} className="dumping-map h-full w-full" />
+  const pad = fitPadding
+  return (
+    <div className="relative h-full w-full">
+      <div ref={boxRef} className="dumping-map h-full w-full" />
+      {/* 드론 비행 안내 띠: 보이는 지도 영역(카드·열이 가리지 않는 곳) 위 가운데. 몇 번째 목표로 가는지 */}
+      {flyInfo && (
+        <div
+          className="pointer-events-none absolute z-[1030] flex justify-center"
+          style={{ left: pad?.tl[0] ?? 16, right: pad?.br[0] ?? 16, top: (pad?.tl[1] ?? 16) + 10 }}
+          aria-live="polite"
+        >
+          <div className="dump-fl lg-shell relative flex max-w-full items-center gap-3 rounded-full py-2 pl-3 pr-4">
+            <span className="dump-fly-drone" aria-hidden />
+            <span className="min-w-0">
+              <span className="dump-kicker block text-[10px] text-[var(--cp-text-dim)]">드론 비행 · {flyInfo.i > 0 ? `${flyInfo.i} / ${flyInfo.total}` : "조망"}</span>
+              <span className="block truncate text-[13.5px] font-semibold text-[var(--cp-text-strong)]">{flyInfo.label}</span>
+            </span>
+            <span className="ml-1 flex shrink-0 items-center gap-1" aria-hidden>
+              {Array.from({ length: flyInfo.total }, (_, k) => (
+                <i key={k} className={`h-1.5 rounded-full transition-all ${k + 1 === flyInfo.i ? "w-4 bg-(--dump-accent)" : k + 1 < flyInfo.i ? "w-1.5 bg-(--dump-accent)/55" : "w-1.5 bg-[var(--cp-border-strong)]"}`} />
+              ))}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function padWith(p: PaddingOptions, extra: number): PaddingOptions {
@@ -561,6 +769,25 @@ function padWith(p: PaddingOptions, extra: number): PaddingOptions {
 function setFC(map: MlMap, id: string, data: FC) {
   const src = map.getSource(id) as GeoJSONSource | undefined
   src?.setData(data)
+}
+
+// 기둥이 땅에서 솟아오른다(18라운드, 시연 WoW). 데이터 기반 높이는 maplibre 전환(transition)이 보간하지 않아 프레임마다 배율을 올린다.
+// 한 레이어에 하나만 돈다(다시 켜면 이전 것을 끊는다). base(토막 기둥)도 같이 눌렀다 편다
+const rising = new Map<string, number>()
+function riseColumns(map: MlMap, id: string, withBase = false, ms = 900) {
+  const prev = rising.get(id)
+  if (prev) cancelAnimationFrame(prev)
+  const t0 = performance.now()
+  const step = (now: number) => {
+    if (!map.getLayer(id)) return
+    const f = Math.min(1, (now - t0) / ms)
+    const k = 1 - Math.pow(1 - f, 3)
+    map.setPaintProperty(id, "fill-extrusion-height", k >= 1 ? ["get", "h"] : ["*", ["get", "h"], k])
+    if (withBase) map.setPaintProperty(id, "fill-extrusion-base", k >= 1 ? ["get", "base"] : ["*", ["get", "base"], k])
+    if (f < 1) rising.set(id, requestAnimationFrame(step))
+    else rising.delete(id)
+  }
+  rising.set(id, requestAnimationFrame(step))
 }
 
 // 소스·레이어 전부를 빈 데이터로 선언. 그리는 순서(아래→위): 마스크 → 격자 면 → 동 채움 → 원 → 노선 → 상습격자 면 → 격자선·동 외곽선·구 경계
@@ -625,7 +852,8 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
       "fill-extrusion-color": "#d7d5cd",
       "fill-extrusion-height": ["coalesce", ["get", "height"], 9],
       "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
-      "fill-extrusion-opacity": 0.85,
+      // 구 밖은 배경. 옅게 물러나야 구 안(칸 값으로 칠한 건물)이 그림의 주인공이 된다
+      "fill-extrusion-opacity": HAS_NSDI_BUILDINGS ? 0.45 : 0.85,
     },
   })
   // 국가공간정보포털 GIS건물통합정보(전수). 높이(h)가 0이면 층수×3.2m, 층수도 없으면 6m
@@ -640,9 +868,32 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
       paint: {
         "fill-extrusion-color": "#d7d5cd",
         "fill-extrusion-height": ["case", [">", ["coalesce", ["get", "h"], 0], 0], ["get", "h"], ["*", ["max", 2, ["coalesce", ["get", "flr"], 2]], 3.2]],
-        "fill-extrusion-opacity": 0.85,
+        // 불투명. 반투명이면 원기둥·말뚝과 교차하는 벽이 그 속에 비친다(17라운드 실측 "기둥 텍스처 깨짐")
+        "fill-extrusion-opacity": 1,
       },
     })
+  // 입체 전용(18라운드): 말뚝·고리·원기둥. 전부 불투명 + 세로 그라데이션. 평면일 때는 tilt effect가 숨긴다
+  const solid = (id: string, source: string, color: ExpressionSpecification | string, extra: Record<string, unknown> = {}) =>
+    under({
+      id,
+      type: "fill-extrusion",
+      source,
+      paint: { "fill-extrusion-color": color, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true, ...extra },
+    })
+  solid(S.circleCols, S.circleCols, ["get", "color"])
+  solid(S.weatherCols, S.weatherCols, ["get", "color"])
+  solid(S.infraPosts, S.infraPosts, ["get", "color"])
+  solid(S.recoRings, S.recoRings, BIN_RECO_COLOR)
+  solid(S.candPosts, S.candPosts, "#dc2626")
+  // 초점 고리(목록 클릭·드론 목표). 높이·투명도는 맥동 effect가 프레임마다 바꾼다
+  under({
+    id: S.focusRing,
+    type: "fill-extrusion",
+    source: S.focusRing,
+    paint: { "fill-extrusion-color": ACCENT.light, "fill-extrusion-height": 16, "fill-extrusion-opacity": 0.9, "fill-extrusion-vertical-gradient": false },
+  })
+  // 드론 경로 점선(바닥). 지점 번호는 라벨과 함께 아래에서
+  under({ id: S.flyPath, type: "line", source: S.flyPath, paint: { "line-color": ACCENT.light, "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [1.5, 2.5] } })
   under({
     id: S.infra,
     type: "circle",
@@ -656,13 +907,13 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     source: S.cand,
     paint: { "circle-radius": 13, "circle-color": "#dc2626", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
   })
-  // 기둥 3종. 위에서 아래로 갈수록 밝아지는 면 그라데이션이 입체감을 만든다
+  // 기둥 3종. 위에서 아래로 갈수록 밝아지는 면 그라데이션이 입체감을 만든다. 불투명(반투명끼리 교차하면 건물이 기둥 속에 비친다)
   const col = (id: string, source: string, color: ExpressionSpecification | string) =>
     under({
       id,
       type: "fill-extrusion",
       source,
-      paint: { "fill-extrusion-color": color, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0.88, "fill-extrusion-vertical-gradient": true },
+      paint: { "fill-extrusion-color": color, "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true },
     })
   col(S.cols, S.cols, ["get", "color"])
   col(S.critCols, S.critCols, CRIT_COLOR)
@@ -672,7 +923,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: S.dongCols,
     type: "fill-extrusion",
     source: S.dongCols,
-    paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": true },
+    paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true },
   })
   // 라벨. 순위·값은 겹쳐도 보이게, 동 이름은 서로 피한다. 글자는 화면에 세워 기울여도 읽힌다
   const halo = { "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.6 }
@@ -722,6 +973,13 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     paint: { "text-color": "#14201c", ...halo },
   })
   map.addLayer({
+    id: S.flyPts,
+    type: "symbol",
+    source: S.flyPts,
+    layout: { "text-field": ["get", "n"], "text-size": 14, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-offset": [0, -1.2], "text-pitch-alignment": "viewport" },
+    paint: { "text-color": ACCENT.light, "text-halo-color": "rgba(255,255,255,0.95)", "text-halo-width": 2 },
+  })
+  map.addLayer({
     id: L_CAND_LABEL,
     type: "symbol",
     source: S.cand,
@@ -736,7 +994,13 @@ function applyThemePaint(map: MlMap, theme: BasemapTheme) {
   const ink = dark ? "#ece7dc" : "#14201c"
   const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(255,255,255,0.92)"
   if (map.getLayer(S.mask)) map.setPaintProperty(S.mask, "fill-color", dark ? "#0c1114" : "#ffffff")
-  for (const id of [L_BUILDINGS, L_BUILDINGS_NSDI]) if (map.getLayer(id)) map.setPaintProperty(id, "fill-extrusion-color", dark ? "#2a343b" : "#d7d5cd")
+  // NSDI 건물은 바탕 effect가 칸 값으로 칠한다(중립색도 거기서 테마별로). 여기서는 구 밖 OSM 건물만
+  map.setPaintProperty(L_BUILDINGS, "fill-extrusion-color", dark ? NEUTRAL_BUILDING.dark : NEUTRAL_BUILDING.light)
+  const accent = dark ? ACCENT.dark : ACCENT.light
+  map.setPaintProperty(S.focusRing, "fill-extrusion-color", accent)
+  map.setPaintProperty(S.flyPath, "line-color", accent)
+  map.setPaintProperty(S.flyPts, "text-color", accent)
+  map.setPaintProperty(S.flyPts, "text-halo-color", halo)
   if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
   for (const id of [S.dongLabel, S.critLabels, S.hotLabels, L_COL_LABEL, S.dongColLabels]) {
     if (!map.getLayer(id)) continue

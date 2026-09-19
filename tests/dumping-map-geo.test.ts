@@ -10,7 +10,17 @@ import {
   colHeight,
   colorOf,
   dongColumnsFC,
-  flyTour,
+  flyWaypoints,
+  flySegmentMs,
+  flyCameraAt,
+  flyRouteFC,
+  cellLookup,
+  circleColumnsFC,
+  discPolygon,
+  postsFC,
+  ringPolygon,
+  CYL_MIN_M,
+  CYL_MAX_M,
   gridColumnsFC,
   hotspotsFC,
   radiusMetersExpr,
@@ -106,10 +116,75 @@ test("동별 기둥은 동마다 민원·과태료 두 기둥, 채널 모드는 
   assert.equal(total.cols.features[0].properties.card, 1)
 })
 
-test("드론 비행 경로는 구 전체 → 핫스팟 5곳 → 구 전체(방위 한 바퀴)", withMap, () => {
-  const legs = flyTour(map!, { center: [127.085, 37.546], zoom: 13.2, bearing: -18 })
-  assert.equal(legs.length, 7)
-  assert.equal(legs[0].camera.zoom, 13.2)
-  assert.equal(legs[6].camera.bearing, -18 + 360)
-  for (const l of legs.slice(1, 6)) assert.ok(l.camera.zoom > 15 && l.camera.pitch > 55 && l.duration >= 5000)
+test("드론 비행: 조망 → 핫스팟 5곳 → 조망. 핫스팟 경유지는 목표를 들고, 카메라 곡선은 경유지에서 정확히 그 지점·줌", withMap, () => {
+  const wps = flyWaypoints(map!, { center: [127.085, 37.546], zoom: 13.2 })
+  assert.equal(wps.length, 7)
+  assert.equal(wps[0].target, undefined)
+  assert.equal(wps[6].target, undefined)
+  wps.slice(1, 6).forEach((w, i) => {
+    assert.equal(w.target?.rank, i + 1)
+    assert.ok(w.target?.label.startsWith(`예측 핫스팟 ${i + 1}위`))
+    assert.deepEqual(w.target?.lnglat, w.center)
+    assert.ok(w.zoom > 15 && w.pitch > 55)
+  })
+  // 구간 시작·끝은 경유지 그대로(f=0은 i, f=1은 i+1). 중간은 두 지점 사이
+  const c0 = flyCameraAt(wps, 0, 0)
+  assert.deepEqual(c0.center, wps[0].center)
+  assert.equal(c0.zoom, wps[0].zoom)
+  const c1 = flyCameraAt(wps, 0, 1)
+  assert.ok(Math.abs(c1.center[0] - wps[1].center[0]) < 1e-9 && Math.abs(c1.zoom - wps[1].zoom) < 1e-9)
+  const mid = flyCameraAt(wps, 1, 0.5)
+  assert.ok(mid.zoom < wps[1].zoom, "핫스팟 사이는 살짝 떠오른다")
+  for (let i = 0; i < wps.length - 1; i++) {
+    const ms = flySegmentMs(wps[i], wps[i + 1])
+    assert.ok(ms >= 5000 && ms <= 11000, `구간 ${i} ${ms}ms`)
+  }
+  const route = flyRouteFC(map!)
+  assert.equal(route.points.features.length, 5)
+  assert.equal((route.path.features[0].geometry as GeoJSON.LineString).coordinates.length, 5)
+})
+
+// ─── 18라운드: 입체 전용 도형 ───
+test("원판 다각형은 요청한 반지름(m)을 지키고 닫힌 고리다", () => {
+  const poly = discPolygon(127.08, 37.55, 40, 20)
+  const ring = poly.coordinates[0]
+  assert.equal(ring.length, 21)
+  assert.deepEqual(ring[0], ring[20])
+  const dLat = (ring[5][1] - 37.55) * 111320 // 90도 지점: 북쪽으로 r
+  assert.ok(Math.abs(dLat - 40) < 0.5, `북쪽 반지름 ${dLat}`)
+  const hole = ringPolygon(127.08, 37.55, 40, 8)
+  assert.equal(hole.coordinates.length, 2)
+})
+
+test("원기둥은 평면 원과 같은 칸·같은 반지름 규칙, 높이는 최소~최대 사이", withMap, () => {
+  const cols = circleColumnsFC(map!, ["enf"])
+  const nonzero = map!.grid.filter((c) => c[5] > 0).length
+  assert.equal(cols.features.length, nonzero)
+  for (const f of cols.features) {
+    const h = f.properties.h as number
+    assert.ok(h >= CYL_MIN_M && h <= CYL_MAX_M)
+  }
+  const maxF = cols.features.reduce((a, b) => ((a.properties.v as number) >= (b.properties.v as number) ? a : b))
+  assert.equal(maxF.properties.h, CYL_MAX_M)
+  // 두 지표를 같이 켜면 한 칸에 두 기둥이 좌우로 비켜 선다
+  const both = circleColumnsFC(map!, ["comp", "enf"])
+  assert.ok(both.features.length > cols.features.length)
+})
+
+test("말뚝은 점의 속성(툴팁·색)을 그대로 들고 발자국만 원판", () => {
+  const pts = { type: "FeatureCollection" as const, features: [{ type: "Feature" as const, properties: { color: "#123", tip: "x" }, geometry: { type: "Point" as const, coordinates: [127.08, 37.55] } }] }
+  const posts = postsFC(pts, 9, 34)
+  assert.equal(posts.features[0].properties.color, "#123")
+  assert.equal(posts.features[0].properties.h, 34)
+  assert.equal(posts.features[0].geometry.type, "Polygon")
+})
+
+test("격자 조회는 칸 중심을 제 칸으로, 구 밖은 -1", withMap, () => {
+  const find = cellLookup(map!.grid)
+  let ok = 0
+  map!.grid.forEach((c, i) => {
+    if (find((c[0] + c[2]) / 2, (c[1] + c[3]) / 2) === i) ok++
+  })
+  assert.equal(ok, map!.grid.length)
+  assert.equal(find(37.0, 126.0), -1)
 })

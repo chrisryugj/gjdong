@@ -174,7 +174,8 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
         tileSize: 256,
       },
       ...(HAS_NSDI_BUILDINGS
-        ? { [NSDI_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("buildings.pmtiles")}`, attribution: "건물 국토교통부 GIS건물통합정보" } }
+        ? // promoteId: 건물 UFID(id 속성)를 피처 id로. 격자 칸 값을 feature-state로 붙여 건물 색을 칠한다(dumping-map 건물 조인)
+          { [NSDI_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("buildings.pmtiles")}`, promoteId: "id", attribution: "건물 국토교통부 GIS건물통합정보" } }
         : {}),
     },
     layers,

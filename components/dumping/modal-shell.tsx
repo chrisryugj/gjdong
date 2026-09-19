@@ -1,8 +1,11 @@
 "use client"
 
-import { useEffect, useId, useRef } from "react"
+import { useEffect, useId, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 // /dumping 모달 공용 셸. 다섯 모달이 제각각 들고 있던 ESC·배경 클릭·닫기 버튼을 한 곳으로.
+// 18라운드: 페이지 루트(.dump-page)로 포털. 왼쪽 카드(.dump-fl)의 backdrop-filter가 fixed의 기준 상자가 되어 모달이 카드 안에 갇혔다(실측).
+// 루트에 붙이면 테마 변수(--cp-*)는 그대로 받고, 넓은 화면에서는 카드 오른쪽(지도 쪽) 가운데에 선다
 // 접근성: role=dialog + aria-modal, 제목 연결(aria-labelledby), 열릴 때 포커스 이동·Tab 가둠·닫히면 복귀,
 // 뒤 페이지 스크롤 잠금. 배경 클릭은 mousedown·mouseup이 모두 배경일 때만 닫는다(본문 드래그 선택이 밖에서 끝나도 안 닫힘).
 
@@ -38,10 +41,14 @@ export default function ModalShell({
   const panelRef = useRef<HTMLDivElement>(null)
   const downOnBackdrop = useRef(false)
   const titleId = useId()
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setHost((document.querySelector<HTMLElement>(".dump-page") ?? document.body) as HTMLElement)
+  }, [])
 
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel) return
+    if (!panel || !host) return
     const restoreTo = document.activeElement as HTMLElement | null
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
@@ -77,11 +84,12 @@ export default function ModalShell({
       document.body.style.overflow = prevOverflow
       restoreTo?.focus?.({ preventScroll: true })
     }
-  }, [onClose])
+  }, [onClose, host])
 
-  return (
+  if (!host) return null
+  return createPortal(
     <div
-      className="fixed inset-0 flex items-center justify-center bg-[rgba(23,26,33,0.42)] p-4 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className="fixed inset-0 flex items-center justify-center bg-[rgba(23,26,33,0.42)] p-4 backdrop-blur-[2px] animate-in fade-in duration-150 xl:pl-[calc(32px+var(--dump-side-w,440px))]"
       style={{ zIndex }}
       onMouseDown={(e) => {
         downOnBackdrop.current = e.target === e.currentTarget
@@ -122,6 +130,7 @@ export default function ModalShell({
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
         {footer && <div className="border-t border-[var(--cp-border)] px-6 py-3 print:hidden">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    host,
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
 import DumpingMap, { type CandidateFocus } from "./dumping-map"
 import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, type MapView } from "./map-controls"
@@ -17,7 +17,10 @@ import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
 import TimelineStrip from "./timeline-strip"
 import ThemeSwitch, { useTheme } from "./theme"
-import { vizForLever, type LeverView } from "./lever-view"
+import GlassDial from "./glass-dial"
+import LiquidGlass from "./liquid-glass"
+import LiquidTabs from "./liquid-tabs"
+import { deriveLevers, vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "./use-sidebar-width"
 import DumpMark from "./dump-mark"
@@ -89,6 +92,7 @@ export default function DumpingDashboard() {
   // 모바일 지도 접기. 시트가 상단 띠 바로 아래까지 올라온다. 지도를 바꾸는 동작(viz·핫스팟·상습격자)이 오면 다시 편다
   const [mapCollapsed, setMapCollapsed] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false) // 모바일 레이어 덮개
+  const [demo, setDemo] = useState<number | null>(null) // 시연 모드(18라운드): 장면 번호. ←→ 키로 이동, Esc로 나감
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
@@ -223,6 +227,109 @@ export default function DumpingDashboard() {
     [mapData, applyViz],
   )
 
+  // ─── 시연 모드(18라운드, WoW): 결론 → 동별 기둥 → 상습격자 → 드론 → 정책 제안. 장면마다 지도 상태를 바꾸고 데이터 한 줄을 캡션으로.
+  // 장면 문장은 전부 데이터에서(수치는 map.json·graph.json), 원고 따로 없음 ───
+  const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
+  const scenes = useMemo(() => {
+    if (!mapData) return []
+    const topDong = [...mapData.dong].sort((a, b) => b.comp - a.comp)[0]
+    const kpi = mapData.decision.kpi
+    const bt = mapData.decision.hotspots.backtest
+    const cctv = levers.find((lv) => vizForLever(lv)?.candidates) ?? levers.find((lv) => vizForLever(lv)) ?? null
+    return [
+      {
+        title: "결론",
+        caption: "단속에 잡히는 무단투기는 사람이 많은 곳보다 다가구·단독주택 골목에 더 많습니다.",
+        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 보라 원기둥 = 과태료 건수 · 지도가 천천히 돕니다`,
+        apply: () => {
+          setTab("policy")
+          setView({ ...DEFAULT_VIEW, orbit: true })
+          setSelectedDong(null)
+          setShowCritical(false)
+          clearActive()
+        },
+      },
+      {
+        title: "동별 비교",
+        caption: topDong ? `${topDong.d}이 민원 ${topDong.comp.toLocaleString()}건 · 과태료 ${topDong.enf.toLocaleString()}건으로 ${mapData.dong.length}개 동 가운데 1위입니다.` : "",
+        note: "파랑 기둥 = 민원, 갈색 기둥 = 과태료 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
+        apply: () => {
+          setTab("policy")
+          setView({ ...DEFAULT_VIEW, dongBars: true, dongMode: "total", circles: [] })
+          setSelectedDong(null)
+          setShowCritical(false)
+          clearActive()
+        },
+      },
+      {
+        title: "집중관리 상습격자",
+        caption: `최근 12개월 10건 이상 상습격자는 ${kpi.criticalCellsNow}곳, 앱 신고를 빼도 ${kpi.criticalCellsNowNoApp}곳입니다.`,
+        note: "빨간 기둥 = 12개월 민원+과태료 건수 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
+        apply: () => {
+          setTab("ops")
+          setView({ ...DEFAULT_VIEW, circles: [] })
+          setSelectedDong(null)
+          setShowCritical(true)
+          clearActive()
+        },
+      },
+      {
+        title: "다음 분기 예측",
+        caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 ${bt.avgPrecision20 ?? "-"}%였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
+        note: `지난 ${bt.windows.length}개 분기 되돌려 검증 · 무작위 포착 ${bt.avgRandomCapture ?? "-"}% 대비 ${bt.avgCapture20 ?? "-"}%`,
+        apply: () => {
+          setTab("ops")
+          setView({ ...DEFAULT_VIEW, fly: true })
+          setSelectedDong(null)
+          setShowCritical(false)
+          clearActive()
+        },
+      },
+      {
+        title: "정책 제안",
+        caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
+        note: "빨간 말뚝 = 재배치 후보(발생이력 순, 자원배분 논리) · 효과는 조치 대장에 등록한 시범으로 판정",
+        apply: () => {
+          setTab("policy")
+          setShowCritical(false)
+          if (cctv) applyLeverViz(cctv)
+        },
+      },
+    ]
+  }, [mapData, levers, applyLeverViz])
+
+  useEffect(() => {
+    if (demo === null || !scenes[demo]) return
+    scenes[demo].apply()
+    setMapCollapsed(false)
+  }, [demo])
+
+  useEffect(() => {
+    if (demo === null) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      if (document.querySelector('[role="dialog"]')) return
+      if (e.key === "ArrowRight" || e.key === " ") {
+        e.preventDefault()
+        setDemo((d) => (d === null ? 0 : Math.min(scenes.length - 1, d + 1)))
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        setDemo((d) => (d === null ? 0 : Math.max(0, d - 1)))
+      } else if (e.key === "Escape") {
+        setDemo(null)
+        setView((v) => ({ ...v, fly: false, orbit: false }))
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [demo, scenes.length])
+
+  const endDemo = () => {
+    setDemo(null)
+    setView((v) => ({ ...v, fly: false, orbit: false }))
+  }
+
   if (auth !== "open") {
     return <LoginGate checking={auth === "checking"} onOpen={() => setAuth("open")} />
   }
@@ -316,7 +423,7 @@ export default function DumpingDashboard() {
           <button
             onClick={resetAll}
             title="첫 화면으로 돌아가기"
-            className="dump-fl pointer-events-auto flex min-w-0 items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-4 text-left"
+            className="dump-fl lg-shell pointer-events-auto relative flex min-w-0 items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-4 text-left"
           >
             <DumpMark size={30} className="shrink-0" />
             <span className="min-w-0">
@@ -331,43 +438,49 @@ export default function DumpingDashboard() {
               <button
                 onClick={() => setLayersOpen((v) => !v)}
                 aria-expanded={layersOpen}
-                className={`dump-fl rounded-full px-3.5 py-2 text-[13px] font-semibold md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
+                className={`dump-fl lg-shell relative rounded-full px-3.5 py-2 text-[13px] font-semibold md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
               >
                 레이어
               </button>
             )}
+            {isXl && mapData && (
+              <button
+                type="button"
+                onClick={() => (demo === null ? setDemo(0) : endDemo())}
+                aria-pressed={demo !== null}
+                title="시연 모드: 5장면, ←→ 키로 이동, Esc로 나가기"
+                className={`dump-fl lg-shell relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors hover:text-(--dump-accent) ${
+                  demo !== null ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="3" y="4" width="18" height="12" rx="1.5" />
+                  <path d="M12 16v4M8 20h8" />
+                </svg>
+                {demo !== null ? "시연 끝" : "시연"}
+              </button>
+            )}
             <button
               onClick={() => openMethods("data")}
-              className="dump-fl group rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)"
+              className="dump-fl lg-shell group relative rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)"
             >
               데이터·방법
               <span className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" aria-hidden>
                 →
               </span>
             </button>
-            {/* 라이트·다크(sunlight-fund 유리 스위치). 지도 바탕도 같이 바뀐다 */}
+            {/* 유리 강도 다이얼 + 라이트·다크(sunlight-fund 유리 스위치·다이얼). 지도 바탕도 같이 바뀐다 */}
+            {isMd && <GlassDial compact={!isXl} />}
             <ThemeSwitch compact={!isXl} />
           </div>
         </div>
-        {/* 탭 알약. 데스크톱은 상단 가운데, 모바일은 둘째 줄 가로 스크롤 */}
-        <nav
-          role="tablist"
-          className="dump-fl pointer-events-auto flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full p-1 [scrollbar-width:none] md:absolute md:left-1/2 md:top-4 md:-translate-x-1/2"
-        >
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => switchTab(t.id)}
-              className={`dump-tab shrink-0 whitespace-nowrap px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors ${
-                tab === t.id ? "" : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        {/* 탭 알약(액체 탭: 잉크 캡슐이 흘러간다). 데스크톱은 상단 가운데, 모바일은 둘째 줄 가로 스크롤 */}
+        <LiquidTabs
+          items={TABS}
+          value={tab}
+          onChange={switchTab}
+          className="dump-fl lg-shell pointer-events-auto relative flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full p-1 [scrollbar-width:none] md:absolute md:left-1/2 md:top-4 md:-translate-x-1/2"
+        />
       </div>
 
       {load === "error" && (
@@ -381,8 +494,9 @@ export default function DumpingDashboard() {
 
       {/* 왼쪽 카드(데스크톱) = 하단 시트(모바일). 탭 내용이 여기 산다. 폭은 CSS 변수(드래그) */}
       <aside
-        className={`dump-fl absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl md:inset-x-auto md:bottom-4 md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl`}
+        className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:bottom-4 md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl`}
       >
+       <div className="lg-inner flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
         {/* 모바일 손잡이. 드래그로 지도/시트 비율, 더블탭 = 기본 복귀. 오른쪽에 지도 접기 */}
         <div className="flex h-8 shrink-0 items-center md:hidden">
           <div
@@ -482,6 +596,7 @@ export default function DumpingDashboard() {
             <span className="hidden md:inline"> 대책 효과는 조치 대장에 등록한 시범으로 판정하고, 청소차 수거 시각 자료가 확보되면 다시 분석합니다.</span>
           </p>
         </div>
+       </div>
       </aside>
 
       {/* 데스크톱 폭 조절 핸들. 카드 오른쪽 경계. 더블클릭 = 기본 폭 */}
@@ -510,16 +625,53 @@ export default function DumpingDashboard() {
           className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`}
           style={{ width: RIGHT_W }}
         >
-          <div className="dump-fl pointer-events-auto flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>
-          {candidates && <div className="dump-fl pointer-events-auto flex min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
-          <div className="dump-fl pointer-events-auto mt-auto shrink-0 rounded-2xl">{legend}</div>
+          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>
+          {candidates && <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
+          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
+        </div>
+      )}
+
+      {/* 시연 캡션(xl 이상): 장면 번호·제목·데이터 한 줄. 월별 띠 위 */}
+      {rightPane === "map" && demo !== null && scenes[demo] && (
+        <div
+          className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block"
+          style={{ left: "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32, bottom: 16 + 96 + 14 }}
+          aria-live="polite"
+        >
+          <div className="flex items-start gap-4 px-5 py-3.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="dump-kicker text-[10.5px] text-[var(--cp-text-dim)]">
+                  시연 {demo + 1} / {scenes.length} · {scenes[demo].title}
+                </span>
+                <span className="flex items-center gap-1" aria-hidden>
+                  {scenes.map((_, k) => (
+                    <i key={k} className={`h-1.5 rounded-full transition-all ${k === demo ? "w-4 bg-(--dump-accent)" : k < demo ? "w-1.5 bg-(--dump-accent)/55" : "w-1.5 bg-[var(--cp-border-strong)]"}`} />
+                  ))}
+                </span>
+              </div>
+              <p className="dump-headline mt-1 text-[19px] leading-[1.4] text-[var(--cp-text-strong)]">{scenes[demo].caption}</p>
+              <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">{scenes[demo].note}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1 pt-1">
+              <button onClick={() => setDemo(Math.max(0, demo - 1))} disabled={demo === 0} aria-label="이전 장면" className="h-8 w-8 rounded-full border border-[var(--cp-border)] text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)] disabled:opacity-35">
+                ←
+              </button>
+              <button onClick={() => setDemo(Math.min(scenes.length - 1, demo + 1))} disabled={demo === scenes.length - 1} aria-label="다음 장면" className="h-8 w-8 rounded-full border border-[var(--cp-border)] text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)] disabled:opacity-35">
+                →
+              </button>
+              <button onClick={endDemo} className="ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]">
+                끝
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* 아래 띠(xl 이상): 월별 민원. 카드와 오른쪽 열 사이 */}
       {rightPane === "map" && mapData && (
         <div
-          className="dump-fl absolute bottom-4 z-[1040] hidden rounded-2xl xl:block"
+          className="dump-fl lg-shell lg-dense absolute bottom-4 z-[1040] hidden rounded-2xl xl:block"
           style={{ left: "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32 }}
         >
           <TimelineStrip data={mapData} />
@@ -528,7 +680,7 @@ export default function DumpingDashboard() {
 
       {/* 모바일 레이어 덮개: 레이어 패널 · 범례 · 후보 목록 */}
       {rightPane === "map" && layersOpen && (
-        <div className="dump-fl absolute inset-x-3 top-[104px] z-[1150] flex max-h-[calc(100%-120px)] flex-col overflow-hidden rounded-2xl md:hidden">
+        <div className="dump-fl lg-shell absolute inset-x-3 top-[104px] z-[1150] flex max-h-[calc(100%-120px)] flex-col overflow-hidden rounded-2xl md:hidden">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--cp-border)] px-3 py-2">
             <span className="text-[13.5px] font-bold text-[var(--cp-text-strong)]">지도 레이어</span>
             <button onClick={() => setLayersOpen(false)} aria-label="닫기" className="rounded-full px-2 py-0.5 text-[14px] text-[var(--cp-text-dim)]">
@@ -543,6 +695,8 @@ export default function DumpingDashboard() {
         </div>
       )}
 
+      {/* Liquid Glass 굴절 런타임(크로미움만, 사파리는 흐림 유리 폴백). .lg-shell마다 변위 맵을 붙인다 */}
+      <LiquidGlass />
       <BriefingModal dong={briefingDong} data={mapData} graph={graph} onClose={() => setBriefingDong(null)} />
       <MethodsModal open={showMethods} data={mapData} graph={graph} initialSection={methodsSection} onClose={() => setShowMethods(false)} />
 

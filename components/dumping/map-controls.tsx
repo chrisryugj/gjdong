@@ -404,7 +404,10 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
             {def.stops[1]}+ … {def.stops[def.stops.length - 1]}+ {def.unit}
           </span>
         </div>
-        <p className="text-[var(--cp-text-muted)]">{BASE_MEANING[view.base]}</p>
+        <p className="text-[var(--cp-text-muted)]">
+          {BASE_MEANING[view.base]}
+          {view.tilt && " 입체에서는 건물도 제 칸 색으로 칠함"}
+        </p>
         {(showHelp || view.weather || view.grid3d) && (
           <>
         {view.weather ? (
@@ -426,7 +429,9 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
                 style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
               />
               <span>
-                {c === "comp" ? "빨간" : "보라"} 원은 {CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)
+                {view.tilt && !view.grid3d
+                  ? `${c === "comp" ? "빨간" : "보라"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
+                  : `${c === "comp" ? "빨간" : "보라"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
               </span>
             </p>
           ))
