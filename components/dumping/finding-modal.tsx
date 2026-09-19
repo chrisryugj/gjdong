@@ -40,7 +40,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
       onClose={onClose}
       header={
         <>
-          <span className="mb-1 inline-block rounded bg-[#c2410c]/10 px-2 py-0.5 text-[13.5px] font-semibold text-[#c2410c]">
+          <span className="mb-1 inline-block rounded bg-(--dump-accent)/10 px-2 py-0.5 text-[13.5px] font-semibold text-(--dump-accent)">
             {finding.tag}
           </span>
           <h2 className="text-[20px] font-bold leading-snug text-[var(--cp-text-strong)]">{finding.title}</h2>
@@ -50,7 +50,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
         finding.viz ? (
           <button
             onClick={() => onApplyViz(finding)}
-            className="w-full rounded-lg bg-[#c2410c] py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
+            className="w-full rounded-lg bg-(--dump-accent) py-2.5 text-[16px] font-semibold text-white hover:bg-[#0a5449]"
           >
             {finding.vizLabel ?? "지도에서 확인"}
           </button>
@@ -58,7 +58,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
       }
     >
       {/* 한 줄 결론. 의사결정 포인트를 맨 위에 */}
-      <p className="mb-4 rounded-lg bg-[#c2410c]/10 px-3 py-2.5 text-[16.5px] font-bold leading-snug text-[#9a3412]">
+      <p className="mb-4 rounded-lg bg-(--dump-accent)/10 px-3 py-2.5 text-[16.5px] font-bold leading-snug text-(--dump-accent-ink)">
         {finding.takeaway}
       </p>
       {finding.numbers && (
@@ -77,7 +77,7 @@ export default function FindingModal({ finding, onClose, onApplyViz }: FindingMo
           // "해석:"은 의사결정 포인트, "주의:"는 오독 방지. 본문과 구분되게 하이라이트
           if (p.startsWith("해석:"))
             return (
-              <p key={i} className="rounded-lg bg-[#c2410c]/8 px-3 py-2 text-[16px] font-semibold leading-[1.7] text-[#9a3412]">
+              <p key={i} className="rounded-lg bg-(--dump-accent)/8 px-3 py-2 text-[16px] font-semibold leading-[1.7] text-(--dump-accent-ink)">
                 {p}
               </p>
             )

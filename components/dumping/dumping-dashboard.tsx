@@ -16,6 +16,7 @@ import BriefingModal from "./briefing-modal"
 import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
 import TimelineStrip from "./timeline-strip"
+import ThemeSwitch, { useTheme } from "./theme"
 import { vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "./use-sidebar-width"
@@ -88,6 +89,7 @@ export default function DumpingDashboard() {
   // 모바일 지도 접기. 시트가 상단 띠 바로 아래까지 올라온다. 지도를 바꾸는 동작(viz·핫스팟·상습격자)이 오면 다시 편다
   const [mapCollapsed, setMapCollapsed] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false) // 모바일 레이어 덮개
+  const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
   // 등장 애니메이션은 첫 진입 한 번만. 탭을 오갈 때마다 다시 떠오르면 반복 열람에 피로하다
@@ -167,7 +169,7 @@ export default function DumpingDashboard() {
   }, [auth, loadSeq])
 
   // 자동 회전 중 지도를 만지면 회전을 끈다(지도가 부른다). 다른 상태는 건드리지 않는다. 로그인 게이트 분기보다 위(훅 순서)
-  const stopOrbit = useCallback(() => setView((v) => (v.orbit ? { ...v, orbit: false } : v)), [])
+  const stopOrbit = useCallback(() => setView((v) => (v.orbit || v.fly ? { ...v, orbit: false, fly: false } : v)), [])
   const applyViz = useCallback((viz: VizAction) => {
     setView((v) => ({
       ...v,
@@ -291,7 +293,9 @@ export default function DumpingDashboard() {
             grid3d={view.grid3d}
             weather={view.weather}
             tilt={view.tilt}
+            theme={theme}
             orbit={view.orbit}
+            fly={view.fly}
             onOrbitStop={stopOrbit}
             resetSeq={resetSeq}
             fitPadding={fitPadding}
@@ -327,20 +331,22 @@ export default function DumpingDashboard() {
               <button
                 onClick={() => setLayersOpen((v) => !v)}
                 aria-expanded={layersOpen}
-                className={`dump-fl rounded-full px-3.5 py-2 text-[13px] font-semibold md:hidden ${layersOpen ? "text-[#c2410c]" : "text-[var(--cp-text-strong)]"}`}
+                className={`dump-fl rounded-full px-3.5 py-2 text-[13px] font-semibold md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
               >
                 레이어
               </button>
             )}
             <button
               onClick={() => openMethods("data")}
-              className="dump-fl group rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-[#c2410c]"
+              className="dump-fl group rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)"
             >
               데이터·방법
               <span className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" aria-hidden>
                 →
               </span>
             </button>
+            {/* 라이트·다크(sunlight-fund 유리 스위치). 지도 바탕도 같이 바뀐다 */}
+            <ThemeSwitch compact={!isXl} />
           </div>
         </div>
         {/* 탭 알약. 데스크톱은 상단 가운데, 모바일은 둘째 줄 가로 스크롤 */}
@@ -398,7 +404,7 @@ export default function DumpingDashboard() {
           {rightPane === "map" && (
             <button
               onClick={() => setMapCollapsed((v) => !v)}
-              className="mr-3 shrink-0 rounded-full border border-[var(--cp-border)] px-2.5 py-0.5 text-[12px] font-semibold text-[#c2410c]"
+              className="mr-3 shrink-0 rounded-full border border-[var(--cp-border)] px-2.5 py-0.5 text-[12px] font-semibold text-(--dump-accent)"
             >
               {mapCollapsed ? "지도 펼치기" : "지도 접기"}
             </button>
@@ -493,7 +499,7 @@ export default function DumpingDashboard() {
       >
         <span
           className={`absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${
-            side.dragging ? "bg-[#c2410c]" : "bg-[var(--cp-border-strong)] opacity-0 group-hover:opacity-100"
+            side.dragging ? "bg-(--dump-accent)" : "bg-[var(--cp-border-strong)] opacity-0 group-hover:opacity-100"
           }`}
         />
       </div>

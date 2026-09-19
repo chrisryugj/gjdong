@@ -201,7 +201,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
 
 // ─── 도식. 숫자 없이 원리만. 폭 100%, 높이 96 고정 ───
 const INK = "var(--cp-text-muted)"
-const ACC = "#c2410c"
+const ACC = "var(--dump-accent)"
 const WARN = "#a8322a"
 // 글자에 바탕색 테두리(halo). 선·막대와 겹쳐도 읽힌다
 const T = { fontSize: 11, fill: INK, paintOrder: "stroke", stroke: "var(--cp-bg)", strokeWidth: 3, strokeLinejoin: "round" } as const
@@ -385,12 +385,12 @@ export function StatMethodCard({ m, i, data, graph }: { m: StatMethod; i: number
         <span className="font-mono text-[14.5px] text-[var(--cp-text-faint)]">{String(i + 1).padStart(2, "0")}</span>
         {m.name}
         {m.explainer && (
-          <a href={`${EXPLAINER_URL}${m.explainer}`} target="_blank" rel="noreferrer" className="ml-auto text-[13px] font-medium text-[#c2410c] hover:underline">
+          <a href={`${EXPLAINER_URL}${m.explainer}`} target="_blank" rel="noreferrer" className="ml-auto text-[13px] font-medium text-(--dump-accent) hover:underline">
             해설서
           </a>
         )}
       </h3>
-      <p className="mt-1 text-[15px] font-medium text-[#9a3412]">{m.question}</p>
+      <p className="mt-1 text-[15px] font-medium text-(--dump-accent-ink)">{m.question}</p>
       {m.figure && (
         <div className="mt-2 rounded-lg border border-[var(--cp-border-faint)] bg-[var(--cp-bg)] px-3 py-2">
           {/* 도식은 폭에 맞춰 커진다(최대 560px). 96px 고정 높이에선 글자가 11px로 작았다 */}
@@ -415,12 +415,12 @@ export function StatMethodCard({ m, i, data, graph }: { m: StatMethod; i: number
       )}
       <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
         {m.checks.length > 0 && (
-          <div className="rounded-lg bg-[#c2410c]/6 px-2.5 py-2">
-            <p className="text-[13.5px] font-bold text-[#9a3412]">믿어도 되나 · 같은 결론이 유지된 검증</p>
+          <div className="rounded-lg bg-(--dump-accent)/6 px-2.5 py-2">
+            <p className="text-[13.5px] font-bold text-(--dump-accent-ink)">믿어도 되나 · 같은 결론이 유지된 검증</p>
             <ul className="mt-1 flex flex-col gap-1 text-[14px] leading-snug text-[var(--cp-text)]">
               {m.checks.map((c) => (
                 <li key={c} className="flex gap-1.5">
-                  <span className="shrink-0 font-bold text-[#c2410c]">✓</span>
+                  <span className="shrink-0 font-bold text-(--dump-accent)">✓</span>
                   <span>{c}</span>
                 </li>
               ))}

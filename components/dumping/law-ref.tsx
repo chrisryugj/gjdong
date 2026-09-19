@@ -18,7 +18,7 @@ export function LawRef({ keys, up = false, children }: { keys: string[]; up?: bo
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         aria-expanded={open}
-        className="cursor-help rounded-sm text-[var(--cp-text-strong)] underline decoration-[#c2410c]/60 decoration-dotted underline-offset-[3px] hover:decoration-solid"
+        className="cursor-help rounded-sm text-[var(--cp-text-strong)] underline decoration-(--dump-accent)/60 decoration-dotted underline-offset-[3px] hover:decoration-solid"
       >
         {children}
       </button>
@@ -35,7 +35,7 @@ export function LawRef({ keys, up = false, children }: { keys: string[]; up?: bo
               <span className="mt-1 block max-h-44 overflow-y-auto whitespace-pre-line text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
                 {p.text}
               </span>
-              <a href={p.url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[12.5px] font-semibold text-[#c2410c] underline">
+              <a href={p.url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[12.5px] font-semibold text-(--dump-accent) underline">
                 국가법령정보센터에서 원문 보기
               </a>
             </span>

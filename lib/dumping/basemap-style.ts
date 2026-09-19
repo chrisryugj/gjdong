@@ -11,61 +11,108 @@ export const BASEMAP_SOURCE = "protomaps"
 export const DEM_SOURCE = "dump-dem"
 const DEM_HILL_SOURCE = "dump-dem-hill" // 음영과 지형이 같은 소스를 쓰면 maplibre가 품질 경고를 낸다. 같은 파일을 두 소스로
 export const HILLSHADE_LAYER = "dump-hillshade"
+// 국가공간정보포털 GIS건물통합정보(광진구) 타일. scripts/dumping-buildings.mjs로 만든 buildings.pmtiles가 public에 있으면 true로.
+// 구 안 건물은 이 소스(전수·층수·높이)로, OSM 건물은 구 밖만 그린다(dumping-map declareLayers)
+export const HAS_NSDI_BUILDINGS = false
+export const NSDI_SOURCE = "dump-nsdi"
 // 추출 범위. 그 밖은 타일이 없어 빈 바탕이라 카메라를 안에 가둔다
 export const BASEMAP_BOUNDS: [[number, number], [number, number]] = [
   [127.02, 37.49],
   [127.16, 37.6],
 ]
 
-// Protomaps light 플레이버를 상황실 종이 톤(--dump-ground #e8ebe6)에 맞춘다. 데이터 색(초록·파랑·주황 램프)과 겹치지 않게 바탕은 회색 기운만
+// Protomaps light 플레이버를 도면지 톤(sunlight-fund --paper-2 #e9e3d3)에 맞춘다. 데이터 색(초록·파랑·주황 램프)과 겹치지 않게 바탕은 회색 기운만
 const PAPER: Partial<Flavor> = {
-  background: "#e8ebe6",
-  earth: "#eceee9",
-  buildings: "#d8d6ce",
-  water: "#c8d8de",
-  park_a: "#dbe6dc",
-  park_b: "#cfe0d2",
-  wood_a: "#d3e1d3",
-  wood_b: "#c4d9c6",
-  scrub_a: "#d6e2dc",
-  scrub_b: "#c9dbd2",
-  school: "#e6e4dc",
-  hospital: "#e8e2e0",
-  industrial: "#e1e5e6",
-  pedestrian: "#e6e4da",
+  background: "#e9e3d3",
+  earth: "#efe9dc",
+  buildings: "#dcd5c4",
+  water: "#cfd6d3",
+  park_a: "#dfe2cf",
+  park_b: "#d4dbc4",
+  wood_a: "#d8ddc8",
+  wood_b: "#cbd5bd",
+  scrub_a: "#dcdfcd",
+  scrub_b: "#d0d7c3",
+  school: "#e9e3d3",
+  hospital: "#ebe2d8",
+  industrial: "#e4e1d6",
+  pedestrian: "#e8e1d0",
   landcover: {
-    grassland: "#dfe8dc",
-    barren: "#ece9df",
-    urban_area: "#e8ebe6",
-    farmland: "#e0e8dc",
+    grassland: "#e2e4cf",
+    barren: "#ece6d6",
+    urban_area: "#e9e3d3",
+    farmland: "#e3e5d0",
     glacier: "#ffffff",
-    scrub: "#e0e6d8",
-    forest: "#cfdfd2",
+    scrub: "#e3e3cd",
+    forest: "#d4dbc4",
   },
-  minor_a: "#f3f4f1",
-  minor_b: "#ffffff",
-  major: "#ffffff",
-  highway: "#ffffff",
-  other: "#f1f2ee",
-  minor_service: "#f1f2ee",
-  minor_casing: "#dcdfd9",
-  minor_service_casing: "#e2e4df",
-  link_casing: "#dcdfd9",
-  major_casing_early: "#d5d8d2",
-  major_casing_late: "#d5d8d2",
-  highway_casing_early: "#cfd3cc",
-  highway_casing_late: "#cfd3cc",
-  railway: "#b9bfc0",
-  boundaries: "#b8bcb6",
-  roads_label_minor: "#8a8f89",
-  roads_label_minor_halo: "#ffffff",
-  roads_label_major: "#6f746e",
-  roads_label_major_halo: "#ffffff",
-  subplace_label: "#7a7f79",
-  subplace_label_halo: "#eceee9",
-  city_label: "#4b504a",
-  city_label_halo: "#eceee9",
-  ocean_label: "#6b8fb0",
+  minor_a: "#f5f1e6",
+  minor_b: "#fbf8f0",
+  major: "#fbf8f0",
+  highway: "#fdfbf5",
+  other: "#f3eee2",
+  minor_service: "#f3eee2",
+  minor_casing: "#ded7c6",
+  minor_service_casing: "#e3ddcd",
+  link_casing: "#ded7c6",
+  major_casing_early: "#d8d0bd",
+  major_casing_late: "#d8d0bd",
+  highway_casing_early: "#d2cab6",
+  highway_casing_late: "#d2cab6",
+  railway: "#bbb6a6",
+  boundaries: "#bdb7a6",
+  roads_label_minor: "#8b8472",
+  roads_label_minor_halo: "#f5f1e6",
+  roads_label_major: "#6f6858",
+  roads_label_major_halo: "#f5f1e6",
+  subplace_label: "#7c7563",
+  subplace_label_halo: "#efe9dc",
+  city_label: "#4a4538",
+  city_label_halo: "#efe9dc",
+  ocean_label: "#6b86a3",
+}
+
+// 다크(17라운드, sunlight-fund 밤 지도): 짙은 청록 바탕, 길은 한 단계 밝게, 라벨은 따뜻한 회백
+const NIGHT: Partial<Flavor> = {
+  background: "#0c1114",
+  earth: "#10161a",
+  buildings: "#1c252b",
+  water: "#0a1216",
+  park_a: "#142019",
+  park_b: "#17261c",
+  wood_a: "#141f18",
+  wood_b: "#17261c",
+  scrub_a: "#141e1a",
+  scrub_b: "#17241f",
+  school: "#161e22",
+  hospital: "#1a1f22",
+  industrial: "#151d21",
+  pedestrian: "#171f23",
+  landcover: { grassland: "#121b16", barren: "#141a1c", urban_area: "#10161a", farmland: "#121b16", glacier: "#1b2226", scrub: "#131c17", forest: "#122019" },
+  minor_a: "#1a2228",
+  minor_b: "#1e272d",
+  major: "#242e35",
+  highway: "#2a353c",
+  other: "#182026",
+  minor_service: "#182026",
+  minor_casing: "#0e1418",
+  minor_service_casing: "#0e1418",
+  link_casing: "#0e1418",
+  major_casing_early: "#0c1114",
+  major_casing_late: "#0c1114",
+  highway_casing_early: "#0c1114",
+  highway_casing_late: "#0c1114",
+  railway: "#3a464d",
+  boundaries: "#3a464d",
+  roads_label_minor: "#8d8778",
+  roads_label_minor_halo: "#10161a",
+  roads_label_major: "#a19b8f",
+  roads_label_major_halo: "#10161a",
+  subplace_label: "#928c7f",
+  subplace_label_halo: "#10161a",
+  city_label: "#d6d0c3",
+  city_label_halo: "#10161a",
+  ocean_label: "#6f8fae",
 }
 
 // 아이콘(스프라이트)이 필요한 레이어와 분석에 소음인 라벨은 뺀다. 스프라이트를 안 받으니 외부 요청도 없다
@@ -78,8 +125,9 @@ export function basemapUrl(file: string): string {
 }
 
 // ring = 구 경계 [lat, lng][]. 구 안의 OSM 동네 라벨(법정동)은 우리 행정동 라벨과 겹치니 밖에만 남긴다
-export function buildBasemapStyle(ring: [number, number][]): StyleSpecification {
-  const flavor: Flavor = { ...namedFlavor("light"), ...PAPER }
+export type BasemapTheme = "light" | "dark"
+export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme = "light"): StyleSpecification {
+  const flavor: Flavor = theme === "dark" ? { ...namedFlavor("dark"), ...NIGHT } : { ...namedFlavor("light"), ...PAPER }
   const ringPoly = { type: "Polygon" as const, coordinates: [ring.map((p) => [p[1], p[0]])] }
   const layers: LayerSpecification[] = basemapLayers(BASEMAP_SOURCE, flavor, { lang: "ko" })
     .filter((l) => !DROP.has(l.id))
@@ -98,7 +146,10 @@ export function buildBasemapStyle(ring: [number, number][]): StyleSpecification 
     id: HILLSHADE_LAYER,
     type: "hillshade",
     source: DEM_HILL_SOURCE,
-    paint: { "hillshade-exaggeration": 0.3, "hillshade-shadow-color": "#6b7266", "hillshade-highlight-color": "#ffffff" },
+    paint:
+      theme === "dark"
+        ? { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#05080a", "hillshade-highlight-color": "#3a4a52" }
+        : { "hillshade-exaggeration": 0.3, "hillshade-shadow-color": "#6b7266", "hillshade-highlight-color": "#ffffff" },
   })
   return {
     version: 8,
@@ -122,6 +173,9 @@ export function buildBasemapStyle(ring: [number, number][]): StyleSpecification 
         encoding: "terrarium",
         tileSize: 256,
       },
+      ...(HAS_NSDI_BUILDINGS
+        ? { [NSDI_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("buildings.pmtiles")}`, attribution: "건물 국토교통부 GIS건물통합정보" } }
+        : {}),
     },
     layers,
   }

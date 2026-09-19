@@ -45,7 +45,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
         >
           <DumpMark size={44} />
           <h1 className="mt-4 text-[22px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">클린광진 상황실</h1>
-          <p className="dump-kicker mt-2 text-[10.5px] text-[#c2410c]">광진구 · 무단투기 100m 격자 분석</p>
+          <p className="dump-kicker mt-2 text-[10.5px] text-(--dump-accent)">광진구 · 무단투기 100m 격자 분석</p>
           <p className="mt-3 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">내부 검토용입니다. 비밀번호를 입력해 주세요.</p>
           <input
             type="password"
@@ -55,7 +55,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
             autoComplete="current-password"
             placeholder="비밀번호"
             aria-label="비밀번호"
-            className="mt-4 w-full rounded-lg border border-[var(--cp-border-strong)] bg-[var(--cp-bg)] px-3 py-2.5 font-mono text-[17px] tracking-[0.12em] text-[var(--cp-text)] placeholder:font-sans placeholder:tracking-normal placeholder:text-[var(--cp-text-faint)] focus:border-[#c2410c] focus:outline-none"
+            className="mt-4 w-full rounded-lg border border-[var(--cp-border-strong)] bg-[var(--cp-bg)] px-3 py-2.5 font-mono text-[17px] tracking-[0.12em] text-[var(--cp-text)] placeholder:font-sans placeholder:tracking-normal placeholder:text-[var(--cp-text-faint)] focus:border-(--dump-accent) focus:outline-none"
           />
           {error && (
             <p role="alert" className="mt-2 text-[14px] text-red-600">
@@ -65,7 +65,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
           <button
             type="submit"
             disabled={busy || !pw}
-            className="mt-3 w-full rounded-lg bg-[#c2410c] py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-[#9a3412] disabled:opacity-40"
+            className="mt-3 w-full rounded-lg bg-(--dump-accent) py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-(--dump-accent-ink) disabled:opacity-40"
           >
             {busy ? "확인 중…" : "들어가기"}
           </button>

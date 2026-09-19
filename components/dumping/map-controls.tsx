@@ -24,6 +24,7 @@ export interface MapView {
   weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신 그 조건의 민원(하루당 환산)
   tilt: boolean // 16라운드: 입체 보기(기울기·건물 3D·지형). 끄면 위에서 본 평면
   orbit: boolean // 자동 회전(시연용). 지도를 만지면 꺼진다
+  fly: boolean // 17라운드: 드론 비행(시연용). 구 전체 → 핫스팟 5곳 → 구 전체를 천천히. 지도를 만지면 꺼진다
 }
 
 // 10라운드: 기본 원은 과태료. 회귀 판정의 결과지표가 과태료라 민원 원을 겹치면 화면의 겹침이 회귀 증거처럼 읽혔다(검토서 6절)
@@ -41,6 +42,7 @@ export const DEFAULT_VIEW: MapView = {
   weather: null,
   tilt: true,
   orbit: false,
+  fly: false,
 }
 
 const BASE_LABEL: Record<BaseMode, string> = {
@@ -108,7 +110,7 @@ const ROW_OFF = "text-[var(--cp-text-muted)]"
 const GROUP = "dump-kicker px-2.5 pb-1 pt-3 text-[10.5px] text-[var(--cp-text-faint)] first:pt-1"
 const CHIP_SM = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[12.5px] transition-colors"
 const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
-const CHIP_ON = "border-[#c2410c] bg-[#c2410c]/10 font-semibold text-[#c2410c]"
+const CHIP_ON = "border-(--dump-accent) bg-(--dump-accent)/10 font-semibold text-(--dump-accent)"
 
 // 줄 왼쪽 표식. 바탕은 네모, 원은 동그라미, 시설은 점
 function Swatch({ kind, color, on }: { kind: "square" | "circle" | "dot" | "line"; color: string; on: boolean }) {
@@ -140,12 +142,12 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
   return (
     <div className="flex min-h-0 flex-col">
       {active && (
-        <div className="mb-1 flex items-center gap-2 rounded-lg border border-[#c2410c]/35 bg-[#c2410c]/8 py-1.5 pl-2.5 pr-1.5">
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#c2410c]">{active.label} · 반영 중</span>
+        <div className="mb-1 flex items-center gap-2 rounded-lg border border-(--dump-accent)/35 bg-(--dump-accent)/8 py-1.5 pl-2.5 pr-1.5">
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-(--dump-accent)">{active.label} · 반영 중</span>
           <button
             onClick={active.onClear}
             aria-label="지도 반영 해제"
-            className="shrink-0 rounded-full bg-[#c2410c]/10 px-2 py-0.5 text-[12.5px] text-[#c2410c] hover:bg-[#c2410c]/20"
+            className="shrink-0 rounded-full bg-(--dump-accent)/10 px-2 py-0.5 text-[12.5px] text-(--dump-accent) hover:bg-(--dump-accent)/20"
           >
             ✕
           </button>
@@ -196,7 +198,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
         <button
           aria-pressed={view.tilt}
           title="지도를 기울여 건물·지형·기둥을 입체로 봅니다. 끄면 위에서 본 평면 격자"
-          onClick={() => patch({ tilt: !view.tilt, orbit: false })}
+          onClick={() => patch({ tilt: !view.tilt, orbit: false, fly: false })}
           className={`${ROW} ${view.tilt ? ROW_ON : ROW_OFF}`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
@@ -208,7 +210,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           <button
             aria-pressed={view.orbit}
             title="구 전체를 천천히 돌려 봅니다(시연용). 지도를 만지면 멈춥니다"
-            onClick={() => patch({ orbit: !view.orbit })}
+            onClick={() => patch({ orbit: !view.orbit, fly: false })}
             className={`${ROW} ${view.orbit ? ROW_ON : ROW_OFF}`}
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -216,6 +218,23 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
               <path d="M13.6 1.8v3.4h-3.4" />
             </svg>
             <span className="min-w-0 flex-1">자동 회전</span>
+          </button>
+        )}
+        {view.tilt && (
+          <button
+            aria-pressed={view.fly}
+            title="구 전체를 내려다보다 예측 핫스팟 상위 5곳을 낮게 천천히 돌아봅니다(시연용). 지도를 만지면 멈춥니다"
+            onClick={() => patch({ fly: !view.fly, orbit: false })}
+            className={`${ROW} ${view.fly ? ROW_ON : ROW_OFF}`}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+              <circle cx="3.5" cy="3.5" r="2" />
+              <circle cx="12.5" cy="3.5" r="2" />
+              <circle cx="3.5" cy="12.5" r="2" />
+              <circle cx="12.5" cy="12.5" r="2" />
+              <path d="M5 5l6 6M11 5l-6 6" />
+            </svg>
+            <span className="min-w-0 flex-1">드론 비행</span>
           </button>
         )}
         <button
@@ -424,11 +443,11 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
           </>
         )}
         <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[var(--cp-text-dim)]">
-          <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-[#c2410c] hover:underline">
+          <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-(--dump-accent) hover:underline">
             {showHelp ? "설명 접기" : "자세한 설명"}
           </button>
           {data && (
-            <button onClick={() => setShowTable((v) => !v)} aria-expanded={showTable} className="font-medium text-[#c2410c] hover:underline">
+            <button onClick={() => setShowTable((v) => !v)} aria-expanded={showTable} className="font-medium text-(--dump-accent) hover:underline">
               {showTable ? "표 닫기" : "상위 20칸 표"}
             </button>
           )}

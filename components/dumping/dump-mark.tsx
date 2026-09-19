@@ -4,7 +4,7 @@ export default function DumpMark({ size = 36, className = "" }: { size?: number;
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" className={className} aria-hidden="true">
       <circle cx="18" cy="18" r="18" fill="var(--dump-ink, #14201c)" />
-      <rect x="9" y="9" width="9" height="9" rx="1.5" fill="var(--dump-accent, #c2410c)" />
+      <rect x="9" y="9" width="9" height="9" rx="1.5" fill="var(--dump-accent, #c0741a)" />
       <circle cx="23" cy="23" r="5.5" fill="none" stroke="#fff" strokeWidth="2.4" />
     </svg>
   )

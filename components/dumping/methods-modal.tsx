@@ -269,7 +269,7 @@ export default function MethodsModal({
           />
           <DatasetGroup
             badge="직접 수집"
-            badgeCls="bg-[#c2410c]/12 text-[#c2410c]"
+            badgeCls="bg-(--dump-accent)/12 text-(--dump-accent)"
             title={`공개 데이터 직접 수집 ${collected(data, topBeta, ledgerRows).length}종`}
             desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
             items={collected(data, topBeta, ledgerRows)}
@@ -295,7 +295,7 @@ export default function MethodsModal({
           <p
             ref={reproRef}
             className={`rounded-lg px-2.5 py-2 text-[14px] leading-relaxed ${
-              initialSection === "reproduce" ? "border border-[#c2410c]/40 bg-[#c2410c]/5 text-[var(--cp-text)]" : "text-[var(--cp-text-faint)]"
+              initialSection === "reproduce" ? "border border-(--dump-accent)/40 bg-(--dump-accent)/5 text-[var(--cp-text)]" : "text-[var(--cp-text-faint)]"
             }`}
           >
             <b className="text-[var(--cp-text-strong)]">재현.</b> 원자료의 컬럼 사전과 입력·산출물·코드 파일 해시(SHA-256) {rp?.hashes ?? "미산출"}개는 재현 패키지(REPRODUCE)에 고정돼 있고,
@@ -314,7 +314,7 @@ export default function MethodsModal({
           <p className="text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
             상세 수식·검증 절차는 재현 패키지(비공개 저장소, 요청 시 열람)에 있습니다. 고정 산출물의 무결성은 해시로, 핵심 수치는 검증 스크립트 재계산으로 확인하며 모형 재추정은 각 스크립트로 합니다.
             한계·검정 세부는{" "}
-            <a href={EXPLAINER_URL} target="_blank" rel="noreferrer" className="font-medium text-[#c2410c] hover:underline">
+            <a href={EXPLAINER_URL} target="_blank" rel="noreferrer" className="font-medium text-(--dump-accent) hover:underline">
               통계 해설서(공개)
             </a>
             에 있습니다.

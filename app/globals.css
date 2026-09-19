@@ -806,10 +806,6 @@
 .dumping-map .maplibregl-ctrl-attrib a {
   color: var(--cp-text-dim, #6b7571);
 }
-/* 동별 막대 마커. 기울여도 화면에 선 채로 위치만 따라간다 */
-.dumping-map .dump-dongbar {
-  cursor: default;
-}
 
 /* ── /dumping 인쇄. 동별 브리핑(#dump-brief)과 결재용 한 장(#dump-policy) 모달만 출력 */
 @media print {
@@ -909,8 +905,7 @@
 
 /* 등장 애니메이션은 첫 진입 한 번만. 대시보드가 1.5초 뒤 dump-anim-off를 달면 이후 탭 전환·재마운트에서는 바로 보인다 */
 .dump-anim-off .dump-rise,
-.dump-anim-off .dump-line,
-.dump-anim-off .dump-bar3d .bar {
+.dump-anim-off .dump-line {
   animation: none;
 }
 
@@ -993,15 +988,8 @@
 .dump-eq i:nth-child(3) { animation-delay: 0.3s; }
 .dump-eq i:nth-child(4) { animation-delay: 0.45s; }
 
-/* 동별 3D 막대(민원·과태료). SVG 등축 막대가 바닥에서 자라난다 */
-@keyframes dump-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-.dumping-map .dump-bar3d { overflow: visible; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
-.dumping-map .dump-bar3d .bar { transform-box: fill-box; transform-origin: bottom center; animation: dump-grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.dumping-map .dump-bar3d .bar.enf { animation-delay: 0.12s; }
-.dumping-map .dump-bar3d text { font-family: var(--font-suit), sans-serif; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-
 @media (prefers-reduced-motion: reduce) {
-  .dump-rise, .dump-line, .dump-dots i, .dump-skel, .dump-caret::after, .dump-ring::before, .dump-ring::after, .dump-breathe, .dump-eq i, .dumping-map .dump-bar3d .bar { animation: none !important; }
+  .dump-rise, .dump-line, .dump-dots i, .dump-skel, .dump-caret::after, .dump-ring::before, .dump-ring::after, .dump-breathe, .dump-eq i { animation: none !important; }
   .dump-rise, .dump-line { opacity: 1; transform: none; }
 }
 
@@ -1013,7 +1001,7 @@
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.08);
-  font-family: var(--font-suit), sans-serif;
+  font-family: var(--font-plex), "Apple SD Gothic Neo", sans-serif;
   white-space: normal;
   line-height: 1.3;
 }
@@ -1034,65 +1022,105 @@
 .dump-bartip .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
 .dump-bartip .f { margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(15, 23, 42, 0.08); font-size: 11.5px; line-height: 1.45; color: #64748b; }
 
-/* ── /dumping 지도 전면(2026-09-18). 전면 지도 위에 떠 있는 유리 패널. 잉크 #14201c·액센트 #c2410c 하나·데이터 색은 지도 램프.
-   .dump-page 스코프라 /crowd 무영향. 그라데이션·컬러바 없음. 숫자는 Manrope, 결론 머리기사는 Noto Serif KR ── */
+/* ── /dumping 테마(2026-09-19, 17라운드): 햇빛소득 시뮬레이터(sunlight-fund)의 "설계 책상" 테마를 가져왔다.
+   따뜻한 도면지 위에 전면 지도, 그 위로 떠 있는 유리 패널. 글꼴은 둘: 결론 문장은 고운바탕, 나머지 글과 숫자는 IBM Plex Sans KR(숫자 강조는 굵기 600과 크기로만).
+   액센트는 햇빛 앰버 하나. 데이터 색(초록·파랑·주황 램프, 원 빨강·보라)은 테마가 아니라 지도 문법이라 그대로.
+   .dump-page 스코프라 /crowd 무영향. 재질 하이라이트(상단 radial·림·잉크 광택) 외 장식 그라데이션 금지 ── */
 .crowd-page.crowd-light.dump-page {
-  --dump-ground: #e8ebe6; /* 지도 바탕(타일 아래) */
-  --dump-paper-white: #ffffff;
-  --dump-ink: #14201c;
-  --dump-accent: #c2410c;
-  --dump-display: var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
-  --dump-serif: var(--font-serif-kr), "Apple SD Gothic Neo", "Noto Serif KR", serif;
-  --cp-bg: #eef0ec;
-  --cp-overlay: rgba(238, 240, 236, 0.9);
+  --dump-ground: #e9e3d3; /* 지도 바탕(타일 아래) = 도면지 2 */
+  --dump-paper: #f1ecdf;
+  --dump-paper-white: #fbf9f3;
+  --dump-ink: #1c1a15;
+  --dump-accent: #c0741a; /* 햇빛 앰버 */
+  --dump-accent-ink: #8a5210;
+  --dump-accent-wash: rgba(192, 116, 26, 0.14);
+  --dump-display: var(--font-plex), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --dump-serif: var(--font-batang), "Apple SD Gothic Neo", "Noto Serif KR", serif;
+  --cp-bg: var(--dump-paper);
+  --cp-overlay: rgba(241, 236, 223, 0.9);
   --cp-tip-bg: var(--dump-paper-white);
   --cp-panel: var(--dump-paper-white);
-  --cp-panel2: #f4f6f3;
-  --cp-hover: rgba(20, 32, 28, 0.045);
-  --cp-hover2: rgba(20, 32, 28, 0.08);
-  --cp-track: rgba(20, 32, 28, 0.08);
-  --cp-border: rgba(20, 32, 28, 0.12);
-  --cp-border-faint: rgba(20, 32, 28, 0.07);
-  --cp-border-strong: rgba(20, 32, 28, 0.24);
-  --cp-border-active: rgba(20, 32, 28, 0.5);
+  --cp-panel2: #f4f0e6;
+  --cp-hover: rgba(28, 26, 21, 0.05);
+  --cp-hover2: rgba(28, 26, 21, 0.09);
+  --cp-track: rgba(28, 26, 21, 0.08);
+  --cp-border: rgba(28, 26, 21, 0.12);
+  --cp-border-faint: rgba(28, 26, 21, 0.07);
+  --cp-border-strong: rgba(28, 26, 21, 0.24);
+  --cp-border-active: rgba(28, 26, 21, 0.5);
   --cp-text-strong: var(--dump-ink);
-  --cp-text: #24302c;
-  --cp-text-muted: #4a5450;
-  --cp-text-dim: #6b7571;
-  --cp-text-faint: #9aa5a1;
+  --cp-text: #3a362d;
+  --cp-text-muted: #5d5749;
+  --cp-text-dim: #736d5b;
+  --cp-text-faint: #9a9382;
   --cp-card-shadow: none;
+  --dump-shadow: 0 10px 30px rgba(28, 26, 21, 0.12);
+  font-family: var(--font-plex), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
-/* 숫자·연도·항목 번호(.font-mono)는 Manrope 탭 숫자. 한글(건·곳)은 SUIT로 떨어진다 */
+/* 다크: 밤 지도 위의 유리. 짙은 청록 바탕, 따뜻한 회백 잉크, 앰버는 한 단계 밝게 */
+:root[data-theme="dark"] .crowd-page.crowd-light.dump-page {
+  --dump-ground: #0c1114;
+  --dump-paper: #10161a;
+  --dump-paper-white: #161e23;
+  --dump-ink: #ece7dc;
+  --dump-accent: #e39a3f;
+  --dump-accent-ink: #f0b86a;
+  --dump-accent-wash: rgba(227, 154, 63, 0.2);
+  --cp-bg: var(--dump-paper);
+  --cp-overlay: rgba(16, 22, 26, 0.9);
+  --cp-tip-bg: rgba(20, 27, 32, 0.96);
+  --cp-panel: var(--dump-paper-white);
+  --cp-panel2: #1b242a;
+  --cp-hover: rgba(236, 231, 220, 0.07);
+  --cp-hover2: rgba(236, 231, 220, 0.12);
+  --cp-track: rgba(236, 231, 220, 0.1);
+  --cp-border: rgba(236, 231, 220, 0.12);
+  --cp-border-faint: rgba(236, 231, 220, 0.07);
+  --cp-border-strong: rgba(236, 231, 220, 0.22);
+  --cp-border-active: rgba(236, 231, 220, 0.45);
+  --cp-text: #d6d0c3;
+  --cp-text-muted: #a19b8f;
+  --cp-text-dim: #928c7f;
+  --cp-text-faint: #6f6a60;
+  --dump-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+/* 테마 전환: 원형 확산은 새 화면(::view-transition-new)에만 건다. 기본 크로스페이드는 끈다 */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+/* 숫자·연도·항목 번호(.font-mono)는 Plex 탭 숫자(한글 글리프도 같은 서체) */
 .dump-page .font-mono {
-  font-family: var(--dump-display), var(--font-suit), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: var(--dump-display);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
   letter-spacing: -0.01em;
 }
 /* 항목 번호(01·02) */
 .dump-page .dump-idx {
-  font-family: var(--dump-display), sans-serif;
-  font-weight: 700;
+  font-family: var(--dump-display);
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 /* 큰 수치 */
 .dump-page .dump-meta-v {
-  font-family: var(--dump-display), var(--font-suit), sans-serif;
+  font-family: var(--dump-display);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-/* 결론 머리기사(2안 문법): 세리프, 줄 간격 넉넉히 */
+/* 결론 머리기사: 고운바탕, 줄 간격 넉넉히 */
 .dump-page .dump-headline {
   font-family: var(--dump-serif);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
 /* 결론 안 형광펜. 액센트 옅은 띠, 줄바꿈돼도 각 줄에 붙는다 */
 .dump-page .dump-hl {
-  background: rgba(194, 65, 12, 0.16);
+  background: var(--dump-accent-wash);
   color: inherit;
   padding: 0 0.08em;
   border-radius: 3px;
@@ -1103,22 +1131,79 @@
 .dump-page .dump-kicker {
   letter-spacing: 0.14em;
   font-weight: 700;
-  font-family: var(--dump-display), var(--font-suit), sans-serif;
+  font-family: var(--dump-display);
 }
-/* 떠 있는 유리 패널. 지도 위에 얹히는 모든 카드가 이 한 클래스를 쓴다 */
+/* 떠 있는 유리 패널(Liquid Glass, 절제판 = sunlight .sun-fl). 지도 위 모든 카드가 이 클래스 하나.
+   재질감은 세 겹으로만: 흐림+채도 살짝, 위쪽 1px 하이라이트, 아래로 떨어지는 부드러운 그림자 */
 .dump-page .dump-fl {
-  background: rgba(255, 255, 255, 0.88);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(20, 32, 28, 0.1);
-  box-shadow: 0 10px 30px rgba(20, 32, 28, 0.12);
+  background:
+    radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%),
+    rgba(251, 249, 243, 0.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5) brightness(1.04);
+  backdrop-filter: blur(24px) saturate(1.5) brightness(1.04);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 1px 0 0 rgba(255, 255, 255, 0.4),
+    inset -1px 0 0 rgba(28, 26, 21, 0.035),
+    inset 0 -1px 0 rgba(28, 26, 21, 0.07),
+    0 1px 2px rgba(28, 26, 21, 0.06),
+    0 18px 48px rgba(28, 26, 21, 0.14);
 }
 @media (prefers-reduced-transparency: reduce) {
-  .dump-page .dump-fl { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .dump-page .dump-fl { background: #fbf9f3; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
-/* 탭 알약: 선택 탭은 잉크 바탕 */
+:root[data-theme="dark"] .dump-page .dump-fl {
+  background: radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%), rgba(20, 27, 32, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 1px 0 0 rgba(255, 255, 255, 0.08), inset -1px 0 0 rgba(0, 0, 0, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3), 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+/* 폰: 시트 뒤로 지도가 비쳐 글이 안 읽힌다 → 서리를 두껍게 */
+@media (max-width: 767px) {
+  .dump-page .dump-fl { background: rgba(251, 249, 243, 0.94); }
+  :root[data-theme="dark"] .dump-page .dump-fl { background: rgba(18, 25, 30, 0.94); }
+}
+/* 유리 알약 버튼 호버: 밝아지고 테두리가 잉크로 */
+.dump-page button.dump-fl { transition: background .18s, box-shadow .2s, transform .15s, color .15s; }
+.dump-page button.dump-fl:hover { background: rgba(255, 255, 255, 0.92); border-color: rgba(28, 26, 21, 0.4); transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 10px 24px rgba(28, 26, 21, 0.18); }
+:root[data-theme="dark"] .dump-page button.dump-fl:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.4); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 10px 24px rgba(0, 0, 0, 0.4); }
+/* 탭 알약: 선택 탭은 잉크 바탕(다크는 종이색 바탕에 잉크 글자) */
 .dump-page .dump-tab { position: relative; border-radius: 9999px; }
-.dump-page .dump-tab[aria-selected="true"] { background: var(--dump-ink); color: #fff; }
+.dump-page .dump-tab[aria-selected="true"] { background: var(--dump-ink); color: var(--dump-paper); }
+:root[data-theme="dark"] .dump-page .dump-tab[aria-selected="true"] { background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 50%), #ece7dc; color: #14181b; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 #fff; }
+/* 흰 글자 하드코딩(text-white)은 잉크 바탕 위의 것들. 다크에서 잉크 바탕이 밝아지니 글자는 종이색 반전 */
+:root[data-theme="dark"] .dump-page .dump-tab[aria-selected="true"] .text-white { color: #14181b; }
+
+/* ── Liquid Glass 스위치(sunlight-fund 이식): 유리 알약 트랙 + 가장자리에 걸친 큰 유리 손잡이 */
+.lg-switch { --sw-w: 98px; --sw-h: 34px; --knob: 44px; position: relative; display: inline-block; width: calc(var(--sw-w) + 8px); height: var(--knob); border: 0; padding: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lg-switch.is-compact { --sw-w: 62px; --sw-h: 30px; --knob: 38px; }
+.lg-switch.is-compact .lg-switch-label { display: none; }
+.lg-switch-track { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); width: var(--sw-w); height: var(--sw-h); border-radius: 9999px; display: flex; align-items: center; justify-content: flex-end; padding: 0 13px 0 0; background: radial-gradient(120% 100% at 20% 0%, rgba(255,255,255,0.55), rgba(255,255,255,0) 60%), rgba(255,255,255,0.32); border: 1px solid rgba(255,255,255,0.7); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(28,26,21,0.06), 0 8px 22px rgba(28,26,21,0.14); transition: background .4s, box-shadow .4s, padding .45s cubic-bezier(.3,1.4,.4,1); }
+.lg-switch.is-dark .lg-switch-track { justify-content: flex-start; padding: 0 0 0 13px; }
+.lg-switch-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--cp-text); transition: color .4s, opacity .25s; white-space: nowrap; }
+.lg-switch.is-moving .lg-switch-label { opacity: 0; }
+.lg-switch-knob { position: absolute; top: 0; left: 0; width: var(--knob); height: var(--knob); border-radius: 9999px; display: grid; place-items: center; background: radial-gradient(70% 60% at 30% 22%, rgba(255,255,255,0.95), rgba(255,255,255,0.45) 45%, rgba(255,255,255,0.15) 100%), rgba(251, 249, 243, 0.6); -webkit-backdrop-filter: blur(10px) saturate(1.4); backdrop-filter: blur(10px) saturate(1.4); border: 1px solid rgba(255,255,255,0.9); box-shadow: inset 0 1px 0 #fff, inset 0 -6px 12px rgba(28,26,21,0.08), inset 0 0 0 1px rgba(255,255,255,0.4), 0 10px 26px rgba(28,26,21,0.22), 0 0 0 1px rgba(28,26,21,0.06); transform: translateX(0) scaleX(1); transition: transform .5s cubic-bezier(.3,1.5,.4,1), background .4s, box-shadow .4s, border-color .4s; will-change: transform; }
+.lg-switch.is-dark .lg-switch-knob { transform: translateX(calc(var(--sw-w) + 8px - var(--knob))) scaleX(1); }
+.lg-switch.is-moving .lg-switch-knob { animation: lg-stretch .5s cubic-bezier(.3,1.4,.4,1); }
+@keyframes lg-stretch { 0% { scale: 1 1; } 35% { scale: 1.22 .92; } 70% { scale: .96 1.04; } 100% { scale: 1 1; } }
+.lg-switch-icon { color: var(--dump-accent-ink); filter: drop-shadow(0 0 6px rgba(240, 184, 106, 0.85)) drop-shadow(0 0 1px rgba(255,255,255,0.9)); transition: color .4s, filter .4s, transform .5s cubic-bezier(.3,1.5,.4,1); display: grid; }
+.lg-switch.is-moving .lg-switch-icon { transform: rotate(180deg) scale(.9); }
+.lg-switch:hover .lg-switch-knob { box-shadow: inset 0 1px 0 #fff, inset 0 -6px 12px rgba(28,26,21,0.08), inset 0 0 0 1px rgba(255,255,255,0.5), 0 14px 32px rgba(28,26,21,0.28), 0 0 0 4px rgba(192,116,26,0.16); }
+.lg-switch:active .lg-switch-knob { scale: .94; }
+.lg-switch:focus-visible { outline: none; }
+.lg-switch:focus-visible .lg-switch-knob { outline: 2px solid var(--dump-accent-ink); outline-offset: 2px; }
+:root[data-theme="dark"] .lg-switch-track { background: radial-gradient(120% 100% at 20% 0%, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), rgba(30, 40, 48, 0.55); border-color: rgba(255,255,255,0.16); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.45); }
+:root[data-theme="dark"] .lg-switch-knob { background: radial-gradient(70% 60% at 30% 22%, rgba(255,255,255,0.28), rgba(255,255,255,0.08) 45%, rgba(255,255,255,0.02) 100%), rgba(24, 33, 40, 0.7); border-color: rgba(255,255,255,0.28); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -6px 12px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.08), 0 10px 26px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); }
+:root[data-theme="dark"] .lg-switch-icon { color: #eef3ff; filter: drop-shadow(0 0 8px rgba(190, 210, 255, 0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.8)); }
+@media (prefers-reduced-motion: reduce) { .lg-switch-knob, .lg-switch-icon, .lg-switch-track { transition: none; animation: none; } }
+/* 지도 팝업·컨트롤 다크 */
+:root[data-theme="dark"] .dumping-map .maplibregl-ctrl-group { background: rgba(22, 30, 35, 0.9); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.14); }
+:root[data-theme="dark"] .dumping-map .maplibregl-ctrl-group button { filter: invert(1) hue-rotate(180deg); }
+:root[data-theme="dark"] .dumping-map .maplibregl-ctrl-attrib { background: rgba(22, 30, 35, 0.75); color: #a19b8f; }
+:root[data-theme="dark"] .dumping-map .dump-bartip { color: #d6d0c3; }
+:root[data-theme="dark"] .dumping-map .maplibregl-popup.dump-bartip-wrap .maplibregl-popup-content { background: #161e23; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"] .dump-bartip .t, :root[data-theme="dark"] .dump-bartip .v { color: #ece7dc; }
+:root[data-theme="dark"] .dump-bartip .m { background: rgba(255, 255, 255, 0.06); }
 /* 카드 호버: 그림자 대신 테두리가 잉크로 진해진다 */
 .dump-page .dump-rise:hover { border-color: var(--cp-border-strong); }
 /* 모바일 하단 시트 손잡이 */

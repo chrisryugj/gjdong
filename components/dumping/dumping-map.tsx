@@ -15,12 +15,8 @@ import { Protocol } from "pmtiles"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, WeatherKey } from "@/lib/dumping/types"
 import type { DongMode } from "@/lib/dumping/labels"
-import { BASEMAP_BOUNDS, BASEMAP_SOURCE, DEM_SOURCE, buildBasemapStyle } from "@/lib/dumping/basemap-style"
+import { BASEMAP_BOUNDS, BASEMAP_SOURCE, DEM_SOURCE, HAS_NSDI_BUILDINGS, HILLSHADE_LAYER, NSDI_SOURCE, buildBasemapStyle, type BasemapTheme } from "@/lib/dumping/basemap-style"
 import {
-  BAR_BOTTOM,
-  BAR_H,
-  BAR_TOP,
-  BAR_W,
   BASE_DEF,
   BIN_RECO_COLOR,
   CRIT_COLOR,
@@ -29,7 +25,7 @@ import {
   candidatesFC,
   circlesFC,
   criticalFC,
-  dongBars,
+  dongColumnsFC,
   dongFC,
   emptyFC,
   gridColumnsFC,
@@ -39,6 +35,7 @@ import {
   radiusMetersExpr,
   ringFC,
   routesFC,
+  flyTour,
   stepExpr,
   weatherFC,
   type CandidateFocus,
@@ -78,8 +75,11 @@ const S = {
   critLabels: "dump-crit-labels",
   hotCols: "dump-hot-cols",
   hotLabels: "dump-hot-labels",
+  dongCols: "dump-dong-cols",
+  dongColLabels: "dump-dong-col-labels",
 } as const
 const L_BUILDINGS = "dump-buildings"
+const L_BUILDINGS_NSDI = "dump-buildings-nsdi"
 const L_GRID_LINE = "dump-grid-line"
 const L_COL_LABEL = "dump-col-label"
 const L_ROUTES_GENERAL = "dump-routes-general"
@@ -89,7 +89,7 @@ const L_CRIT_LINE = "dump-crit-line"
 const L_CAND_LABEL = "dump-cand-label"
 // 호버 툴팁을 읽는 레이어. 위에 그린 것부터(queryRenderedFeatures가 위→아래 순으로 준다)
 const HOVER_LAYERS = [
-  L_CAND_LABEL, S.cand, S.binReco, S.infra, S.hotLabels, S.hotCols, S.critCols, L_CRIT_FILL, S.cols, L_ROUTES_FOCUS, L_ROUTES_GENERAL, S.weather, S.circles, S.grid,
+  L_CAND_LABEL, S.cand, S.binReco, S.infra, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols, L_ROUTES_FOCUS, L_ROUTES_GENERAL, S.weather, S.circles, S.grid,
 ]
 const BIN_RECO_ICON = "dump-binreco-icon"
 
@@ -139,7 +139,9 @@ interface DumpingMapProps {
   grid3d: boolean // 격자 기둥(원 지표 건수, 5건 이상 칸)
   weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신
   tilt: boolean // 입체 보기(기울기·건물·지형). 평면이면 위에서 내려다본 격자
+  theme: BasemapTheme // 17라운드: 라이트(도면지)·다크(밤 지도). 바탕 스타일을 통째로 바꾼다
   orbit: boolean // 자동 회전(시연용). 사용자가 지도를 만지면 onOrbitStop
+  fly: boolean // 드론 비행(시연용). 구 전체 → 핫스팟 상위 5곳을 천천히 돌고 돌아온다. 만지면 onOrbitStop
   onOrbitStop?: () => void
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
   fitPadding?: { tl: [number, number]; br: [number, number] } // 지도 위에 뜬 카드·열이 가리는 영역(px). 구 전체 맞춤이 보이는 부분에만 맞춘다(2026-09-18 지도 전면)
@@ -163,7 +165,9 @@ export default function DumpingMap({
   grid3d,
   weather,
   tilt,
+  theme,
   orbit,
+  fly,
   onOrbitStop,
   resetSeq,
   fitPadding,
@@ -180,7 +184,8 @@ export default function DumpingMap({
   const dataRef = useRef(data)
   dataRef.current = data
   const prevDongRef = useRef<string | null>(null)
-  const dongBarMarkersRef = useRef<MlMarker[]>([])
+  const themeRef = useRef(theme)
+  themeRef.current = theme
   const focusMarkersRef = useRef<MlMarker[]>([])
   const ringBoundsRef = useRef<LngLatBoundsLike | null>(null)
   // 컨테이너 높이가 0일 때(모바일 지도 접힘) 미뤄 둔 구 전체 맞춤. 높이가 생기면 ResizeObserver가 실행한다
@@ -217,7 +222,7 @@ export default function DumpingMap({
     const suit = getComputedStyle(document.documentElement).getPropertyValue("--font-suit").trim()
     const map = new maplibregl.Map({
       container: boxRef.current,
-      style: buildBasemapStyle(data.ring),
+      style: buildBasemapStyle(data.ring, themeRef.current),
       center: [127.085, 37.546],
       zoom: 13.4,
       pitch: tiltRef.current ? TILT_PITCH : 0,
@@ -236,9 +241,13 @@ export default function DumpingMap({
 
     map.on("load", () => {
       if (mapRef.current !== map) return
-      map.addImage(BIN_RECO_ICON, dashedCircleIcon().data, { pixelRatio: 2 })
-      declareLayers(map)
+      declareLayers(map, { type: "Polygon", coordinates: [data.ring.map((p) => [p[1], p[0]])] })
+      applyThemePaint(map, themeRef.current)
       setReady(true)
+    })
+    // 스타일을 바꾸면(테마) 등록한 이미지가 사라진다. 없다고 할 때 다시 그린다
+    map.on("styleimagemissing", (e) => {
+      if (e.id === BIN_RECO_ICON && !map.hasImage(BIN_RECO_ICON)) map.addImage(BIN_RECO_ICON, dashedCircleIcon().data, { pixelRatio: 2 })
     })
     // 호버 툴팁: 맨 위 레이어의 피처 하나. 격자→원→시설 순으로 위가 이긴다
     map.on("mousemove", (e) => {
@@ -252,6 +261,9 @@ export default function DumpingMap({
         return
       }
       m.getCanvas().style.cursor = "default"
+      // 동별 기둥은 카드형 툴팁(.dump-bartip). 다른 것은 보통 한 장
+      if (hit.properties.card) popup.addClassName("dump-bartip-wrap")
+      else popup.removeClassName("dump-bartip-wrap")
       popup.setLngLat(e.lngLat).setHTML(String(hit.properties.tip)).addTo(m)
     })
     map.on("mouseout", () => popup.remove())
@@ -278,7 +290,6 @@ export default function DumpingMap({
       map.remove()
       mapRef.current = null
       popupRef.current = null
-      dongBarMarkersRef.current = []
       focusMarkersRef.current = []
       setReady(false)
     }
@@ -335,7 +346,7 @@ export default function DumpingMap({
     const map = mapRef.current
     if (!map || !ready || !data) return
     const sel = selectedDong ?? ""
-    map.setPaintProperty(S.dongLine, "line-color", ["case", ["==", ["get", "name"], sel], "#c2410c", "#64748b"])
+    map.setPaintProperty(S.dongLine, "line-color", ["case", ["==", ["get", "name"], sel], "#c0741a", "#64748b"])
     map.setPaintProperty(S.dongLine, "line-width", ["case", ["==", ["get", "name"], sel], 3.2, 1])
     map.setPaintProperty(S.dongLine, "line-opacity", ["case", ["==", ["get", "name"], sel], 0.95, 0.4])
     map.setFilter(S.dongFill, ["==", ["get", "name"], sel])
@@ -417,11 +428,39 @@ export default function DumpingMap({
     setFC(map, S.cols, grid3d ? gridColumnsFC(data, ids, selectedDong) : emptyFC())
   }, [data, ready, grid3d, circles, selectedDong])
 
+  // 테마(17라운드). 바탕 스타일을 통째로 바꾸되 우리 소스(현재 데이터 포함)·레이어(현재 paint 포함)는 그대로 옮겨 싣는다.
+  // 첫 스타일은 초기화에서 테마를 이미 반영했으니 바뀔 때만
+  const themeAppliedRef = useRef(theme)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !data || themeAppliedRef.current === theme) return
+    themeAppliedRef.current = theme
+    const cur = map.getStyle()
+    const next = buildBasemapStyle(data.ring, theme)
+    for (const [id, src] of Object.entries(cur.sources)) if (id.startsWith("dump-")) next.sources[id] = src
+    const firstSym = cur.layers.findIndex((l) => l.type === "symbol" && !l.id.startsWith("dump-"))
+    const ours = cur.layers.filter((l) => l.id.startsWith("dump-") && l.id !== HILLSHADE_LAYER)
+    const under = ours.filter((l) => cur.layers.indexOf(l) < firstSym)
+    const top = ours.filter((l) => cur.layers.indexOf(l) >= firstSym)
+    const at = next.layers.findIndex((l) => l.type === "symbol")
+    next.layers.splice(at < 0 ? next.layers.length : at, 0, ...under)
+    next.layers.push(...top)
+    map.once("style.load", () => {
+      if (mapRef.current !== map) return
+      applyThemePaint(map, theme)
+      if (tiltRef.current) map.setTerrain({ source: DEM_SOURCE, exaggeration: 1.4 })
+    })
+    // 지형을 켠 채 스타일을 갈면 maplibre가 옛 지형 렌더러를 만져 shaderPreludeCode 오류(실측). 잠깐 끄고 style.load에서 다시 켠다
+    map.setTerrain(null)
+    map.setStyle(next, { diff: false })
+  }, [ready, data, theme])
+
   // 입체/평면. 기울기·건물·지형을 한 번에. 평면은 위에서 본 격자(기둥은 윗면만 보인다)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     map.setLayoutProperty(L_BUILDINGS, "visibility", tilt ? "visible" : "none")
+    if (map.getLayer(L_BUILDINGS_NSDI)) map.setLayoutProperty(L_BUILDINGS_NSDI, "visibility", tilt ? "visible" : "none")
     map.setTerrain(tilt ? { source: DEM_SOURCE, exaggeration: 1.4 } : null)
     map.easeTo({ pitch: tilt ? TILT_PITCH : 0, bearing: tilt ? TILT_BEARING : 0, duration: 700 })
   }, [ready, tilt])
@@ -443,31 +482,45 @@ export default function DumpingMap({
     return () => cancelAnimationFrame(raf)
   }, [ready, orbit])
 
-  // 동별 민원·과태료 3D 막대(HTML 마커, SVG 등축). 기울여도 화면에 선 채로 따라온다
+  // 드론 비행(시연, 17라운드). 구 전체를 내려다보다 핫스팟 상위 5곳을 낮게 천천히 돌고 다시 올라온다. 경로는 map-geo.flyTour(데이터에서)
+  // easeTo를 이어 붙인다: 한 구간이 끝나면(moveend) 다음 구간. 사용자가 만지면 stopOrbit → fly=false → 정리에서 map.stop()
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready) return
-    for (const mk of dongBarMarkersRef.current) mk.remove()
-    dongBarMarkersRef.current = []
-    // 막대에 동 이름이 붙으니 지도 동 라벨은 겹치지 않게 숨긴다
-    map.setLayoutProperty(S.dongLabel, "visibility", showDongBars ? "none" : "visible")
-    if (!showDongBars || !data) return
-    const popup = popupRef.current
-    for (const bar of dongBars(data, dongMode, dongYear)) {
-      const el = document.createElement("div")
-      el.className = "dump-dongbar"
-      el.innerHTML = bar.svg
-      // 툴팁 카드는 막대 옆에. 화면 밖으로 나가면 maplibre가 anchor를 뒤집는다
-      el.addEventListener("mouseenter", () => {
-        popup?.setLngLat(bar.lnglat).setHTML(bar.tip).setOffset([BAR_W / 2 + 4, -(BAR_H + BAR_TOP) / 2]).addClassName("dump-bartip-wrap").addTo(map)
+    if (!map || !ready || !fly || !data || !ringBoundsRef.current) return
+    let alive = true
+    map.setPadding(padding())
+    const cam = map.cameraForBounds(ringBoundsRef.current, { bearing: TILT_BEARING })
+    if (!cam) return
+    const c = maplibregl.LngLat.convert(cam.center as maplibregl.LngLatLike)
+    const legs = flyTour(data, { center: [c.lng, c.lat], zoom: (cam.zoom ?? 13.4) - TILT_ZOOM_BACK, bearing: TILT_BEARING })
+    let i = 0
+    const next = () => {
+      const m = mapRef.current
+      if (!alive || !m) return
+      const leg = legs[i % legs.length]
+      i += 1
+      m.once("moveend", () => {
+        if (!alive) return
+        window.setTimeout(next, leg.hold)
       })
-      el.addEventListener("mouseleave", () => {
-        popup?.removeClassName("dump-bartip-wrap").setOffset(14)
-        popup?.remove()
-      })
-      const mk = new maplibregl.Marker({ element: el, anchor: "bottom", offset: [0, BAR_BOTTOM] }).setLngLat(bar.lnglat).addTo(map)
-      dongBarMarkersRef.current.push(mk)
+      m.easeTo({ ...leg.camera, duration: leg.duration, easing: (t) => 1 - Math.pow(1 - t, 3), essential: true })
     }
+    next()
+    return () => {
+      alive = false
+      mapRef.current?.stop()
+    }
+  }, [ready, fly, data])
+
+  // 동별 민원·과태료 기둥(17라운드: SVG 등축 마커 → 진짜 입체). 동 가운데에 민원 파랑·과태료 갈색 두 기둥, 채널 모드는 민원 기둥을 세 토막으로
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !data) return
+    const d = showDongBars ? dongColumnsFC(data, dongMode, dongYear) : { cols: emptyFC(), labels: emptyFC() }
+    setFC(map, S.dongCols, d.cols)
+    setFC(map, S.dongColLabels, d.labels)
+    // 기둥 값 라벨이 동 이름을 같이 달고 있으니 지도 동 라벨은 겹치지 않게 숨긴다
+    map.setLayoutProperty(S.dongLabel, "visibility", showDongBars ? "none" : "visible")
   }, [data, ready, showDongBars, dongMode, dongYear])
 
   // 목록 클릭 → 해당 지점으로 당겨가기 + 펄스 하이라이트로 위치를 확실히 표시
@@ -512,7 +565,7 @@ function setFC(map: MlMap, id: string, data: FC) {
 
 // 소스·레이어 전부를 빈 데이터로 선언. 그리는 순서(아래→위): 마스크 → 격자 면 → 동 채움 → 원 → 노선 → 상습격자 면 → 격자선·동 외곽선·구 경계
 // → 건물(바닥에 그린 것은 건물이 가리고, 점·기둥은 건물 위에) → 시설·후보·배치추천 → 기둥 3종 → 라벨(항상 맨 위)
-function declareLayers(map: MlMap) {
+function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
   const geo = (id: string) => map.addSource(id, { type: "geojson", data: emptyFC() })
   for (const id of Object.values(S)) geo(id)
   // 바탕 스타일의 첫 라벨 레이어 앞에 면·선을 끼워 넣는다. 도로명·지명은 우리 면 위에 남는다
@@ -521,7 +574,7 @@ function declareLayers(map: MlMap) {
 
   under({ id: S.mask, type: "fill", source: S.mask, paint: { "fill-color": "#ffffff", "fill-opacity": 0.55 } })
   under({ id: S.grid, type: "fill", source: S.grid, paint: { "fill-color": ZERO_CELL, "fill-opacity": 0 } })
-  under({ id: S.dongFill, type: "fill", source: S.dongFill, filter: ["==", ["get", "name"], ""], paint: { "fill-color": "#c2410c", "fill-opacity": 0.06 } })
+  under({ id: S.dongFill, type: "fill", source: S.dongFill, filter: ["==", ["get", "name"], ""], paint: { "fill-color": "#c0741a", "fill-opacity": 0.08 } })
   under({
     id: S.circles,
     type: "circle",
@@ -559,7 +612,7 @@ function declareLayers(map: MlMap) {
   under({ id: L_GRID_LINE, type: "line", source: S.grid, paint: { "line-color": "#ffffff", "line-width": 0.8, "line-opacity": 0 } })
   under({ id: S.dongLine, type: "line", source: S.dongLine, paint: { "line-color": "#64748b", "line-width": 1, "line-opacity": 0.4 } })
   under({ id: S.ring, type: "line", source: S.ring, paint: { "line-color": "#64748b", "line-width": 1.8, "line-opacity": 0.8, "line-dasharray": [2, 4] } })
-  // OSM 건물(Protomaps buildings). 구 안은 조금 진하게, 밖은 마스크와 같은 밝기. 높이 없는 건물은 9m(3층)로
+  // OSM 건물(Protomaps buildings). 높이 없는 건물은 9m(3층)로. NSDI 타일이 있으면 구 안은 그쪽이 그리고 OSM은 구 밖만
   under({
     id: L_BUILDINGS,
     type: "fill-extrusion",
@@ -567,6 +620,7 @@ function declareLayers(map: MlMap) {
     "source-layer": "buildings",
     minzoom: 12,
     layout: { visibility: "none" },
+    ...(HAS_NSDI_BUILDINGS && ringPoly ? { filter: ["!", ["within", ringPoly]] } : {}),
     paint: {
       "fill-extrusion-color": "#d7d5cd",
       "fill-extrusion-height": ["coalesce", ["get", "height"], 9],
@@ -574,6 +628,21 @@ function declareLayers(map: MlMap) {
       "fill-extrusion-opacity": 0.85,
     },
   })
+  // 국가공간정보포털 GIS건물통합정보(전수). 높이(h)가 0이면 층수×3.2m, 층수도 없으면 6m
+  if (HAS_NSDI_BUILDINGS)
+    under({
+      id: L_BUILDINGS_NSDI,
+      type: "fill-extrusion",
+      source: NSDI_SOURCE,
+      "source-layer": "buildings",
+      minzoom: 12,
+      layout: { visibility: "none" },
+      paint: {
+        "fill-extrusion-color": "#d7d5cd",
+        "fill-extrusion-height": ["case", [">", ["coalesce", ["get", "h"], 0], 0], ["get", "h"], ["*", ["max", 2, ["coalesce", ["get", "flr"], 2]], 3.2]],
+        "fill-extrusion-opacity": 0.85,
+      },
+    })
   under({
     id: S.infra,
     type: "circle",
@@ -598,6 +667,13 @@ function declareLayers(map: MlMap) {
   col(S.cols, S.cols, ["get", "color"])
   col(S.critCols, S.critCols, CRIT_COLOR)
   col(S.hotCols, S.hotCols, ["get", "color"])
+  // 동별 기둥은 토막(채널 스택)마다 바닥 높이가 다르다
+  under({
+    id: S.dongCols,
+    type: "fill-extrusion",
+    source: S.dongCols,
+    paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-opacity": 0.92, "fill-extrusion-vertical-gradient": true },
+  })
   // 라벨. 순위·값은 겹쳐도 보이게, 동 이름은 서로 피한다. 글자는 화면에 세워 기울여도 읽힌다
   const halo = { "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.6 }
   map.addLayer({
@@ -637,6 +713,14 @@ function declareLayers(map: MlMap) {
     },
     paint: { "text-color": ["case", ["==", ["get", "top"], 1], CRIT_COLOR, "#7c2d5e"], ...halo },
   })
+  // 동별 기둥 값·동 이름. 두 기둥 사이 바닥에
+  map.addLayer({
+    id: S.dongColLabels,
+    type: "symbol",
+    source: S.dongColLabels,
+    layout: { "text-field": ["get", "label"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": "top", "text-offset": [0, 0.6], "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
+    paint: { "text-color": "#14201c", ...halo },
+  })
   map.addLayer({
     id: L_CAND_LABEL,
     type: "symbol",
@@ -644,4 +728,19 @@ function declareLayers(map: MlMap) {
     layout: { "text-field": ["get", "label"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-pitch-alignment": "viewport" },
     paint: { "text-color": "#ffffff" },
   })
+}
+
+// 테마에 따라 달라지는 지도 색. 데이터 색(램프·원·기둥)은 안 바꾼다. 마스크·격자선·동 외곽선·구 경계·건물·라벨 후광만
+function applyThemePaint(map: MlMap, theme: BasemapTheme) {
+  const dark = theme === "dark"
+  const ink = dark ? "#ece7dc" : "#14201c"
+  const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(255,255,255,0.92)"
+  if (map.getLayer(S.mask)) map.setPaintProperty(S.mask, "fill-color", dark ? "#0c1114" : "#ffffff")
+  for (const id of [L_BUILDINGS, L_BUILDINGS_NSDI]) if (map.getLayer(id)) map.setPaintProperty(id, "fill-extrusion-color", dark ? "#2a343b" : "#d7d5cd")
+  if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
+  for (const id of [S.dongLabel, S.critLabels, S.hotLabels, L_COL_LABEL, S.dongColLabels]) {
+    if (!map.getLayer(id)) continue
+    map.setPaintProperty(id, "text-halo-color", halo)
+    if (id === S.dongLabel || id === S.dongColLabels) map.setPaintProperty(id, "text-color", ink)
+  }
 }

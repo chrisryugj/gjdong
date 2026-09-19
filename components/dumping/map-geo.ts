@@ -401,71 +401,26 @@ export function radiusMetersExpr(prop = "r"): unknown[] {
   return ["interpolate", ["exponential", 2], ["zoom"], 10, ["/", ["get", prop], metersPerPixel(10)], 22, ["/", ["get", prop], metersPerPixel(22)]]
 }
 
-// ─── 동별 3D 막대 SVG. 등축 막대 2개(민원 파랑·과태료 갈색), 앞면·옆면·윗면 세 조각. 값은 위, 동 이름은 아래.
-// 자라나는 애니메이션은 globals.css .dump-bar3d .bar ───
-export const BAR_W = 76
-export const BAR_TOP = 18 // 값 글자 자리
-export const BAR_BOTTOM = 26 // 동 이름 자리
-export const BAR_H = 72 // 최대 막대 높이(px)
-export type Face = { front: string; side: string; top: string }
-function isoBar(x: number, base: number, y0: number, h: number, bw: number, D: number, f: Face, cls = ""): string {
-  const y = base - y0 - h
-  return (
-    `<g class="bar ${cls}">` +
-    `<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${f.front}"/>` +
-    `<polygon points="${x + bw},${y} ${x + bw + D},${y - D} ${x + bw + D},${y - D + h} ${x + bw},${y + h}" fill="${f.side}"/>` +
-    `<polygon points="${x},${y} ${x + D},${y - D} ${x + bw + D},${y - D} ${x + bw},${y}" fill="${f.top}"/>` +
-    `</g>`
-  )
-}
-export const COMP_FACE: Face = { front: "#2f5aa8", side: "#1d3f78", top: "#6b93d6" }
-export const ENF_FACE: Face = { front: "#9a6a2a", side: "#6e4a1b", top: "#c99a55" }
+// ─── 동별 민원·과태료 기둥(17라운드: 진짜 입체). 동 가운데에 민원 파랑·과태료 갈색 두 기둥.
+// 값은 구 최댓값 대비, 격자 기둥(최대 280m)보다 훨씬 커야 동 단위 합계임이 한눈에 읽힌다 ───
+export const DONG_COL_MAX_M = 720
+export const DONG_COL_MIN_M = 24
+const DONG_COL_SIDE = 96 // 기둥 한 변(m)
+const DONG_COL_GAP = 70 // 두 기둥 중심 간격(m)
+export const COMP_COLOR = "#2f5aa8"
+export const ENF_COLOR = "#9a6a2a"
+const dongColHeight = (v: number, max: number) => DONG_COL_MIN_M + (Math.max(0, v) / Math.max(1, max)) * (DONG_COL_MAX_M - DONG_COL_MIN_M)
 
-// 동별 막대. segments가 있으면 민원 막대를 채널 스택(아래부터 순서대로)으로
-export function dongBarSvg(name: string, comp: number, enf: number, hc: number, he: number, H: number, segments?: { h: number; face: Face }[]): string {
-  const D = 7 // 깊이
-  const bw = 16
-  const base = BAR_TOP + H
-  const x1 = 14
-  const x2 = 42
-  let compSvg = ""
-  if (segments) {
-    let y0 = 0
-    for (const sg of segments) {
-      if (sg.h <= 0) continue
-      compSvg += isoBar(x1, base, y0, sg.h, bw, D, sg.face, "comp")
-      y0 += sg.h
-    }
-  } else compSvg = isoBar(x1, base, 0, hc, bw, D, COMP_FACE, "comp")
-  return (
-    `<svg class="dump-bar3d" width="${BAR_W}" height="${H + BAR_TOP + BAR_BOTTOM}" viewBox="0 0 ${BAR_W} ${H + BAR_TOP + BAR_BOTTOM}">` +
-    compSvg +
-    isoBar(x2, base, 0, he, bw, D, ENF_FACE, "enf") +
-    `<text x="${x1 + bw / 2 + 3}" y="${base - hc - D - 4}" text-anchor="middle" font-size="11" fill="#1d3f78">${comp.toLocaleString()}</text>` +
-    `<text x="${x2 + bw / 2 + 3}" y="${base - he - D - 4}" text-anchor="middle" font-size="11" fill="#6e4a1b">${enf.toLocaleString()}</text>` +
-    `<text x="${BAR_W / 2}" y="${base + 16}" text-anchor="middle" font-size="12.5" fill="#1f2937">${name}</text>` +
-    `</svg>`
-  )
-}
-
-// 동별 막대 한 벌(15개 동). 마커 자리·SVG·툴팁 카드까지 여기서 만든다
-export interface DongBar {
-  name: string
-  lnglat: [number, number]
-  svg: string
-  tip: string
-}
-export function dongBars(data: DumpingMapData, dongMode: DongMode, dongYear: string | null): DongBar[] {
-  // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 막대를 앱·120·직접 스택으로
+export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear: string | null): { cols: FC; labels: FC } {
+  // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 기둥을 앱·120·직접 세 토막으로
   const valOf = (d: (typeof data.dong)[number]) =>
     dongMode === "year" && dongYear
       ? { comp: d.yr?.complaints[dongYear] ?? 0, enf: d.yr?.enforcement[dongYear] ?? 0 }
       : { comp: d.comp, enf: d.enf }
   const max = Math.max(1, ...data.dong.flatMap((d) => [valOf(d).comp, valOf(d).enf]))
-  const H = BAR_H
   const n = data.dong.length
   const rank = (key: "comp" | "enf", v: number) => data.dong.filter((x) => valOf(x)[key] > v).length + 1
-  // 민원과 과태료는 집계 시작이 다르다(민원 2024.1~, 과태료 2022.3~). 막대를 나란히 두니 툴팁에 밝힌다
+  // 민원과 과태료는 집계 시작이 다르다(민원 2024.1~, 과태료 2022.3~). 기둥을 나란히 두니 툴팁에 밝힌다
   const compFrom = `${Object.keys(data.yearly.complaints)[0]}.1`
   const enfFrom = (Object.keys(data.decision.fines.monthly)[0] ?? "").replace(/-0?/, ".")
   // 툴팁: 글자 나열이 아니라 카드. 지표마다 색띠 블록(칩·순위·큰 숫자·천명당·구 최댓값 대비 막대). 스타일은 globals.css .dump-bartip
@@ -485,25 +440,51 @@ export function dongBars(data: DumpingMapData, dongMode: DongMode, dongYear: str
         : ""
     return (
       `<div class="dump-bartip"><div class="t">${d.d}<span>${yearMode ? `${dongYear}년` : `세대 ${d.hh.toLocaleString()}`}</span></div>` +
-      block("민원", "#2f5aa8", v.comp, yearMode ? perYear(v.comp, d.comp, d.cr) : d.cr, rank("comp", v.comp)) +
-      block("과태료", "#9a6a2a", v.enf, yearMode ? perYear(v.enf, d.enf, d.er) : d.er, rank("enf", v.enf)) +
+      block("민원", COMP_COLOR, v.comp, yearMode ? perYear(v.comp, d.comp, d.cr) : d.cr, rank("comp", v.comp)) +
+      block("과태료", ENF_COLOR, v.enf, yearMode ? perYear(v.enf, d.enf, d.er) : d.er, rank("enf", v.enf)) +
       chLine +
-      `<div class="f">막대: 구 최댓값 대비 · 순위: ${n}개 동 중<br>${yearMode ? `${dongYear}년 · 민원은 접수일, 과태료는 위반일 기준` : `누계 시작: 민원 ${compFrom} · 과태료 ${enfFrom}`}</div></div>`
+      `<div class="f">기둥: 구 최댓값 대비 · 순위: ${n}개 동 중<br>${yearMode ? `${dongYear}년 · 민원은 접수일, 과태료는 위반일 기준` : `누계 시작: 민원 ${compFrom} · 과태료 ${enfFrom}`}</div></div>`
     )
   }
-  const out: DongBar[] = []
+  const cols: Feature[] = []
+  const labels: Feature[] = []
   for (const d of data.dong) {
     const c = dongCenter(data.dongOutlines[d.d] ?? [])
     if (!c) continue
+    const [lng, lat] = c
     const v = valOf(d)
-    const hc = Math.max(3, Math.round((v.comp / max) * H))
-    const he = Math.max(3, Math.round((v.enf / max) * H))
-    // 채널 스택: 세 토막 높이 합 = hc. 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)
-    const segments =
-      dongMode === "channel" && d.comp > 0 && d.ch
-        ? (["direct", "c120", "app"] as const).map((ch) => ({ h: Math.round((d.ch[ch] / d.comp) * hc), face: CHANNEL_DEF[ch] as Face }))
-        : undefined
-    out.push({ name: d.d, lnglat: c, svg: dongBarSvg(d.d, v.comp, v.enf, hc, he, H, segments), tip: tip(d) })
+    const dLng = DONG_COL_GAP / 2 / (111320 * Math.cos((lat * Math.PI) / 180))
+    const card = tip(d)
+    const props = { tip: card, card: 1, dong: d.d }
+    // 민원 기둥(왼쪽). 채널 모드는 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)
+    const hc = dongColHeight(v.comp, max)
+    if (dongMode === "channel" && d.comp > 0 && d.ch) {
+      let base = 0
+      for (const ch of ["direct", "c120", "app"] as const) {
+        const h = (d.ch[ch] / d.comp) * hc
+        if (h <= 0) continue
+        cols.push({ type: "Feature", properties: { ...props, color: CHANNEL_DEF[ch].front, base, h: base + h }, geometry: squareAround(lat, lng - dLng, DONG_COL_SIDE) })
+        base += h
+      }
+    } else cols.push({ type: "Feature", properties: { ...props, color: COMP_COLOR, base: 0, h: hc }, geometry: squareAround(lat, lng - dLng, DONG_COL_SIDE) })
+    // 과태료 기둥(오른쪽)
+    cols.push({ type: "Feature", properties: { ...props, color: ENF_COLOR, base: 0, h: dongColHeight(v.enf, max) }, geometry: squareAround(lat, lng + dLng, DONG_COL_SIDE) })
+    labels.push({ type: "Feature", properties: { label: `${d.d}\n${v.comp.toLocaleString()} · ${v.enf.toLocaleString()}` }, geometry: { type: "Point", coordinates: [lng, lat] } })
   }
-  return out
+  return { cols: fc(cols), labels: fc(labels) }
+}
+
+// ─── 드론 비행 경로(17라운드, 시연). 구 전체(내려다봄) → 핫스팟 상위 5곳을 낮게 천천히 → 다시 구 전체. 순위마다 방위를 조금씩 돌려 한 바퀴 도는 느낌 ───
+export interface FlyLeg {
+  camera: { center: [number, number]; zoom: number; pitch: number; bearing: number }
+  duration: number // ms
+  hold: number // 도착 뒤 머무는 시간(ms)
+}
+export function flyTour(data: DumpingMapData, overview: { center: [number, number]; zoom: number; bearing: number }): FlyLeg[] {
+  const legs: FlyLeg[] = [{ camera: { ...overview, pitch: 50 }, duration: 5000, hold: 1500 }]
+  data.decision.hotspots.top.slice(0, 5).forEach((h, i) => {
+    legs.push({ camera: { center: [h[1], h[0]], zoom: 15.7, pitch: 62, bearing: overview.bearing + (i + 1) * 48 }, duration: 8000, hold: 2500 })
+  })
+  legs.push({ camera: { ...overview, bearing: overview.bearing + 360, pitch: 50 }, duration: 7000, hold: 1500 })
+  return legs
 }

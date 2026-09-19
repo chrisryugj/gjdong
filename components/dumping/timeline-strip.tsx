@@ -91,7 +91,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
             <>
               전년 같은 달 {pv.toLocaleString()}건
               {diff != null && (
-                <span className={`ml-1 font-mono font-semibold ${diff > 0 ? "text-[#c2410c]" : diff < 0 ? "text-[#0b4f45]" : ""}`}>
+                <span className={`ml-1 font-mono font-semibold ${diff > 0 ? "text-(--dump-accent)" : diff < 0 ? "text-[#0b4f45]" : ""}`}>
                   {diff > 0 ? "+" : ""}
                   {diff}%
                 </span>
@@ -101,7 +101,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
             "전년 같은 달 자료 없음"
           )}
           {series === "comp" && step && k === step.month && (
-            <span className="block text-[#c2410c]">앱 신고가 {step.from}→{step.to}건으로 뛴 달. 원인은 확인 중</span>
+            <span className="block text-(--dump-accent)">앱 신고가 {step.from}→{step.to}건으로 뛴 달. 원인은 확인 중</span>
           )}
           {censored && <span className="block text-[var(--cp-text-faint)]">부과 처리 지연으로 과소 집계될 수 있음</span>}
         </p>
@@ -163,7 +163,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
             >
               <i
                 className={`block w-full rounded-t-[2px] transition-colors ${
-                  on ? "bg-[var(--dump-ink)]" : hi ? "bg-[#c2410c]" : censored ? "bg-[#c2410c]/35" : "bg-[var(--cp-border-strong)] group-hover:bg-[var(--cp-text-faint)]"
+                  on ? "bg-[var(--dump-ink)]" : hi ? "bg-(--dump-accent)" : censored ? "bg-(--dump-accent)/35" : "bg-[var(--cp-border-strong)] group-hover:bg-[var(--cp-text-faint)]"
                 }`}
                 style={{ height: `${Math.max(4, (v / max) * 100)}%` }}
               />

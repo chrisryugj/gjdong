@@ -9,6 +9,8 @@ import {
   COL_MIN_M,
   colHeight,
   colorOf,
+  dongColumnsFC,
+  flyTour,
   gridColumnsFC,
   hotspotsFC,
   radiusMetersExpr,
@@ -84,7 +86,30 @@ test("구 경계는 닫힌 링, 마스크는 세계 사각형에 구를 뚫은 �
   assert.ok(w > 126 && e < 128 && s > 37 && n < 38, "광진구 경계 상자")
 })
 
-test("기본 보기는 입체, 자동 회전은 꺼짐", () => {
+test("기본 보기는 입체, 자동 회전·드론 비행은 꺼짐", () => {
   assert.equal(DEFAULT_VIEW.tilt, true)
   assert.equal(DEFAULT_VIEW.orbit, false)
+  assert.equal(DEFAULT_VIEW.fly, false)
+})
+
+test("동별 기둥은 동마다 민원·과태료 두 기둥, 채널 모드는 민원 기둥이 토막으로 쌓인다(바닥 높이 이어짐)", withMap, () => {
+  const total = dongColumnsFC(map!, "total", null)
+  assert.equal(total.cols.features.length, map!.dong.length * 2)
+  assert.equal(total.labels.features.length, map!.dong.length)
+  for (const f of total.cols.features) assert.equal(f.properties.base, 0)
+  const ch = dongColumnsFC(map!, "channel", null)
+  assert.ok(ch.cols.features.length > total.cols.features.length)
+  const first = map!.dong[0].d
+  const segs = ch.cols.features.filter((f) => f.properties.dong === first && f.properties.color !== "#9a6a2a")
+  for (let i = 1; i < segs.length; i++) assert.ok(Math.abs((segs[i].properties.base as number) - (segs[i - 1].properties.h as number)) < 1e-9)
+  // 툴팁은 카드형(card=1)
+  assert.equal(total.cols.features[0].properties.card, 1)
+})
+
+test("드론 비행 경로는 구 전체 → 핫스팟 5곳 → 구 전체(방위 한 바퀴)", withMap, () => {
+  const legs = flyTour(map!, { center: [127.085, 37.546], zoom: 13.2, bearing: -18 })
+  assert.equal(legs.length, 7)
+  assert.equal(legs[0].camera.zoom, 13.2)
+  assert.equal(legs[6].camera.bearing, -18 + 360)
+  for (const l of legs.slice(1, 6)) assert.ok(l.camera.zoom > 15 && l.camera.pitch > 55 && l.duration >= 5000)
 })

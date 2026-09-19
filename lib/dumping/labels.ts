@@ -138,7 +138,7 @@ export const CHANNEL_DEF = {
   direct: { label: "직접", front: "#b7c8ea", side: "#8fa6d1", top: "#dbe4f5" },
 } as const
 export const WEATHER_DEF: Record<WeatherKey, { label: string; short: string; color: string }> = {
-  hot: { label: "더운 날(일평균 25도 이상)", short: "더움", color: "#c2410c" },
+  hot: { label: "더운 날(일평균 25도 이상)", short: "더움", color: "#c0741a" },
   mild: { label: "온화한 날(5~25도)", short: "온화", color: "#0e7490" },
   cold: { label: "추운 날(5도 미만)", short: "추움", color: "#1d4ed8" },
   rain: { label: "비 오는 날(일강수 1mm 이상)", short: "비", color: "#0369a1" },

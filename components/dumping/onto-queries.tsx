@@ -19,7 +19,7 @@ function GapBadge({ r }: { r: CqResult }) {
   return (
     <span
       className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-bold ${
-        ok ? "bg-[#c2410c]/12 text-[#9a3412]" : "bg-[#8a530e]/12 text-[#8a530e]"
+        ok ? "bg-(--dump-accent)/12 text-(--dump-accent-ink)" : "bg-[#8a530e]/12 text-[#8a530e]"
       }`}
     >
       {ok ? (r.hits.length ? `${r.hits.length}건 · 공백 없음` : "공백 없음") : `공백 ${r.gaps}`}
@@ -65,7 +65,7 @@ export default function OntoQueries({ graph, onSelect }: Props) {
                 <div className="border-t border-[var(--cp-border-faint)] px-2.5 pb-2.5 pt-2">
                   <p className="mb-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">{r.why}</p>
                   {r.hits.length === 0 ? (
-                    <p className="text-[14.5px] text-[#9a3412]">{r.empty}</p>
+                    <p className="text-[14.5px] text-(--dump-accent-ink)">{r.empty}</p>
                   ) : (
                     <div className="flex flex-col gap-1">
                       {r.hits.map((h) => {

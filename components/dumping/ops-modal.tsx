@@ -22,7 +22,7 @@ function Note({ children }: { children: React.ReactNode }) {
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-2 rounded-lg bg-[#c2410c]/10 px-3 py-2 text-[15.5px] font-semibold leading-relaxed text-[#9a3412]">
+    <p className="mt-2 rounded-lg bg-(--dump-accent)/10 px-3 py-2 text-[15.5px] font-semibold leading-relaxed text-(--dump-accent-ink)">
       {children}
     </p>
   )
@@ -82,9 +82,9 @@ export function ForecastChart({ data, tall }: { data: DumpingMapData; tall?: boo
   ].join(" ")
   return (
     <svg viewBox={`0 0 ${W} ${HH}`} className="w-full">
-      <polygon points={band} fill="#c2410c" opacity="0.12" />
+      <polygon points={band} fill="var(--dump-accent)" opacity="0.12" />
       <polyline points={histPts} fill="none" stroke="var(--cp-text-muted)" strokeWidth="1.4" />
-      <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="#c2410c" strokeWidth="1.8" strokeDasharray="4 3" />
+      <polyline points={`${bridge} ${fcPts}`} fill="none" stroke="var(--dump-accent)" strokeWidth="1.8" strokeDasharray="4 3" />
       {/* 실적/전망 경계. 라벨 대신 세로 점선 (가운데 라벨은 우측 끝 라벨과 겹침) */}
       <line
         x1={x(hist.length - 1)}

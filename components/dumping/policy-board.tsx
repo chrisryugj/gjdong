@@ -53,9 +53,9 @@ function ProposalRow({ lv, stats, onOpen, i = 0, n }: RowProps) {
       style={{ "--i": 6 + i } as React.CSSProperties}
       className="dump-rise group flex w-full items-start gap-3 border-t border-[var(--cp-border)] py-3 text-left first:border-t-0"
     >
-      <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-[#c2410c]">{n}</span>
+      <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{n}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-[#c2410c]">{nb(title)}</span>
+        <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(title)}</span>
         <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
           {nb(expect)}
           {owner && <span className="text-[var(--cp-text-faint)]"> · {owner}</span>}
@@ -84,7 +84,7 @@ function ExistingRow({ lv, graph, onOpen, i = 0 }: RowProps) {
           <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[11px] text-[var(--cp-text-dim)]">사전등록 후 평가</span>
         )}
       </span>
-      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-[#c2410c]">{nb(lv.node.label)}</span>
+      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(lv.node.label)}</span>
       {lv.targets.length > 0 && (
         <span className="flex flex-wrap items-center gap-1 text-[12.5px] text-[var(--cp-text-dim)]">
           겨냥
@@ -173,7 +173,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
     <div className="flex flex-col gap-5 px-4 py-4 md:px-5">
       {/* 결론. 첫 화면에서 답이 먼저 보이게. 머리기사 두 줄 + 부제 두 줄 */}
       <section>
-        <p className="dump-kicker text-[10.5px] text-[#c2410c]">결론{data ? ` · ${data.decision.asof} 기준` : ""}</p>
+        <p className="dump-kicker text-[10.5px] text-(--dump-accent)">결론{data ? ` · ${data.decision.asof} 기준` : ""}</p>
         <h2 className="dump-headline dump-rise mt-2 text-[20px] leading-[1.45] text-[var(--cp-text-strong)]" style={{ "--i": 1 } as React.CSSProperties}>
           {headline}
         </h2>
@@ -184,7 +184,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
 
       {/* 지도 연동 상태. 어떤 제안을 지도에 띄워 두었는지 */}
       {active && (
-        <p className="rounded-lg border border-[#c2410c]/40 bg-[#c2410c]/8 px-3 py-2 text-[13.5px] leading-relaxed text-[#9a3412]">
+        <p className="rounded-lg border border-(--dump-accent)/40 bg-(--dump-accent)/8 px-3 py-2 text-[13.5px] leading-relaxed text-(--dump-accent-ink)">
           지도에 <b>{active.node.label}</b> 관련 화면을 표시하고 있습니다.
         </p>
       )}
@@ -244,7 +244,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
                     onClick={onToggleCritical}
                     aria-pressed={criticalOn}
                     className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold ${
-                      criticalOn ? "border-[#a8322a] bg-[#a8322a]/10 text-[#a8322a]" : "border-[var(--cp-border)] text-[#c2410c] hover:bg-[var(--cp-hover)]"
+                      criticalOn ? "border-[#a8322a] bg-[#a8322a]/10 text-[#a8322a]" : "border-[var(--cp-border)] text-(--dump-accent) hover:bg-[var(--cp-hover)]"
                     }`}
                   >
                     {criticalOn ? "지도 표시 중 · 끄기" : "지도에 기둥으로 표시"}

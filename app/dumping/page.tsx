@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next"
-import { Manrope, Noto_Serif_KR } from "next/font/google"
+import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google"
 import DumpingClient from "@/components/dumping/client"
+import { THEME_INIT_SCRIPT } from "@/components/dumping/theme"
 
-// 지도 전면 디자인(2026-09-18): 숫자·항목 번호·수치는 Manrope, 결론 머리기사는 Noto Serif KR. 한글 본문은 SUIT 그대로.
-// next/font가 빌드 때 받아 셀프호스팅하므로 런타임 외부 요청 없음
-const manrope = Manrope({ subsets: ["latin"], weight: ["500", "600", "700", "800"], variable: "--font-manrope", display: "swap" })
-const serifKr = Noto_Serif_KR({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-serif-kr", display: "swap" })
+// 17라운드(2026-09-19) sunlight-fund 테마: 결론 문장은 고운바탕, 나머지 글과 숫자는 IBM Plex Sans KR.
+// next/font가 빌드 때 받아 셀프호스팅하므로 런타임 외부 요청 없음.
+// preload: false. next/font가 한글 슬라이스에 subset 주석이 없어 굵은 슬라이스를 전량 preload하고 본문 400 한글은 빠뜨린다(sunlight 실측)
+const batang = Gowun_Batang({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-batang", display: "swap", preload: false })
+const plex = IBM_Plex_Sans_KR({ subsets: ["latin"], weight: ["400", "600", "700"], variable: "--font-plex", display: "swap", preload: false })
 
 // searchParams를 읽지 않는다. 라우트를 정적으로 유지해 CDN 캐시를 살린다 (crowd/page.tsx 규약)
 export const viewport: Viewport = {
@@ -24,7 +26,9 @@ export const metadata: Metadata = {
 
 export default function DumpingPage() {
   return (
-    <div className={`${manrope.variable} ${serifKr.variable} contents`}>
+    <div className={`${batang.variable} ${plex.variable} contents`}>
+      {/* 첫 페인트 전에 html[data-theme]를 정한다(깜빡임 방지). 라이트·다크는 localStorage dump-theme */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       <DumpingClient />
     </div>
   )

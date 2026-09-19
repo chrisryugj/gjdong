@@ -23,7 +23,7 @@ export function chartTitle(kind: ChartKind, data: DumpingMapData): string {
 
 const BLUE = "#1c4f96"
 const AMBER = "#8a530e"
-const GREEN = "#c2410c"
+const GREEN = "var(--dump-accent)"
 const RED = "#a8322a"
 const GRAY = "#94a3b8"
 const INK = "#334155"

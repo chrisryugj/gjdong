@@ -24,3 +24,6 @@
 - fitBounds는 pitch를 모른다 → cameraForBounds 뒤 easeTo(pitch)
 - fill-extrusion은 pitch 0에서 높이가 안 보인다 → 기둥 토글이 입체를 강제
 - OSM 건물 커버리지가 구의·자양 일부에서 비어 있음(후속: NSDI GIS건물통합정보)
+
+## 17라운드(같은 날) 후속
+- sunlight-fund 테마 이식(도면지·앰버·고운바탕+Plex·유리 패널·라이트/다크 스위치, 지도 밤 스타일), 동별 막대 → 진짜 기둥, 드론 비행(핫스팟 5곳 순회), NSDI 건물 변환기(자료 대기). 정본 CLAUDE.md 7번 "17라운드"

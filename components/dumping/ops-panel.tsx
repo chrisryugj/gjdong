@@ -32,16 +32,16 @@ function DetailCard({
   return (
     <button
       onClick={onOpen}
-      className={`dump-rise relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-[#c2410c]/60 ${className ?? ""}`}
+      className={`dump-rise relative w-full rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-3 text-left transition-colors hover:border-(--dump-accent)/60 ${className ?? ""}`}
     >
-      <span className="absolute right-3 top-2.5 text-[13.5px] font-medium text-[#c2410c]">자세히 →</span>
+      <span className="absolute right-3 top-2.5 text-[13.5px] font-medium text-(--dump-accent)">자세히 →</span>
       {children}
     </button>
   )
 }
 
 const STATUS_KO: Record<InterventionEntry["status"], { label: string; cls: string }> = {
-  registered: { label: "등록", cls: "bg-[#c2410c]/10 text-[#c2410c]" },
+  registered: { label: "등록", cls: "bg-(--dump-accent)/10 text-(--dump-accent)" },
   active: { label: "실행 중", cls: "bg-amber-100 text-amber-800" },
   evaluated: { label: "평가 완료", cls: "bg-slate-200 text-slate-700" },
   abandoned: { label: "중단", cls: "bg-slate-100 text-slate-500" },
@@ -145,7 +145,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                   {k.value}
                   <span className="ml-0.5 font-sans text-[12px] font-medium text-[var(--cp-text-dim)]">{k.unit}</span>
                 </span>
-                <span className="mt-1 block text-[12.5px] font-semibold text-[#c2410c]">{k.action} →</span>
+                <span className="mt-1 block text-[12.5px] font-semibold text-(--dump-accent)">{k.action} →</span>
               </span>
             </button>
           ))}
@@ -159,7 +159,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
       <section>
         <SectionHead n="02" sub="순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수. 최근에 기록이 몰린 칸이 위로 옵니다 · 누르면 지도에서 기둥으로 표시">다음 분기 예측 핫스팟 20</SectionHead>
         {/* 백테스트 요약은 문단 대신 수치 3칸(2026-09-18: 여섯 줄 문단은 읽히지 않았다) */}
-        <div className="mb-2 grid grid-cols-3 gap-1.5 rounded-lg bg-[#c2410c]/8 px-3 py-2">
+        <div className="mb-2 grid grid-cols-3 gap-1.5 rounded-lg bg-(--dump-accent)/8 px-3 py-2">
           {[
             { k: "적중률", v: `${bt.avgPrecision20}%`, s: "20곳 중 다음 분기 기록" },
             { k: "포착률", v: `${bt.avgCapture20}%`, s: `무작위 기대 ${bt.avgRandomCapture}%` },
@@ -174,9 +174,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             },
           ].map((x) => (
             <div key={x.k} className="min-w-0">
-              <p className="truncate text-[12px] text-[#9a3412]/80">{x.k}</p>
-              <p className="dump-meta-v text-[18px] leading-tight text-[#9a3412]">{x.v}</p>
-              <p className="text-[11.5px] leading-snug text-[#9a3412]/70">{x.s}</p>
+              <p className="truncate text-[12px] text-(--dump-accent-ink)/80">{x.k}</p>
+              <p className="dump-meta-v text-[18px] leading-tight text-(--dump-accent-ink)">{x.v}</p>
+              <p className="text-[11.5px] leading-snug text-(--dump-accent-ink)/70">{x.s}</p>
             </div>
           ))}
         </div>
@@ -273,14 +273,14 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 </div>
                 <span className="relative mt-0.5 block h-2 overflow-hidden rounded-full bg-[var(--cp-track,rgba(100,116,139,.18))]">
                   <i
-                    className="absolute inset-y-0 left-0 rounded-full bg-[#c2410c]"
+                    className="absolute inset-y-0 left-0 rounded-full bg-(--dump-accent)"
                     style={{ width: `${(c.n / maxCat) * 100}%` }}
                   />
                 </span>
               </div>
             ))}
           </div>
-          <p className="mt-2 border-l-2 border-[#c2410c] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+          <p className="mt-2 border-l-2 border-(--dump-accent) pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
             담배꽁초(차량) {cigShare}%는 주거 구조와 연관이 확인되지 않은 도로 현상입니다. 생활쓰레기 대책과 나눠
             관리해야 합니다.
           </p>
@@ -399,7 +399,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-[#c2410c] pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+            <p className="mt-2 border-l-2 border-(--dump-accent) pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               의무관리 미달 소형 주거가 {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에 몰립니다. 발생 예고는 아니고, 준공 때부터 배출안내·공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>
