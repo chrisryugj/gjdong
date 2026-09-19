@@ -1,6 +1,6 @@
 // /dumping 입체 시설 아이콘(18라운드 후속, 2026-09-19). maplibre 커스텀 레이어(renderingMode 3d) 위의 Three.js 장면.
 // 시설 종류마다 작은 모델(이동식 CCTV=기둥+머리, 고정 CCTV=기둥+돔, 의류수거함=상자+뚜껑+투입구, 재활용정거장=받침+통 3개, 가로쓰레기통=통+뚜껑),
-// 재배치 후보=흰 핀(바늘+구슬) + 머리 위 순위 배지(카메라를 보는 스프라이트, 상위 3은 액센트), 배치추천=반투명 분홍 통.
+// 재배치 후보=앰버 핀(바늘+구슬) + 머리 위 순위 배지(숫자 띠를 감은 회전 구, 상위 3은 액센트), 배치추천=반투명 분홍 통.
 // 크기는 화면 기준 최소 높이를 지킨다(마커처럼): 조망에서도 점이 아니라 모양이 보이고, 확대하면 실제 크기에 가까워진다.
 // 깊이 버퍼를 지도와 공유해 건물·기둥이 아이콘을 자연스럽게 가린다. 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약).
 // 툴팁은 같은 자리의 투명 fill-extrusion(dumping-map S.infraPosts 등)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
@@ -22,8 +22,8 @@ const ANCHOR: [number, number] = [127.085, 37.546] // 모델 원점(구 중심).
 const TARGET_PX = 26 // 아이콘 목표 화면 높이. 이보다 작아지면 확대하되 종류별 maxScale배까지만(조망에서 857개 정거장이 구를 덮었다)
 const DENSE_MAX = 4 // 빽빽한 시설의 확대 상한. 후보 핀은 마커처럼 항상 읽히게 상한을 크게
 const BADGE_PX = 24
-const DONG_BADGE_PX = 30 // 동별 기둥 꼭대기 순위 배지(1~3위)는 조금 크게
-const COIN_SPIN = 0.9 // 배지 동전 회전(라디안/초). 어느 방향에서 봐도 숫자가 돌아온다
+const DONG_BADGE_PX = 26 // 동별 기둥 꼭대기 순위 배지(1~3위)는 조금 크게
+const COIN_SPIN = 0.5 // 배지 구 회전(라디안/초). 숫자가 3번 감겨 있어 항상 하나는 정면 근처
 const TRUCK_PX = 26 // 청소차 목표 화면 길이
 const TRUCK_MAX_SCALE = 10
 const TRUCK_SPEED = 9 // m/s(약 32km/h)
@@ -128,7 +128,7 @@ interface KindState {
   points: IconPoint[]
   pos: { x: number; z: number; y: number }[] // 원점 기준 미터. y는 지형 고도
   meshes: THREE.InstancedMesh[]
-  coins: THREE.Group[] // 순위 배지 동전(앞뒤에 숫자, 세로축으로 천천히 돈다)
+  coins: THREE.Mesh[] // 순위 배지 구(숫자 띠, 세로축으로 천천히 돈다)
   appearAt: number
   elevated: boolean // 지형 고도를 한 번이라도 받았나
 }
@@ -148,51 +148,45 @@ const TRUCK_PARTS: Part[] = [
   { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: new THREE.MeshLambertMaterial({ color: "#262626" }), local: at(2.0, 0.55, 0) },
   { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: new THREE.MeshLambertMaterial({ color: "#262626" }), local: at(-2.0, 0.55, 0) },
 ]
-// 동전(반지름 1, 두께 0.16): 옆면 고리(축을 눕힌 원통) + 앞뒤 숫자 면(평면, 뒷면은 돌려 붙인다). 원통 뚜껑에 텍스처를 얹으면 숫자가 옆으로 누웠다(실측)
-const COIN_RIM = new THREE.CylinderGeometry(1, 1, 0.16, 40, 1, true).rotateX(Math.PI / 2)
-const COIN_FACE = new THREE.CircleGeometry(1, 40)
-function makeCoin(tex: THREE.Texture, rimColor: string): THREE.Group {
-  const g = new THREE.Group()
-  const rim = new THREE.Mesh(COIN_RIM, new THREE.MeshLambertMaterial({ color: rimColor, depthTest: false, depthWrite: false }))
-  const faceMat = new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true })
-  const front = new THREE.Mesh(COIN_FACE, faceMat)
-  front.position.z = 0.081
-  const back = new THREE.Mesh(COIN_FACE, faceMat)
-  back.position.z = -0.081
-  back.rotation.y = Math.PI
-  for (const m of [rim, front, back]) m.renderOrder = 10
-  g.add(rim, front, back)
-  return g
-}
 
-// 순위 배지 텍스처(흰 원 + 액센트 링 + 잉크 숫자, 상위 3은 액센트 채움 + 흰 숫자)
+// 순위 배지 텍스처: 구(球) 표면에 감는 띠. 숫자를 적도에 3번 반복해 어느 방향에서 봐도 하나는 정면이다. 상위 3은 액센트 채움+흰 숫자, 나머지는 흰 바탕+액센트 숫자
 const badgeCache = new Map<string, THREE.CanvasTexture>()
 function badgeTexture(rank: number, accent: string): THREE.CanvasTexture {
   const key = `${rank}:${accent}`
   const hit = badgeCache.get(key)
   if (hit) return hit
-  const size = 96
+  const W = 1024
+  const H = 512
   const c = document.createElement("canvas")
-  c.width = size
-  c.height = size
+  c.width = W
+  c.height = H
   const ctx = c.getContext("2d")!
   const top = rank <= 3
-  ctx.beginPath()
-  ctx.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2)
   ctx.fillStyle = top ? accent : "#ffffff"
-  ctx.fill()
-  ctx.lineWidth = 6
-  ctx.strokeStyle = top ? "#ffffff" : accent
-  ctx.stroke()
+  ctx.fillRect(0, 0, W, H)
+  // 적도 띠 경계선(상하)로 구가 매끈한 공이 아니라 배지임을 알린다
+  ctx.fillStyle = top ? "rgba(255,255,255,0.35)" : `${accent}55`
+  ctx.fillRect(0, H * 0.22, W, 6)
+  ctx.fillRect(0, H * 0.78 - 6, W, 6)
   ctx.fillStyle = top ? "#ffffff" : accent
-  ctx.font = `700 ${rank >= 10 ? 44 : 50}px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif`
+  ctx.font = `700 ${rank >= 10 ? 190 : 220}px "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif`
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.fillText(String(rank), size / 2, size / 2 + 2)
+  // 3번(120도 간격). 4번이면 정면에 두 개가 같이 보여 "14 1"처럼 붙어 읽혔다(실측)
+  for (let i = 0; i < 3; i++) ctx.fillText(String(rank), (W / 3) * (i + 0.5), H / 2 + 8)
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 4
   badgeCache.set(key, tex)
   return tex
+}
+
+// 배지 구: 숫자 띠를 감은 공. 세로축으로 천천히 돌고 깊이 검사를 안 해 건물 뒤에서도 읽힌다
+const BADGE_GEOM = new THREE.SphereGeometry(1, 40, 28)
+function makeBadge(tex: THREE.Texture): THREE.Mesh {
+  const m = new THREE.Mesh(BADGE_GEOM, new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false }))
+  m.renderOrder = 10
+  return m
 }
 
 export class Icons3DLayer implements CustomLayerInterface {
@@ -245,13 +239,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       pin.emissive.set(this.accent)
     }
     const st = this.kinds.get("cand")
-    if (st)
-      st.coins.forEach((c, i) => {
-        const rank = st.points[i].rank ?? i + 1
-        const [rim, front] = c.children as THREE.Mesh[]
-        ;(front.material as THREE.MeshBasicMaterial).map = badgeTexture(rank, this.accent)
-        if (rank > 3) (rim.material as THREE.MeshLambertMaterial).color.set(this.accent)
-      })
+    if (st) st.coins.forEach((c, i) => ((c.material as THREE.MeshBasicMaterial).map = badgeTexture(st.points[i].rank ?? i + 1, this.accent)))
     this.map?.triggerRepaint()
   }
 
@@ -303,9 +291,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       for (const m of prev.meshes) this.scene.remove(m)
       for (const c of prev.coins) {
         this.scene.remove(c)
-        c.traverse((o) => {
-          if (o instanceof THREE.Mesh) (o.material as THREE.Material).dispose()
-        })
+        ;(c.material as THREE.Material).dispose()
       }
     }
     if (!points.length) {
@@ -324,13 +310,10 @@ export class Icons3DLayer implements CustomLayerInterface {
       this.scene.add(mesh)
       return mesh
     })
-    const coins: THREE.Group[] = []
+    const coins: THREE.Mesh[] = []
     if (kind === "cand" || kind === "dongRank") {
       points.forEach((p, i) => {
-        // 배지는 3D 동전: 앞뒤 면에 숫자, 옆면은 배지 색(상위 3은 흰 테). 깊이 검사를 안 해 건물 뒤에서도 읽힌다
-        const rank = p.rank ?? i + 1
-        const color = p.color ?? this.accent
-        const coin = makeCoin(badgeTexture(rank, color), rank <= 3 ? "#ffffff" : color)
+        const coin = makeBadge(badgeTexture(p.rank ?? i + 1, p.color ?? this.accent))
         coins.push(coin)
         this.scene.add(coin)
       })
