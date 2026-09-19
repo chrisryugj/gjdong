@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react"
 import { flushSync } from "react-dom"
+import { Ico } from "./icons"
 
 // 17라운드(2026-09-19): 햇빛소득 시뮬레이터(sunlight-fund components/sun/theme.tsx)의 라이트·다크 스위치를 가져왔다.
 // html[data-theme]가 진실, localStorage("dump-theme")에 기억. 기본은 라이트(종이). 시스템 설정은 따르지 않는다(시연은 종이 기본).
@@ -28,21 +29,8 @@ export function useTheme(): Theme {
   return useSyncExternalStore(subscribe, current, () => "light")
 }
 
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
-    </svg>
-  )
-}
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M15.5 2.5a9.5 9.5 0 1 0 6 16.9A8 8 0 0 1 15.5 2.5Z" />
-    </svg>
-  )
-}
+const SunIcon = () => <Ico name="sun" size={18} strokeWidth="2.1" />
+const MoonIcon = () => <Ico name="moon" size={18} />
 
 /** Liquid Glass 스위치: 유리 알약 트랙 + 가장자리에 걸친 큰 유리 손잡이. 손잡이 안 아이콘이 빛난다 */
 export default function ThemeSwitch({ compact = false }: { compact?: boolean }) {

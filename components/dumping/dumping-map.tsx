@@ -59,6 +59,7 @@ import {
   ringFC,
   ringPolygon,
   ringsFC,
+  routeChains,
   routesFC,
   stepExpr,
   weatherColumnsFC,
@@ -532,6 +533,7 @@ export default function DumpingMap({
     if (!map || !ready) return
     if (!showRoutes) {
       setFC(map, S.routes, emptyFC())
+      iconsRef.current?.setTrucks([])
       return
     }
     let alive = true
@@ -540,11 +542,13 @@ export default function DumpingMap({
       if (!alive || !m) return
       const links = (roads.default as unknown as { links: { n?: string; p: number[][] }[] }).links
       setFC(m, S.routes, routesFC(links))
+      // 청소차(18라운드 후속): 노선 체인마다 1~2대가 왕복한다(icons3d)
+      iconsRef.current?.setTrucks(routeChains(links))
     })
     return () => {
       alive = false
     }
-  }, [ready, showRoutes])
+  }, [ready, showRoutes, iconsReady])
 
   // 예측 핫스팟 20 기둥+순위(운영·전망 탭)
   useEffect(() => {

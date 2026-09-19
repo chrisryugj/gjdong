@@ -26,6 +26,7 @@ import {
   hotspotsFC,
   radiusMetersExpr,
   ringFC,
+  routeChains,
   stepExpr,
 } from "../components/dumping/map-geo"
 import { DEFAULT_VIEW } from "../components/dumping/map-controls"
@@ -188,4 +189,20 @@ test("격자 조회는 칸 중심을 제 칸으로, 구 밖은 -1", withMap, () 
   })
   assert.equal(ok, map!.grid.length)
   assert.equal(find(37.0, 126.0), -1)
+})
+
+test("청소차 노선 체인: 관리 도로만, 끝점이 이어진 폴리라인, 긴 것부터", () => {
+  const links = [
+    { n: "천호대로", p: [[37.54, 127.07], [37.541, 127.072]] },
+    { n: "천호대로", p: [[37.541, 127.072], [37.542, 127.075]] },
+    { n: "천호대로", p: [[37.545, 127.08], [37.542, 127.075]] }, // 뒤집힌 링크
+    { n: "동일로", p: [[37.55, 127.07], [37.5501, 127.0701]] }, // 300m 미만 자투리
+    { n: "없는길", p: [[37.5, 127.0], [37.6, 127.1]] },
+  ]
+  const chains = routeChains(links)
+  assert.equal(chains.length, 1)
+  assert.equal(chains[0].name, "천호대로")
+  assert.equal(chains[0].focus, true)
+  assert.equal(chains[0].coords.length, 4)
+  assert.ok(chains[0].meters > 800)
 })

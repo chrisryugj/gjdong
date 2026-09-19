@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
 import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
+import { Ico } from "./icons"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
 // 지도 모드 상수는 lib/dumping/labels.ts(순환 import 회피). 여기서는 다시 내보내기만
@@ -201,9 +202,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ tilt: !view.tilt, orbit: false, fly: false })}
           className={`${ROW} ${view.tilt ? ROW_ON : ROW_OFF}`}
         >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
-            <path d="M8 1.5 14.5 5v6L8 14.5 1.5 11V5zM3 6.1v4.3l4.25 2.3V8.4zm10 0-4.25 2.3v4.3L13 10.4zM8 3.2 4.1 5.3 8 7.4l3.9-2.1z" />
-          </svg>
+          <Ico name="tilt" size={15} />
           <span className="min-w-0 flex-1">입체 보기</span>
         </button>
         {view.tilt && (
@@ -213,10 +212,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
             onClick={() => patch({ orbit: !view.orbit, fly: false })}
             className={`${ROW} ${view.orbit ? ROW_ON : ROW_OFF}`}
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-              <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
-              <path d="M13.6 1.8v3.4h-3.4" />
-            </svg>
+            <Ico name="orbit" size={15} />
             <span className="min-w-0 flex-1">자동 회전</span>
           </button>
         )}
@@ -227,13 +223,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
             onClick={() => patch({ fly: !view.fly, orbit: false })}
             className={`${ROW} ${view.fly ? ROW_ON : ROW_OFF}`}
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-              <circle cx="3.5" cy="3.5" r="2" />
-              <circle cx="12.5" cy="3.5" r="2" />
-              <circle cx="3.5" cy="12.5" r="2" />
-              <circle cx="12.5" cy="12.5" r="2" />
-              <path d="M5 5l6 6M11 5l-6 6" />
-            </svg>
+            <Ico name="drone" size={15} />
             <span className="min-w-0 flex-1">드론 비행</span>
           </button>
         )}
@@ -243,9 +233,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ dongBars: !view.dongBars })}
           className={`${ROW} ${view.dongBars ? ROW_ON : ROW_OFF}`}
         >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
-            <path d="M2 14V8h3v6zM6.5 14V4h3v10zM11 14V6h3v8z" />
-          </svg>
+          <Ico name="bars" size={15} />
           <span className="min-w-0 flex-1">동별 막대</span>
         </button>
         {/* 12라운드: 동별 막대 모드. 합계 · 채널 스택(앱·120·직접) · 연도별 */}
@@ -299,9 +287,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ grid3d: !view.grid3d, ...(!view.grid3d ? { tilt: true } : {}) })}
           className={`${ROW} ${view.grid3d ? ROW_ON : ROW_OFF}`}
         >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden>
-            <path d="M2 14V9h2v5zM5 14V5h2v9zM8 14v-3h2v3zM11 14V7h2v7z" />
-          </svg>
+          <Ico name="columns" size={15} />
           <span className="min-w-0 flex-1">격자 기둥</span>
         </button>
         <button
@@ -348,7 +334,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           )
         })}
         <button aria-pressed={view.routes} onClick={() => patch({ routes: !view.routes })} className={`${ROW} ${view.routes ? ROW_ON : ROW_OFF}`}>
-          <Swatch kind="line" color="#d97706" on={view.routes} />
+          <Ico name="truck" size={15} className={view.routes ? "text-(--dump-accent)" : ""} />
           <span className="min-w-0 flex-1">청소차 노선</span>
         </button>
         <button
@@ -356,7 +342,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           onClick={() => patch({ candidates: !view.candidates })}
           className={`${ROW} ${view.candidates ? ROW_ON : ROW_OFF}`}
         >
-          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-(--dump-accent) bg-white" style={{ opacity: view.candidates ? 1 : 0.7 }} />
+          <Ico name="pin" size={15} className={view.candidates ? "text-(--dump-accent)" : ""} />
           <span className="min-w-0 flex-1">CCTV 재배치 후보</span>
           <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data ? data.cctvCandidates.length : 20}</span>
         </button>
@@ -366,7 +352,7 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           className={`${ROW} ${view.binRecos ? ROW_ON : ROW_OFF}`}
           title="외부 산출물(데이터팀 격자 분석). 이 화면의 핫스팟·상습격자·회귀와 독립이며 산출 방법은 확인되지 않았습니다. 겹침 정도는 데이터·방법 참고"
         >
-          <i className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-dashed" style={{ borderColor: BIN_RECO_COLOR, opacity: view.binRecos ? 1 : 0.7 }} />
+          <Ico name="ring" size={15} style={{ color: BIN_RECO_COLOR, opacity: view.binRecos ? 1 : 0.7 }} />
           {/* 바로 위 가로쓰레기통 줄에 이어지니 "배치추천(데이터팀)"만. 전체 이름은 범례·툴팁(BIN_RECO_LABEL) */}
           <span className="min-w-0 flex-1 [word-break:keep-all]">배치추천(데이터팀)</span>
           {data?.binRecos && <span className="font-mono text-[12px] text-[var(--cp-text-faint)]">{data.binRecos.items.length}</span>}

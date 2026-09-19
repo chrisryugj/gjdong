@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Ico } from "./icons"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
 import { ASK_ACCEPT, ASK_ERR, completeSentences, DETAIL_MARK, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
 import { matchSeed } from "@/lib/dumping/seed-match"
@@ -440,10 +441,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               aria-label="질문하기"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--dump-accent) text-white disabled:opacity-35"
             >
-              <svg viewBox="0 0 20 20" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="8.5" cy="8.5" r="5.5" />
-                <path d="m13 13 4 4" strokeLinecap="round" />
-              </svg>
+              <Ico name="search" size={17} strokeWidth="2" />
             </button>
           )}
         </div>
@@ -809,29 +807,6 @@ function ThinkingIndicator({ phase }: { phase: ThinkPhase }) {
   )
 }
 
-function EarIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <path d="M5.5 8a4.5 4.5 0 0 1 9 0c0 2.2-1.6 3-2.3 4.2-.6 1-.5 2.8-2.4 3.3-1.6.4-2.6-.7-2.8-1.7" strokeLinecap="round" />
-      <path d="M8.5 8a1.5 1.5 0 0 1 3 0c0 1-1 1.2-1 2.2" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <rect x="7" y="2.5" width="6" height="9" rx="3" />
-      <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5M7.5 17.5h5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function SpeakerIcon({ muted = false }: { muted?: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z" strokeLinejoin="round" />
-      {muted ? <path d="m13.5 7.5 4 5m0-5-4 5" strokeLinecap="round" /> : <path d="M13 7a4 4 0 0 1 0 6M15.5 4.5a7.5 7.5 0 0 1 0 11" strokeLinecap="round" />}
-    </svg>
-  )
-}
+const EarIcon = () => <Ico name="ear" size={15} />
+const MicIcon = () => <Ico name="mic" size={17} />
+const SpeakerIcon = ({ muted = false }: { muted?: boolean }) => <Ico name={muted ? "speakerOff" : "speaker"} size={16} />

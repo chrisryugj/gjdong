@@ -504,6 +504,50 @@ export function routesFC(links: { n?: string; p: number[][] }[]): FC {
   return fc(feats)
 }
 
+// 청소차 경로(18라운드 후속): 도로명별 링크를 끝점이 이어지는 순으로 엮어 폴리라인 체인으로. 트럭은 체인 위를 달린다(icons3d setTrucks).
+// 링크는 순서·방향 정보가 없어 탐욕적으로 잇는다(끝점 30m 안에 시작점이 있는 링크, 뒤집힌 링크도 허용). 짧은 자투리(300m 미만)는 버린다
+export interface RouteChain {
+  name: string
+  focus: boolean
+  coords: [number, number][] // [lng,lat]
+  meters: number
+}
+const near = (a: [number, number], b: [number, number], m: number) => Math.hypot((a[0] - b[0]) * 88000, (a[1] - b[1]) * 111000) < m
+export function routeChains(links: { n?: string; p: number[][] }[]): RouteChain[] {
+  const byName = new Map<string, [number, number][][]>()
+  for (const l of links) {
+    const name = l.n ?? ""
+    if (!ROUTE_FOCUS.has(name) && !ROUTE_GENERAL.has(name)) continue
+    const coords = l.p.map((p) => [p[1], p[0]] as [number, number])
+    if (coords.length >= 2) (byName.get(name) ?? byName.set(name, []).get(name)!).push(coords)
+  }
+  const out: RouteChain[] = []
+  for (const [name, segs] of byName) {
+    const pool = segs.slice()
+    while (pool.length) {
+      const chain = pool.shift()!.slice()
+      let grew = true
+      while (grew) {
+        grew = false
+        for (let i = 0; i < pool.length; i++) {
+          const sgm = pool[i]
+          const tail = chain[chain.length - 1]
+          if (near(sgm[0], tail, 30)) chain.push(...sgm.slice(1))
+          else if (near(sgm[sgm.length - 1], tail, 30)) chain.push(...sgm.slice(0, -1).reverse())
+          else continue
+          pool.splice(i, 1)
+          grew = true
+          break
+        }
+      }
+      let meters = 0
+      for (let i = 1; i < chain.length; i++) meters += Math.hypot((chain[i][0] - chain[i - 1][0]) * 88000, (chain[i][1] - chain[i - 1][1]) * 111000)
+      if (meters >= 300) out.push({ name, focus: ROUTE_FOCUS.has(name), coords: chain, meters })
+    }
+  }
+  return out.sort((a, b) => b.meters - a.meters)
+}
+
 // 미터 반경을 줌별 픽셀로. 지수(밑 2) 보간이면 두 줌 사이가 정확히 미터 비례가 된다(웹 메르카토르)
 const LAT0 = 37.546
 const metersPerPixel = (z: number) => (156543.03392 * Math.cos((LAT0 * Math.PI) / 180)) / Math.pow(2, z)
@@ -525,6 +569,7 @@ export interface DongRankBadge {
   rank: number
   h: number // 기둥 높이(m)
   color: string
+  side: -1 | 1 // 민원 -1(왼쪽 기둥) · 과태료 1. 한 동에 둘 다 순위면 배지가 겹치니 icons3d가 좌우로 비킨다
 }
 export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear: string | null): { cols: FC; labels: FC; ranks: DongRankBadge[] } {
   // 12라운드: 모드별 값. 연도 모드는 그 해의 민원(접수)·과태료(위반), 채널 모드는 민원 기둥을 앱·120·직접 세 토막으로
@@ -571,9 +616,9 @@ export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear
     const v = valOf(d)
     const dLng = DONG_COL_GAP / 2 / (111320 * Math.cos((lat * Math.PI) / 180))
     const rc = rank("comp", v.comp)
-    if (rc <= 3 && v.comp > 0) ranks.push({ lng: lng - dLng, lat, rank: rc, h: dongColHeight(v.comp, max), color: COMP_COLOR })
+    if (rc <= 3 && v.comp > 0) ranks.push({ lng: lng - dLng, lat, rank: rc, h: dongColHeight(v.comp, max), color: COMP_COLOR, side: -1 })
     const re = rank("enf", v.enf)
-    if (re <= 3 && v.enf > 0) ranks.push({ lng: lng + dLng, lat, rank: re, h: dongColHeight(v.enf, max), color: ENF_COLOR })
+    if (re <= 3 && v.enf > 0) ranks.push({ lng: lng + dLng, lat, rank: re, h: dongColHeight(v.enf, max), color: ENF_COLOR, side: 1 })
     const card = tip(d)
     const props = { tip: card, card: 1, dong: d.d }
     // 민원 기둥(왼쪽). 채널 모드는 아래부터 직접·120·앱(앱이 가장 많아 위에 진하게)

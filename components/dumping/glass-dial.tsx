@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Ico } from "./icons"
 
 // 유리 강도 다이얼(18라운드, sunlight-fund components/sun/glass-dial.tsx 이식). 0(불투명 종이) ~ 1.6(굴절·투명 최대). 기본 1.
 // html의 --lg 변수 하나로 CSS(투명도·흐림·하이라이트)와 굴절 런타임(liquid-glass.tsx 변위 세기)이 같이 움직인다. localStorage("dump-glass")에 기억.
@@ -75,10 +76,7 @@ export default function GlassDial({ compact = false }: { compact?: boolean }) {
           armIdle()
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z" />
-          <path d="M9.5 15.5a2.5 2.5 0 0 0 2 2" />
-        </svg>
+        <Ico name="drop" size={16} />
       </button>
       <div className="lg-dial-body" aria-hidden={!open}>
         <input

@@ -24,6 +24,7 @@ import { deriveLevers, vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "./use-sidebar-width"
 import DumpMark from "./dump-mark"
+import { Ico } from "./icons"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
@@ -504,10 +505,7 @@ export default function DumpingDashboard() {
                   demo !== null ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"
                 }`}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect x="3" y="4" width="18" height="12" rx="1.5" />
-                  <path d="M12 16v4M8 20h8" />
-                </svg>
+                <Ico name="monitor" size={14} />
                 {demo !== null ? "시연 끝" : "시연"}
               </button>
             )}
@@ -516,9 +514,7 @@ export default function DumpingDashboard() {
               className="dump-fl lg-shell group relative rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)"
             >
               데이터·방법
-              <span className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" aria-hidden>
-                →
-              </span>
+              <Ico name="arrow" size={13} className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" />
             </button>
             {/* 유리 강도 다이얼 + 라이트·다크(sunlight-fund 유리 스위치·다이얼). 지도 바탕도 같이 바뀐다 */}
             {isMd && <GlassDial compact={!isXl} />}
@@ -635,9 +631,7 @@ export default function DumpingDashboard() {
             >
               <span className="min-w-0 flex-1 truncate">김주임에게 물어보기</span>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--dump-ink)]" aria-hidden>
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="#fff">
-                  <path d="M8 1.5a2.5 2.5 0 0 0-2.5 2.5v4a2.5 2.5 0 0 0 5 0V4A2.5 2.5 0 0 0 8 1.5zM3.5 8a.75.75 0 0 1 1.5 0 3 3 0 0 0 6 0 .75.75 0 0 1 1.5 0 4.5 4.5 0 0 1-3.75 4.44V14h2a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5h2v-1.56A4.5 4.5 0 0 1 3.5 8z" />
-                </svg>
+                <Ico name="mic" size={14} className="text-white" />
               </span>
             </button>
           )}
