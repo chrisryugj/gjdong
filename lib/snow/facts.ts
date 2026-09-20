@@ -246,7 +246,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       owner: "구",
       short: `${g.gu.noneNames.join("·")} 자재 비치`,
       title: `${g.gu.noneNames.join("·")}: ${data.gaps.materialNearM}m 안 비치 자재 0`,
-      body: `구 관리 취약구간 중 열선도 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다.`,
+      body: `구 관리 취약구간 중 열선도 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다. ${data.gaps.materialNearM}m는 이 화면의 가정입니다(데이터·방법).`,
       n: g.gu.none,
       focus: { layer: "weak" },
     })
@@ -256,7 +256,14 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       owner: "구",
       short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
       title: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${onSlope.length}곳은 지형 추정 급경사와 겹칩니다`,
-      body: `${[...new Set(onSlope.map((w) => w.name.replace(/\(.*\)$/, "").trim()))].join("·")}. 열선 신설 검토 시 우선 확인 대상입니다(추정치).`,
+      body: `${(() => {
+        const cnt = new Map<string, number>()
+        for (const w of onSlope) {
+          const k = w.name.replace(/\(.*\)$/, "").trim()
+          cnt.set(k, (cnt.get(k) ?? 0) + 1)
+        }
+        return [...cnt.entries()].map(([k, n]) => (n > 1 ? `${k} ${n}구간` : k)).join("·")
+      })()}. 열선 신설 검토 시 우선 확인 대상입니다(추정치).`,
       n: onSlope.length,
       focus: { layer: "weak" },
     })

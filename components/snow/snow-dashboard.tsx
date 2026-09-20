@@ -332,8 +332,8 @@ export default function SnowDashboard() {
           setDemoProgress(null)
           setView({ layers: ["heat", "salt", "cacl", "sand", "weak"], tilt: true })
           const b = boundsOf(g.noHeatDongs.map((d) => dongBounds(data, d)).filter((x): x is NonNullable<typeof x> => !!x).map((b) => [[b[0][1], b[0][0]], [b[1][1], b[1][0]]] as [number, number][]))
-          cue({ bounds: b ?? undefined, maxZoom: 14.6, pitch: 55, bearing: 24, duration: 2400 })
-          setOrbit(true)
+          // 방위는 다른 장면과 같게(-18). 장면마다 방향이 돌면 "어디 보는지" 재학습 비용(냉독 지적). 회전은 장면 1만
+          cue({ bounds: b ?? undefined, maxZoom: 14.6, pitch: 55, bearing: -18, duration: 2400 })
         },
       },
       {
@@ -446,7 +446,7 @@ export default function SnowDashboard() {
             <span className="min-w-0">
               <h1 className="truncate text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
-              <span className="dump-kicker mt-1 block truncate text-[10px] text-[var(--cp-text-dim)]">
+              <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
                 {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
               </span>
             </span>
@@ -512,7 +512,7 @@ export default function SnowDashboard() {
             )}
           </div>
           <div key={tab} className={`min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] ${demoOn ? "hidden" : ""}`}>
-            {tab === "gap" && <GapPanel data={data} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
+            {tab === "gap" && <GapPanel data={data} activeLabel={focusLabel} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
             {tab === "stage" && <StagePanel data={data} graph={graph} forecast={forecast} simCm={simCm} onSimCm={setSimCm} stage={stage} useForecast={useForecast} onUseForecast={setUseForecast} inSeason={inSeason} />}
             {tab === "resources" && (
               <ResourcePanel

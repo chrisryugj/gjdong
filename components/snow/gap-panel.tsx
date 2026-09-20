@@ -12,13 +12,15 @@ import { NumRow, StatBand, Table } from "./ui"
 
 interface Props {
   data: SnowMapData | null
+  activeLabel?: string | null // 지도가 보고 있는 구간(행 강조)
   onFocus: (f: Finding["focus"] | null, label?: string) => void
   onSelectSegment: (heatIds: number[] | null, layer: "weak" | "ice", path: [number, number][], label?: string, detail?: string) => void
   onOpenMethods: () => void
 }
 
+// 번호 = 지도 배지와 같은 번호(적설취약구간 i · 결빙 n). 표 행번호와 지도 번호가 따로 놀던 것(냉독 지적)
 const COLS = [
-  { k: "번호", w: "24px", dim: true },
+  { k: "지도 번호", w: "44px", dim: true },
   { k: "구간", w: "minmax(0,1fr)" },
   { k: "동", w: "52px", dim: true },
   { k: "열선까지", w: "58px", align: "right" as const },
@@ -26,18 +28,18 @@ const COLS = [
   { k: "소관", w: "22px", dim: true },
 ]
 
-export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods }: Props) {
+export default function GapPanel({ data, activeLabel, onFocus, onSelectSegment, onOpenMethods }: Props) {
   if (!data) return <div className="p-4"><div className="dump-skel h-24 rounded-xl" /></div>
   const g = gapSummary(data)
   const findings = buildFindings(data)
   const checks = buildChecklist(data)
-  const rows = g.noHeatList.map((s, i) => ({ s, i: i + 1 }))
+  const rows = g.noHeatList.map((s) => ({ s }))
   const first = rows.slice(0, 9)
   const rest = rows.slice(9)
-  const cell = ({ s, i }: { s: SegLike; i: number }, k: string) => {
+  const cell = ({ s }: { s: SegLike }, k: string) => {
     switch (k) {
-      case "번호":
-        return <span className={s.gap ? "font-semibold text-(--dump-accent)" : ""}>{String(i).padStart(2, "0")}</span>
+      case "지도 번호":
+        return <span className={s.gap ? "font-semibold text-(--dump-accent)" : ""}>{s.src === "weak" ? s.i : `결빙 ${s.n}`}</span>
       case "구간":
         return (
           <>
@@ -52,7 +54,7 @@ export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods
       case "자재":
         return s.materialsNear ? `${s.materialsNear}` : <span className="font-semibold text-(--dump-accent)">0</span>
       case "소관":
-        return segOwner(s)
+        return segOwner(s) === "시" ? <span className="rounded bg-[var(--cp-track)] px-1 text-[12px]">시</span> : "구"
       default:
         return null
     }
@@ -70,21 +72,21 @@ export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods
       <StatBand
         items={[
           { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
-          { k: "자재도 없음", v: String(g.gu.none), u: "곳", accent: true },
+          { k: "구 관리 자재도 없음", v: String(g.gu.none), u: "곳", accent: true },
           { k: "시 관리 결빙 둘 다 없음", v: String(g.si.none), u: `/${g.si.total}` },
           { k: "열선 없는 동", v: String(g.noHeatDongs.length), u: "/15" },
         ]}
       />
 
       <SectionHead n="01" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 자재도 없는 구간부터, 구 소관부터`}>
-        열선 없는 구간 {g.noHeat}곳
+        열선 없는 구간 {g.noHeat}곳(구 {g.gu.noHeat} · 시 {g.si.noHeat})
       </SectionHead>
-      <Table cols={COLS} rows={first} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} />
+      <Table cols={COLS} rows={first} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
       {rest.length > 0 && (
         <details className="mt-1.5">
           <summary className="cursor-pointer text-[13px] text-(--dump-accent)">나머지 {rest.length}곳</summary>
           <div className="mt-1">
-            <Table cols={COLS} rows={rest} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} />
+            <Table cols={COLS} rows={rest} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
           </div>
         </details>
       )}

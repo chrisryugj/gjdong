@@ -18,7 +18,7 @@ export const heatFlow = (dark: boolean) => (dark ? HEAT_STYLE.flow.dark : HEAT_S
 export const casingColor = (dark: boolean) => (dark ? RISK_STYLE.casing.dark : RISK_STYLE.casing.light)
 export const badgeColor = (dark: boolean) => (dark ? RISK_STYLE.badge.dark : RISK_STYLE.badge.light)
 // 열선 있는 취약구간은 탁한 색·가늘게, 열선 없는 구간만 진홍(냉독: 채도 차이만으로는 47개 중 13개를 못 찾았다)
-export const weakMuted = (dark: boolean) => (dark ? "#6f4f57" : "#c9a3a8")
+export const weakMuted = (dark: boolean) => (dark ? "#5c646e" : "#b3b9c1") // 회색: 열선 있는 구간은 위험 색을 쓰지 않는다
 export const weakColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get", "status"], "heat"], weakMuted(dark), riskColor(dark)]
 // 점이 구 경계 안인가(ray casting). 선형 미확인 결빙 끝점이 강 건너(청담대교 남단)면 지도에 찍지 않는다
 export function insideRing(ring: [number, number][], p: [number, number]): boolean {

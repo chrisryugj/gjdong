@@ -30,7 +30,7 @@ const LEVER_COLS = [
   { k: "번호", w: "24px", dim: true },
   { k: "자원", w: "minmax(0,1fr)" },
   { k: "수량", w: "minmax(0,1.1fr)", align: "right" as const },
-  { k: "출처", w: "56px", dim: true },
+  { k: "출처", w: "78px", dim: true },
 ]
 
 export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stage, useForecast, onUseForecast, inSeason }: Props) {
@@ -124,7 +124,7 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
             if (k === "번호") return String(r.i).padStart(2, "0")
             if (k === "자원") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.n.label}</span>
             if (k === "수량") return leverCount(r.n.id, data)
-            return r.mapped ? "지도" : "보도자료"
+            return r.mapped ? "지도" : "보도자료 기재분"
           }}
         />
       ) : (
@@ -177,7 +177,7 @@ function leverCount(id: string, data: SnowMapData | null): string {
     case "lev-sprayer":
       return `${data.ops.sprayers}대`
     case "lev-fleet":
-      return `유니목 ${data.ops.unimog} · 덤프 ${data.ops.dump15t}대(보도자료 기재분)`
+      return `유니목 ${data.ops.unimog} · 덤프 ${data.ops.dump15t}대`
     case "lev-staff":
       return `${fmt(data.ops.staff)}명 · ${data.ops.squads}개 반`
     case "lev-owner":

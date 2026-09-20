@@ -111,13 +111,14 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       ],
     },
     // 초등학교: 깃대 + 흰 깃발. 받침 원반이 150m 안 열선 유무(열선색·진홍)
+    // 열선 있는 학교는 깃발도 열선색(받침만으로는 조망에서 15 대 6이 구분되지 않았다)
     school: {
       height: 12,
       maxScale: 24,
       parts: [
         { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
         { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(PAPER), local: at(0, 5.5, 0) },
-        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(PAPER, { emissive: new THREE.Color(PAPER), emissiveIntensity: 0.15 }), local: at(2.1, 9.7, 0) },
+        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.3 }), local: at(2.1, 9.7, 0) },
       ],
     },
     schoolGap: {

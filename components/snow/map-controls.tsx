@@ -30,13 +30,13 @@ export function LayerPanel({ view, onChange, dark, counts }: { view: MapView; on
   const toggle = (id: LayerId) => onChange({ ...view, layers: view.layers.includes(id) ? view.layers.filter((x) => x !== id) : [...view.layers, id] })
   return (
     <div className="p-1.5">
-      <div className="dump-kicker px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">취약 층</div>
+      <div className="dump-kicker px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">취약 정보</div>
       <ul className="space-y-px">
         {RISK_ROWS.map((r) => {
           const on = view.layers.includes(r.id)
           return (
             <li key={r.id}>
-              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)]"}`}>
+              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
                 <Swatch kind={r.swatch} color={rowColor(r.id, dark)} on={on} />
                 <span className="flex-1">{r.label}</span>
                 <span className="text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? r.note}</span>
@@ -45,14 +45,14 @@ export function LayerPanel({ view, onChange, dark, counts }: { view: MapView; on
           )
         })}
       </ul>
-      <div className="dump-kicker mt-2 px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">자원 층</div>
+      <div className="dump-kicker mt-2 px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">자원 정보</div>
       <ul className="space-y-px">
         {RESOURCES.map((r) => {
           const on = view.layers.includes(r.id)
           const color = dark ? r.color : r.colorLight
           return (
             <li key={r.id}>
-              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)]"}`}>
+              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
                 <Swatch kind={r.id === "heat" ? "glow" : r.id === "sand" ? "ring" : "fill"} color={color} on={on} />
                 <span className="flex-1">{r.id === "sand" ? "모래주머니(2022)" : r.label}</span>
                 <span className="text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? ""}</span>
@@ -77,7 +77,7 @@ function Swatch({ kind, color, on }: { kind: "line" | "dash" | "dot" | "ring" | 
   if (kind === "glow") return <i className="h-1 w-4 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}`, opacity: o }} />
   return (
     <svg width={16} height={10} aria-hidden style={{ opacity: o }} className="shrink-0">
-      <line x1={1} y1={5} x2={15} y2={5} stroke={color} strokeWidth={kind === "dot" ? 1.5 : 3} strokeLinecap="round" strokeDasharray={kind === "dash" ? "5 2" : kind === "dot" ? "1.5 2.5" : undefined} />
+      <line x1={1} y1={5} x2={15} y2={5} stroke={color} strokeWidth={kind === "dot" ? 2.4 : 3} strokeLinecap="round" strokeDasharray={kind === "dash" ? "5 2" : kind === "dot" ? "1.5 2.5" : undefined} />
     </svg>
   )
 }
@@ -95,7 +95,7 @@ export function Legend({ dark, stageLabel, stageNote }: { dark: boolean; stageLa
         <li className="flex items-center gap-2"><Swatch kind="dash" color={risk} on /> 결빙구간 · 빈 원은 선형 미확인</li>
         <li className="flex items-center gap-2"><Swatch kind="dot" color={slope} on /> 급경사 추정 · 흐리면 열선 있음</li>
         <li className="flex items-center gap-2"><Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on /> 제설함 · <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on /> 염화칼슘함</li>
-        <li className="flex items-center gap-2"><Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on /> 모래주머니 · <Swatch kind="ring" color={dark ? "#ece7dc" : "#14201c"} on /> 초등학교(입체: 깃발, 받침 진홍 = 열선 없음)</li>
+        <li className="flex items-center gap-2"><Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on /> 모래주머니 · <Swatch kind="ring" color={dark ? "#ece7dc" : "#14201c"} on /> 초등학교(입체 깃발: 흰 = 열선 없음, 노랑 = 있음)</li>
       </ul>
       {stageNote && (
         <p className="mt-1.5 text-[var(--cp-text)]">

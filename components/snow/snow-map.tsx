@@ -410,7 +410,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setPaintProperty(S.cacl, "circle-stroke-opacity", dimMat)
     map.setPaintProperty(S.sand, "circle-opacity", 0.92 * dimMat)
     map.setPaintProperty(S.sand, "circle-stroke-opacity", dimMat)
-    const saltBoost = st === "stage-2" || st === "stage-3" ? 1.6 : 1
+    const saltBoost = st === "stage-2" || st === "stage-3" ? 2.2 : 1 // 2단계 간선 제설함 확대(조망에서도 보이게 2.2배)
     map.setPaintProperty(S.salt, "circle-radius", ["interpolate", ["linear"], ["zoom"], 12, 2 * saltBoost, 13.5, 3.2 * saltBoost, 15, 7 * saltBoost])
     // 3단계 열선 없는 동 외곽은 종이/잉크색 굵은 선(진홍은 취약구간 색이라 겹치면 안 읽힌다. 냉독 지적)
     const noHeatStroke = st === "stage-3" ? (dark ? "#ece7dc" : "#14201c") : dark ? "#6b7f8e" : "#64748b"
