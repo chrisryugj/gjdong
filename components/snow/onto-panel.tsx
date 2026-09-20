@@ -49,7 +49,7 @@ export default function OntoPanel({ graph, selectedId, onSelect, onOpenMethods }
         {claims.map((c, i) => {
           const sup = graph.edges.filter((e) => e.rel === "supports" && e.t === c.id).length
           const on = selectedId === c.id
-          return <NumRow key={c.id} n={i + 1} big={String(sup)} unit="관측" title={c.label} body={String(c.props.gist ?? "")} active={on} onClick={() => onSelect(on ? null : c.id)} />
+          return <NumRow key={c.id} n={i + 1} title={c.label} body={`${String(c.props.gist ?? "")} 뒷받침 관측 ${sup}건.`} active={on} onClick={() => onSelect(on ? null : c.id)} />
         })}
       </div>
 

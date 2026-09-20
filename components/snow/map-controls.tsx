@@ -95,7 +95,7 @@ export function Legend({ dark, stageLabel, stageNote }: { dark: boolean; stageLa
         <li className="flex items-center gap-2"><Swatch kind="dash" color={risk} on /> 결빙구간 · 빈 원은 선형 미확인</li>
         <li className="flex items-center gap-2"><Swatch kind="dot" color={slope} on /> 급경사 추정 · 흐리면 열선 있음</li>
         <li className="flex items-center gap-2"><Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on /> 제설함 · <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on /> 염화칼슘함</li>
-        <li className="flex items-center gap-2"><Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on /> 모래주머니 · <Swatch kind="ring" color={dark ? "#ece7dc" : "#14201c"} on /> 초등학교</li>
+        <li className="flex items-center gap-2"><Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on /> 모래주머니 · <Swatch kind="ring" color={dark ? "#ece7dc" : "#14201c"} on /> 초등학교(입체: 깃발, 받침 진홍 = 열선 없음)</li>
       </ul>
       {stageNote && (
         <p className="mt-1.5 text-[var(--cp-text)]">

@@ -5,7 +5,7 @@
 
 export function StatBand({ items }: { items: { k: string; v: string; u?: string; accent?: boolean }[] }) {
   return (
-    <dl className="mt-3 grid grid-cols-4 border-y border-[var(--cp-border)]">
+    <dl className="mt-3 grid grid-cols-2 gap-y-1 border-y border-[var(--cp-border)] md:grid-cols-4 md:gap-y-0">
       {items.map((it) => (
         <div key={it.k} className="py-2 pr-2">
           <dt className="dump-kicker text-[9.5px] leading-tight text-[var(--cp-text-dim)]">{it.k}</dt>

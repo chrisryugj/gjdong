@@ -34,6 +34,7 @@ import {
   segMid,
   slopeColor,
   slopeFC,
+  weakColorExpr,
   weakFC,
   weakLabelFC,
 } from "./map-geo"
@@ -411,7 +412,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setPaintProperty(S.sand, "circle-stroke-opacity", dimMat)
     const saltBoost = st === "stage-2" || st === "stage-3" ? 1.6 : 1
     map.setPaintProperty(S.salt, "circle-radius", ["interpolate", ["linear"], ["zoom"], 12, 2 * saltBoost, 13.5, 3.2 * saltBoost, 15, 7 * saltBoost])
-    const noHeatStroke = st === "stage-3" ? riskColor(dark) : dark ? "#6b7f8e" : "#64748b"
+    // 3단계 열선 없는 동 외곽은 종이/잉크색 굵은 선(진홍은 취약구간 색이라 겹치면 안 읽힌다. 냉독 지적)
+    const noHeatStroke = st === "stage-3" ? (dark ? "#ece7dc" : "#14201c") : dark ? "#6b7f8e" : "#64748b"
     map.setPaintProperty(S.dongLine, "line-color", ["case", ["==", ["get", "noHeat"], 1], noHeatStroke, dark ? "#6b7f8e" : "#64748b"])
     map.setPaintProperty(S.dongLine, "line-width", ["case", ["==", ["get", "name"], selectedDong ?? ""], 3, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 3, 1])
     map.setPaintProperty(S.dongLine, "line-opacity", ["case", ["==", ["get", "name"], selectedDong ?? ""], 1, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 0.95, 0.55])
@@ -423,11 +425,12 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     }
   }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady])
 
-  // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다
+  // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다.
+  // 동별 기둥 모드(colMetric)에서는 자재·학교·열선 핀을 내린다(기둥+배지+핀이 겹쳐 과밀. 냉독 지적). 2D 원은 그대로
   useEffect(() => {
     const icons = iconsRef.current
     if (!icons || !ready || !data) return
-    const on = (l: LayerId) => layers.includes(l)
+    const on = (l: LayerId) => layers.includes(l) && !colMetric
     const P = (lat: number, lng: number, extra: Partial<IconPoint> = {}): IconPoint => ({ lng, lat, ...extra })
     icons.setPoints("salt", on("salt") ? data.salt.map((s) => P(s.lat, s.lng)) : [])
     icons.setPoints("cacl", on("cacl") ? data.cacl.map((c) => P(c.lat, c.lng)) : [])
@@ -437,11 +440,11 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     icons.setPoints("schoolGap", on("school") ? data.schools.filter((s) => !s.heatNear.length).map((s) => P(s.lat, s.lng)) : [])
     icons.setPoints("heat", on("heat") ? data.heat.map((h) => P(...segMid(h.path))) : [])
     icons.setPoints("iceEnd", on("ice") ? iceEndsFC(data).features.map((f) => P((f.geometry as GeoJSON.Point).coordinates[1], (f.geometry as GeoJSON.Point).coordinates[0])) : [])
-    icons.setPoints("weakBadge", on("weak") ? data.weak.filter((w) => !w.heatCovered).map((w) => P(...segMid(w.path), { rank: w.i })) : [])
+    icons.setPoints("weakBadge", layers.includes("weak") ? data.weak.filter((w) => !w.heatCovered).map((w) => P(...segMid(w.path), { rank: w.i })) : [])
     // 결빙: 선이 있는 행은 가운데, 선형 미확인 행은 제 끝점(앞 행과 공유하지 않는 쪽)
     icons.setPoints(
       "iceBadge",
-      on("ice")
+      layers.includes("ice")
         ? data.ice.map((s, i) => {
             if (s.method !== "points") return P(...segMid(s.path), { rank: i + 1 })
             const prev = data.ice[i - 1]
@@ -450,7 +453,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
           })
         : [],
     )
-  }, [ready, styleSeq, data, layers, iconsReady])
+  }, [ready, styleSeq, data, layers, iconsReady, colMetric])
 
   // 열선 강조(취약구간·학교에서 고른 열선만 진하게, 나머지 흐리게)
   useEffect(() => {
@@ -602,8 +605,9 @@ function declareLayers(map: MlMap) {
   map.addLayer({ id: S.slopeCase, type: "line", source: S.slope, layout: round, paint: { "line-color": casing, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 5, 15, 7.5], "line-opacity": ["case", ["==", ["get", "heat"], 1], 0.25, 0.7] } })
   map.addLayer({ id: S.slope, type: "line", source: S.slope, layout: { "line-cap": "round" }, paint: { "line-color": slope, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2.5, 15, 4], "line-opacity": ["case", ["==", ["get", "heat"], 1], 0.35, 0.95], "line-dasharray": [1, 1.6] } })
   // 취약 층(진홍). 취약구간은 굵은 실선, 결빙구간은 더 굵은 점선. 아래에 어두운 케이싱(폭+2.5)을 깔아 도로 위에서 뜨게
-  map.addLayer({ id: S.weakCase, type: "line", source: S.weak, layout: round, paint: { "line-color": casing, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 5.5, 15, 7.5], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.3, 0.8] } })
-  map.addLayer({ id: S.weak, type: "line", source: S.weak, layout: round, paint: { "line-color": risk, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 3, 15, 5], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.38, 0.95] } })
+  // 열선 있는 구간(status=heat)은 케이싱 없이 탁한 색·가늘게. 열선 없는 구간만 진홍+케이싱
+  map.addLayer({ id: S.weakCase, type: "line", source: S.weak, layout: round, paint: { "line-color": casing, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 5.5, 15, 7.5], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0, 0.8] } })
+  map.addLayer({ id: S.weak, type: "line", source: S.weak, layout: round, paint: { "line-color": weakColorExpr(dark) as maplibregl.ExpressionSpecification, "line-width": ["interpolate", ["linear"], ["zoom"], 12, ["case", ["==", ["get", "status"], "heat"], 1.6, 3], 15, ["case", ["==", ["get", "status"], "heat"], 2.6, 5]], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.7, 0.95] } })
   map.addLayer({ id: S.iceCase, type: "line", source: S.ice, layout: round, paint: { "line-color": casing, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 6.5, 15, 9.5], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.3, 0.8] } })
   map.addLayer({ id: S.ice, type: "line", source: S.ice, layout: round, paint: { "line-color": risk, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 4, 15, 7], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.45, 0.9], "line-dasharray": [3, 1.2] } })
   // 선형 미확인 결빙구간 끝점(선 없음): 진홍 테두리 빈 원
@@ -679,7 +683,8 @@ function applyTheme(map: MlMap, theme: BasemapTheme) {
   map.setPaintProperty(S.ring, "line-color", dark ? "#6b7f8e" : "#64748b")
   const risk = riskColor(dark)
   const casing = casingColor(dark)
-  for (const id of [S.weak, S.ice]) map.setPaintProperty(id, "line-color", risk)
+  map.setPaintProperty(S.weak, "line-color", weakColorExpr(dark) as maplibregl.ExpressionSpecification)
+  map.setPaintProperty(S.ice, "line-color", risk)
   for (const id of [S.weakCase, S.iceCase, S.slopeCase]) map.setPaintProperty(id, "line-color", casing)
   map.setPaintProperty(S.slope, "line-color", slopeColor(dark))
   map.setPaintProperty(S.iceEnds, "circle-stroke-color", risk)

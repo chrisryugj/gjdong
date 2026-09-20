@@ -149,10 +149,11 @@ export function buildFindings(data: SnowMapData): Finding[] {
     {
       id: "f-gap",
       kicker: "공백 · 구 관리",
-      title: `구 관리 취약구간 ${g.gu.total}곳 중 ${g.gu.noHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다.`,
-      body: `${data.gaps.materialNearM}m 안에 비치 자재도 없는 곳은 ${g.gu.none}곳${g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다.`,
-      n: String(g.gu.noHeat),
-      unit: `/${g.gu.total}곳`,
+      // 분모는 행안부 적설취약구간 47(근거 그래프 판단과 같은 수). 구가 관리하는 결빙구간 3곳은 열선이 있어 13곳은 전부 적설취약구간이다(냉독: 50·47 두 분모가 독자를 세웠다)
+      title: `적설취약구간 ${t.weak}곳 중 ${g.weakNoHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다.`,
+      body: `${data.gaps.materialNearM}m 안에 비치 자재도 없는 곳은 ${g.gu.none}곳${g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 구가 관리하는 결빙구간 ${g.gu.total - t.weak}곳은 열선이 있습니다.`,
+      n: String(g.weakNoHeat),
+      unit: `/${t.weak}곳`,
       kind: "gap",
       focus: { layer: "weak" },
     },
@@ -211,7 +212,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       kicker: "데이터",
       // 3라운드 정정: "2025년 설치 23구간"과 "구 파일에 없는 구간"은 다른 수. 조인 안 된 행이 정답(냉독이 14·23 불일치를 잡았다)
       title: `서울시 집계(2026.5) 열선 ${t.heatSeg}구간 중 ${t.heatSeg - data.meta.heatJoin.guMatched}구간은 구 공개 파일(2025.1)에 없습니다.`,
-      body: `2025년 설치 ${t.heat2025}구간이 서울시 집계에 새로 있습니다. 지도는 서울시 집계를 정본으로 쓰고 노선명·차로수는 구 파일과 맞은 ${data.meta.heatJoin.guMatched}구간에서 보충했습니다.`,
+      body: `구 파일 ${data.meta.heatJoin.guRows}행 중 ${data.meta.heatJoin.guMatched}행이 서울시 집계와 맞습니다(${t.heatSeg} 빼기 ${data.meta.heatJoin.guMatched}). 2025년 설치 ${t.heat2025}구간이 서울시 집계에 새로 있습니다. 지도는 서울시 집계를 정본으로 씁니다.`,
       n: String(t.heatSeg - data.meta.heatJoin.guMatched),
       unit: `/${t.heatSeg}구간`,
       kind: "limit",
@@ -223,7 +224,8 @@ export function buildFindings(data: SnowMapData): Finding[] {
 // ─── 눈 오기 전 점검 후보(보고받는 사람 관점, 3라운드). 데이터가 가리키는 후보를 소관과 함께 늘어놓는다. 판단·우선순위는 담당 부서 몫이라 문장은 사실만 ───
 export interface CheckItem {
   id: string
-  owner: "구" | "시" | "동"
+  owner: "구" | "시" | "동" | "학교"
+  short: string // 시연 캡션·칩용 짧은 이름
   title: string
   body: string
   n: number
@@ -242,8 +244,9 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-material",
       owner: "구",
+      short: `${g.gu.noneNames.join("·")} 자재 비치`,
       title: `${g.gu.noneNames.join("·")}: ${data.gaps.materialNearM}m 안 비치 자재 0`,
-      body: `구 관리 취약구간 중 열선도 자재도 없는 유일한 구간입니다. 가장 가까운 제설함 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m.`,
+      body: `구 관리 취약구간 중 열선도 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다.`,
       n: g.gu.none,
       focus: { layer: "weak" },
     })
@@ -251,8 +254,9 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-slope",
       owner: "구",
-      title: `열선 없는 구 관리 구간 ${g.gu.noHeat}곳 중 ${onSlope.length}곳은 지형 추정 급경사와 겹칩니다`,
-      body: `${onSlope.map((w) => w.name.replace(/\(.*\)$/, "")).join("·")}. 열선 신설 검토 시 우선 확인 대상입니다(추정치).`,
+      short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
+      title: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${onSlope.length}곳은 지형 추정 급경사와 겹칩니다`,
+      body: `${[...new Set(onSlope.map((w) => w.name.replace(/\(.*\)$/, "").trim()))].join("·")}. 열선 신설 검토 시 우선 확인 대상입니다(추정치).`,
       n: onSlope.length,
       focus: { layer: "weak" },
     })
@@ -260,6 +264,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-seoul",
       owner: "시",
+      short: `시 관리 결빙 ${siNone.length}곳 관리청 확인`,
       title: `서울시 관리 결빙구간 ${siNone.length}곳은 구 자재로 대응하지 않습니다`,
       body: `관리청 ${agencies.join("·")}. 제설 계획·장비 살포 현황은 구 데이터에 없어 관리청 확인이 필요합니다.`,
       n: siNone.length,
@@ -268,6 +273,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
   out.push({
     id: "c-dong",
     owner: "동",
+    short: `열선 없는 동 ${g.noHeatDongs.length}곳`,
     title: `열선 없는 동 ${g.noHeatDongs.length}곳은 비치 자재로만 첫 결빙에 대응합니다`,
     body: `${g.noHeatDongs.join("·")}. 이 동들의 비치 자재 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.salt + d.cacl + d.sand, 0)}개소, 적설취약구간 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳.`,
     n: g.noHeatDongs.length,
@@ -276,7 +282,8 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
   if (schoolsGap.length)
     out.push({
       id: "c-school",
-      owner: "동",
+      owner: "학교",
+      short: `열선 없는 초등학교 ${schoolsGap.length}교`,
       title: `초등학교 ${schoolsGap.length}교는 ${data.gaps.schoolNearM}m 안에 열선이 없습니다`,
       body: schoolsWeak.length ? `그중 ${schoolsWeak.map((s) => s.name.replace(/^서울/, "")).join("·")}은 ${data.gaps.schoolNearM}m 안에 행안부 취약구간도 있습니다.` : "취약구간과 겹치는 학교는 없습니다.",
       n: schoolsGap.length,

@@ -1346,6 +1346,8 @@
   --cp-overlay: rgba(11, 22, 34, 0.9);
   --cp-panel2: #14212e;
 }
+/* 근거 그래프 탭은 지도를 내리고 그래프만 남는다. 지도 컨테이너의 밝은 바탕(.dumping-map #e8ebe6)이 다크에서 그대로 보이던 것(냉독 지적) */
+:root[data-theme="dark"] .snow-page .dumping-map { background: #0b1622; }
 /* 카드 불투명: 다이얼과 무관하게 고정 */
 .dump-page.snow-page .lg-inner, .lg-on .dump-page.snow-page .lg-inner { background: rgba(251, 249, 243, 0.96); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 :root[data-theme="dark"] .dump-page.snow-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page.snow-page .lg-inner { background: rgba(15, 26, 38, 0.96); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }

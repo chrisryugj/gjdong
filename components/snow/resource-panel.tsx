@@ -72,7 +72,7 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
         }}
       />
 
-      <SectionHead n="02" sub="지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치에 섭니다. 동 이름을 누르면 지도가 그 동을 보여 줍니다">
+      <SectionHead n="02" sub={`지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치에 섭니다. 동 이름을 누르면 지도가 그 동을 보여 줍니다${data.meta.saltNoDong ? `. 구 경계선 위 제설함 ${data.meta.saltNoDong}개소는 동에 넣지 않았습니다(동별 합 ${fmt(t.materials - data.meta.saltNoDong)}개소)` : ""}`}>
         동별 배치
       </SectionHead>
       <div className="mb-2 flex flex-wrap gap-1">

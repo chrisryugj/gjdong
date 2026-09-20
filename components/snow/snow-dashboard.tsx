@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { LayerId, OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
 import { inSnowSeason, stageForSnow, type StageId } from "@/lib/snow/stage"
-import { buildFindings, gapSummary, heatTopDongs, totals, type Finding } from "@/lib/snow/facts"
+import { buildChecklist, gapSummary, heatTopDongs, totals, type Finding } from "@/lib/snow/facts"
 import SnowMap, { type CameraCue, type StageView } from "./snow-map"
 import OntoGraphView from "./onto-graph"
 import GapPanel from "./gap-panel"
@@ -238,13 +238,13 @@ export default function SnowDashboard() {
     const g = gapSummary(data)
     const t = totals(data)
     const top = heatTopDongs(data)
-    const findings = buildFindings(data)
+    const checks = buildChecklist(data)
     const later = (ms: number, fn: () => void) => demoTimers.current.push(window.setTimeout(fn, ms))
     const noHeatWeak = data.weak.filter((w) => !w.heatCovered)
     return [
       {
         title: "공백",
-        caption: `구 관리 취약구간 ${g.gu.total}곳 중 ${g.gu.noHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 비치 자재도 없는 곳은 ${g.gu.none}곳입니다.`,
+        caption: `적설취약구간 ${t.weak}곳 중 ${g.weakNoHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 비치 자재도 없는 곳은 ${g.gu.none}곳입니다. 진한 선이 열선 없는 구간입니다.`,
         note: `서울시 관리 결빙구간 ${g.si.total}곳 중 ${g.si.none}곳은 열선도 자재도 없음(시 소관) · 행안부 적설취약구간 ${t.weak}곳 · 상습결빙구간 ${t.ice}곳 · 자원 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`,
         apply: () => {
           setTab("gap")
@@ -263,8 +263,8 @@ export default function SnowDashboard() {
       },
       {
         title: "열선",
-        caption: `열선 ${t.heatSeg}구간 중 ${top.reduce((s, d) => s + d.heatSeg, 0)}구간이 ${top.map((d) => d.d).join("·")}에 있습니다. 밤 지도에서 흐르는 선이 열선입니다.`,
-        note: `서울시 집계 2026-05 · 1차로 기준 ${t.heatM.toLocaleString("ko-KR")}m · 2025년 설치 ${t.heat2025}구간`,
+        caption: `열선 ${t.heatSeg}구간 중 ${top.reduce((s, d) => s + d.heatSeg, 0)}구간이 ${top.map((d) => d.d).join("·")}에 있습니다. 동별 기둥 높이가 구간 수입니다.`,
+        note: `서울시 집계 2026-05 · 1차로 기준 ${t.heatM.toLocaleString("ko-KR")}m · 2025년 설치 ${t.heat2025}구간 · 확대하면 노란 점이 흐르는 선으로 바뀝니다`,
         apply: () => {
           setTab("resources")
           setDemoStage(null)
@@ -337,11 +337,11 @@ export default function SnowDashboard() {
         },
       },
       {
-        title: "조례 시한",
-        caption: "눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치워야 합니다. 조례 제5조입니다.",
-        note: `${findings.find((f) => f.id === "f-update")?.title ?? ""} 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다.`,
+        title: "점검 후보",
+        caption: `눈 오기 전 점검 후보 ${checks.length}: ${checks.map((c) => c.short).join(" · ")}.`,
+        note: `조치 여부와 순서는 담당 부서가 정합니다 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
         apply: () => {
-          setTab("law")
+          setTab("gap")
           setDemoStage(null)
           setColMetric(null)
           setFocusHeat(null)

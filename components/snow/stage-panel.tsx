@@ -177,7 +177,7 @@ function leverCount(id: string, data: SnowMapData | null): string {
     case "lev-sprayer":
       return `${data.ops.sprayers}대`
     case "lev-fleet":
-      return `유니목 ${data.ops.unimog} · 덤프 ${data.ops.dump15t}대`
+      return `유니목 ${data.ops.unimog} · 덤프 ${data.ops.dump15t}대(보도자료 기재분)`
     case "lev-staff":
       return `${fmt(data.ops.staff)}명 · ${data.ops.squads}개 반`
     case "lev-owner":

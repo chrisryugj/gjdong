@@ -21,7 +21,7 @@ const COLS = [
   { k: "번호", w: "24px", dim: true },
   { k: "구간", w: "minmax(0,1fr)" },
   { k: "동", w: "52px", dim: true },
-  { k: "열선", w: "50px", align: "right" as const },
+  { k: "열선까지", w: "58px", align: "right" as const },
   { k: "자재", w: "40px", align: "right" as const },
   { k: "소관", w: "22px", dim: true },
 ]
@@ -46,8 +46,8 @@ export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods
           </>
         )
       case "동":
-        return s.d ? s.d.replace(/동$/, "") : "미판정"
-      case "열선":
+        return s.d ? s.d.replace(/동$/, "") : "—"
+      case "열선까지":
         return s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`
       case "자재":
         return s.materialsNear ? `${s.materialsNear}` : <span className="font-semibold text-(--dump-accent)">0</span>
@@ -57,26 +57,26 @@ export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods
         return null
     }
   }
-  const pick = ({ s }: { s: SegLike }) => onSelectSegment(s.heatIds, s.src, s.path, segName(s), `${segType(s)} · ${s.d ?? "동 미판정"} · 열선 ${s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`} · 자재 ${s.materialsNear ? `${s.materialsNear}개소` : "없음"} · ${segOwner(s)} 소관`)
+  const pick = ({ s }: { s: SegLike }) => onSelectSegment(s.heatIds, s.src, s.path, segName(s), `${segType(s)} · ${s.d ?? "구 경계선 밖"} · 가장 가까운 열선 ${s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`} · ${data.gaps.materialNearM}m 안 자재 ${s.materialsNear ? `${s.materialsNear}개소` : "없음"} · ${segOwner(s)} 소관`)
 
   return (
     <div className="px-4 pb-4 pt-3">
       <p className="dump-headline text-[21px] leading-[1.42] text-[var(--cp-text-strong)]">
-        구 관리 취약구간 {g.gu.total}곳 중 {g.gu.noHeat}곳에 열선이 없습니다.
+        적설취약구간 {data.weak.length}곳 중 {g.weakNoHeat}곳에 열선이 없습니다.
       </p>
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
         비치 자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 서울시 관리 결빙구간 {g.si.total}곳 중 {g.si.none}곳은 열선도 자재도 없습니다.
       </p>
       <StatBand
         items={[
-          { k: "구 관리 열선 없음", v: String(g.gu.noHeat), u: `/${g.gu.total}` },
-          { k: "구 관리 자재도 없음", v: String(g.gu.none), u: "곳", accent: true },
-          { k: "시 관리 둘 다 없음", v: String(g.si.none), u: `/${g.si.total}` },
+          { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
+          { k: "자재도 없음", v: String(g.gu.none), u: "곳", accent: true },
+          { k: "시 관리 결빙 둘 다 없음", v: String(g.si.none), u: `/${g.si.total}` },
           { k: "열선 없는 동", v: String(g.noHeatDongs.length), u: "/15" },
         ]}
       />
 
-      <SectionHead n="01" sub={`구 관리 ${g.gu.total}곳 = 행안부 적설취약구간 ${data.weak.length}곳 + 구가 관리하는 결빙구간 ${g.gu.total - data.weak.length}곳. 시 관리 결빙구간 ${g.si.total}곳. ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 자재도 없는 구간부터, 구 소관부터`}>
+      <SectionHead n="01" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 자재도 없는 구간부터, 구 소관부터`}>
         열선 없는 구간 {g.noHeat}곳
       </SectionHead>
       <Table cols={COLS} rows={first} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} />
@@ -88,14 +88,14 @@ export default function GapPanel({ data, onFocus, onSelectSegment, onOpenMethods
           </div>
         </details>
       )}
-      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">열선 = 가장 가까운 열선까지 거리 · 자재 = {data.gaps.materialNearM}m 안 비치 자재 개소 · 소관 = 관리청(구·시)</p>
+      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">열선까지 = 가장 가까운 열선까지 거리 · 자재 = {data.gaps.materialNearM}m 안 비치 자재 개소 · 소관 = 관리청(구·시) · 동 — = 구 경계선 밖(강 위 램프)</p>
 
       <SectionHead n="02" sub="데이터가 가리키는 후보와 소관. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도">
         눈 오기 전 점검 후보 {checks.length}
       </SectionHead>
       <div>
         {checks.map((c, i) => (
-          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : "동 단위"} title={c.title} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.title.split(/[:은는]/)[0])} />
+          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동"} title={c.title} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
         ))}
       </div>
 

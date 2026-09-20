@@ -17,6 +17,19 @@ export const heatGlow = (dark: boolean) => (dark ? HEAT_STYLE.glow.dark : HEAT_S
 export const heatFlow = (dark: boolean) => (dark ? HEAT_STYLE.flow.dark : HEAT_STYLE.flow.light)
 export const casingColor = (dark: boolean) => (dark ? RISK_STYLE.casing.dark : RISK_STYLE.casing.light)
 export const badgeColor = (dark: boolean) => (dark ? RISK_STYLE.badge.dark : RISK_STYLE.badge.light)
+// 열선 있는 취약구간은 탁한 색·가늘게, 열선 없는 구간만 진홍(냉독: 채도 차이만으로는 47개 중 13개를 못 찾았다)
+export const weakMuted = (dark: boolean) => (dark ? "#6f4f57" : "#c9a3a8")
+export const weakColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get", "status"], "heat"], weakMuted(dark), riskColor(dark)]
+// 점이 구 경계 안인가(ray casting). 선형 미확인 결빙 끝점이 강 건너(청담대교 남단)면 지도에 찍지 않는다
+export function insideRing(ring: [number, number][], p: [number, number]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, xi] = ring[i]
+    const [yj, xj] = ring[j]
+    if (yi > p[0] !== yj > p[0] && p[1] < ((xj - xi) * (p[0] - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c)
 
 // 카드형 툴팁: 꼬리표 · 제목 · 행(라벨·값) · 각주. 12px 이하 금지(CSS .snow-tip)
@@ -168,6 +181,7 @@ export function iceEndsFC(data: SnowMapData): FC {
       const key = `${p[0].toFixed(5)},${p[1].toFixed(5)}`
       if (seen.has(key)) continue
       seen.add(key)
+      if (!insideRing(data.ring, p)) continue // 구 밖(강 건너) 끝점은 표시하지 않는다. 툴팁 각주가 말한다
       out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), kind: "ice", tip: tip("상습결빙구간 · 선형 미확인", `${s.road} ${s.km}km · ${k}`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")]], "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없어 두 끝점만 표시합니다") }, geometry: { type: "Point", coordinates: ll(p) } })
     }
   })
