@@ -12,7 +12,7 @@ import { Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
 import digitFont from "@/components/dumping/digit-font.json"
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
-import { RESOURCES, RISK } from "@/lib/snow/labels"
+import { RESOURCES, RISK, RISK_STYLE } from "@/lib/snow/labels"
 
 export type IconKind = "salt" | "cacl" | "sand" | "sandCenter" | "school" | "schoolGap" | "heat" | "iceEnd" | "weakBadge" | "iceBadge" | "dongRank"
 export interface IconPoint {
@@ -188,7 +188,7 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       parts: [{ geom: new THREE.TorusGeometry(2.6, 0.8, 8, 24).rotateX(Math.PI / 2), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.35 }), local: at(0, 0.9, 0) }],
     },
     // 입체 숫자만(모델 없음)
-    weakBadge: { height: 1, maxScale: 1, parts: [], showFromZoom: 13.6 },
+    weakBadge: { height: 1, maxScale: 1, parts: [], showFromZoom: 12.8 }, // 조망(13.2)에서도 번호가 보이게(표↔지도 번호가 첫 화면에서 끊기던 냉독)
     iceBadge: { height: 1, maxScale: 1, parts: [] },
     dongRank: { height: 1, maxScale: 1, parts: [] },
   }
@@ -225,7 +225,7 @@ function chevronGeometry(): THREE.BufferGeometry {
   s.lineTo(0.4, 0)
   s.lineTo(-3.6, 3.2)
   s.closePath()
-  const g = new THREE.ExtrudeGeometry(s, { depth: 0.9, bevelEnabled: false })
+  const g = new THREE.ExtrudeGeometry(s, { depth: 2.2, bevelEnabled: false }) // 두께 2.2m: 납작하면 기울인 시점에서 평면 글리프로 읽혔다(냉독 5차)
   g.rotateX(-Math.PI / 2) // 도형 평면(XY)을 땅(XZ)에 눕히고 두께가 위(+y)로
   return g
 }
@@ -238,7 +238,7 @@ interface Ramp {
   first: number // 화살 인스턴스 시작 번호
   slots: number
 }
-const SEG_WALL_PX = 12 // 구간 벽 화면 높이
+const SEG_WALL_PX = 18 // 구간 벽 화면 높이(냉독 5차: 조망에서 자재 핀보다 먼저 보여야 한다)
 const SNOW_MAX = 2400
 const SNOW_RADIUS_PX = 700 // 화면 중심에서 눈이 내리는 반경(px)
 const SNOW_HEIGHT_PX = 420 // 눈이 시작하는 높이(px)
@@ -295,7 +295,7 @@ function makeDigit(text: string, color: string, dark: boolean): THREE.Group {
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 120m 안
 const SEG_DIGIT_M = 14 // 구간 번호 숫자 높이(m). 확대하면 이면도로 폭 언저리
-const DIGIT_MIN_PX = 13 // 조망에서 읽히는 최소 높이(px). 동별 순위는 더 크게
+const DIGIT_MIN_PX = 16 // 조망에서 읽히는 최소 높이(px). 동별 순위는 더 크게
 const DONG_DIGIT_MIN_PX = 20
 
 export class SnowIcons3DLayer implements CustomLayerInterface {
@@ -753,7 +753,8 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     })
     const digits: THREE.Group[] = []
     if (kind === "weakBadge" || kind === "iceBadge" || kind === "dongRank") {
-      const risk = this.dark ? RISK.weak.color : RISK.weak.colorLight
+      // 숫자는 벽(진홍) 위에 서므로 벽보다 밝게(다크)·진하게(라이트) 둔다
+      const risk = this.dark ? "#ff8a8e" : RISK_STYLE.badge.light
       points.forEach((p, i) => {
         const d = makeDigit(String(p.rank ?? i + 1), p.color ?? risk, this.dark)
         digits.push(d)

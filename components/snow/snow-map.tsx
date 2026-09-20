@@ -162,6 +162,8 @@ interface SnowMapProps {
   planned?: number[] // 열선 예산 역산으로 신설이 정해진 취약구간 번호(호박색 벽·선)
   snowCm?: number // 시나리오·예보 적설(cm). 대응 단계 탭·시연 장면 3에서 눈이 내린다(0이면 없음)
   dimMaterials?: boolean // 공백 탭: 자재 핀을 흐리게(383개 핀에 공백 벽 19곳이 묻히던 냉독)
+  noHeatDongs?: boolean // 열선 없는 동 외곽 강조(3단계와 시연 장면 4. 장면 4가 3단계를 빌려 쓰면 범례 단계 줄이 어긋났다)
+  focusRadius?: number // 초점 고리 반지름(m). 구간=자재 기준 100m, 학교=150m
   theme: BasemapTheme
   resetSeq: number
   cameraCue?: CameraCue | null
@@ -170,7 +172,7 @@ interface SnowMapProps {
   onOrbitStop?: () => void
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, dimMaterials = false, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -449,17 +451,18 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const saltBoost3D = st === "stage-2" || st === "stage-3" ? 1.6 : 1 // 3D 상자는 4라운드부터 조망 7px라 1.6배면 읽힌다(2.2배는 110개 상자가 지도를 덮었다)
     map.setPaintProperty(S.salt, "circle-radius", ["interpolate", ["linear"], ["zoom"], 12, 2 * saltBoost, 13.5, 3.2 * saltBoost, 15, 7 * saltBoost])
     // 3단계 열선 없는 동 외곽은 종이/잉크색 굵은 선(진홍은 취약구간 색이라 겹치면 안 읽힌다. 냉독 지적)
-    const noHeatStroke = st === "stage-3" ? (dark ? "#ece7dc" : "#14201c") : dark ? "#6b7f8e" : "#64748b"
+    const emph = st === "stage-3" || noHeatDongs
+    const noHeatStroke = emph ? (dark ? "#ece7dc" : "#14201c") : dark ? "#6b7f8e" : "#64748b"
     map.setPaintProperty(S.dongLine, "line-color", ["case", ["==", ["get", "noHeat"], 1], noHeatStroke, dark ? "#6b7f8e" : "#64748b"])
-    map.setPaintProperty(S.dongLine, "line-width", ["case", ["==", ["get", "name"], selectedDong ?? ""], 3, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 3, 1])
-    map.setPaintProperty(S.dongLine, "line-opacity", ["case", ["==", ["get", "name"], selectedDong ?? ""], 1, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 0.95, 0.55])
+    map.setPaintProperty(S.dongLine, "line-width", ["case", ["==", ["get", "name"], selectedDong ?? ""], 3, ["all", ["==", ["get", "noHeat"], 1], ["==", emph ? 1 : 0, 1]], 3, 1])
+    map.setPaintProperty(S.dongLine, "line-opacity", ["case", ["==", ["get", "name"], selectedDong ?? ""], 1, ["all", ["==", ["get", "noHeat"], 1], ["==", emph ? 1 : 0, 1]], 0.95, 0.55])
     // 법령·책임 탭: 취약구간·결빙구간을 관리청별 색으로(구 청빙 · 시 잉크). 위험 색은 쓰지 않는다
     map.setPaintProperty(S.weak, "line-color", (ownerView ? ownerColorExpr(dark) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), weakColorExpr(dark)] : weakColorExpr(dark)) as maplibregl.ExpressionSpecification)
     map.setPaintProperty(S.ice, "line-color", (ownerView ? ownerColorExpr(dark) : iceColorExpr(dark)) as maplibregl.ExpressionSpecification)
     map.setPaintProperty(S.iceCase, "line-opacity", ownerView ? 0.8 : ["case", ["==", ["get", "status"], "heat"], 0, 0.8])
     map.setPaintProperty(S.ice, "line-opacity", ownerView ? 0.95 : ["case", ["==", ["get", "status"], "heat"], 0.7, 0.9])
     map.setPaintProperty(S.iceEnds, "circle-stroke-color", (ownerView ? ownerColorExpr(dark) : riskColor(dark)) as maplibregl.ExpressionSpecification)
-    map.setPaintProperty(S.weak, "line-width", ownerView ? ["interpolate", ["linear"], ["zoom"], 12, 3.2, 15, 5.5] : ["interpolate", ["linear"], ["zoom"], 12, ["case", ["==", ["get", "status"], "heat"], 1.6, 3], 15, ["case", ["==", ["get", "status"], "heat"], 2.6, 5]])
+    map.setPaintProperty(S.weak, "line-width", ownerView ? ["interpolate", ["linear"], ["zoom"], 12, 3.2, 15, 5.5] : ["interpolate", ["linear"], ["zoom"], 12, ["case", ["==", ["get", "status"], "heat"], 2.4, 3], 15, ["case", ["==", ["get", "status"], "heat"], 3.8, 5]])
     map.setPaintProperty(S.weak, "line-opacity", ownerView ? 0.95 : ["case", ["==", ["get", "status"], "heat"], 0.7, 0.95])
     map.setPaintProperty(S.weakCase, "line-opacity", ownerView ? 0.8 : ["case", ["==", ["get", "status"], "heat"], 0, 0.8])
     map.setPaintProperty(S.iceLabel, "text-halo-color", ownerView ? ownerColor("시", dark) : ["case", ["==", ["get", "status"], "heat"], weakMuted(dark), badgeColor(dark)])
@@ -478,12 +481,12 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     if (icons) {
       icons.setSnow(st == null ? 0 : Math.min(1, snowCm / 10))
       // 법령 탭은 구간 색이 주인공: 자재·학교·열선 핀은 흐리게(청빙 선이 원통 228개 속에 묻히던 냉독)
-      icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMaterials ? Math.min(dimMat, 0.5) : dimMat)
+      icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMaterials ? Math.min(dimMat, 0.4) : dimMat)
       icons.setDim(["school", "schoolGap", "heat"], ownerView ? 0.3 : 1)
       icons.setBoost("salt", saltBoost3D)
       icons.setEmissive("salt", saltBoost3D > 1 ? 0.6 : 0)
     }
-  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm, dimMaterials])
+  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm, dimMaterials, noHeatDongs])
 
   // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다.
   // 동별 기둥 모드(colMetric)에서는 자재·학교·열선 핀을 내린다(기둥+배지+핀이 겹쳐 과밀. 냉독 지적). 2D 원은 그대로
@@ -505,7 +508,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 경사 추정: 고도 단면 경사면 + 오르막 화살(입체 전용. 평면은 글리프 화살 레이어)
     icons.setSlopes(layers.includes("slope") ? slopeRamps(data) : [])
     // 구간 벽: 열선 없는 취약·결빙구간 19곳(조망에서 선이 2D로 읽히던 냉독). 법령 탭은 56곳 관리청 색
-    icons.setSegWalls(colMetric ? [] : segWalls(data, themeRef.current === "dark", ownerView, { weak: layers.includes("weak"), ice: layers.includes("ice") }, planned))
+    icons.setSegWalls(segWalls(data, themeRef.current === "dark", ownerView, { weak: layers.includes("weak"), ice: layers.includes("ice") }, planned)) // 기둥 모드에서도 같은 기호(탭마다 기호가 바뀌던 냉독)
     // 결빙: 선이 있는 행은 가운데, 선형 미확인 행은 제 끝점(앞 행과 공유하지 않는 쪽)
     icons.setPoints(
       "iceBadge",
@@ -514,10 +517,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
             // 열선 있는 결빙구간(구 관리 3)은 번호도 회색(진홍 = 열선 없음 규칙)
             const color = s.heatCovered ? (themeRef.current === "dark" ? "#8a9096" : "#8d939b") : undefined
             if (s.method !== "points") return P(...segMid(s.path), { rank: i + 1, color })
-            const prev = data.ice[i - 1]
-            const sharesA = prev && prev.method === "points" && Math.abs(prev.b[0] - s.a[0]) < 1e-5 && Math.abs(prev.b[1] - s.a[1]) < 1e-5
-            return P(...(sharesA ? s.b : s.a), { rank: i + 1, color })
-          })
+            return null // 선형 미확인 행은 "결빙 1·2 선형 미확인" 글 라벨이 번호를 말한다(끝점 숫자가 강 위에 홀로 떠 있던 냉독)
+          }).filter((p): p is IconPoint => !!p)
         : [],
     )
   }, [ready, styleSeq, data, layers, iconsReady, colMetric, ownerView, theme, plannedKey])
@@ -679,7 +680,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    setFC(map, S.focusRing, focusRingFC(focusPoint))
+    setFC(map, S.focusRing, focusRingFC(focusPoint, focusRadius))
     if (!focusPoint) return
     let raf = 0
     const t0 = performance.now()
@@ -693,7 +694,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [ready, styleSeq, focusPoint])
+  }, [ready, styleSeq, focusPoint, focusRadius])
 
   // 동 선택 카메라. 해제하면 구 전체
   useEffect(() => {
@@ -836,7 +837,8 @@ function declareLayers(map: MlMap) {
     type: "symbol",
     source: S.dongLabel,
     // 4라운드: 동주민센터가 가까운 쌍(중곡1동·2동 136m)이 조망에서 겹쳐 "중곡1동곡2동"으로 읽혔다 → 자리를 map-geo dongAnchors가 420m까지 벌린다(dumping 규약)
-    layout: { "text-field": ["get", "name"], "text-size": 13.5, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-allow-overlap": true, "text-offset": [0, 0.2] },
+    // 겹치면 자리 후보로 비키고 그래도 겹치면 하나를 숨긴다(모바일 저줌에서 "자양4동자양3동"으로 붙던 냉독). 데스크톱 조망은 dongAnchors 420m로 전부 자리가 난다
+    layout: { "text-field": ["get", "name"], "text-size": 13.5, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-variable-anchor": ["center", "top", "bottom", "left", "right"], "text-radial-offset": 0.6, "text-justify": "auto", "text-allow-overlap": false, "text-ignore-placement": false, "text-padding": 1 },
     paint: { "text-color": "#ece7dc", "text-halo-color": "rgba(11,18,22,0.96)", "text-halo-width": 2.2 },
   })
   map.addLayer({

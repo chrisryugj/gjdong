@@ -426,9 +426,9 @@ export function ringPolygon(lng: number, lat: number, r: number, t: number, n = 
   return { type: "Polygon", coordinates: [outer, inner] }
 }
 // 땅 위 맥동 고리(초점). [lat,lng] 한 점
-export function focusRingFC(p: [number, number] | null): FC {
+export function focusRingFC(p: [number, number] | null, r = FOCUS_RING_R_M): FC {
   if (!p) return fc([])
-  return fc([{ type: "Feature", properties: { h: 14 }, geometry: ringPolygon(p[1], p[0], FOCUS_RING_R_M, 8) }])
+  return fc([{ type: "Feature", properties: { h: 14 }, geometry: ringPolygon(p[1], p[0], r, Math.max(6, r * 0.12), 40) }])
 }
 
 export function ringFC(ring: [number, number][]): { line: FC; mask: FC; bounds: [[number, number], [number, number]] } {

@@ -92,26 +92,26 @@ export function segPriority(s: SegLike, data: SnowMapData): Priority {
   let score = 0
   if (s.gap) {
     score += 3
-    reasons.push(`${data.gaps.materialNearM}m 안 자재 0`)
+    reasons.push(`자재 0(${data.gaps.materialNearM}m)`)
   }
   if (s.src === "weak") {
     const grades = data.slopes.filter((sl) => sl.weakNear.includes(s.i)).map((sl) => sl.grade)
     if (grades.length) {
       const g = Math.max(...grades)
       score += g / 10
-      reasons.push(`경사 추정 ${g}%`)
+      reasons.push(`경사 ${g}%`)
     }
     const schools = data.schools.filter((sc) => sc.weakNear.includes(s.i)).length
     if (schools) {
       score += schools * 1.5
-      reasons.push(`초등학교 ${schools}교`)
+      reasons.push(`학교 ${schools}교`)
     }
     if (s.type === "급경사") {
       score += 1
-      reasons.push("급경사 유형")
+      reasons.push("급경사")
     } else if (s.type === "고갯길") {
       score += 0.5
-      reasons.push("고갯길 유형")
+      reasons.push("고갯길")
     }
   } else reasons.push("간선 결빙구간")
   if (segOwner(s) === "구") score += 0.5
@@ -276,6 +276,16 @@ export function buildFindings(data: SnowMapData): Finding[] {
       unit: `/${t.slopes}구간`,
       kind: "limit",
       focus: { layer: "slope" },
+    },
+    {
+      id: "f-freeze",
+      kicker: "노출",
+      // 결과 지표(민원·사고)가 없어 편익을 못 세는 대신, 공백이 결빙 조건에 놓이는 날수를 기상청 결빙일수(서울 108)로 보인다. 4차 냉독: "열선 3곳 신설하면 무엇이 얼마나 줄어드는가"의 최소 근거
+      title: `서울은 겨울마다 결빙일이 평균 ${Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))}일입니다.`,
+      body: `기상청 서울(108) ${data.climate.freezeDays[0]?.year}~${data.climate.freezeDays[data.climate.freezeDays.length - 1]?.year}년 결빙일수 평균. 열선 없는 취약구간 ${g.weakNoHeat}곳은 그 날수만큼 결빙 조건에 놓입니다. 민원·사고 결과 지표는 데이터가 없어 편익은 셀 수 없습니다.`,
+      n: String(Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))),
+      unit: "일/년",
+      kind: "limit",
     },
     {
       id: "f-update",

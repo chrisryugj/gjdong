@@ -100,6 +100,8 @@ export default function SnowDashboard() {
   const [orbit, setOrbit] = useState(false) // 자동 회전(시연 장면 1·5). 지도를 만지면 꺼진다
   const [fly, setFly] = useState<FlyStop[] | null>(null) // 드론 비행(시연 장면 6). 지도를 만지면 꺼진다
   const [budget, setBudget] = useState(0) // 열선 예산 역산(원). 공백 탭 슬라이더. 지도 벽이 신설 구간을 호박색으로
+  const [demoDongs, setDemoDongs] = useState(false) // 시연 장면 4: 열선 없는 동 외곽 강조(3단계를 빌리지 않는다)
+  const [focusRadius, setFocusRadius] = useState(40) // 초점 고리 반지름(m)
   const [voice, setVoice] = useState(false) // 시연 음성 해설(브라우저 speechSynthesis 한국어 목소리). 장면·격상 캡션을 읽는다
   const [demoProgress, setDemoProgress] = useState<{ key: number; ms: number; at: number } | null>(null) // 장면 3 자동 격상 진행선
   const [remain, setRemain] = useState(0)
@@ -226,6 +228,7 @@ export default function SnowDashboard() {
       const b = boundsOf(segs.map((w) => w.path))
       setSelectedDong(null)
       if (segs.length === 1) {
+        setFocusRadius(data.gaps.materialNearM) // 고리 = 자재 기준 100m(냉독 5차: 108m 제설함이 기준 밖임을 그림으로)
         setFocusPoint(segMid(segs[0].path))
         if (b) cue({ bounds: b, maxZoom: 16.2, pitch: 50 })
       } else {
@@ -237,6 +240,7 @@ export default function SnowDashboard() {
     }
     if (f.point) {
       setSelectedDong(null)
+      setFocusRadius(data.gaps.schoolNearM)
       setFocusPoint(f.point)
       cue({ bounds: [[f.point[1] - 0.004, f.point[0] - 0.003], [f.point[1] + 0.004, f.point[0] + 0.003]], maxZoom: 15.8, pitch: 50 })
       setMapCollapsed(false)
@@ -245,6 +249,7 @@ export default function SnowDashboard() {
     if (f.dong) {
       setSelectedDong(f.dong)
       const d = data.dongs.find((x) => x.d === f.dong)
+      setFocusRadius(60)
       setFocusPoint(d ? d.center : null)
     } else {
       setFocusPoint(null)
@@ -269,6 +274,7 @@ export default function SnowDashboard() {
     setFocusHeat(heatIds && heatIds.length ? heatIds : null)
     setFocusLabel(label ?? null)
     setFocusDetail(detail ?? null)
+    setFocusRadius(data?.gaps.materialNearM ?? 100)
     setFocusPoint(pathIdx && pathIdx.length ? segMid(pathIdx) : null)
     setOrbit(false)
     setSelectedDong(null)
@@ -405,7 +411,8 @@ export default function SnowDashboard() {
         note: `이 동들의 비치 자재 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.salt + d.cacl + d.sand, 0)}개소 · 적설취약구간 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳`,
         apply: () => {
           setTab("resources")
-          setDemoStage("stage-3")
+          setDemoStage(null)
+          setDemoDongs(true)
           setFocusHeat(null)
           setFocusPoint(null)
           setSelectedDong(null)
@@ -436,7 +443,7 @@ export default function SnowDashboard() {
       },
       {
         title: "점검 후보",
-        caption: `눈 오기 전 점검 후보 ${checks.length}곳을 차례로 봅니다: ${checks.map((c) => c.short).join(" · ")}.`,
+        caption: `눈 오기 전 점검 후보 ${checks.length}건을 대표 지점 하나씩 차례로 봅니다: ${checks.map((c) => c.short).join(" · ")}.`,
         note: `부서·기한·규모·완료 기준은 공백 탭 01에 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
         apply: () => {
           setTab("gap")
@@ -460,6 +467,7 @@ export default function SnowDashboard() {
     demoTimers.current = []
     setDemoCaption(null)
     setFly(null)
+    setDemoDongs(false)
     scenes[demo].apply()
     return () => {
       for (const t of demoTimers.current) window.clearTimeout(t)
@@ -469,6 +477,7 @@ export default function SnowDashboard() {
   const endDemo = () => {
     setDemo(null)
     setDemoStage(null)
+    setDemoDongs(false)
     setDemoCaption(null)
     setDemoProgress(null)
     setUseForecast(inSeason)
@@ -559,6 +568,8 @@ export default function SnowDashboard() {
             planned={tab === "gap" && budget > 0 && data ? planHeatBudget(data, budget).planned.map((w) => w.i) : []}
             snowCm={effectiveCm}
             dimMaterials={tab === "gap"}
+            noHeatDongs={demoDongs}
+            focusRadius={focusRadius}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}

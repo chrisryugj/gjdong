@@ -217,7 +217,7 @@ test("우선순위 1위는 광장로(경사 추정·초등학교·행안부 급�
   const data = mapJson as unknown as SnowMapData
   const g = gapSummary(data)
   assert.strictEqual(segName(g.noHeatList[0]), "광장로")
-  assert.ok(segPriority(g.noHeatList[0], data).reasons.some((r) => /초등학교/.test(r)))
+  assert.ok(segPriority(g.noHeatList[0], data).reasons.some((r) => /학교/.test(r)))
   assert.strictEqual(planHeatBudget(data, 0).planned.length, 0)
   const all = planHeatBudget(data, Infinity)
   assert.strictEqual(all.planned.length, 13)

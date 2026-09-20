@@ -47,7 +47,7 @@ export function NumRow({ n, big, unit, title, meta, body, accent = false, active
   )
 }
 
-export type Col = { k: string; w?: string; align?: "left" | "right"; dim?: boolean }
+export type Col = { k: string; w?: string; align?: "left" | "right"; dim?: boolean; wrap?: boolean } // wrap=두 줄까지 줄바꿈(조례 요지처럼 긴 글. 기본은 한 줄 truncate)
 // 열 정렬 표. 머리 한 줄(키커) + 행 30px 헤어라인. cells는 col 순서. 행을 누르면 onRow
 export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass, rowH = 30 }: { cols: Col[]; rows: T[]; cell: (r: T, k: string) => React.ReactNode; rowKey: (r: T) => string; onRow?: (r: T) => void; rowClass?: (r: T) => string; rowH?: number }) {
   const grid = cols.map((c) => c.w ?? "1fr").join(" ")
@@ -62,7 +62,7 @@ export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass, rowH = 30 
       </div>
       {rows.map((r) => {
         const inner = cols.map((c) => (
-          <span key={c.k} className={`min-w-0 truncate ${c.align === "right" ? "text-right font-mono" : ""} ${c.dim ? "text-[var(--cp-text-dim)]" : "text-[var(--cp-text)]"}`}>
+          <span key={c.k} className={`min-w-0 ${c.wrap ? "line-clamp-2 whitespace-normal leading-snug" : "truncate"} ${c.align === "right" ? "text-right font-mono" : ""} ${c.dim ? "text-[var(--cp-text-dim)]" : "text-[var(--cp-text)]"}`}>
             {cell(r, c.k)}
           </span>
         ))

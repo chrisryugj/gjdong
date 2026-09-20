@@ -33,7 +33,7 @@ const COLS = [
   { k: "소관", w: "20px", dim: true },
 ]
 // 예산 역산이 켜지면 "열선까지" 자리에 구간별 신설 개략 비용(길이 × 2차로 × 1억/100m)을 보여 준다(냉독 4차: 10억 계산을 행에서 검증 못 했다)
-const COLS_BUDGET = COLS.map((c) => (c.k === "열선까지" ? { ...c, k: "신설 비용", w: "70px" } : c))
+const COLS_BUDGET = COLS.map((c) => (c.k === "열선까지" ? { ...c, k: "신설 비용", w: "54px" } : c))
 
 export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus, onSelectSegment, onOpenMethods }: Props) {
   const [print, setPrint] = useState(false)
@@ -54,8 +54,8 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         return (
           <span className="block leading-tight">
             <span className="block truncate">
+              {s.src === "weak" && plannedIds.has(s.i) && <span className="mr-1.5 rounded bg-(--dump-accent)/12 px-1 text-[12px] font-semibold text-(--dump-accent)">신설</span>}
               <span className="font-semibold text-[var(--cp-text-strong)]">{segName(s)}</span>
-              {s.src === "weak" && plannedIds.has(s.i) && <span className="ml-1.5 rounded bg-(--dump-accent)/12 px-1 text-[12px] font-semibold text-(--dump-accent)">신설</span>}
             </span>
             <span className="block truncate text-[12px] text-[var(--cp-text-dim)]">{priorityText(segPriority(s, data))}</span>
           </span>
@@ -65,7 +65,7 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
       case "열선까지":
         return s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`
       case "신설 비용":
-        return s.src === "weak" ? <span className={plannedIds.has(s.i) ? "font-semibold text-(--dump-accent)" : ""}>{`${Math.round(s.pathM)}m ${eok(heatCost(s.pathM).high)}`}</span> : <span className="text-[var(--cp-text-faint)]">시</span>
+        return s.src === "weak" ? <span title={`${Math.round(s.pathM)}m × 2차로 × 100만원/m`} className={plannedIds.has(s.i) ? "font-semibold text-(--dump-accent)" : ""}>{eok(heatCost(s.pathM).high)}</span> : <span className="text-[var(--cp-text-faint)]">시</span>
       case "자재":
         return s.materialsNear ? `${s.materialsNear}` : <span className="font-semibold text-(--dump-accent)">0</span>
       case "소관":
@@ -119,7 +119,7 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         </div>
         <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-muted)]">
           {budget
-            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설(개략 ${eok(plan.cost)}, 2차로 가정 · 1차로 100m당 1억)하고 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
+            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설(개략 ${eok(plan.cost)} = 표의 신설 비용 합, 2차로 가정 · 1차로 100m당 1억)하고 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
             : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해지고 표 "신설 비용" 열에 구간별 개략 비용이 보입니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 1차로 100m당 1억).`}
         </p>
       </div>

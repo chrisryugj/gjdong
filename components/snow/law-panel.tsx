@@ -47,8 +47,9 @@ export default function LawPanel({ data, dark = true }: Props) {
         cols={[
           { k: "조", w: "48px", dim: true },
           { k: "항목", w: "60px" },
-          { k: "요지", w: "minmax(0,1fr)", dim: true },
+          { k: "요지", w: "minmax(0,1fr)", dim: true, wrap: true },
         ]}
+        rowH={48}
         rows={ORD}
         rowKey={(o) => o.a}
         cell={(o, k) => (k === "조" ? <span className="font-mono text-[12.5px] text-(--dump-accent)">{o.a}</span> : k === "항목" ? <span className="font-semibold text-[var(--cp-text-strong)]">{o.t}</span> : <span title={o.g}>{o.g}</span>)}
