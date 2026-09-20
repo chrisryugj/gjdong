@@ -681,7 +681,7 @@ export default function SnowDashboard() {
       )}
       {/* 오른쪽 열: 레이어 패널 › 범례. 900px 높이에서 둘이 열을 넘치면(4라운드 보기 그룹·범례 두 줄) 열 안에서 스크롤. 바닥 140px는 줌 버튼 자리 */}
       {rightPane === "map" && (
-        <div className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 overflow-y-auto [scrollbar-width:none] md:flex`} style={{ width: RIGHT_W }}>
+        <div className={`pointer-events-none absolute bottom-[108px] right-4 ${TOP} z-[1050] hidden flex-col gap-2 overflow-y-auto [scrollbar-width:none] md:flex`} style={{ width: RIGHT_W }}>
           <div className="dump-fl lg-shell lg-dense pointer-events-auto relative shrink-0 rounded-2xl">{layerPanel}</div>
           <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
         </div>

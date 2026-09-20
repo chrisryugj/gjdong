@@ -28,7 +28,7 @@ const rowColor = (id: LayerId, dark: boolean) => {
 }
 
 // 보기 그룹(4라운드, dumping 레이어 패널과 같은 메뉴): 입체 보기 · 자동 회전 · 드론 비행(점검 후보 5곳) · 시연(xl). 자동 회전·드론은 입체에서만
-const ROW = "flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] transition-colors hover:bg-[var(--cp-hover)]"
+const ROW = "flex w-full items-center gap-2 rounded-lg px-1.5 py-[3px] text-left text-[13.5px] transition-colors hover:bg-[var(--cp-hover)]"
 export interface ViewControls {
   orbit: boolean
   fly: boolean
@@ -48,7 +48,7 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
           const on = view.layers.includes(r.id)
           return (
             <li key={r.id}>
-              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
+              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-[3px] text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
                 <Swatch kind={r.swatch} color={rowColor(r.id, dark)} on={on} />
                 <span className="min-w-0 flex-1 truncate">{r.label}</span>
                 <span className="shrink-0 whitespace-nowrap text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? r.note}</span>
@@ -57,14 +57,14 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
           )
         })}
       </ul>
-      <div className="dump-kicker mt-2 px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">자원 정보</div>
+      <div className="dump-kicker mt-1.5 px-1.5 pb-0.5 text-[10px] text-[var(--cp-text-dim)]">자원 정보</div>
       <ul className="space-y-px">
         {RESOURCES.map((r) => {
           const on = view.layers.includes(r.id)
           const color = dark ? r.color : r.colorLight
           return (
             <li key={r.id}>
-              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
+              <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-[3px] text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
                 <Swatch kind={r.id === "heat" ? "glow" : r.id === "sand" ? "ring" : "fill"} color={color} on={on} />
                 <span className="min-w-0 flex-1 truncate">{r.id === "sand" ? "모래주머니(2022)" : r.label}</span>
                 <span className="shrink-0 whitespace-nowrap text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? ""}</span>
@@ -73,62 +73,64 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
           )
         })}
       </ul>
-      <div className="dump-kicker mt-2 px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">보기</div>
-      <button
-        onClick={() => {
-          controls?.onOrbit(false)
-          controls?.onFly(false)
-          onChange({ ...view, tilt: !view.tilt })
-        }}
-        aria-pressed={view.tilt}
-        title="지도를 기울여 건물·핀·벽을 입체로 봅니다. 끄면 위에서 본 평면"
-        className={`${ROW} ${view.tilt ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
-      >
-        <Ico name="tilt" size={14} />
-        <span className="flex-1">입체 보기</span>
-        <span className="text-[12px] text-[var(--cp-text-faint)]">{view.tilt ? "핀 3D" : "핀 평면"}</span>
-      </button>
-      {controls && view.tilt && (
+      <div className="dump-kicker mt-1.5 px-1.5 pb-0.5 text-[10px] text-[var(--cp-text-dim)]">보기</div>
+      {/* 2열 격자: 900px 높이에서 패널+범례가 열을 넘치던 것(줌 버튼을 덮음) → 보기 4줄을 2줄로 */}
+      <div className="grid grid-cols-2 gap-x-1 gap-y-px">
         <button
           onClick={() => {
-            controls.onFly(false)
-            controls.onOrbit(!controls.orbit)
+            controls?.onOrbit(false)
+            controls?.onFly(false)
+            onChange({ ...view, tilt: !view.tilt })
           }}
-          aria-pressed={controls.orbit}
-          title="구 전체를 천천히 돌려 봅니다. 지도를 만지면 멈춥니다"
-          className={`${ROW} ${controls.orbit ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
+          aria-pressed={view.tilt}
+          title="지도를 기울여 건물·핀·벽을 입체로 봅니다. 끄면 위에서 본 평면"
+          className={`${ROW} ${view.tilt ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
         >
-          <Ico name="orbit" size={14} />
-          <span className="flex-1">자동 회전</span>
+          <Ico name="tilt" size={14} />
+          <span className="min-w-0 flex-1 truncate">{view.tilt ? "입체" : "평면"}</span>
         </button>
-      )}
-      {controls && view.tilt && (
-        <button
-          onClick={() => {
-            controls.onOrbit(false)
-            controls.onFly(!controls.fly)
-          }}
-          aria-pressed={controls.fly}
-          title="구 전체를 내려다보다 눈 오기 전 점검 후보 5곳을 낮게 차례로 돌아봅니다. 지도를 만지면 멈춥니다"
-          className={`${ROW} ${controls.fly ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
-        >
-          <Ico name="drone" size={14} />
-          <span className="flex-1">드론 비행</span>
-          <span className="text-[12px] text-[var(--cp-text-faint)]">후보 5곳</span>
-        </button>
-      )}
-      {controls?.demoAvailable && (
-        <button
-          onClick={() => controls.onDemo(!controls.demo)}
-          aria-pressed={controls.demo}
-          title="시연 모드: 6장면. 방향키로 이동, Esc로 나가기"
-          className={`${ROW} ${controls.demo ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
-        >
-          <Ico name="monitor" size={14} />
-          <span className="flex-1">{controls.demo ? "시연 끝" : "시연"}</span>
-          <span className="text-[12px] text-[var(--cp-text-faint)]">6장면</span>
-        </button>
-      )}
+        {controls && (
+          <button
+            onClick={() => {
+              controls.onFly(false)
+              if (!view.tilt) onChange({ ...view, tilt: true })
+              controls.onOrbit(!controls.orbit)
+            }}
+            aria-pressed={controls.orbit}
+            title="구 전체를 천천히 돌려 봅니다(입체). 지도를 만지면 멈춥니다"
+            className={`${ROW} ${controls.orbit ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
+          >
+            <Ico name="orbit" size={14} />
+            <span className="min-w-0 flex-1 truncate">자동 회전</span>
+          </button>
+        )}
+        {controls && (
+          <button
+            onClick={() => {
+              controls.onOrbit(false)
+              if (!view.tilt) onChange({ ...view, tilt: true })
+              controls.onFly(!controls.fly)
+            }}
+            aria-pressed={controls.fly}
+            title="구 전체를 내려다보다 눈 오기 전 점검 후보 5곳을 낮게 차례로 돌아봅니다(입체). 지도를 만지면 멈춥니다"
+            className={`${ROW} ${controls.fly ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
+          >
+            <Ico name="drone" size={14} />
+            <span className="min-w-0 flex-1 truncate">드론 비행</span>
+          </button>
+        )}
+        {controls?.demoAvailable && (
+          <button
+            onClick={() => controls.onDemo(!controls.demo)}
+            aria-pressed={controls.demo}
+            title="시연 모드: 6장면. 방향키로 이동, Esc로 나가기"
+            className={`${ROW} ${controls.demo ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
+          >
+            <Ico name="monitor" size={14} />
+            <span className="min-w-0 flex-1 truncate">{controls.demo ? "시연 끝" : "시연 6장면"}</span>
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -190,7 +192,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   return (
     <div className="px-3 py-2 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
       <div className="dump-kicker mb-1 text-[10px]">범례{ownerView ? " · 관리청" : ""}{tilt ? "" : " · 평면"}</div>
-      <ul className="space-y-[3px]">
+      <ul className="space-y-[2px]">
         {rows.map((r) => (
           <li key={r.k} className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-x-2 break-keep">
             <span className="flex h-[17px] items-center">{r.swatch}</span>
@@ -201,7 +203,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
           </li>
         ))}
       </ul>
-      <p className="mt-1.5 text-[12px] leading-[1.35]">청빙 고리 = 지금 보는 곳(행 클릭){tilt ? " · 기둥 = 동별 자원(자원 현황 탭)" : ""}</p>
+      <p className="mt-1 text-[12px] leading-[1.35]">청빙 고리 = 지금 보는 곳{tilt ? " · 기둥 = 동별 자원" : ""}</p>
       {stageNote && (
         <p className="mt-1.5 text-[var(--cp-text)]">
           {stageLabel}: {stageNote}
