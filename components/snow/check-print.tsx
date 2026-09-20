@@ -47,7 +47,8 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
             <th className="py-1 pr-2 font-medium">규모</th>
             <th className="py-1 pr-2 font-medium">개략 비용</th>
             <th className="py-1 pr-2 font-medium">완료 기준</th>
-            <th className="py-1 font-medium">결정·지시</th>
+            <th className="py-1 pr-2 font-medium">결정·지시</th>
+            <th className="py-1 font-medium">부서 확인(기재)</th>
           </tr>
         </thead>
         <tbody>
@@ -63,7 +64,8 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.scale}</td>
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.cost}</td>
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.done}</td>
-              <td className="py-1.5 text-[var(--cp-text)]">{c.request}</td>
+              <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.request}</td>
+              <td className="py-1.5"><span className="block h-10 w-20 rounded border border-dashed border-[var(--cp-border)]" aria-label="부서 확인 기재란" /></td>
             </tr>
           ))}
         </tbody>
