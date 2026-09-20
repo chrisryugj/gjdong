@@ -111,6 +111,8 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
             <Missing t="자동원격액상살포기 52대 위치" w="살포기는 수치만 있고 지도에 없습니다" how="도로과 · 정보공개청구" />
             <Missing t="조례 시한 준수·제설 민원 건수" w="결과 지표를 측정할 수 없어 대책 평가가 투입 지표까지만 가능합니다" how="정보공개청구(민원은 120 다산콜·구 민원 통계)" />
             <Missing t="열선 가동 이력(온도·시각)" w="상시 설비의 실제 가동 여부를 확인할 수 없습니다" how="도로과" />
+            <Missing t="자재·열선 단가(제설함·염화칼슘함·모래주머니 구입비, 열선 m당 공사비)" w="점검 후보에 개략 비용을 붙일 수 없어 부서·기한·규모까지만 적었습니다" how="도로과 · 계약 단가표 · 정보공개청구" />
+            <Missing t="초등학교 통학로 제설 소관" w="점검 후보의 학교 항목은 담당 부서를 내부 확인으로 비웠습니다" how="교육지원청 · 학교 행정실" />
           </ul>
           <p className="text-[13px] text-[var(--cp-text-dim)]">확인한 것: 도로교통공단 결빙 교통사고 다발지역(반경 200m 3건 이상)은 {data.accidents ? `${data.accidents.years[0].year}년부터 ${data.accidents.years[data.accidents.years.length - 1].year}년까지 광진구 0곳` : "미수신"}입니다. 한국도로공사 결빙취약구간은 고속도로만이라 광진구 해당 없음, 서울시 제설제 사용량은 구별 값이 없습니다.</p>
         </div>

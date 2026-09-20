@@ -96,7 +96,8 @@ export interface SlopeSeg {
   name: string
   kind: string
   detail: string
-  coords: [number, number][]
+  coords: [number, number][] // 오르막 방향(낮은 끝 → 높은 끝). 4라운드부터 지도 화살·경사면이 이 방향을 쓴다
+  hs: number[] // 좌표마다 낮은 끝 기준 고도(m)
   len: number
   grade: number
   rise: number

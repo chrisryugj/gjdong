@@ -1,6 +1,7 @@
 import type { DongRow, HeatSeg, IceSeg, ResourceId, SnowMapData, WeakSeg } from "@/lib/snow/types"
-import { HEAT_STYLE, RESOURCES, RISK, RISK_STYLE } from "@/lib/snow/labels"
-import { dongValue, fmt } from "@/lib/snow/facts"
+import { HEAT_STYLE, OWNER_STYLE, RESOURCES, RISK, RISK_STYLE } from "@/lib/snow/labels"
+import { dongValue, fmt, segOwner } from "@/lib/snow/facts"
+import type { SlopeRamp, TruckRoute } from "./icons3d"
 
 // /snow 지도의 순수 계산부. 지도 엔진을 모른다: GeoJSON 조립·기둥 높이·툴팁 HTML. 테스트가 여기만 읽는다
 
@@ -17,9 +18,31 @@ export const heatGlow = (dark: boolean) => (dark ? HEAT_STYLE.glow.dark : HEAT_S
 export const heatFlow = (dark: boolean) => (dark ? HEAT_STYLE.flow.dark : HEAT_STYLE.flow.light)
 export const casingColor = (dark: boolean) => (dark ? RISK_STYLE.casing.dark : RISK_STYLE.casing.light)
 export const badgeColor = (dark: boolean) => (dark ? RISK_STYLE.badge.dark : RISK_STYLE.badge.light)
+export const slopeArrowColor = (dark: boolean) => (dark ? RISK_STYLE.arrow.dark : RISK_STYLE.arrow.light)
+// 관리청별 색(법령 탭). owner 속성은 weakFC·iceFC·iceEndsFC가 싣는다
+export const ownerColor = (owner: "구" | "시", dark: boolean) => (owner === "구" ? (dark ? OWNER_STYLE.gu.dark : OWNER_STYLE.gu.light) : dark ? OWNER_STYLE.si.dark : OWNER_STYLE.si.light)
+export const ownerColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get", "owner"], "시"], ownerColor("시", dark), ownerColor("구", dark)]
 // 열선 있는 취약구간은 탁한 색·가늘게, 열선 없는 구간만 진홍(냉독: 채도 차이만으로는 47개 중 13개를 못 찾았다)
-export const weakMuted = (dark: boolean) => (dark ? "#5c646e" : "#b3b9c1") // 회색: 열선 있는 구간은 위험 색을 쓰지 않는다
+export const weakMuted = (dark: boolean) => (dark ? "#8b949e" : "#9aa1a9") // 회색: 열선 있는 구간은 위험 색을 쓰지 않는다(4라운드: 다크 #5c646e는 도로망과 구분이 안 됐다 → 밝은 회색)
 export const weakColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get", "status"], "heat"], weakMuted(dark), riskColor(dark)]
+// 4라운드 냉독: 결빙구간도 같은 규칙(열선 있는 구 관리 3곳이 시 관리 공백 6곳과 같은 진홍이라 "진홍 = 열선 없음"과 모순)
+export const iceColorExpr = weakColorExpr
+// 입체 구간 벽(icons3d setSegWalls): 열선 없는 취약·결빙구간(선형 있는 것)만 진홍. 법령 탭(ownerView)은 56곳 전부 관리청 색
+export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, layers: { weak: boolean; ice: boolean }): { coords: [number, number][]; color: string }[] {
+  const out: { coords: [number, number][]; color: string }[] = []
+  if (layers.weak)
+    for (const w of data.weak) {
+      if (ownerView) out.push({ coords: w.path, color: ownerColor("구", dark) })
+      else if (!w.heatCovered) out.push({ coords: w.path, color: riskColor(dark) })
+    }
+  if (layers.ice)
+    data.ice.forEach((s, i) => {
+      if (s.method === "points" || s.path.length < 2) return
+      if (ownerView) out.push({ coords: s.path, color: ownerColor(segOwner({ ...s, src: "ice", n: i + 1 }), dark) })
+      else if (!s.heatCovered) out.push({ coords: s.path, color: riskColor(dark) })
+    })
+  return out
+}
 // 점이 구 경계 안인가(ray casting). 선형 미확인 결빙 끝점이 강 건너(청담대교 남단)면 지도에 찍지 않는다
 export function insideRing(ring: [number, number][], p: [number, number]): boolean {
   let inside = false
@@ -142,6 +165,7 @@ export function weakFC(data: SnowMapData): FC {
         id: w.i,
         kind: "weak",
         status: segStatus(w),
+        owner: segOwner({ ...w, src: "weak" }),
         type: w.type,
         tip: tip(`적설취약구간 · ${w.type}`, w.name, [...segRows(w, data), ["관리청", w.agency.replace("서울특별시 ", "")]], w.method === "point" && !w.roadName ? "원자료가 좌표 한 점이라 가장 가까운 도로에 60m만 표시했습니다. 선형은 미확인입니다" : w.approx ? "기점·종점을 도로에 붙여 그린 근사 선형입니다" : undefined),
       },
@@ -165,6 +189,7 @@ export function iceFC(data: SnowMapData): FC {
         n: String(i + 1),
         kind: "ice",
         status: segStatus(s),
+        owner: segOwner({ ...s, src: "ice", n: i + 1 }),
         tip: tip("상습결빙구간", `${s.road} ${s.km}km`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")], ["구분", s.cls]], s.approx ? "기점·종점 두 점 사이만 그렸습니다. 관리 구간 총길이는 더 깁니다" : "기점·종점 두 점 사이를 도로를 따라 그렸습니다"),
       },
       geometry: { type: "LineString", coordinates: s.path.map(ll) },
@@ -182,7 +207,7 @@ export function iceEndsFC(data: SnowMapData): FC {
       if (seen.has(key)) continue
       seen.add(key)
       if (!insideRing(data.ring, p)) continue // 구 밖(강 건너) 끝점은 표시하지 않는다. 툴팁 각주가 말한다
-      out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), kind: "ice", tip: tip("상습결빙구간 · 선형 미확인", `${s.road} ${s.km}km · ${k}`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")]], "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없어 두 끝점만 표시합니다") }, geometry: { type: "Point", coordinates: ll(p) } })
+      out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), kind: "ice", owner: segOwner({ ...s, src: "ice", n: i + 1 }), tip: tip("상습결빙구간 · 선형 미확인", `${s.road} ${s.km}km · ${k}`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")]], "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없어 두 끝점만 표시합니다") }, geometry: { type: "Point", coordinates: ll(p) } })
     }
   })
   return fc(out)
@@ -235,12 +260,25 @@ export function slopeFC(data: SnowMapData): FC {
             [`${data.gaps.materialNearM}m 안 자재`, s.materialsNear ? `${s.materialsNear}개소` : "없음"],
             ["행안부 취약구간", s.weakNear.length ? `${s.weakNear.length}곳 겹침` : "겹치는 곳 없음"],
           ],
-          "지형 타일 고도로 계산한 추정치입니다. 실측 경사가 아닙니다",
+          "지형 타일 고도로 계산한 추정치입니다. 실측 경사가 아닙니다. 화살과 경사면은 오르막 방향입니다",
         ),
       },
       geometry: { type: "LineString", coordinates: s.coords.map(ll) },
     })),
   )
+}
+// 입체 경사면·화살(icons3d setSlopes). 좌표는 빌드 스크립트가 오르막 순으로 준다(hs 낮은 끝 기준)
+export function slopeRamps(data: SnowMapData): SlopeRamp[] {
+  return data.slopes.map((s) => ({ coords: s.coords, hs: s.hs ?? s.coords.map(() => 0), rise: s.rise, heat: s.heatIds.length > 0 }))
+}
+// 제설차 노선(icons3d setTrucks, 2단계부터): 선형이 있는 상습결빙구간을 긴 순으로 보도자료 장비 수(유니목+15톤 덤프)만큼. 위치 데이터 없는 장비를 "간선 살포 구간"에 놓는다
+export function truckRoutes(data: SnowMapData): TruckRoute[] {
+  const n = Math.max(1, data.ops.unimog + data.ops.dump15t)
+  return data.ice
+    .filter((s) => s.method !== "points" && s.path.length > 1)
+    .sort((a, b) => b.pathM - a.pathM)
+    .slice(0, n)
+    .map((s) => ({ coords: s.path.map(ll), meters: s.pathM }))
 }
 
 export function schoolFC(data: SnowMapData): FC {
@@ -259,14 +297,37 @@ export function schoolFC(data: SnowMapData): FC {
   )
 }
 
-// 동 외곽선·이름(동주민센터 위치)
+// 동 이름 자리: 동주민센터 위치. 너무 가까운 쌍(중곡1동·2동 136m)은 서로 반대 방향으로 밀어 DONG_MIN_GAP_M까지 벌린다(dumping dongAnchors 규약. 조망에서 "중곡1동곡2동"으로 겹치던 냉독)
+export const DONG_MIN_GAP_M = 420
+export function dongAnchors(data: SnowMapData): Map<string, [number, number]> {
+  const pos = new Map(data.dongs.map((d) => [d.d, [d.center[0], d.center[1]] as [number, number]]))
+  const names = [...pos.keys()]
+  for (let iter = 0; iter < 4; iter++)
+    for (let i = 0; i < names.length; i++)
+      for (let j = i + 1; j < names.length; j++) {
+        const a = pos.get(names[i])!
+        const b = pos.get(names[j])!
+        const dy = (b[0] - a[0]) * 111320
+        const dx = (b[1] - a[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180)
+        const dist = Math.hypot(dx, dy)
+        if (dist >= DONG_MIN_GAP_M || dist === 0) continue
+        const push = (DONG_MIN_GAP_M - dist) / 2
+        const ux = dx / dist
+        const uy = dy / dist
+        pos.set(names[i], [a[0] - (uy * push) / 111320, a[1] - (ux * push) / (111320 * Math.cos((a[0] * Math.PI) / 180))])
+        pos.set(names[j], [b[0] + (uy * push) / 111320, b[1] + (ux * push) / (111320 * Math.cos((a[0] * Math.PI) / 180))])
+      }
+  return pos
+}
+// 동 외곽선·이름
 export function dongFC(data: SnowMapData): { lines: FC; labels: FC } {
   const lines: GeoJSON.Feature[] = []
   const labels: GeoJSON.Feature[] = []
+  const anchors = dongAnchors(data)
   for (const d of data.dongs) {
     const rings = data.dongOutlines[d.d] ?? []
     lines.push({ type: "Feature", properties: { name: d.d, noHeat: d.heatSeg ? 0 : 1 }, geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r.map(ll)]) } })
-    labels.push({ type: "Feature", properties: { name: d.d, noHeat: d.heatSeg ? 0 : 1 }, geometry: { type: "Point", coordinates: ll(d.center) } })
+    labels.push({ type: "Feature", properties: { name: d.d, noHeat: d.heatSeg ? 0 : 1 }, geometry: { type: "Point", coordinates: ll(anchors.get(d.d) ?? d.center) } })
   }
   return { lines: fc(lines), labels: fc(labels) }
 }
@@ -305,7 +366,8 @@ export function dongColsFC(data: SnowMapData, m: ColMetric, dark: boolean, accen
         name: d.d,
         v: colValue(d, m),
         rank: rank + 1,
-        label: `${d.d}\n${fmt(colValue(d, m))}${def.unit}`,
+        // 1~3위는 라벨에 접두(4라운드: 기둥 위 입체 숫자는 시연 장면 2에서만)
+        label: `${rank < 3 ? `${rank + 1}위 ` : ""}${d.d}\n${fmt(colValue(d, m))}${def.unit}`,
         h: 40 + (colValue(d, m) / max) * COL_MAX_M,
         color,
         tip: tip(def.label, `${d.d} · ${rank + 1}위`, dongRows(d), `동주민센터 ${d.centerName} 위치에 표시`),
@@ -399,3 +461,50 @@ export function boundsOf(paths: [number, number][][]): [[number, number], [numbe
 }
 export const heatPaths = (data: SnowMapData, ids?: number[]): [number, number][][] => data.heat.filter((h) => !ids || ids.includes(h.i)).map((h) => h.path)
 export const heatById = (data: SnowMapData, id: number): HeatSeg | undefined => data.heat.find((h) => h.i === id)
+
+// ─── 드론 비행(4라운드 시연: 점검 후보 순회. dumping 18라운드 연속 비행 규약). 구 전체(내려다봄) → 후보 지점 → 다시 구 전체.
+// 경유지를 지나는 Catmull-Rom 곡선 위를 한 카메라가 연속으로 난다: 지점마다 감속해 머물고(dwell) 다시 출발, 지점 사이에서는 살짝 떠올랐다 내려앉는다(lift) ───
+export interface FlyStop {
+  rank: number
+  label: string
+  lnglat: [number, number]
+}
+export interface FlyWaypoint {
+  center: [number, number]
+  zoom: number
+  pitch: number
+  dwell: number
+  target?: FlyStop
+}
+export const FLY_STOP_ZOOM = 15.4
+export const FLY_STOP_PITCH = 60
+export function flyWaypoints(stops: FlyStop[], overview: { center: [number, number]; zoom: number }): FlyWaypoint[] {
+  const out: FlyWaypoint[] = [{ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1200 }]
+  for (const st of stops) out.push({ center: st.lnglat, zoom: FLY_STOP_ZOOM, pitch: FLY_STOP_PITCH, dwell: 2800, target: st })
+  out.push({ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1500 })
+  return out
+}
+export function flySegmentMs(a: { center: [number, number]; zoom: number }, b: { center: [number, number]; zoom: number }): number {
+  const km = Math.hypot((b.center[0] - a.center[0]) * 111.32 * Math.cos((a.center[1] * Math.PI) / 180), (b.center[1] - a.center[1]) * 111.32)
+  const zoomGap = Math.abs(b.zoom - a.zoom)
+  return Math.round(Math.min(11000, Math.max(5000, 3800 + km * 2200 + zoomGap * 1200)))
+}
+const smooth = (t: number) => t * t * (3 - 2 * t)
+const catmull = (p0: number, p1: number, p2: number, p3: number, t: number) => 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t)
+export function flyCameraAt(wps: FlyWaypoint[], i: number, f: number): { center: [number, number]; zoom: number; pitch: number } {
+  const at = (k: number) => wps[Math.max(0, Math.min(wps.length - 1, k))]
+  const [a, b, c, d] = [at(i - 1), at(i), at(i + 1), at(i + 2)]
+  const t = smooth(Math.max(0, Math.min(1, f)))
+  const lng = catmull(a.center[0], b.center[0], c.center[0], d.center[0], t)
+  const lat = catmull(a.center[1], b.center[1], c.center[1], d.center[1], t)
+  const lift = b.target && c.target ? 0.7 * Math.sin(Math.PI * t) : 0
+  return { center: [lng, lat], zoom: b.zoom + (c.zoom - b.zoom) * t - lift, pitch: b.pitch + (c.pitch - b.pitch) * t - lift * 6 }
+}
+// 비행 경로 그림: 후보 지점을 잇는 점선 + 번호
+export function flyRouteFC(stops: FlyStop[]): { path: FC; points: FC } {
+  const coords = stops.map((s) => s.lnglat)
+  return {
+    path: coords.length > 1 ? fc([{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }]) : fc([]),
+    points: fc(stops.map((s) => ({ type: "Feature", properties: { n: String(s.rank) }, geometry: { type: "Point", coordinates: s.lnglat } }))),
+  }
+}

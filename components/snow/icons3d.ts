@@ -6,6 +6,7 @@
 // 깊이 버퍼를 지도와 공유해 건물·기둥이 아이콘을 가린다. 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약). 지형은 안 켜므로 y=0.
 // 툴팁은 같은 자리의 투명 fill-extrusion(snow-map S.posts)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
 // ★MeshPhysicalMaterial은 환경맵 없이 검게 나온다(dumping 실측) → Lambert+emissive
+// 4라운드(2026-09-21): 경사 추정 구간 = 고도 단면대로 솟는 반투명 보라 경사면 + 윗선을 오르막으로 흐르는 화살(setSlopes) · 제설차가 상습결빙구간 선형을 왕복(setTrucks, 2단계부터) · 종류별 발광(setEmissive)
 import * as THREE from "three"
 import { Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
@@ -21,10 +22,28 @@ export interface IconPoint {
   h?: number // 배지를 띄울 높이(m). 동별 기둥 꼭대기
   color?: string // 배지 색. 없으면 종류 기본색
 }
+// 경사 추정 구간(4라운드): 좌표는 오르막 방향([lat,lng]), hs는 낮은 끝 기준 고도(m). 지도 위에 보라 경사면(고도 단면 벽)을 세우고 그 위를 화살(chevron)이 오르막으로 흐른다
+export interface SlopeRamp {
+  coords: [number, number][]
+  hs: number[]
+  rise: number
+  heat: boolean // 60m 안 열선 있음(흐리게)
+}
+// 제설 장비 노선(4라운드 시연): 상습결빙구간 선형 위를 제설차가 왕복한다. coords [lng,lat]
+export interface TruckRoute {
+  coords: [number, number][]
+  meters: number
+}
+// 구간 벽(4라운드 냉독: 조망에서 취약구간 선·번호가 2D 낙서로 읽혔다): 선형을 따라 화면 기준 일정 높이(px)로 서는 얇은 벽. 열선 없는 취약·결빙구간(진홍), 법령 탭은 관리청별 색. coords [lat,lng]
+export interface SegWall {
+  coords: [number, number][]
+  color: string
+}
 
 const ANCHOR: [number, number] = [127.085, 37.546] // 모델 원점(구 중심). 모든 인스턴스는 여기서의 미터 오프셋
 const TARGET_PX = 22 // 아이콘 목표 화면 높이
-const DENSE_MAX = 6 // 빽빽한 자재의 확대 상한(배). 조망(줌 13.2, 13m/px)에서 26m≈2px 점, 줌 16(1.3m/px)에서 17m≈13px 모양(28m 원통이 동네를 덮던 실측 뒤 조정)
+// 빽빽한 자재의 확대 상한(배). 3라운드 6배는 조망(줌 13.2, 13m/px)에서 2px 점이라 "멀리서 보면 2D"(사용자 지적) → 4라운드 20배: 조망 7px 입체(윤곽선 포함), 줌 14.1부터 목표 13px. 줌 16에서는 상한에 안 걸린다(13px)
+const DENSE_MAX = 20
 const DENSE_PX = 13 // 자재 목표 화면 높이
 const APPEAR_MS = 650
 const LAT0 = 37.546
@@ -43,6 +62,16 @@ interface KindDef {
   hideAboveZoom?: number // 이 줌보다 확대하면 숨긴다(열선 구슬: 줌 14.2부터 선이 대신한다)
   showFromZoom?: number // 이 줌부터 보인다(취약구간 번호: 구 전체에서는 선만)
   targetPx?: number // 종류별 목표 화면 높이(기본 TARGET_PX). 열선 구슬은 작게(55개가 구를 덮지 않게)
+  outline?: boolean // 4라운드: 뒷면만 그리는 어두운 겉껍질(12% 크게)로 윤곽선을 두른다. 조망에서 13px 핀이 점이 아니라 입체로 읽히게(사용자: 멀리서 보면 2D)
+}
+const OUTLINE_SCALE = 1.13
+const outlineMat = (dark: boolean) => new THREE.MeshBasicMaterial({ color: dark ? "#07111a" : "#2b2622", side: THREE.BackSide })
+// 부품마다 같은 자리에 겉껍질 부품을 앞에 끼운다(부품 목록이 곧 인스턴스 메시 목록이라 나머지 코드는 그대로)
+function withOutline(def: KindDef, dark: boolean): KindDef {
+  if (!def.outline) return def
+  const mat = outlineMat(dark)
+  const shells: Part[] = def.parts.map((p) => ({ geom: p.geom.clone().scale(OUTLINE_SCALE, OUTLINE_SCALE, OUTLINE_SCALE), mat, local: p.local }))
+  return { ...def, parts: [...shells, ...def.parts] }
 }
 
 const lambert = (color: string, extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color, ...extra })
@@ -70,6 +99,7 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       height: 4.6,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
+      outline: true,
       parts: [
         { geom: new THREE.BoxGeometry(4.4, 3.2, 3.2), mat: lambert(salt), local: at(0, 1.6, 0) },
         { geom: new THREE.BoxGeometry(4.7, 0.5, 3.6), mat: lambert(lidDark), local: at(0, 3.4, 0.25, -0.22) },
@@ -81,6 +111,7 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       height: 4.4,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
+      outline: true,
       parts: [
         { geom: new THREE.CylinderGeometry(1.7, 1.6, 3.6, 14), mat: lambert(cacl), local: at(0, 1.8, 0) },
         { geom: new THREE.CylinderGeometry(1.9, 1.9, 0.6, 14), mat: lambert(capDark), local: at(0, 3.9, 0) },
@@ -91,6 +122,7 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       height: 3.0,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
+      outline: true,
       parts: [
         { geom: new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), mat: lambert(sand), local: at(0, 0.9, 0, 0, Math.PI / 2) },
         { geom: new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), mat: lambert(sackDark), local: at(0, 0.9, 0, Math.PI / 2, Math.PI / 2) },
@@ -102,6 +134,7 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       height: 4.4,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
+      outline: true,
       parts: [
         { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sand), local: at(0, 1.0, 0, 0, Math.PI / 2) },
         { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sackDark), local: at(0, 1.0, 0, Math.PI / 2, Math.PI / 2) },
@@ -115,42 +148,54 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
     school: {
       height: 12,
       maxScale: 24,
+      outline: true,
       parts: [
         { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
         { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(PAPER), local: at(0, 5.5, 0) },
         { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.3 }), local: at(2.1, 9.7, 0) },
       ],
     },
+    // 열선 없는 학교 깃발은 무채색: 다크 흰 · 라이트 잉크(베이지 바탕에서 흰 깃발이 안 보이던 냉독)
     schoolGap: {
       height: 12,
       maxScale: 24,
+      outline: true,
       parts: [
         { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
-        { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(PAPER), local: at(0, 5.5, 0) },
-        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(PAPER, { emissive: new THREE.Color(PAPER), emissiveIntensity: 0.15 }), local: at(2.1, 9.7, 0) },
+        { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(dark ? PAPER : INK), local: at(0, 5.5, 0) },
+        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(dark ? PAPER : "#3a3530", { emissive: new THREE.Color(dark ? PAPER : "#3a3530"), emissiveIntensity: 0.15 }), local: at(2.1, 9.7, 0) },
       ],
     },
-    // 열선 위치 구슬: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다
-    // 열선 위치 구슬: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다. 막대 없이 낮게 놓인 발광 구(풍선 핀처럼 보이던 실측 뒤 조정)
+    // 열선 위치: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다. 3라운드 발광 구는 멀리서 평면 점으로 읽혔다(사용자 지적) → 4라운드 육각 동전(옆면 어두운 호박 + 발광 윗면 + 윤곽선). 기준 치수는 지름(4.8m)
     heat: {
-      height: 4,
+      height: 4.8,
       maxScale: 30,
-      targetPx: 9,
+      targetPx: 8,
       hideAboveZoom: 14.2,
-      parts: [{ geom: new THREE.SphereGeometry(2.0, 16, 12), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.55 }), local: at(0, 1.6, 0) }],
+      outline: true,
+      parts: [
+        { geom: new THREE.CylinderGeometry(2.4, 2.4, 2.2, 6), mat: lambert(dark ? "#b8860b" : "#8a5f00"), local: at(0, 1.1, 0) },
+        { geom: new THREE.CylinderGeometry(2.45, 2.45, 0.6, 6), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.6 }), local: at(0, 2.5, 0) },
+      ],
     },
-    // 선형 미확인 결빙구간 끝점: 땅에 누운 진홍 고리(평면의 빈 원과 같은 뜻)
+    // 선형 미확인 결빙구간 끝점: 땅에 누운 진홍 고리(평면의 빈 원과 같은 뜻). 4라운드: 고리 관을 굵게·띄워 옆면이 보이게
     iceEnd: {
       height: 6,
       maxScale: 30,
       targetPx: 12,
-      parts: [{ geom: new THREE.TorusGeometry(2.6, 0.55, 8, 24).rotateX(Math.PI / 2), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.35 }), local: at(0, 0.6, 0) }],
+      outline: true,
+      parts: [{ geom: new THREE.TorusGeometry(2.6, 0.8, 8, 24).rotateX(Math.PI / 2), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.35 }), local: at(0, 0.9, 0) }],
     },
     // 입체 숫자만(모델 없음)
     weakBadge: { height: 1, maxScale: 1, parts: [], showFromZoom: 13.6 },
     iceBadge: { height: 1, maxScale: 1, parts: [] },
     dongRank: { height: 1, maxScale: 1, parts: [] },
   }
+}
+function buildDefsOutlined(dark: boolean): Record<IconKind, KindDef> {
+  const defs = buildDefs(dark)
+  for (const k of Object.keys(defs) as IconKind[]) defs[k] = withOutline(defs[k], dark)
+  return defs
 }
 
 interface KindState {
@@ -159,6 +204,62 @@ interface KindState {
   meshes: THREE.InstancedMesh[]
   digits: THREE.Group[] // 입체 숫자(카메라 방위를 따라 선다)
   appearAt: number
+}
+
+// ─── 경사면·화살(4라운드). 라이트 지도에서 보라 점선이 안 읽히던 것(사용자 지적)을 입체로: 구간마다 고도 단면대로 솟는 반투명 벽 + 벽 윗선을 따라 오르막으로 흐르는 화살 ───
+const CHEV_M = 6.4 // 화살 한 개 폭(m). 이면도로 폭 언저리
+const CHEV_PX = 16 // 화살 목표 화면 폭. 조망에서도 모양이 보이게
+const CHEV_MAX_SCALE = 14
+const CHEV_GAP_M = 20 // 화살 간격(m, 실물 크기일 때). 확대 상한에서는 간격도 같이 늘린다
+const CHEV_SPEED = 7 // 오르막으로 흐르는 속도(m/s)
+const RAMP_MIN_PX = 14 // 경사면 최소 화면 높이(조망에서 납작해지지 않게 고도 단면을 늘린다)
+const RAMP_MAX_EXAGGERATION = 5
+// 화살: 오른쪽(+x)을 가리키는 ">" 띠. 밑면이 y=0
+function chevronGeometry(): THREE.BufferGeometry {
+  const s = new THREE.Shape()
+  s.moveTo(-1.6, 3.2)
+  s.lineTo(2.4, 0)
+  s.lineTo(-1.6, -3.2)
+  s.lineTo(-3.6, -3.2)
+  s.lineTo(0.4, 0)
+  s.lineTo(-3.6, 3.2)
+  s.closePath()
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.9, bevelEnabled: false })
+  g.rotateX(-Math.PI / 2) // 도형 평면(XY)을 땅(XZ)에 눕히고 두께가 위(+y)로
+  return g
+}
+interface Ramp {
+  pts: { x: number; z: number; h: number; s: number }[] // 모델 좌표(m)·고도(m)·누적 거리(m)
+  len: number
+  rise: number
+  heat: boolean
+  wall: THREE.Mesh
+  first: number // 화살 인스턴스 시작 번호
+  slots: number
+}
+const SEG_WALL_PX = 12 // 구간 벽 화면 높이
+interface Truck {
+  cum: number[]
+  pts: { x: number; z: number }[]
+  dist: number
+  dir: 1 | -1
+}
+// 제설차 모델(길이 7m, 앞이 +x): 청회 적재함 + 잉크 운전석 + 호박색 경광등 + 앞날(제설삽) + 바퀴
+const TRUCK_LEN = 7
+const TRUCK_PX = 20
+const TRUCK_MAX_SCALE = 30 // 조망(13m/px)에서도 16px 정도로 보이게(dumping의 10배는 조망에서 5px 점이었다)
+const TRUCK_SPEED = 9 // m/s(약 32km/h)
+function truckParts(dark: boolean): Part[] {
+  const body = dark ? "#8fa3c0" : "#3f4f66"
+  const amber = dark ? "#ffb703" : "#c98a00"
+  return [
+    { geom: new THREE.BoxGeometry(4.4, 2.4, 2.3), mat: lambert(body), local: at(-1.1, 1.9, 0) },
+    { geom: new THREE.BoxGeometry(2.0, 2.0, 2.3), mat: lambert(INK), local: at(2.2, 1.7, 0) },
+    { geom: new THREE.BoxGeometry(0.8, 0.4, 1.2), mat: lambert(amber, { emissive: new THREE.Color(amber), emissiveIntensity: 0.8 }), local: at(2.2, 2.9, 0) },
+    { geom: new THREE.BoxGeometry(0.5, 1.2, 3.2), mat: lambert(amber), local: at(3.5, 0.7, 0, 0, 0.35) },
+    { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: lambert("#262626"), local: at(2.0, 0.55, 0) },
+    { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: lambert("#262626"), local: at(-2.0, 0.55, 0) },
+  ]
 }
 
 // 입체 숫자(dumping 18라운드 후속): SUIT Bold 윤곽 압출(digit-font.json, 0~9만). 카메라 방위를 따라 정면이 보인다
@@ -176,7 +277,11 @@ function digitGeometry(text: string): THREE.BufferGeometry {
 }
 function makeDigit(text: string, color: string): THREE.Group {
   const g = new THREE.Group()
-  g.add(new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3 })))
+  // transparent+renderOrder: 깊이 검사 없는 경사면·구간 벽(투명 목록 10)이 숫자를 덮던 실측(라이트 z16 "31" 소실) → 숫자를 벽 뒤에 그린다
+  // 숫자는 라벨이라 깊이 검사도 끈다(건물·벽에 안 가린다)
+  const m = new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3, transparent: true, depthTest: false }))
+  m.renderOrder = 20
+  g.add(m)
   return g
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 120m 안
@@ -201,6 +306,23 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   private lastZoom = -1
   private anchor = maplibregl.MercatorCoordinate.fromLngLat(ANCHOR, 0)
   private scale = this.anchor.meterInMercatorCoordinateUnits()
+  // 경사면·화살(setSlopes)과 제설차(setTrucks). 화살·제설차는 매 프레임 움직인다
+  private ramps: Ramp[] = []
+  private rampData: SlopeRamp[] = []
+  private segWalls: THREE.Mesh[] = []
+  private segWallData: SegWall[] = []
+  private chev: THREE.InstancedMesh | null = null
+  private chevGeom = chevronGeometry()
+  private emissive = new Map<IconKind, number>() // 종류별 발광(2단계 제설함 0.6)
+  private trucks: Truck[] = []
+  private truckRoutes: TruckRoute[] = []
+  private truckMeshes: THREE.InstancedMesh[] = []
+  private truckDefs: Part[] | null = null
+  private lastTick = 0
+  private toModel(lng: number, lat: number): { x: number; z: number } {
+    const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], 0)
+    return { x: (mc.x - this.anchor.x) / this.scale, z: (mc.y - this.anchor.y) / this.scale }
+  }
 
   constructor() {
     const hemi = new THREE.HemisphereLight(0xffffff, 0x8f8a7c, 1.1)
@@ -215,9 +337,12 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true })
       this.renderer.autoClear = false
     }
-    if (!this.defs) this.defs = buildDefs(this.dark)
+    if (!this.defs) this.defs = buildDefsOutlined(this.dark)
     // 이미 받은 점이 있으면(스타일 교체 뒤 재추가) 다시 세운다
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
+    if (this.rampData.length) this.buildRamps()
+    if (this.segWallData.length) this.buildSegWalls()
+    if (this.truckRoutes.length) this.buildTrucks()
   }
 
   onRemove() {
@@ -229,10 +354,251 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   setTheme(dark: boolean) {
     if (this.dark === dark && this.defs) return
     this.dark = dark
-    this.defs = buildDefs(dark)
+    this.defs = buildDefsOutlined(dark)
     this.applyDims()
+    this.applyEmissive()
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
+    this.truckDefs = null
+    if (this.map) {
+      this.buildRamps()
+      this.buildSegWalls()
+      this.buildTrucks()
+    }
     this.map?.triggerRepaint()
+  }
+
+  /** 단계 문법: 종류 발광(2단계 제설함 0.6). 0이면 기본 재질로 */
+  setEmissive(kind: IconKind, intensity: number) {
+    if ((this.emissive.get(kind) ?? 0) === intensity) return
+    this.emissive.set(kind, intensity)
+    this.applyEmissive()
+    this.map?.triggerRepaint()
+  }
+  private applyEmissive() {
+    const defs = this.defs
+    if (!defs) return
+    for (const [k, v] of this.emissive)
+      for (const part of defs[k].parts) {
+        const m = part.mat as THREE.MeshLambertMaterial
+        if (!(m instanceof THREE.MeshLambertMaterial)) continue
+        m.emissive = new THREE.Color(m.color)
+        m.emissiveIntensity = v
+        m.needsUpdate = true
+      }
+  }
+
+  // 선형을 따라 서는 벽: 점마다 바닥(y 0)·꼭대기(y h) 두 꼭짓점, 이웃끼리 사각형. 꼭짓점 색은 바닥 어둡게·꼭대기 제 색(위로 밝아져 "선다"가 읽힌다). 깊이 검사 없음(건물이 가리던 실측)
+  private wallMesh(pts: { x: number; z: number; h: number }[], color: string, opacity: number, ridge: boolean): THREE.Mesh {
+    const pos = new Float32Array(pts.length * 2 * 3)
+    const col = new Float32Array(pts.length * 2 * 3)
+    const base = new THREE.Color(color)
+    const dim = base.clone().multiplyScalar(this.dark ? 0.35 : 0.55)
+    pts.forEach((p, i) => {
+      pos.set([p.x, 0, p.z], i * 6)
+      pos.set([p.x, p.h, p.z], i * 6 + 3)
+      col.set([dim.r, dim.g, dim.b], i * 6)
+      col.set([base.r, base.g, base.b], i * 6 + 3)
+    })
+    const idx: number[] = []
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = i * 2
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute("position", new THREE.BufferAttribute(pos, 3))
+    geom.setAttribute("color", new THREE.BufferAttribute(col, 3))
+    geom.setIndex(idx)
+    const wall = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, depthTest: false }))
+    wall.renderOrder = 10
+    if (ridge) {
+      // 윗선(능선): 1px 밝은 선. 벽의 자식이라 y 배율을 같이 받는다
+      const rg = new THREE.BufferGeometry()
+      rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts.flatMap((p) => [p.x, p.h, p.z])), 3))
+      const edge = new THREE.Line(rg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: Math.min(1, opacity + 0.45), depthTest: false }))
+      edge.renderOrder = 11
+      wall.add(edge)
+    }
+    return wall
+  }
+  private disposeWall(w: THREE.Mesh) {
+    this.scene.remove(w)
+    w.geometry.dispose()
+    ;(w.material as THREE.Material).dispose()
+    for (const c of w.children) {
+      ;(c as THREE.Line).geometry.dispose()
+      ;((c as THREE.Line).material as THREE.Material).dispose()
+    }
+  }
+
+  /** 구간 벽(열선 없는 취약·결빙구간, 법령 탭 관리청별). 높이는 화면 기준 SEG_WALL_PX. 빈 배열이면 치운다 */
+  setSegWalls(walls: SegWall[]) {
+    this.segWallData = walls
+    if (this.map) this.buildSegWalls()
+  }
+  private buildSegWalls() {
+    for (const w of this.segWalls) this.disposeWall(w)
+    this.segWalls = []
+    const map = this.map
+    if (!map || !this.segWallData.length) {
+      map?.triggerRepaint()
+      return
+    }
+    for (const sw of this.segWallData) {
+      const pts = sw.coords.map(([lat, lng]) => ({ ...this.toModel(lng, lat), h: 1 }))
+      const wall = this.wallMesh(pts, sw.color, 0.62, true)
+      this.scene.add(wall)
+      this.segWalls.push(wall)
+    }
+    this.lastZoom = -1
+    map.triggerRepaint()
+  }
+
+  /** 경사 추정 구간(오르막 방향 좌표·고도 단면). 빈 배열이면 치운다 */
+  setSlopes(ramps: SlopeRamp[]) {
+    this.rampData = ramps
+    if (this.map) this.buildRamps()
+  }
+  private buildRamps() {
+    const map = this.map
+    for (const r of this.ramps) this.disposeWall(r.wall)
+    if (this.chev) {
+      this.scene.remove(this.chev)
+      ;(this.chev.material as THREE.Material).dispose()
+      this.chev = null
+    }
+    this.ramps = []
+    if (!map || !this.rampData.length) {
+      map?.triggerRepaint()
+      return
+    }
+    const color = this.dark ? RISK.slope.color : RISK.slope.colorLight
+    const muted = this.dark ? "#6a5c86" : "#a89bc4"
+    let first = 0
+    for (const rd of this.rampData) {
+      const pts: Ramp["pts"] = []
+      let s = 0
+      rd.coords.forEach(([lat, lng], i) => {
+        const p = this.toModel(lng, lat)
+        if (i > 0) s += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z)
+        pts.push({ x: p.x, z: p.z, h: rd.hs[i] ?? 0, s })
+      })
+      // 경사면: 고도 단면대로 서는 벽(y 배율 = 과장, 프레임마다 scale.y). 경사면·화살은 깊이 검사를 끈다(데이터 덧그림): 이면도로 양옆 건물이 벽을 가려 확대해도 안 보이던 실측(z16)
+      const wall = this.wallMesh(pts, rd.heat ? muted : color, rd.heat ? 0.18 : 0.5, true)
+      this.scene.add(wall)
+      const slots = Math.max(1, Math.ceil(s / CHEV_GAP_M))
+      this.ramps.push({ pts, len: s, rise: Math.max(0.5, rd.rise), heat: rd.heat, wall, first, slots })
+      first += slots
+    }
+    const chev = new THREE.InstancedMesh(this.chevGeom, new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: this.dark ? 0.5 : 0.25, depthTest: false, transparent: true }), first)
+    chev.frustumCulled = false
+    chev.renderOrder = 12 // 투명 목록에서 벽(10) 뒤에 그려져 벽에 안 덮인다
+    const c = new THREE.Color()
+    for (const r of this.ramps) for (let k = 0; k < r.slots; k++) chev.setColorAt(r.first + k, c.set(r.heat ? muted : color))
+    if (chev.instanceColor) chev.instanceColor.needsUpdate = true
+    this.scene.add(chev)
+    this.chev = chev
+    this.lastZoom = -1
+    map.triggerRepaint()
+  }
+  // 화살은 벽 윗선(고도 단면) 위를 오르막으로 흐른다. 조망에서는 화살을 키우고 간격도 같이 늘려 겹치지 않게, 경사면은 최소 화면 높이까지 과장한다
+  private updateRamps(now: number, mpp: number) {
+    const chev = this.chev
+    if (!chev || !this.ramps.length) return
+    const k = Math.min(CHEV_MAX_SCALE, Math.max(1, (CHEV_PX * mpp) / CHEV_M))
+    const gap = CHEV_GAP_M * k
+    const phase = ((now / 1000) * CHEV_SPEED * Math.sqrt(k)) % gap
+    const tmp = new THREE.Matrix4()
+    const rot = new THREE.Matrix4()
+    const sc = new THREE.Matrix4().makeScale(k, k, k)
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0)
+    for (const r of this.ramps) {
+      const ex = Math.min(RAMP_MAX_EXAGGERATION, Math.max(1, (RAMP_MIN_PX * mpp) / r.rise))
+      r.wall.scale.y = ex
+      let j = 1
+      for (let q = 0; q < r.slots; q++) {
+        const s = q * gap + phase
+        if (s > r.len) {
+          chev.setMatrixAt(r.first + q, zero)
+          continue
+        }
+        while (j < r.pts.length - 1 && r.pts[j].s < s) j++
+        const A = r.pts[j - 1]
+        const B = r.pts[j]
+        const f = (s - A.s) / Math.max(1e-6, B.s - A.s)
+        const x = A.x + (B.x - A.x) * f
+        const z = A.z + (B.z - A.z) * f
+        const h = (A.h + (B.h - A.h) * f) * ex + 0.4
+        rot.makeRotationY(-Math.atan2(B.z - A.z, B.x - A.x))
+        tmp.makeTranslation(x, h, z).multiply(rot).multiply(sc)
+        chev.setMatrixAt(r.first + q, tmp)
+      }
+    }
+    chev.instanceMatrix.needsUpdate = true
+  }
+
+  /** 제설 장비 노선(상습결빙구간 선형). 노선마다 1대(2.5km 넘으면 2대)가 왕복한다. 빈 배열이면 치운다 */
+  setTrucks(routes: TruckRoute[]) {
+    this.truckRoutes = routes
+    if (this.map) this.buildTrucks()
+  }
+  private buildTrucks() {
+    const map = this.map
+    for (const m of this.truckMeshes) this.scene.remove(m)
+    this.truckMeshes = []
+    this.trucks = []
+    if (!map || !this.truckRoutes.length) {
+      map?.triggerRepaint()
+      return
+    }
+    for (const route of this.truckRoutes) {
+      const pts = route.coords.map(([lng, lat]) => this.toModel(lng, lat))
+      const cum = [0]
+      for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z))
+      const n = route.meters > 2500 ? 2 : 1
+      for (let t = 0; t < n; t++) this.trucks.push({ cum, pts, dist: (cum[cum.length - 1] * (t + 0.35)) / n, dir: t % 2 ? -1 : 1 })
+    }
+    if (!this.truckDefs) this.truckDefs = truckParts(this.dark)
+    this.truckMeshes = this.truckDefs.map((part) => {
+      const mesh = new THREE.InstancedMesh(part.geom, part.mat, this.trucks.length)
+      mesh.frustumCulled = false
+      this.scene.add(mesh)
+      return mesh
+    })
+    this.lastTick = 0
+    map.triggerRepaint()
+  }
+  // 제설차: 노선 위를 등속 왕복. 방향은 진행 방향
+  private updateTrucks(now: number, mpp: number) {
+    if (!this.trucks.length || !this.truckMeshes.length || !this.truckDefs) return
+    const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 0
+    const kt = Math.min(TRUCK_MAX_SCALE, Math.max(1, (TRUCK_PX * mpp) / TRUCK_LEN))
+    const tmp = new THREE.Matrix4()
+    const rot = new THREE.Matrix4()
+    const sc = new THREE.Matrix4().makeScale(kt, kt, kt)
+    this.trucks.forEach((t, i) => {
+      const total = t.cum[t.cum.length - 1]
+      t.dist += t.dir * TRUCK_SPEED * dt
+      if (t.dist >= total) {
+        t.dist = total
+        t.dir = -1
+      } else if (t.dist <= 0) {
+        t.dist = 0
+        t.dir = 1
+      }
+      let j = 1
+      while (j < t.cum.length - 1 && t.cum[j] < t.dist) j++
+      const f = (t.dist - t.cum[j - 1]) / Math.max(1e-6, t.cum[j] - t.cum[j - 1])
+      const A = t.pts[j - 1]
+      const B = t.pts[j]
+      const x = A.x + (B.x - A.x) * f
+      const z = A.z + (B.z - A.z) * f
+      rot.makeRotationY(-Math.atan2((B.z - A.z) * t.dir, (B.x - A.x) * t.dir))
+      this.truckMeshes.forEach((mesh, m) => {
+        tmp.makeTranslation(x, 0, z).multiply(rot).multiply(sc).multiply(this.truckDefs![m].local)
+        mesh.setMatrixAt(i, tmp)
+      })
+    })
+    for (const mesh of this.truckMeshes) mesh.instanceMatrix.needsUpdate = true
   }
 
   setVisible(v: boolean) {
@@ -325,6 +691,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     const mpp = metersPerPixel(zoom)
     // 숫자는 카메라 방위를 따라 선다. 모델 행렬이 x를 뒤집어(getMatrixForModel scale -x) 부호가 반대: rotation.y = -bearing(dumping 실측)
     const face = (-map.getBearing() * Math.PI) / 180
+    const zoomChanged0 = Math.abs(zoom - this.lastZoom) >= 0.01
     let animating = false
     const tmp = new THREE.Matrix4()
     const sc = new THREE.Matrix4()
@@ -359,6 +726,18 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       })
       if (!appearing) st.appearAt = 0
     }
+    // 구간 벽은 화면 기준 높이(줌이 바뀔 때만)
+    if (this.segWalls.length && (zoomChanged0 || this.lastZoom < 0)) for (const w of this.segWalls) w.scale.y = SEG_WALL_PX * mpp
+    // 경사 화살·제설차는 매 프레임 움직인다(있을 때만 다시 그린다)
+    if (this.ramps.length) {
+      this.updateRamps(now, mpp)
+      animating = true
+    }
+    if (this.trucks.length) {
+      this.updateTrucks(now, mpp)
+      animating = true
+    }
+    this.lastTick = now
     this.lastZoom = zoom
     return animating
   }

@@ -53,7 +53,11 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
   const liveStage = fc ? stageForSnow(fc.snow24, warn) : null
   const deadline = ordinanceDeadline(endAt, dailyCm)
   const endStr = `${endAt.getFullYear()}-${String(endAt.getMonth() + 1).padStart(2, "0")}-${String(endAt.getDate()).padStart(2, "0")}T${String(endAt.getHours()).padStart(2, "0")}:${String(endAt.getMinutes()).padStart(2, "0")}`
-  const rows = [...mobilized.filter((n) => MAPPED.includes(n.id)), ...mobilized.filter((n) => !MAPPED.includes(n.id))].map((n, i) => ({ n, i: i + 1, mapped: MAPPED.includes(n.id) }))
+  // 4라운드: 구 보유(지도 4 + 보도자료) › 외부 의무·협력(건축물관리자·민관협력. 구 보유 자원이 아니라는 냉독 지적). 그래프 Lever holder 속성이 정본
+  const own = mobilized.filter((n) => n.props.holder !== "외부")
+  const external = mobilized.filter((n) => n.props.holder === "외부")
+  const rows = [...own.filter((n) => MAPPED.includes(n.id)), ...own.filter((n) => !MAPPED.includes(n.id))].map((n, i) => ({ n, i: i + 1, mapped: MAPPED.includes(n.id) }))
+  const extRows = external.map((n, i) => ({ n, i: rows.length + i + 1, mapped: false }))
   const headline = useForecast && fc ? (fc.snow24 > 0 || warn !== "none" ? `예보 적설 ${fc.snow24}cm${warn !== "none" ? `와 ${warn === "warning" ? "대설경보" : "대설주의보"}` : ""}로 서울시 기준 ${stage.label}입니다.` : "예보 적설이 없어 평시입니다.") : `시나리오: 적설 ${simCm}cm 예보라면 서울시 기준 ${stage.label}입니다.`
 
   return (
@@ -112,23 +116,42 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       </ol>
       <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">2단계는 대설주의보, 3단계는 대설경보로도 발령합니다. 출처 서울시 2026-02-01.</p>
 
-      <SectionHead n="02" sub={`${stage.label}에서 동원하는 자원 ${mobilized.length}종. 위치가 공개된 4종은 지도에 있고 나머지는 보도자료(${data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "").replace(/\(.*\)/, "") ?? ""}) 규모만 있습니다`}>
+      <SectionHead n="02" sub={`${stage.label}에서 동원하는 자원 ${mobilized.length}종. 구 보유 ${own.length}종(위치가 공개된 ${rows.filter((r) => r.mapped).length}종은 지도, 나머지는 보도자료 ${data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "").replace(/\(.*\)/, "") ?? ""} 규모만)${external.length ? `과 외부 의무·협력 ${external.length}종` : ""}. 지도는 이 단계가 동원하는 자원 층만 켭니다`}>
         동원 자원
       </SectionHead>
       {rows.length ? (
-        <Table
-          cols={LEVER_COLS}
-          rows={rows}
-          rowKey={(r) => r.n.id}
-          cell={(r, k) => {
-            if (k === "번호") return String(r.i).padStart(2, "0")
-            if (k === "자원") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.n.label}</span>
-            if (k === "수량") return leverCount(r.n.id, data)
-            return r.mapped ? "지도" : "보도자료 기재분"
-          }}
-        />
+        <>
+          <div className="dump-kicker mb-1 text-[10px] text-[var(--cp-text-dim)]">구 보유 {own.length}종</div>
+          <Table
+            cols={LEVER_COLS}
+            rows={rows}
+            rowKey={(r) => r.n.id}
+            cell={(r, k) => {
+              if (k === "번호") return String(r.i).padStart(2, "0")
+              if (k === "자원") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.n.label}</span>
+              if (k === "수량") return leverCount(r.n.id, data)
+              return r.mapped ? "지도" : "보도자료"
+            }}
+          />
+        </>
       ) : (
         <p className="text-[13px] text-[var(--cp-text-dim)]">이 단계에서 동원하는 자원이 없습니다</p>
+      )}
+      {extRows.length > 0 && (
+        <>
+          <div className="dump-kicker mb-1 mt-2.5 text-[10px] text-[var(--cp-text-dim)]">외부 의무·협력 {extRows.length}종</div>
+          <Table
+            cols={LEVER_COLS}
+            rows={extRows}
+            rowKey={(r) => r.n.id}
+            cell={(r, k) => {
+              if (k === "번호") return String(r.i).padStart(2, "0")
+              if (k === "자원") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.n.label}</span>
+              if (k === "수량") return leverCount(r.n.id, data)
+              return r.n.id === "lev-owner" ? "조례" : "보도자료"
+            }}
+          />
+        </>
       )}
       {idle.length > 0 && <p className="mt-2 text-[13px] text-[var(--cp-text-faint)]">대기: {idle.map((n) => n.label).join(" · ")}</p>}
 

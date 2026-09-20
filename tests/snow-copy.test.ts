@@ -6,6 +6,9 @@ import graphJson from "../data/snow/graph.json" with { type: "json" }
 import type { OntoGraph } from "../lib/snow/types"
 import { runCompetencyQuestions } from "../lib/snow/queries"
 import { HEAT_STYLE, REL_KO, RESOURCES, RISK, TYPE_KO } from "../lib/snow/labels"
+import mapJson from "../data/snow/map.json" with { type: "json" }
+import type { SnowMapData } from "../lib/snow/types"
+import { buildChecklist } from "../lib/snow/facts"
 
 // /snow 카피 게이트(deck-copy-rules 정본 적용). 화면 문장·그래프 라벨·역량 질문·툴팁에서 비유 동사·줄표·화살표·AI 관용어를 0으로 박는다.
 // 1라운드 위반 실측: 겨냥(10곳)·받친다·말한다·"표로는 못 던지는 질문"·"커버리지의 바닥"·"X가 아니라 Y"·반말 혼재·화살표 남발
@@ -13,6 +16,7 @@ import { HEAT_STYLE, REL_KO, RESOURCES, RISK, TYPE_KO } from "../lib/snow/labels
 const ROOT = path.resolve(import.meta.dirname, "..")
 const FILES = [
   "components/snow/gap-panel.tsx",
+  "components/snow/check-print.tsx",
   "components/snow/stage-panel.tsx",
   "components/snow/resource-panel.tsx",
   "components/snow/onto-panel.tsx",
@@ -30,12 +34,14 @@ const FILES = [
 ]
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), "utf8")
 
-// 한글 문자열 리터럴만 뽑는다(코드 식별자·주석 제외). 백틱·따옴표 안 한글 포함 문자열
+// 한글 문자열 리터럴 + JSX 본문 텍스트(태그 사이 글)를 뽑는다(코드 식별자·주석 제외). 4라운드: JSX 텍스트("동 — = …")가 게이트를 빠져나갔던 구멍을 막았다
 function koreanStrings(src: string): string[] {
   const out: string[] = []
   const re = /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g
   let m: RegExpExecArray | null
   while ((m = re.exec(src))) if (/[가-힣]/.test(m[2])) out.push(m[2])
+  const jsx = />([^<>{}]*[가-힣][^<>{}]*)</g
+  while ((m = jsx.exec(src))) out.push(m[1].trim())
   return out
 }
 // 주석 줄(//·/* */)은 화면에 안 나오니 제외
@@ -182,4 +188,23 @@ test("열선·취약·급경사 색 hue 차 40° 이상(다크·라이트)", () 
   }
   assert.strictEqual(RISK.weak.color, RISK.ice.color, "취약구간·결빙구간은 같은 색(선 모양으로 구분)")
   assert.ok(hueDiff(HEAT_STYLE.glow.dark, heat.color) < 15, "글로우는 열선과 같은 색상")
+})
+
+// 4라운드 결재 문서화: 점검 후보는 동사로 끝나는 제목 + 부서(또는 내부 확인) + 기한 + 규모를 갖는다
+test("점검 후보 5행 전부 동사 제목(비치·검토·요청·점검) + 부서 + 기한 + 규모", () => {
+  const checks = buildChecklist(mapJson as unknown as SnowMapData)
+  assert.strictEqual(checks.length, 5)
+  for (const c of checks) {
+    assert.match(c.title, /(비치|검토|요청|점검)$/, `${c.id} 제목이 동사로 끝나지 않음: ${c.title}`)
+    assert.ok(c.dept.length > 0, `${c.id} 부서 없음`)
+    assert.match(c.due, /대책기간 전/, `${c.id} 기한 없음`)
+    assert.ok(/\d/.test(c.scale), `${c.id} 규모에 수량 없음: ${c.scale}`)
+    assert.ok(c.done.length > 0, `${c.id} 완료 기준 없음`)
+  }
+  assert.deepStrictEqual(
+    checks.map((c) => c.owner),
+    ["구", "구", "시", "동", "학교"],
+    "순서: 구 소관 행동 가능 › 시 요청 › 동 단위 › 학교",
+  )
+  assert.strictEqual(checks.find((c) => c.id === "c-school")?.dept, "내부 확인", "학교 소관은 데이터에 없어 내부 확인 슬롯")
 })

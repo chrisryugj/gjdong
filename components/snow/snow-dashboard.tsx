@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { LayerId, OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
-import { inSnowSeason, stageForSnow, type StageId } from "@/lib/snow/stage"
-import { buildChecklist, gapSummary, heatTopDongs, totals, type Finding } from "@/lib/snow/facts"
+import { inSnowSeason, MOBILIZED, stageForSnow, type StageId } from "@/lib/snow/stage"
+import { buildChecklist, gapSummary, heatTopDongs, segOwner, totals, type Finding } from "@/lib/snow/facts"
 import SnowMap, { type CameraCue, type StageView } from "./snow-map"
 import OntoGraphView from "./onto-graph"
 import GapPanel from "./gap-panel"
@@ -12,8 +12,9 @@ import ResourcePanel from "./resource-panel"
 import OntoPanel from "./onto-panel"
 import LawPanel from "./law-panel"
 import MethodsModal from "./methods-modal"
-import { boundsOf, type ColMetric, dongBounds, heatPaths, segMid } from "./map-geo"
+import { boundsOf, type ColMetric, dongBounds, type FlyStop, heatPaths, segMid } from "./map-geo"
 import { ALL_LAYERS, DEFAULT_VIEW, LayerPanel, Legend, type MapView } from "./map-controls"
+import { Ico } from "@/components/dumping/icons"
 import ThemeSwitch, { useTheme } from "@/components/dumping/theme"
 import LiquidGlass from "@/components/dumping/liquid-glass"
 import LiquidTabs from "@/components/dumping/liquid-tabs"
@@ -24,6 +25,7 @@ import { useSidebarWidth } from "@/components/dumping/use-sidebar-width"
 // 탭: 공백(결론·발견) · 대응 단계(예보·특보 › 단계 › 시한 › 동원) · 자원 현황(4종·동별 기둥·서울 비교) · 근거 그래프 · 법령·책임
 // 다크(겨울 밤 상황실)가 기본. 라이트는 인쇄용 보조. 왼쪽 카드는 거의 불투명(.snow-page .lg-inner)
 // 3라운드(2026-09-20): 테마 저장 키 snow-theme(/dumping의 dump-theme와 분리. 그쪽을 라이트로 쓰면 여기까지 라이트로 뜨던 실사고), 자동 회전·초점 고리·시연 중 카드 접기·격상 진행바, 급경사 칩
+// 4라운드(2026-09-21): 시연 6장면(경사 추정·점검 후보 드론 비행 추가), 대응 단계 탭은 단계 동원 목록(MOBILIZED)대로 자원 층을 켜고 2단계부터 제설차, 법령 탭은 관리청별 색(ownerView), 모바일(768 미만)은 평면 기본, 동별 순위 입체 숫자는 장면 2에서만
 
 type Tab = "gap" | "stage" | "resources" | "onto" | "law"
 const TABS: { id: Tab; label: string }[] = [
@@ -69,6 +71,7 @@ interface Scene {
   note: string
   apply: () => void
 }
+const RESOURCE_LAYERS: LayerId[] = ["heat", "salt", "cacl", "sand"]
 
 export default function SnowDashboard() {
   const [tab, setTab] = useState<Tab>("gap")
@@ -87,7 +90,8 @@ export default function SnowDashboard() {
   const [focusLabel, setFocusLabel] = useState<string | null>(null) // 지도가 어디를 보고 있는지(구간·발견 카드 클릭 뒤) 지도 위 칩
   const [focusPoint, setFocusPoint] = useState<[number, number] | null>(null) // 땅 위 맥동 고리
   const [focusDetail, setFocusDetail] = useState<string | null>(null) // 칩 둘째 줄(구간 요약. 목록에서 눈을 떼도 맥락이 남게)
-  const [orbit, setOrbit] = useState(false) // 자동 회전(시연 장면 1·4). 지도를 만지면 꺼진다
+  const [orbit, setOrbit] = useState(false) // 자동 회전(시연 장면 1·5). 지도를 만지면 꺼진다
+  const [fly, setFly] = useState<FlyStop[] | null>(null) // 드론 비행(시연 장면 6). 지도를 만지면 꺼진다
   const [demoProgress, setDemoProgress] = useState<{ key: number; ms: number; at: number } | null>(null) // 장면 3 자동 격상 진행선
   const [remain, setRemain] = useState(0)
   const [cameraCue, setCameraCue] = useState<CameraCue | null>(null)
@@ -123,6 +127,10 @@ export default function SnowDashboard() {
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
     return () => mo.disconnect()
   }, [])
+  // 모바일(768 미만)은 평면 기본(4라운드 결정: 3D 핀이 작은 화면에서 점으로 뭉개진다). 첫 마운트에 한 번
+  useEffect(() => {
+    if (!window.matchMedia("(min-width: 768px)").matches) setView((v) => ({ ...v, tilt: false }))
+  }, [])
   // 격상 진행선 남은 시간
   useEffect(() => {
     if (!demoProgress) return
@@ -155,12 +163,19 @@ export default function SnowDashboard() {
   const stage = stageForSnow(effectiveCm, useForecast && fc ? (fc.warning?.level ?? "none") : "none")
   // 지도 단계 상태: 대응 단계 탭·시연에서만. 공백 탭은 단계 무관(자재 전부 점등)
   const stageView: StageView = demoStage ?? (tab === "stage" ? stage.id : null)
-  const stageNote = stageView == null ? null : stageView === "calm" || stageView === "stage-0" ? "열선·살포기만 가동, 자재는 대기(흐림)" : stageView === "stage-1" ? "비치 자재 점등" : stageView === "stage-2" ? "제설함 확대(간선 살포)" : "열선 없는 동 외곽 강조"
+  // 대응 단계 탭: 지도 자원 층을 그 단계가 동원하는 목록(MOBILIZED, 그래프 mobilizes와 같은 목록)대로 켠다. 단계가 바뀌면 지도도 바뀐다(냉독: 탭을 바꿔도 지도가 그대로였다). 시연은 장면이 직접 정한다
+  const stageId = stage.id
+  useEffect(() => {
+    if (tab !== "stage" || demo !== null) return
+    const mob = MOBILIZED[stageId]
+    setView((v) => ({ ...v, layers: [...v.layers.filter((l) => !RESOURCE_LAYERS.includes(l)), ...RESOURCE_LAYERS.filter((r) => mob.includes(`lev-${r}`))] }))
+  }, [tab, stageId, demo])
+  const stageNote = stageView == null ? null : stageView === "calm" || stageView === "stage-0" ? "열선·살포기만 가동, 자재는 대기(흐림)" : stageView === "stage-1" ? "비치 자재 점등" : stageView === "stage-2" ? "제설함 확대·점등 · 제설차가 결빙구간 왕복" : "열선 없는 동 외곽 강조 · 제설차 왕복"
 
   const cue = (c: Omit<CameraCue, "seq">) => setCameraCue((p) => ({ ...c, seq: (p?.seq ?? 0) + 1 }))
   const resetAll = () => {
     setTab("gap")
-    setView(DEFAULT_VIEW)
+    setView({ ...DEFAULT_VIEW, tilt: isMd })
     setColMetric(null)
     setSelectedDong(null)
     setSelectedNode(null)
@@ -169,6 +184,7 @@ export default function SnowDashboard() {
     setFocusDetail(null)
     setFocusPoint(null)
     setOrbit(false)
+    setFly(null)
     setLayersOpen(false)
     setResetSeq((v) => v + 1)
   }
@@ -185,6 +201,7 @@ export default function SnowDashboard() {
     setFocusPoint(null)
     setSelectedDong(null)
     setOrbit(false)
+    setFly(null)
     setResetSeq((v) => v + 1)
   }
   const onFinding = (f: Finding["focus"] | null, label?: string) => {
@@ -232,7 +249,37 @@ export default function SnowDashboard() {
     setMapCollapsed(false)
   }
 
-  // ─── 시연 5장면(수치는 facts 파생) ───
+  // 드론 비행 경유지 = 점검 후보마다 대표 지점 하나(시연 장면 6 · 레이어 패널 "드론 비행")
+  const flyStops = useMemo<FlyStop[]>(() => {
+    if (!data) return []
+    const g = gapSummary(data)
+    const noHeatWeak = data.weak.filter((w) => !w.heatCovered)
+    const ll = (p: [number, number]): [number, number] => [p[1], p[0]]
+    const stopFor = (id: string): [number, number] | null => {
+      if (id === "c-material") {
+        const w = data.weak.find((x) => x.gap)
+        return w ? ll(segMid(w.path)) : null
+      }
+      if (id === "c-slope") {
+        const w = noHeatWeak.find((x) => data.slopes.some((sl) => sl.weakNear.includes(x.i)))
+        return w ? ll(segMid(w.path)) : null
+      }
+      if (id === "c-seoul") {
+        const s = data.ice.map((x, i) => ({ ...x, src: "ice" as const, n: i + 1 })).find((x) => segOwner(x) === "시" && x.gap)
+        return s ? ll(s.method === "points" ? s.a : segMid(s.path)) : null
+      }
+      if (id === "c-dong") {
+        const d = data.dongs.find((x) => x.d === g.noHeatDongs[0])
+        return d ? ll(d.center) : null
+      }
+      const sc = data.schools.find((x) => !x.heatNear.length && x.weakNear.length) ?? data.schools.find((x) => !x.heatNear.length)
+      return sc ? [sc.lng, sc.lat] : null
+    }
+    return buildChecklist(data)
+      .map((c, i) => ({ rank: i + 1, label: `${c.short} · ${c.dept}`, lnglat: stopFor(c.id) }))
+      .filter((x): x is FlyStop => !!x.lnglat)
+  }, [data])
+  // ─── 시연 6장면(수치는 facts 파생). 4라운드: 5 지형 경사(경사면·화살) · 6 점검 후보 드론 비행 ───
   const scenes = useMemo<Scene[]>(() => {
     if (!data) return []
     const g = gapSummary(data)
@@ -241,10 +288,13 @@ export default function SnowDashboard() {
     const checks = buildChecklist(data)
     const later = (ms: number, fn: () => void) => demoTimers.current.push(window.setTimeout(fn, ms))
     const noHeatWeak = data.weak.filter((w) => !w.heatCovered)
+    // 경사 장면: 자막이 말하는 가장 가파른 구간(slopes[0])이 있는 동 주변(냉독: 자막은 용마산로30길인데 카메라는 다른 동)
+    const steepest = data.slopes[0]
+    const slopeBox = boundsOf(data.slopes.filter((s) => s.d === steepest?.d).map((s) => s.coords))
     return [
       {
         title: "공백",
-        caption: `적설취약구간 ${t.weak}곳 중 ${g.weakNoHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 비치 자재도 없는 곳은 ${g.gu.none}곳입니다. 진한 선이 열선 없는 구간입니다.`,
+        caption: `적설취약구간 ${t.weak}곳 중 ${g.weakNoHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 비치 자재도 없는 곳은 ${g.gu.none}곳입니다. 진홍 벽과 번호가 열선 없는 구간, 회색 선이 열선 있는 구간입니다.`,
         note: `서울시 관리 결빙구간 ${g.si.total}곳 중 ${g.si.none}곳은 열선도 자재도 없음(시 소관) · 행안부 적설취약구간 ${t.weak}곳 · 상습결빙구간 ${t.ice}곳 · 자원 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`,
         apply: () => {
           setTab("gap")
@@ -297,19 +347,19 @@ export default function SnowDashboard() {
           setColMetric(null)
           setOrbit(false)
           // 보강 단계는 열선만. 1단계에서 자재 3종이 켜지며 3D 핀이 솟는다(점등). 진행선은 3단계 도착까지
-          setView({ layers: ["heat"], tilt: true })
+          setView({ layers: ["heat", "ice"], tilt: true })
           setDemoProgress({ key: Date.now(), ms: 7400, at: performance.now() })
           cue({ maxZoom: 13.6, pitch: 50, bearing: -18, duration: 1800 })
           later(2400, () => {
             setSimCm(3)
             setDemoStage("stage-1")
-            setView({ layers: ["heat", "salt", "cacl", "sand"], tilt: true })
+            setView({ layers: ["heat", "ice", "salt", "cacl", "sand"], tilt: true })
             setDemoCaption(`예보 적설 3cm이면 1단계입니다. 자원 6종을 동원하고 비치 자재 ${t.materials.toLocaleString("ko-KR")}개소가 켜집니다.`)
           })
           later(4800, () => {
             setSimCm(5)
             setDemoStage("stage-2")
-            setDemoCaption(`예보 적설 5cm이면 2단계입니다. 자원 8종을 동원하고 간선도로 제설함 ${t.salt}개소를 확대 표시합니다.`)
+            setDemoCaption(`예보 적설 5cm이면 2단계입니다. 자원 8종을 동원합니다. 간선도로 제설함 ${t.salt}개소가 커지고 제설 장비 ${data.ops.unimog + data.ops.dump15t}대가 결빙구간을 왕복합니다.`)
           })
           later(7200, () => {
             setSimCm(12)
@@ -337,9 +387,26 @@ export default function SnowDashboard() {
         },
       },
       {
+        title: "지형 경사",
+        caption: `지형 고도로 추정한 급경사 이면도로 ${t.slopes}구간 ${g.slopeKm}km 중 ${g.slopeNoHeat}구간에 열선이 없습니다. 보라 경사면이 높이차, 화살이 오르막 방향입니다.`,
+        note: `가장 가파른 곳 ${steepest?.name ?? ""} ${steepest?.grade ?? ""}%(높이차 ${steepest?.rise ?? ""}m) · 100m 창 8~20% · 고가·제방 옆 제외 · 행안부 취약구간 ${data.gaps.weakOnSlope}곳이 겹침 · 추정치`,
+        apply: () => {
+          setTab("gap")
+          setDemoStage(null)
+          setColMetric(null)
+          setFocusHeat(null)
+          setFocusPoint(null)
+          setSelectedDong(null)
+          setDemoProgress(null)
+          setView({ layers: ["slope", "weak"], tilt: true })
+          cue({ bounds: slopeBox ?? undefined, maxZoom: 15.2, pitch: 55, bearing: -18, duration: 2600 })
+          setOrbit(true)
+        },
+      },
+      {
         title: "점검 후보",
-        caption: `눈 오기 전 점검 후보 ${checks.length}: ${checks.map((c) => c.short).join(" · ")}.`,
-        note: `조치 여부와 순서는 담당 부서가 정합니다 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
+        caption: `눈 오기 전 점검 후보 ${checks.length}곳을 차례로 봅니다: ${checks.map((c) => c.short).join(" · ")}.`,
+        note: `부서·기한·규모는 공백 탭 02에 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
         apply: () => {
           setTab("gap")
           setDemoStage(null)
@@ -349,18 +416,19 @@ export default function SnowDashboard() {
           setSelectedDong(null)
           setOrbit(false)
           setDemoProgress(null)
-          setView({ layers: ["heat", "weak"], tilt: true })
-          cue({ maxZoom: 13.4, pitch: 40, bearing: -18, duration: 2000 })
+          setView({ layers: ["heat", "weak", "ice", "school"], tilt: true })
+          setFly(flyStops)
         },
       },
     ]
-  }, [data, graph])
+  }, [data, graph, flyStops])
 
   useEffect(() => {
     if (demo === null || !scenes[demo]) return
     for (const t of demoTimers.current) window.clearTimeout(t)
     demoTimers.current = []
     setDemoCaption(null)
+    setFly(null)
     scenes[demo].apply()
     return () => {
       for (const t of demoTimers.current) window.clearTimeout(t)
@@ -397,14 +465,30 @@ export default function SnowDashboard() {
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
     ? demoOn
       ? { tl: [24, 76 + 8 + 64], br: [16 + RIGHT_W + 24, 140] }
-      : { tl: [16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, 24] }
+      : { tl: [16 + sideW + 56, 76 + 8], br: [16 + RIGHT_W + 24, 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.48 + 8) : 8] }
   const counts: Partial<Record<LayerId, string>> = data
-    ? { weak: `${data.weak.length}곳`, ice: `${data.ice.length}곳`, slope: `${data.slopes.length}구간 · 열선 없음 ${data.gaps.slopeNoHeat}`, school: `${data.schools.length}교`, heat: `${data.heat.length}구간`, salt: `${data.salt.length}`, cacl: `${data.cacl.length}`, sand: `${data.sand.length}` }
+    ? { weak: `${data.weak.length}곳`, ice: `${data.ice.length}곳`, slope: `${data.slopes.length}구간`, school: `${data.schools.length}교`, heat: `${data.heat.length}구간`, salt: `${data.salt.length}`, cacl: `${data.cacl.length}`, sand: `${data.sand.length}` }
     : {}
   const slopeOn = view.layers.includes("slope") && rightPane === "map" && !!data
-  const layerPanel = <LayerPanel view={view} onChange={setView} dark={dark} counts={counts} />
-  const legend = <Legend dark={dark} stageLabel={stageView ? (stageView === "calm" ? "평시" : stageView === "stage-0" ? "보강" : stageView.replace("stage-", "") + "단계") : ""} stageNote={stageNote} />
+  const layerPanel = (
+    <LayerPanel
+      view={view}
+      onChange={setView}
+      dark={dark}
+      counts={counts}
+      controls={{
+        orbit,
+        fly: !!fly,
+        demo: demo !== null,
+        demoAvailable: isXl && !!data,
+        onOrbit: setOrbit,
+        onFly: (v) => setFly(v && flyStops.length ? flyStops : null),
+        onDemo: (v) => (v ? setDemo(0) : endDemo()),
+      }}
+    />
+  )
+  const legend = <Legend dark={dark} tilt={view.tilt} ownerView={tab === "law"} stageLabel={stageView ? (stageView === "calm" ? "평시" : stageView === "stage-0" ? "보강" : stageView.replace("stage-", "") + "단계") : ""} stageNote={stageNote} />
 
   return (
     <div
@@ -423,12 +507,19 @@ export default function SnowDashboard() {
             focusPoint={focusPoint}
             tilt={view.tilt}
             orbit={orbit}
+            ownerView={tab === "law"}
+            rankDigits={demo === 1}
+            trucks={stageView === "stage-2" || stageView === "stage-3"}
+            fly={fly}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}
             fitPadding={fitPadding}
             onSelectDong={(d) => setSelectedDong(d)}
-            onOrbitStop={() => setOrbit(false)}
+            onOrbitStop={() => {
+              setOrbit(false)
+              setFly(null)
+            }}
           />
         ) : (
           <div className="absolute inset-x-0 bottom-[calc(100%-var(--dump-sheet-top))] top-[104px] md:bottom-0 md:left-[calc(32px+var(--dump-side-w,440px))] md:right-0 md:top-[76px]">
@@ -444,7 +535,7 @@ export default function SnowDashboard() {
           <button onClick={resetAll} title="첫 화면으로" className="dump-fl lg-shell pointer-events-auto relative flex min-w-0 items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-4 text-left">
             <SnowMark size={30} />
             <span className="min-w-0">
-              <h1 className="truncate text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
+              <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
                 {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
@@ -458,13 +549,21 @@ export default function SnowDashboard() {
               </button>
             )}
             {isXl && data && (
-              <button onClick={() => (demo === null ? setDemo(0) : endDemo())} aria-pressed={demo !== null} className={`dump-fl lg-shell relative rounded-full px-3.5 py-2 text-[13px] font-semibold ${demo !== null ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}>
+              <button
+                type="button"
+                onClick={() => (demo === null ? setDemo(0) : endDemo())}
+                aria-pressed={demo !== null}
+                title="시연 모드: 6장면. 방향키로 이동, Esc로 나가기"
+                className={`dump-fl lg-shell relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors hover:text-(--dump-accent) ${demo !== null ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"}`}
+              >
+                <Ico name="monitor" size={14} />
                 {demo !== null ? "시연 끝" : "시연"}
               </button>
             )}
             {data && (
-              <button onClick={() => setMethods(true)} className="dump-fl lg-shell relative rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)]">
-                데이터·방법
+              <button onClick={() => setMethods(true)} className="dump-fl lg-shell group relative rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)">
+                {isMd ? "데이터·방법" : "데이터"}
+                <Ico name="arrow" size={13} className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" />
               </button>
             )}
             <ThemeSwitch compact={!isXl} />
@@ -528,7 +627,7 @@ export default function SnowDashboard() {
               />
             )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} onOpenMethods={() => setMethods(true)} />}
-            {tab === "law" && <LawPanel data={data} />}
+            {tab === "law" && <LawPanel data={data} dark={dark} />}
           </div>
         </div>
       </aside>
@@ -573,17 +672,18 @@ export default function SnowDashboard() {
               <i className="h-1 w-4 shrink-0 rounded-full" style={{ background: dark ? "#b48ee8" : "#6d4fb3" }} aria-hidden />
               <span className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">지형 추정</span>
               <span className="font-semibold">
-                경사 {data.slopes.length}구간 · 열선 없음 {data.gaps.slopeNoHeat}
+                경사 {data.slopes.length}구간 중 열선 없음 {data.gaps.slopeNoHeat}
               </span>
               <span aria-hidden className="text-[var(--cp-text-dim)]">✕</span>
             </button>
           )}
         </div>
       )}
+      {/* 오른쪽 열: 레이어 패널 › 범례. 900px 높이에서 둘이 열을 넘치면(4라운드 보기 그룹·범례 두 줄) 열 안에서 스크롤. 바닥 140px는 줌 버튼 자리 */}
       {rightPane === "map" && (
-        <div className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`} style={{ width: RIGHT_W }}>
-          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative rounded-2xl">{layerPanel}</div>
-          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto rounded-2xl">{legend}</div>
+        <div className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 overflow-y-auto [scrollbar-width:none] md:flex`} style={{ width: RIGHT_W }}>
+          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative shrink-0 rounded-2xl">{layerPanel}</div>
+          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
         </div>
       )}
 

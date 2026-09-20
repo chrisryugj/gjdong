@@ -221,32 +221,48 @@ export function buildFindings(data: SnowMapData): Finding[] {
   return out
 }
 
-// ─── 눈 오기 전 점검 후보(보고받는 사람 관점, 3라운드). 데이터가 가리키는 후보를 소관과 함께 늘어놓는다. 판단·우선순위는 담당 부서 몫이라 문장은 사실만 ───
+// ─── 눈 오기 전 점검 후보(보고받는 사람 관점, 3라운드 → 4라운드 결재 문서화). 데이터가 가리키는 후보를 행동 동사·부서·기한·규모와 함께 늘어놓는다.
+// 부서·기한·규모는 데이터에 있는 것만: 부서는 그래프 Team 노드의 역할(적설취약구간·제설함·열선 = 도로과 도로관리팀, 염화칼슘함·모래주머니·동 단위 = 동주민센터, 시 관리 = 관리청명), 학교 소관은 데이터가 없어 "내부 확인".
+// 기한은 대책기간 시작(ops.period.from)의 달 기준 "대책기간 전". 비용은 단가 데이터가 없어 쓰지 않는다(데이터·방법 "못 구한 데이터"). 조치 여부와 순서는 담당 부서가 정한다 ───
 export interface CheckItem {
   id: string
   owner: "구" | "시" | "동" | "학교"
+  action: "비치" | "검토" | "확인 요청" | "점검" // 행동 동사 하나. title이 이 말로 끝난다
+  dept: string // 담당 부서(데이터에 있는 것만. 없으면 "내부 확인")
+  due: string // 기한
+  scale: string // 규모(수량)
+  done: string // 완료 기준(이 화면의 판정이 바뀌는 조건, 또는 회신·확정)
   short: string // 시연 캡션·칩용 짧은 이름
-  title: string
-  body: string
+  title: string // 동사로 끝나는 제목
+  body: string // 근거 한 줄(사실만)
   n: number
   focus?: Finding["focus"]
 }
+export const DEPT = { road: "도로과 도로관리팀", dong: "동주민센터", internal: "내부 확인" } as const
 export function buildChecklist(data: SnowMapData): CheckItem[] {
   const g = gapSummary(data)
   const noHeatWeak = data.weak.filter((w) => !w.heatCovered)
   const onSlope = noHeatWeak.filter((w) => data.slopes.some((s) => s.weakNear.includes(w.i)))
-  const siNone = allSegments(data).filter((s) => s.src === "ice" && segOwner(s) === "시" && s.gap)
-  const agencies = [...new Set(siNone.map((s) => (s as IceSeg & { src: "ice" }).agency.replace(/^서울특별시\((.*)\)$/, "$1")))]
+  const siNone = allSegments(data).filter((s) => s.src === "ice" && segOwner(s) === "시" && s.gap) as (IceSeg & { src: "ice"; n: number })[]
+  const agencyOf = (s: IceSeg) => s.agency.replace(/^서울특별시\((.*)\)$/, "$1")
+  const agencyCounts = [...siNone.reduce((m, s) => m.set(agencyOf(s), (m.get(agencyOf(s)) ?? 0) + 1), new Map<string, number>()).entries()]
   const schoolsGap = data.schools.filter((s) => !s.heatNear.length)
   const schoolsWeak = schoolsGap.filter((s) => s.weakNear.length)
+  const due = `대책기간 전(${Number(data.ops.period.from.slice(5, 7))}월 중순)`
+  const noHeatDongRows = data.dongs.filter((d) => g.noHeatDongs.includes(d.d))
   const out: CheckItem[] = []
   if (g.gu.none)
     out.push({
       id: "c-material",
       owner: "구",
+      action: "비치",
+      dept: DEPT.road,
+      due,
+      scale: `구간 ${g.gu.none}곳`,
+      done: `${data.gaps.materialNearM}m 안 비치 자재 1개소 이상(재계산 시 구 관리 공백 0)`,
       short: `${g.gu.noneNames.join("·")} 자재 비치`,
-      title: `${g.gu.noneNames.join("·")}: ${data.gaps.materialNearM}m 안 비치 자재 0`,
-      body: `구 관리 취약구간 중 열선도 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다. ${data.gaps.materialNearM}m는 이 화면의 가정입니다(데이터·방법).`,
+      title: `${g.gu.noneNames.join("·")}에 제설 자재 비치`,
+      body: `구 관리 취약구간 중 열선도 ${data.gaps.materialNearM}m 안 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다. ${data.gaps.materialNearM}m는 이 화면의 가정입니다.`,
       n: g.gu.none,
       focus: { layer: "weak" },
     })
@@ -254,16 +270,21 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-slope",
       owner: "구",
+      action: "검토",
+      dept: DEPT.road,
+      due,
+      scale: `구간 ${onSlope.length}곳 · ${fmt(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}m`,
+      done: "구간별 열선 신설 여부 결정(예산 반영 여부 포함)",
       short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
-      title: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${onSlope.length}곳은 지형 추정 급경사와 겹칩니다`,
-      body: `${(() => {
+      title: `급경사 추정과 겹치는 열선 없는 취약구간 ${onSlope.length}곳의 열선 신설 검토`,
+      body: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${(() => {
         const cnt = new Map<string, number>()
         for (const w of onSlope) {
           const k = w.name.replace(/\(.*\)$/, "").trim()
           cnt.set(k, (cnt.get(k) ?? 0) + 1)
         }
         return [...cnt.entries()].map(([k, n]) => (n > 1 ? `${k} ${n}구간` : k)).join("·")
-      })()}. 열선 신설 검토 시 우선 확인 대상입니다(추정치).`,
+      })()}. 경사는 지형 타일 추정치입니다.`,
       n: onSlope.length,
       focus: { layer: "weak" },
     })
@@ -271,18 +292,28 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-seoul",
       owner: "시",
-      short: `시 관리 결빙 ${siNone.length}곳 관리청 확인`,
-      title: `서울시 관리 결빙구간 ${siNone.length}곳은 구 자재로 대응하지 않습니다`,
-      body: `관리청 ${agencies.join("·")}. 제설 계획·장비 살포 현황은 구 데이터에 없어 관리청 확인이 필요합니다.`,
+      action: "확인 요청",
+      dept: agencyCounts.map(([a]) => a).join("·"),
+      due,
+      scale: `구간 ${siNone.length}곳(${agencyCounts.map(([a, n]) => `${a} ${n}`).join(" · ")})`,
+      done: "관리청 제설 계획·살포 구간 확인 완료(구 상황실 공유)",
+      short: `시 관리 결빙 ${siNone.length}곳 관리청 확인 요청`,
+      title: `서울시 관리 결빙구간 ${siNone.length}곳의 제설 계획을 관리청에 확인 요청`,
+      body: `열선도 자재도 없는 상습결빙구간이지만 구 자재로 대응하는 구간이 아닙니다. 관리청의 제설 계획·장비 살포 현황은 구 데이터에 없습니다.`,
       n: siNone.length,
       focus: { layer: "ice" },
     })
   out.push({
     id: "c-dong",
     owner: "동",
-    short: `열선 없는 동 ${g.noHeatDongs.length}곳`,
-    title: `열선 없는 동 ${g.noHeatDongs.length}곳은 비치 자재로만 첫 결빙에 대응합니다`,
-    body: `${g.noHeatDongs.join("·")}. 이 동들의 비치 자재 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.salt + d.cacl + d.sand, 0)}개소, 적설취약구간 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳.`,
+    action: "점검",
+    dept: DEPT.dong,
+    due,
+    scale: `동 ${g.noHeatDongs.length}곳 · 자재 ${fmt(noHeatDongRows.reduce((s, d) => s + d.salt + d.cacl + d.sand, 0))}개소`,
+    done: "동별 자재 점검 결과(수량·상태)",
+    short: `열선 없는 동 ${g.noHeatDongs.length}곳 자재 점검`,
+    title: `열선 없는 동 ${g.noHeatDongs.length}곳의 비치 자재 점검`,
+    body: `${g.noHeatDongs.join("·")}은 열선 없이 비치 자재로 첫 결빙에 대응합니다. 이 동들의 적설취약구간은 ${noHeatDongRows.reduce((s, d) => s + d.weak, 0)}곳입니다.`,
     n: g.noHeatDongs.length,
     focus: { dong: g.noHeatDongs[0] },
   })
@@ -290,9 +321,14 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     out.push({
       id: "c-school",
       owner: "학교",
-      short: `열선 없는 초등학교 ${schoolsGap.length}교`,
-      title: `초등학교 ${schoolsGap.length}교는 ${data.gaps.schoolNearM}m 안에 열선이 없습니다`,
-      body: schoolsWeak.length ? `그중 ${schoolsWeak.map((s) => s.name.replace(/^서울/, "")).join("·")}은 ${data.gaps.schoolNearM}m 안에 행안부 취약구간도 있습니다.` : "취약구간과 겹치는 학교는 없습니다.",
+      action: "점검",
+      dept: DEPT.internal,
+      due,
+      scale: `학교 ${schoolsGap.length}교`,
+      done: "통학로 제설 소관 확정",
+      short: `열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
+      title: `${data.gaps.schoolNearM}m 안 열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
+      body: schoolsWeak.length ? `그중 ${schoolsWeak.map((s) => s.name.replace(/^서울/, "")).join("·")}은 ${data.gaps.schoolNearM}m 안에 행안부 취약구간도 있습니다. 통학로 제설 소관은 데이터에 없습니다.` : "취약구간과 겹치는 학교는 없습니다. 통학로 제설 소관은 데이터에 없습니다.",
       n: schoolsGap.length,
       focus: { layer: "school" },
     })

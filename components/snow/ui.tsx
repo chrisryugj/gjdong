@@ -19,8 +19,8 @@ export function StatBand({ items }: { items: { k: string; v: string; u?: string;
   )
 }
 
-// 번호 · 큰 숫자 · 문장 한 줄(+보충 한 줄). 발견·판단 목록. 누르면 지도
-export function NumRow({ n, big, unit, title, body, accent = false, active = false, onClick }: { n: number; big?: string; unit?: string; title: string; body?: string; accent?: boolean; active?: boolean; onClick?: () => void }) {
+// 번호 · 큰 숫자 · 문장 한 줄(+메타 한 줄 + 보충 한 줄). 발견·판단·점검 후보 목록. 누르면 지도. meta = "부서 · 기한 · 규모"(4라운드 결재 문서화)
+export function NumRow({ n, big, unit, title, meta, body, accent = false, active = false, onClick }: { n: number; big?: string; unit?: string; title: string; meta?: string; body?: string; accent?: boolean; active?: boolean; onClick?: () => void }) {
   const inner = (
     <>
       <span className="dump-idx mt-[3px] w-5 shrink-0 text-[13px] text-[var(--cp-text-faint)]">{String(n).padStart(2, "0")}</span>
@@ -32,6 +32,7 @@ export function NumRow({ n, big, unit, title, body, accent = false, active = fal
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-[14.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{title}</span>
+        {meta && <span className="mt-0.5 block text-[12.5px] leading-snug text-(--dump-accent)">{meta}</span>}
         {body && <span className="mt-0.5 block text-[13px] leading-snug text-[var(--cp-text-muted)]">{body}</span>}
       </span>
     </>

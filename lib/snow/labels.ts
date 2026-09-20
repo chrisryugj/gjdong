@@ -60,6 +60,7 @@ export const PROP_KO: Record<string, string> = {
   length_m: "연장(m)",
   bags: "포",
   kind: "구분",
+  holder: "보유 주체",
   measurable: "측정 가능",
   law: "법령",
   article: "조문",
@@ -128,10 +129,16 @@ export const HEAT_STYLE = {
 export const RISK = {
   weak: { label: "적설취약구간", color: "#e5484d", colorLight: "#b01e33" },
   ice: { label: "상습결빙구간", color: "#e5484d", colorLight: "#b01e33" },
-  slope: { label: "경사 추정(지형)", color: "#b48ee8", colorLight: "#6d4fb3" },
+  slope: { label: "지형 경사 추정", color: "#b48ee8", colorLight: "#6d4fb3" },
   school: { label: "초등학교", color: "#ece7dc", colorLight: "#14201c" },
 } as const
 export const RISK_STYLE = {
   casing: { dark: "#0b1216", light: "#fbf9f3" },
   badge: { dark: "#9f1f24", light: "#7f1a1e" },
+  arrow: { dark: "#0b1216", light: "#fbf9f3" }, // 경사 오르막 화살 글리프(선 위 대비색)
+} as const
+// 관리청별 색(법령·책임 탭 ownerView, 4라운드): 구 관리 = 청빙(화면 액센트) · 시 관리 = 잉크. 위험 색(진홍)은 쓰지 않는다
+export const OWNER_STYLE = {
+  gu: { label: "구 관리", dark: "#7cc0e8", light: "#2a6f97" },
+  si: { label: "시 관리", dark: "#ece7dc", light: "#14201c" },
 } as const

@@ -587,18 +587,22 @@ export async function steepSegments(net, dem, { window = 60, step = 20, minGrade
         maxG = Math.max(maxG, grades[j])
         j++
       }
-      const pts = samples.slice(i, j - 1 + winN + 1)
+      let pts = samples.slice(i, j - 1 + winN + 1)
       const len = pts[pts.length - 1].s - pts[0].s
       if (len >= minLen) {
+        // 4라운드: 좌표는 항상 오르막 방향(낮은 끝 → 높은 끝)으로 두고 고도 단면(hs, 낮은 끝 기준 m)을 싣는다. 지도의 경사 화살·경사면이 이 방향을 쓴다
+        if (pts[0].h > pts[pts.length - 1].h) pts = [...pts].reverse()
         const hs = pts.map((q) => q.h)
+        const h0 = Math.min(...hs)
         out.push({
           name: c.name,
           kind: c.kind,
           detail: c.detail,
           coords: pts.map((q) => [Math.round(q.p[0] * 1e6) / 1e6, Math.round(q.p[1] * 1e6) / 1e6]),
+          hs: hs.map((h) => Math.round((h - h0) * 10) / 10),
           len: Math.round(len),
           grade: Math.round(maxG * 10) / 10,
-          rise: Math.round((Math.max(...hs) - Math.min(...hs)) * 10) / 10,
+          rise: Math.round((Math.max(...hs) - h0) * 10) / 10,
         })
       }
       i = j

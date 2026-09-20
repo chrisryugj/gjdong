@@ -2,8 +2,10 @@
 
 import type { SnowMapData } from "@/lib/snow/types"
 import { buildChecklist, buildFindings, gapSummary, segName, segOwner, segType, type Finding, type SegLike } from "@/lib/snow/facts"
+import { useState } from "react"
 import { SectionHead } from "@/components/dumping/section-head"
 import { NumRow, StatBand, Table } from "./ui"
+import CheckPrint from "./check-print"
 
 // 공백 탭(첫 화면). 주장은 자원 목록이 아니라 "눈 오기 전에 어디가 비었는가": 취약구간 중 열선·자재 없는 곳, 열선 없는 동
 // 3라운드(보고받는 사람 관점): 구가 손댈 수 있는 구간(구 관리 47)과 서울시 관리 결빙구간 9를 갈라 말한다. 공백 7곳 중 6곳이 시 관리 간선이라 한 수로 묶으면 구청장이 할 일이 안 보였다
@@ -29,6 +31,7 @@ const COLS = [
 ]
 
 export default function GapPanel({ data, activeLabel, onFocus, onSelectSegment, onOpenMethods }: Props) {
+  const [print, setPrint] = useState(false)
   if (!data) return <div className="p-4"><div className="dump-skel h-24 rounded-xl" /></div>
   const g = gapSummary(data)
   const findings = buildFindings(data)
@@ -44,11 +47,11 @@ export default function GapPanel({ data, activeLabel, onFocus, onSelectSegment, 
         return (
           <>
             <span className="font-semibold text-[var(--cp-text-strong)]">{segName(s)}</span>
-            <span className="ml-1.5 text-[12.5px] text-[var(--cp-text-dim)]">{segType(s)}</span>
+            {s.src === "weak" && <span className="ml-1.5 text-[12.5px] text-[var(--cp-text-dim)]">{segType(s)}</span>}
           </>
         )
       case "동":
-        return s.d ? s.d.replace(/동$/, "") : "—"
+        return s.d ? s.d.replace(/동$/, "") : <span className="text-[var(--cp-text-faint)]">구 밖</span>
       case "열선까지":
         return s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`
       case "자재":
@@ -69,16 +72,17 @@ export default function GapPanel({ data, activeLabel, onFocus, onSelectSegment, 
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
         비치 자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 서울시 관리 결빙구간 {g.si.total}곳 중 {g.si.none}곳은 열선도 자재도 없습니다.
       </p>
+      <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">구 보도자료의 취약지점 {data.ops.weakPoints}개소 목록은 비공개라 행안부 적설취약구간 {data.weak.length}곳을 씁니다.</p>
       <StatBand
         items={[
           { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
-          { k: "구 관리 자재도 없음", v: String(g.gu.none), u: "곳", accent: true },
-          { k: "시 관리 결빙 둘 다 없음", v: String(g.si.none), u: `/${g.si.total}` },
+          { k: "구 관리 공백", v: String(g.gu.none), u: "곳", accent: true },
+          { k: "시 관리 결빙 공백", v: String(g.si.none), u: `/${g.si.total}` },
           { k: "열선 없는 동", v: String(g.noHeatDongs.length), u: "/15" },
         ]}
       />
 
-      <SectionHead n="01" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 자재도 없는 구간부터, 구 소관부터`}>
+      <SectionHead n="01" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 공백 = 열선도 자재도 없음. 공백 구간부터, 구 소관부터`}>
         열선 없는 구간 {g.noHeat}곳(구 {g.gu.noHeat} · 시 {g.si.noHeat})
       </SectionHead>
       <Table cols={COLS} rows={first} cell={cell} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
@@ -90,16 +94,20 @@ export default function GapPanel({ data, activeLabel, onFocus, onSelectSegment, 
           </div>
         </details>
       )}
-      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">열선까지 = 가장 가까운 열선까지 거리 · 자재 = {data.gaps.materialNearM}m 안 비치 자재 개소 · 소관 = 관리청(구·시) · 동 — = 구 경계선 밖(강 위 램프)</p>
+      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">열선까지 = 가장 가까운 열선까지 거리 · 자재 = {data.gaps.materialNearM}m 안 비치 자재 개소 · 소관 = 관리청(구·시) · 동 "구 밖" = 구 경계선 밖(강 위 램프)</p>
 
-      <SectionHead n="02" sub="데이터가 가리키는 후보와 소관. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도">
+      <SectionHead n="02" sub="번호가 우선순위(구 소관 행동 가능 › 시 요청 › 동 › 학교). 행동 · 부서 · 기한 · 규모 · 완료 기준. 부서와 규모는 데이터에 있는 것만 적고 비용은 단가 자료가 없어 비웠습니다. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도">
         눈 오기 전 점검 후보 {checks.length}
       </SectionHead>
       <div>
         {checks.map((c, i) => (
-          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동"} title={c.title} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
+          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 완료 기준: ${c.done}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
         ))}
       </div>
+      <button onClick={() => setPrint(true)} className="mt-2 rounded-full border border-[var(--cp-border)] px-3.5 py-1.5 text-[13px] font-semibold text-(--dump-accent) hover:bg-[var(--cp-hover)]">
+        결재용 한 장
+      </button>
+      {print && <CheckPrint data={data} onClose={() => setPrint(false)} />}
 
       <SectionHead n="03" sub="데이터에서 계산한 사실. 행을 누르면 지도가 그 자리를 표시합니다">
         발견 {findings.length}
