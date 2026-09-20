@@ -1011,7 +1011,8 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     id: S.dongLabel,
     type: "symbol",
     source: S.dongLabel,
-    layout: { "text-field": ["get", "name"], "text-size": 13, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport" },
+    // 동 이름은 바탕 지도 라벨보다 우선(겹치면 바탕 쪽이 진다)
+    layout: { "text-field": ["get", "name"], "text-size": 13, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#14201c", ...halo },
   })
   map.addLayer({
@@ -1050,7 +1051,8 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     type: "symbol",
     source: S.dongColLabels,
     // 18라운드: 기둥 사이 바닥 글자가 건물·기둥에 묻혔다 → 15px·후광 2.6(건물은 동별 기둥 모드에서 중립색)
-    layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": "top", "text-offset": [0, 0.5], "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
+    // 겹치면 옆자리(왼·오른쪽)로 옮겨 본다. 그래도 겹치면 하나는 숨김(확대하면 나온다). 중곡1동·2동 주민센터가 136m라 생긴 규칙
+    layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-variable-anchor": ["top", "left", "right", "bottom"], "text-radial-offset": 0.6, "text-justify": "auto", "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
     paint: { "text-color": "#1c1a15", "text-halo-color": "rgba(251,249,243,0.96)", "text-halo-width": 2.6 },
   })
   map.addLayer({

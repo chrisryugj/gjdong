@@ -27,6 +27,9 @@ import {
   radiusMetersExpr,
   ringFC,
   routeChains,
+  dongCenter,
+  dongAnchors,
+  DONG_MIN_GAP_M,
   stepExpr,
 } from "../components/dumping/map-geo"
 import { DEFAULT_VIEW } from "../components/dumping/map-controls"
@@ -205,4 +208,25 @@ test("청소차 노선 체인: 관리 도로만, 끝점이 이어진 폴리라�
   assert.equal(chains[0].focus, true)
   assert.equal(chains[0].coords.length, 4)
   assert.ok(chains[0].meters > 800)
+})
+
+test("동 기준점은 동주민센터 위치, 목록에 없는 이름은 꼭짓점 평균", withMap, () => {
+  for (const d of map!.dong) {
+    const c = dongCenter(map!.dongOutlines[d.d] ?? [], d.d)!
+    assert.ok(c[0] > 127.06 && c[0] < 127.11 && c[1] > 37.52 && c[1] < 37.58, `${d.d} ${c}`)
+  }
+  const ring: [number, number][][] = [[[37.5, 127.0], [37.5, 127.1], [37.6, 127.1], [37.6, 127.0]]]
+  assert.deepEqual(dongCenter(ring, "없는동"), [127.05, 37.55])
+})
+
+test("동 기준점끼리는 최소 간격을 지킨다(중곡1동·2동 주민센터 136m → 벌림)", withMap, () => {
+  const a = dongAnchors(map!)
+  const names = [...a.keys()]
+  for (let i = 0; i < names.length; i++)
+    for (let j = i + 1; j < names.length; j++) {
+      const p = a.get(names[i])!
+      const q = a.get(names[j])!
+      const d = Math.hypot((p[0] - q[0]) * 111320 * Math.cos((p[1] * Math.PI) / 180), (p[1] - q[1]) * 111320)
+      assert.ok(d >= DONG_MIN_GAP_M - 1, `${names[i]}·${names[j]} ${d.toFixed(0)}m`)
+    }
 })

@@ -3,6 +3,7 @@
 import type { BinReco, CctvCandidate, CircleId, DumpingMapData, GridCell, HotspotRow, InfraLayerId, WeatherKey, BaseMode } from "@/lib/dumping/types"
 import { tallyInfra, type InfraSpot } from "@/lib/dumping/facts"
 import { CHANNEL_DEF, WEATHER_DEF, type DongMode } from "@/lib/dumping/labels"
+import dongCenters from "@/lib/dumping/dong-centers.json"
 
 // 모드별 팔레트를 분리해 "지금 뭘 보고 있는지"가 색으로 구분되게 한다
 // 원인(다가구·단독 밀집)=초록 · 민원=파랑 · 과태료=주황
@@ -434,8 +435,12 @@ export function binRecosFC(data: DumpingMapData): FC {
   )
 }
 
-// 행정동 외곽선(선)과 라벨 자리(꼭짓점 평균). 동별 막대도 같은 자리를 쓴다
-export function dongCenter(rings: [number, number][][]): [number, number] | null {
+// 동 기준점(18라운드 후속, 2026-09-20): 동주민센터 위치(lib/dumping/dong-centers.json, 카카오 키워드 검색 실측 15곳). 라벨·동별 기둥이 같은 자리를 쓴다.
+// 예전 꼭짓점 평균은 길쭉한 동(광장동·구의3동)에서 동 밖이나 한강 위로 떨어졌다. 목록에 없는 동만 꼭짓점 평균
+const DONG_CENTERS = dongCenters as Record<string, { name: string; road: string; lat: number; lng: number }>
+export function dongCenter(rings: [number, number][][], name?: string): [number, number] | null {
+  const c = name ? DONG_CENTERS[name] : undefined
+  if (c) return [c.lng, c.lat]
   const pts = rings.flat()
   if (!pts.length) return null
   const lat = pts.reduce((s, p) => s + p[0], 0) / pts.length
@@ -443,7 +448,35 @@ export function dongCenter(rings: [number, number][][]): [number, number] | null
   return [lng, lat]
 }
 
+// 기준점이 너무 가까운 동 쌍(중곡1동·2동 주민센터 136m)은 기둥·라벨이 겹친다 → 두 점을 잇는 선을 따라 최소 간격까지 벌린다(양쪽 반씩)
+export const DONG_MIN_GAP_M = 420
+export function dongAnchors(data: DumpingMapData): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>()
+  for (const [name, rings] of Object.entries(data.dongOutlines)) {
+    const c = dongCenter(rings, name)
+    if (c) out.set(name, [c[0], c[1]])
+  }
+  const names = [...out.keys()]
+  for (let i = 0; i < names.length; i++)
+    for (let j = i + 1; j < names.length; j++) {
+      const a = out.get(names[i])!
+      const b = out.get(names[j])!
+      const kx = 111320 * Math.cos((a[1] * Math.PI) / 180)
+      const dx = (b[0] - a[0]) * kx
+      const dy = (b[1] - a[1]) * 111320
+      const d = Math.hypot(dx, dy)
+      if (d >= DONG_MIN_GAP_M || d === 0) continue
+      const push = (DONG_MIN_GAP_M - d) / 2
+      const ux = dx / d
+      const uy = dy / d
+      out.set(names[i], [a[0] - (ux * push) / kx, a[1] - (uy * push) / 111320])
+      out.set(names[j], [b[0] + (ux * push) / kx, b[1] + (uy * push) / 111320])
+    }
+  return out
+}
+
 export function dongFC(data: DumpingMapData): { lines: FC; fills: FC; labels: FC } {
+  const anchors = dongAnchors(data)
   const lines: Feature[] = []
   const fills: Feature[] = []
   const labels: Feature[] = []
@@ -451,7 +484,7 @@ export function dongFC(data: DumpingMapData): { lines: FC; fills: FC; labels: FC
     if (!rings.length) continue
     for (const r of rings) lines.push({ type: "Feature", properties: { name }, geometry: { type: "LineString", coordinates: r.map(ll) } })
     fills.push({ type: "Feature", properties: { name }, geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r.map(ll)]) } })
-    const c = dongCenter(rings)
+    const c = anchors.get(name)
     if (c) labels.push({ type: "Feature", properties: { name }, geometry: { type: "Point", coordinates: c } })
   }
   return { lines: fc(lines), fills: fc(fills), labels: fc(labels) }
@@ -609,8 +642,9 @@ export function dongColumnsFC(data: DumpingMapData, dongMode: DongMode, dongYear
   const cols: Feature[] = []
   const labels: Feature[] = []
   const ranks: DongRankBadge[] = [] // 1~3위 배지(지표별). 기둥 꼭대기에 띄운다(dumping-map → icons3d)
+  const anchors = dongAnchors(data)
   for (const d of data.dong) {
-    const c = dongCenter(data.dongOutlines[d.d] ?? [])
+    const c = anchors.get(d.d)
     if (!c) continue
     const [lng, lat] = c
     const v = valOf(d)
