@@ -73,7 +73,7 @@ const SHOTS = [
   { name: "01-first", desc: "첫 화면(공백 탭·입체·다크)", run: async () => {} },
   {
     name: "02-card-scroll",
-    desc: "카드 스크롤(02 점검 후보·03 발견)",
+    desc: "카드 스크롤(01 점검 후보·02 열선 없는 구간·03 발견)",
     run: async (page) => {
       await page.evaluate(() => {
         const box = [...document.querySelectorAll("aside .overflow-y-auto")].find((el) => el.clientHeight > 0)

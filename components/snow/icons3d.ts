@@ -275,13 +275,14 @@ function digitGeometry(text: string): THREE.BufferGeometry {
   digitCache.set(text, g)
   return g
 }
-function makeDigit(text: string, color: string): THREE.Group {
+function makeDigit(text: string, color: string, dark: boolean): THREE.Group {
   const g = new THREE.Group()
-  // transparent+renderOrder: 깊이 검사 없는 경사면·구간 벽(투명 목록 10)이 숫자를 덮던 실측(라이트 z16 "31" 소실) → 숫자를 벽 뒤에 그린다
-  // 숫자는 라벨이라 깊이 검사도 끈다(건물·벽에 안 가린다)
+  // 숫자는 라벨: 깊이 검사 없이 벽·건물 위에(투명 목록 renderOrder 20 > 벽 10). 같은 진홍 벽 위에서 숫자가 묻히던 실측(라이트 z16 "31") → 어두운 겉껍질 윤곽선(뒷면만, 1.12배)
+  const outline = new THREE.Mesh(digitGeometry(text).clone().scale(1.12, 1.12, 1.6), new THREE.MeshBasicMaterial({ color: dark ? "#07111a" : "#fbf9f3", side: THREE.BackSide, transparent: true, depthTest: false }))
+  outline.renderOrder = 19
   const m = new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3, transparent: true, depthTest: false }))
   m.renderOrder = 20
-  g.add(m)
+  g.add(outline, m)
   return g
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 120m 안
@@ -644,7 +645,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       for (const m of prev.meshes) this.scene.remove(m)
       for (const c of prev.digits) {
         this.scene.remove(c)
-        ;((c.children[0] as THREE.Mesh).material as THREE.Material).dispose()
+        for (const ch of c.children) ((ch as THREE.Mesh).material as THREE.Material).dispose()
       }
     }
     if (!defs || !map) {
@@ -672,7 +673,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     if (kind === "weakBadge" || kind === "iceBadge" || kind === "dongRank") {
       const risk = this.dark ? RISK.weak.color : RISK.weak.colorLight
       points.forEach((p, i) => {
-        const d = makeDigit(String(p.rank ?? i + 1), p.color ?? risk)
+        const d = makeDigit(String(p.rank ?? i + 1), p.color ?? risk, this.dark)
         digits.push(d)
         this.scene.add(d)
       })

@@ -406,7 +406,7 @@ export default function SnowDashboard() {
       {
         title: "점검 후보",
         caption: `눈 오기 전 점검 후보 ${checks.length}곳을 차례로 봅니다: ${checks.map((c) => c.short).join(" · ")}.`,
-        note: `부서·기한·규모는 공백 탭 02에 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
+        note: `부서·기한·규모·완료 기준은 공백 탭 01에 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
         apply: () => {
           setTab("gap")
           setDemoStage(null)
