@@ -59,7 +59,8 @@
 
 ## 6. 게이트
 
-- `npm run build` 통과 · `npm run lint` 0 errors · `npm test` 295 통과(snow 24 포함) · 프로덕션 curl `/snow`·`/api/snow/data/graph`·`/api/snow/forecast` 200(아래 배포 절 참고).
+- `npm run build` 통과 · `npm run lint` 0 errors · `npm test` 295 통과(snow 24 포함).
+- 커밋 9c8e39c main 푸시, Vercel 배포 60초 뒤 프로덕션 실측: `/snow` 200 · `/api/snow/data/graph` 162노드 · `/api/snow/data/map` 열선 55·취약 47·결빙 9·급경사 117 · `/api/snow/forecast` 기상청 단기예보(발표 09/20 23시) 정상(Vercel env `DATA_GO_KR_KEY` 유효).
 
 ## 7. 남은 일
 
