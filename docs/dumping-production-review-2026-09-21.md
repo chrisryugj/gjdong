@@ -81,7 +81,9 @@
 | 2 자료 22종 | [methods-modal.tsx](../components/dumping/methods-modal.tsx) `collected`에서 "지도 바탕·건물 입체·지형" 제거, `DatasetGroup`에 `note` 추가해 공개 수집 아래 각주(OSM Protomaps · Mapzen 지형 · 국토교통부 GIS건물통합정보, 분석 수치에 안 씀) | 창 본문 "구청 7종 · 공개 데이터 직접 수집 9종 · 서울시 6종" + 각주 확인 |
 | 게이트 | `tsc` 0 · eslint(dumping 4경로) 0 · 테스트 57/57 | 로컬 `next build`는 다른 세션이 3000에 띄운 `next start`의 `.next`를 덮으므로 생략, Vercel 빌드로 대체 |
 
-프로덕션 재확인(배포 뒤): 6-1절.
+### 6-1. 프로덕션 재확인 (cb170c9, Vercel `dpl_846E5yFmEbKRcDUo21VHVAf22Jnd` READY, `gjdong.vercel.app`)
+
+헤드 Chrome 1920×1080, 같은 맥: 정지 `lg-on`(쉘 `url(#lg-5) …`, 안쪽 `blur(10px)`) › 회전 `lg-on lg-moving`(쉘 `blur(24px) saturate(1.5) brightness(1.04)`, 안쪽 none) › 멈춤 1.2초 뒤 원복 › 시연 5장면 뒤에도 원복. fps 회전 38, 장면 1~5 = 32·33·31·29·30(반영 전 27·26·23·16·19). 데이터·방법 창 "구청 7종 · 공개 9종 · 서울시 6종" + 각주. 콘솔 오류 0(`dem dimension mismatch` 제외). 5절 준비 항목은 그대로.
 
 ## 7. 남은 일
 
