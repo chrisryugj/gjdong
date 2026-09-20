@@ -1,0 +1,1964 @@
+{
+ "nodes": [
+  {
+   "id": "org-gwangjin",
+   "type": "Org",
+   "space": "subject",
+   "label": "광진구청",
+   "props": {
+    "name": "광진구청",
+    "role": "제설대책 총괄. 24시간 상황실"
+   }
+  },
+  {
+   "id": "team-road",
+   "type": "Team",
+   "space": "subject",
+   "label": "도로과 도로관리팀",
+   "props": {
+    "role": "조례 소관 부서. 제설함·도로열선 관리"
+   }
+  },
+  {
+   "id": "team-dong",
+   "type": "Team",
+   "space": "subject",
+   "label": "동주민센터(15개 동)",
+   "props": {
+    "role": "염화칼슘보관함·모래주머니 관리. 이면도로 생활권 제설"
+   }
+  },
+  {
+   "id": "org-seoul",
+   "type": "Org",
+   "space": "subject",
+   "label": "서울특별시",
+   "props": {
+    "role": "강설 대응 단계 기준 · 자치구 열선 집계 · 제설대책 평가"
+   }
+  },
+  {
+   "id": "org-civic",
+   "type": "Org",
+   "space": "subject",
+   "label": "자율방재단·의용소방대",
+   "props": {
+    "role": "민관협력 자원봉사 제설 인력",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "actor-owner",
+   "type": "Org",
+   "space": "subject",
+   "label": "건축물관리자",
+   "props": {
+    "role": "소유자·점유자·관리자. 조례상 보도·이면도로 제설 의무"
+   }
+  },
+  {
+   "id": "ds-heat",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "광진구 도로열선 설치 현황",
+   "props": {
+    "rows": 41,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "공공데이터포털 CSV 원본"
+   }
+  },
+  {
+   "id": "ds-salt",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "광진구 제설함 위치정보",
+   "props": {
+    "rows": 110,
+    "source": "공공데이터포털 15066599 서울특별시 광진구_제설함 위치정보",
+    "asof": "2026-08-20",
+    "derived_by": "공공데이터포털 CSV 원본"
+   }
+  },
+  {
+   "id": "ds-cacl",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "광진구 염화칼슘보관함 위치정보",
+   "props": {
+    "rows": 228,
+    "source": "공공데이터포털 15041574 서울특별시_광진구_염화칼슘보관함 위치정보",
+    "asof": "2026-09-04",
+    "derived_by": "공공데이터포털 CSV 원본"
+   }
+  },
+  {
+   "id": "ds-sand",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "광진구 모래주머니 배치현황",
+   "props": {
+    "rows": 45,
+    "source": "공공데이터포털 15041576 서울특별시_광진구_모래주머니 배치현황",
+    "asof": "2022-01-19",
+    "derived_by": "공공데이터포털 CSV 원본"
+   }
+  },
+  {
+   "id": "ds-seoul-heat",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "서울시 자치구별 도로열선 설치현황",
+   "props": {
+    "rows": 993,
+    "source": "서울 열린데이터광장 OA-22584 서울시 열선 설치 현황(자치구별 도로열선 설치현황_20260531)",
+    "asof": "2026-05-31",
+    "derived_by": "서울 열린데이터광장 CSV 원본"
+   }
+  },
+  {
+   "id": "ds-press",
+   "type": "Dataset",
+   "space": "resource",
+   "label": "광진구 제설대책 보도자료",
+   "props": {
+    "rows": 2,
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)",
+    "asof": "2026-02-12",
+    "derived_by": "기사 본문 수치 전사"
+   }
+  },
+  {
+   "id": "lev-heat",
+   "type": "Lever",
+   "space": "lever",
+   "label": "도로열선",
+   "props": {
+    "unit": "구간",
+    "count": 41,
+    "length_m": 4519,
+    "kind": "상시 설비",
+    "def": "급경사·통학로 노면 아래 발열선. 강설 전 자동 가동으로 결빙을 막는다"
+   }
+  },
+  {
+   "id": "lev-salt",
+   "type": "Lever",
+   "space": "lever",
+   "label": "제설함",
+   "props": {
+    "unit": "개소",
+    "count": 110,
+    "kind": "비치 자재",
+    "def": "간선도로변 제설제 보관함. 운전자·관리기관이 즉시 살포"
+   }
+  },
+  {
+   "id": "lev-cacl",
+   "type": "Lever",
+   "space": "lever",
+   "label": "염화칼슘보관함",
+   "props": {
+    "unit": "개소",
+    "count": 228,
+    "kind": "비치 자재",
+    "def": "이면도로·주택가 염화칼슘 보관함. 동주민센터가 관리, 주민이 자율 사용"
+   }
+  },
+  {
+   "id": "lev-sand",
+   "type": "Lever",
+   "space": "lever",
+   "label": "모래주머니",
+   "props": {
+    "unit": "지점",
+    "count": 45,
+    "bags": 8010,
+    "kind": "비치 자재",
+    "def": "취약지역·동주민센터 비치 모래. 결빙 노면 미끄럼 방지"
+   }
+  },
+  {
+   "id": "lev-sprayer",
+   "type": "Lever",
+   "space": "lever",
+   "label": "자동원격액상살포기",
+   "props": {
+    "unit": "대",
+    "count": 52,
+    "kind": "상시 설비",
+    "def": "급경사 구간 원격 염수 분사. 강설 시 열선과 함께 가동",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "lev-fleet",
+   "type": "Lever",
+   "space": "lever",
+   "label": "제설 장비",
+   "props": {
+    "unit": "대",
+    "unimog": 2,
+    "dump15t": 3,
+    "kind": "동원 장비",
+    "def": "유니목 2대 · 15톤 덤프 3대 · 1톤·2.5톤 차량. 간선도로 제설제 살포·밀어내기",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "lev-staff",
+   "type": "Lever",
+   "space": "lever",
+   "label": "제설 인력",
+   "props": {
+    "unit": "명",
+    "count": 1075,
+    "squads": 13,
+    "kind": "동원 인력",
+    "def": "실무반 13개 · 환경공무관 · 동주민센터 직원 · 민간 용역",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "lev-civic",
+   "type": "Lever",
+   "space": "lever",
+   "label": "민관협력 제설",
+   "props": {
+    "unit": "체계",
+    "kind": "동원 인력",
+    "def": "자율방재단·의용소방대 연계 자원봉사자 모집·운영",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "lev-owner",
+   "type": "Lever",
+   "space": "lever",
+   "label": "건축물관리자 자율 제설",
+   "props": {
+    "unit": "의무",
+    "kind": "법정 의무",
+    "def": "조례 제4조 범위(보도 접한 구간·대지경계 1m)를 제5조 시한 안에 치운다"
+   }
+  },
+  {
+   "id": "con-slope",
+   "type": "Concept",
+   "space": "concept",
+   "label": "급경사 구간",
+   "props": {
+    "def": "경사로. 결빙 시 차량·보행 미끄럼 사고 위험이 가장 큰 곳"
+   }
+  },
+  {
+   "id": "con-school",
+   "type": "Concept",
+   "space": "concept",
+   "label": "통학로",
+   "props": {
+    "def": "초등학교 주변 보행로. 등교 시간대 결빙 노출"
+   }
+  },
+  {
+   "id": "con-alley",
+   "type": "Concept",
+   "space": "concept",
+   "label": "이면도로",
+   "props": {
+    "def": "폭 12m 미만, 차도·보도 구분 없는 도로(조례 제2조). 제설차 진입이 어렵다"
+   }
+  },
+  {
+   "id": "con-arterial",
+   "type": "Concept",
+   "space": "concept",
+   "label": "간선도로",
+   "props": {
+    "def": "차량 통행량 많은 주요 도로. 장비 살포 우선 구간"
+   }
+  },
+  {
+   "id": "con-transit",
+   "type": "Concept",
+   "space": "concept",
+   "label": "지하철역·버스정류장 주변",
+   "props": {
+    "def": "유동 인구 많은 다중이용 보행 구간. 인력 집중 배치 대상"
+   }
+  },
+  {
+   "id": "con-freeze",
+   "type": "Concept",
+   "space": "concept",
+   "label": "야간 결빙",
+   "props": {
+    "def": "강설 뒤 야간 저온으로 노면이 얼어붙는 조건. 살포·열선의 겨냥점"
+   }
+  },
+  {
+   "id": "con-snowfall",
+   "type": "Concept",
+   "space": "concept",
+   "label": "적설량 예보",
+   "props": {
+    "def": "서울시 대응 단계를 정하는 입력. 기상청 예보 적설(cm)"
+   }
+  },
+  {
+   "id": "kpi-coverage",
+   "type": "KPI",
+   "space": "outcome",
+   "label": "취약지점 자원 커버리지",
+   "props": {
+    "def": "취약지점마다 닿는 대응자원이 있는가. 동 단위로 자원 4종 유무를 센다",
+    "measurable": "동 단위 부분 측정"
+   }
+  },
+  {
+   "id": "kpi-deadline",
+   "type": "KPI",
+   "space": "outcome",
+   "label": "조례 제설 시한 준수",
+   "props": {
+    "def": "눈 그친 뒤 주간 4시간·야간 익일 11시 안에 보도·이면도로가 치워졌는가",
+    "measurable": "데이터 없음"
+   }
+  },
+  {
+   "id": "kpi-ice-incident",
+   "type": "KPI",
+   "space": "outcome",
+   "label": "결빙 사고·민원",
+   "props": {
+    "def": "결빙 미끄럼 사고와 제설 민원 건수",
+    "measurable": "데이터 없음"
+   }
+  },
+  {
+   "id": "kpi-eval",
+   "type": "KPI",
+   "space": "outcome",
+   "label": "서울시 제설대책 평가",
+   "props": {
+    "def": "서울시 겨울철 제설대책 추진 평가 등급",
+    "measurable": "우수(3년 연속, 2025~2026)",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "pol-law-27",
+   "type": "Policy",
+   "space": "policy",
+   "label": "자연재해대책법 제27조",
+   "props": {
+    "law": "자연재해대책법",
+    "article": "제27조 건축물관리자의 제설 책임",
+    "efYd": "2025-10-01",
+    "gist": "건축물관리자는 주변 보도·이면도로·보행자전용도로·지붕을 제설·제빙한다. 구체 범위는 조례로",
+    "source": "법제처 국가법령정보센터 MST 276321"
+   }
+  },
+  {
+   "id": "pol-ord",
+   "type": "Policy",
+   "space": "policy",
+   "label": "광진구 건축물관리자의 제설·제빙에 관한 조례",
+   "props": {
+    "enacted": "2020-10-28",
+    "dept": "도로과 도로관리팀",
+    "day_hours": 4,
+    "night_until": "익일 11:00",
+    "heavy_cm": 10,
+    "heavy_hours": 24,
+    "scope_m": 1,
+    "gist": "제3조 책임순위 · 제4조 범위(보도 접한 구간, 대지경계 1m) · 제5조 시한 · 제9조 도구 비치",
+    "source": "법제처 자치법규 1540021"
+   }
+  },
+  {
+   "id": "pol-stage",
+   "type": "Policy",
+   "space": "policy",
+   "label": "서울시 강설 대응 단계 기준",
+   "props": {
+    "gist": "평시 → 보강(1cm 미만 예보) → 1단계(5cm 미만) → 2단계(5cm 이상·대설주의보) → 3단계(10cm 이상·대설경보)",
+    "source": "서울시 보도자료 2026-02-01(대설예비특보 2단계 발령)"
+   }
+  },
+  {
+   "id": "pol-period",
+   "type": "Policy",
+   "space": "policy",
+   "label": "겨울철 제설대책기간",
+   "props": {
+    "from": "2025-11-14",
+    "to": "2026-03-15",
+    "gist": "11월 중순부터 3월 15일까지 상황실·비상근무 운영",
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)"
+   }
+  },
+  {
+   "id": "stage-0",
+   "type": "Stage",
+   "space": "policy",
+   "label": "보강 단계",
+   "props": {
+    "order": 0,
+    "threshold_cm": 0,
+    "until_cm": 1,
+    "gist": "적설 1cm 미만 예보. 상황실 감시, 열선·살포기 상시 가동"
+   }
+  },
+  {
+   "id": "stage-1",
+   "type": "Stage",
+   "space": "policy",
+   "label": "1단계",
+   "props": {
+    "order": 1,
+    "threshold_cm": 1,
+    "until_cm": 5,
+    "gist": "적설 5cm 미만 예보. 제설제 사전 살포, 취약지점 인력 배치"
+   }
+  },
+  {
+   "id": "stage-2",
+   "type": "Stage",
+   "space": "policy",
+   "label": "2단계",
+   "props": {
+    "order": 2,
+    "threshold_cm": 5,
+    "until_cm": 10,
+    "gist": "적설 5cm 이상 예보 또는 대설주의보. 전 장비·인력 투입"
+   }
+  },
+  {
+   "id": "stage-3",
+   "type": "Stage",
+   "space": "policy",
+   "label": "3단계",
+   "props": {
+    "order": 3,
+    "threshold_cm": 10,
+    "until_cm": null,
+    "gist": "적설 10cm 이상 예보 또는 대설경보. 전 직원·민관협력 총동원"
+   }
+  },
+  {
+   "id": "area-중곡1동",
+   "type": "Area",
+   "space": "area",
+   "label": "중곡1동",
+   "props": {
+    "heatSeg": 0,
+    "heatM": 0,
+    "salt": 4,
+    "cacl": 8,
+    "sand": 3,
+    "sandBags": 500
+   }
+  },
+  {
+   "id": "area-중곡2동",
+   "type": "Area",
+   "space": "area",
+   "label": "중곡2동",
+   "props": {
+    "heatSeg": 1,
+    "heatM": 30,
+    "salt": 5,
+    "cacl": 9,
+    "sand": 3,
+    "sandBags": 500
+   }
+  },
+  {
+   "id": "area-중곡3동",
+   "type": "Area",
+   "space": "area",
+   "label": "중곡3동",
+   "props": {
+    "heatSeg": 2,
+    "heatM": 220,
+    "salt": 5,
+    "cacl": 7,
+    "sand": 1,
+    "sandBags": 100
+   }
+  },
+  {
+   "id": "area-중곡4동",
+   "type": "Area",
+   "space": "area",
+   "label": "중곡4동",
+   "props": {
+    "heatSeg": 10,
+    "heatM": 1684,
+    "salt": 9,
+    "cacl": 74,
+    "sand": 5,
+    "sandBags": 800
+   }
+  },
+  {
+   "id": "area-능동",
+   "type": "Area",
+   "space": "area",
+   "label": "능동",
+   "props": {
+    "heatSeg": 2,
+    "heatM": 100,
+    "salt": 8,
+    "cacl": 10,
+    "sand": 6,
+    "sandBags": 920
+   }
+  },
+  {
+   "id": "area-구의1동",
+   "type": "Area",
+   "space": "area",
+   "label": "구의1동",
+   "props": {
+    "heatSeg": 1,
+    "heatM": 70,
+    "salt": 1,
+    "cacl": 8,
+    "sand": 1,
+    "sandBags": 200
+   }
+  },
+  {
+   "id": "area-구의2동",
+   "type": "Area",
+   "space": "area",
+   "label": "구의2동",
+   "props": {
+    "heatSeg": 12,
+    "heatM": 1519,
+    "salt": 17,
+    "cacl": 26,
+    "sand": 3,
+    "sandBags": 600
+   }
+  },
+  {
+   "id": "area-구의3동",
+   "type": "Area",
+   "space": "area",
+   "label": "구의3동",
+   "props": {
+    "heatSeg": 1,
+    "heatM": 30,
+    "salt": 6,
+    "cacl": 12,
+    "sand": 3,
+    "sandBags": 500
+   }
+  },
+  {
+   "id": "area-광장동",
+   "type": "Area",
+   "space": "area",
+   "label": "광장동",
+   "props": {
+    "heatSeg": 5,
+    "heatM": 556,
+    "salt": 27,
+    "cacl": 18,
+    "sand": 3,
+    "sandBags": 1000
+   }
+  },
+  {
+   "id": "area-자양1동",
+   "type": "Area",
+   "space": "area",
+   "label": "자양1동",
+   "props": {
+    "heatSeg": 4,
+    "heatM": 125,
+    "salt": 4,
+    "cacl": 5,
+    "sand": 3,
+    "sandBags": 500
+   }
+  },
+  {
+   "id": "area-자양2동",
+   "type": "Area",
+   "space": "area",
+   "label": "자양2동",
+   "props": {
+    "heatSeg": 1,
+    "heatM": 110,
+    "salt": 2,
+    "cacl": 14,
+    "sand": 1,
+    "sandBags": 160
+   }
+  },
+  {
+   "id": "area-자양3동",
+   "type": "Area",
+   "space": "area",
+   "label": "자양3동",
+   "props": {
+    "heatSeg": 0,
+    "heatM": 0,
+    "salt": 4,
+    "cacl": 2,
+    "sand": 1,
+    "sandBags": 130
+   }
+  },
+  {
+   "id": "area-자양4동",
+   "type": "Area",
+   "space": "area",
+   "label": "자양4동",
+   "props": {
+    "heatSeg": 0,
+    "heatM": 0,
+    "salt": 2,
+    "cacl": 10,
+    "sand": 4,
+    "sandBags": 600
+   }
+  },
+  {
+   "id": "area-화양동",
+   "type": "Area",
+   "space": "area",
+   "label": "화양동",
+   "props": {
+    "heatSeg": 2,
+    "heatM": 75,
+    "salt": 4,
+    "cacl": 6,
+    "sand": 3,
+    "sandBags": 600
+   }
+  },
+  {
+   "id": "area-군자동",
+   "type": "Area",
+   "space": "area",
+   "label": "군자동",
+   "props": {
+    "heatSeg": 0,
+    "heatM": 0,
+    "salt": 10,
+    "cacl": 19,
+    "sand": 5,
+    "sandBags": 900
+   }
+  },
+  {
+   "id": "ev-heat",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "열선 41구간 4,519m(1차로 기준), 11개 동",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-heat-top",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "열선 22/41구간이 구의2동·중곡4동에 있다",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-heat-none",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "열선 없는 동 4곳: 중곡1동·자양3동·자양4동·군자동",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-heat-school",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "노선명에 통학로·학교가 적힌 열선 5구간",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-heat-pending",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "2025년 상반기 설치 예정 표기 9구간(설치년월 비어 있음)",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2025-01-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-salt",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "제설함 110개소, 전부 도로과 관리(간선도로변)",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15066599 서울특별시 광진구_제설함 위치정보",
+    "asof": "2026-08-20",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-cacl",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "염화칼슘보관함 228개소, 중곡4동 74개소(32%)",
+   "props": {
+    "confidence": 1,
+    "source": "공공데이터포털 15041574 서울특별시_광진구_염화칼슘보관함 위치정보",
+    "asof": "2026-09-04",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-sand",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "모래주머니 45지점 8,010포(취약지역 30 · 동주민센터 15)",
+   "props": {
+    "confidence": 0.8,
+    "source": "공공데이터포털 15041576 서울특별시_광진구_모래주머니 배치현황",
+    "asof": "2022-01-19",
+    "derived_by": "scripts/snow-data.mjs",
+    "note": "기준일 2022-01-19. 네 데이터 중 가장 오래됐다"
+   }
+  },
+  {
+   "id": "ev-seoul",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "서울 25개 구 열선 993개소 148,433m. 광진구 55개소 6,066m, 연장 11위",
+   "props": {
+    "confidence": 1,
+    "source": "서울 열린데이터광장 OA-22584 서울시 열선 설치 현황(자치구별 도로열선 설치현황_20260531)",
+    "asof": "2026-05-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-update-gap",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "서울시 집계(2026.5) 광진 55개소 6,066m vs 구 공개(2025.1) 41구간 4,519m",
+   "props": {
+    "confidence": 1,
+    "source": "서울 열린데이터광장 OA-22584 서울시 열선 설치 현황(자치구별 도로열선 설치현황_20260531) · 공공데이터포털 15142397 서울특별시 광진구_도로열선 설치 현황",
+    "asof": "2026-05-31",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "ev-press",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "보도 수치: 인력 1,075명 · 살포기 52대 · 열선 55개소 · 취약지점 89개소 · 제설함류 101개소",
+   "props": {
+    "confidence": 0.6,
+    "source": "광진구 보도자료 2025-11-17(서울시티) · 2026-02-12(문화일보 제설대책 평가)",
+    "asof": "2026-02-12",
+    "derived_by": "기사 본문 전사",
+    "note": "공공데이터가 아니라 보도자료. 개소 정의가 공개 데이터와 다를 수 있다"
+   }
+  },
+  {
+   "id": "ev-coverage",
+   "type": "Evidence",
+   "space": "evidence",
+   "label": "자원 4종 중 하나도 없는 동은 없다. 열선만 없는 동 4곳",
+   "props": {
+    "confidence": 1,
+    "source": "map.json dongs",
+    "asof": "2026-09-04",
+    "derived_by": "scripts/snow-data.mjs"
+   }
+  },
+  {
+   "id": "claim-heat-concentration",
+   "type": "Claim",
+   "space": "claim",
+   "label": "열선은 구의2동·중곡4동 두 동에 절반이 몰려 있다",
+   "props": {
+    "gist": "22/41구간. 급경사·통학로가 많은 동에 집중 설치한 결과로 읽히지만, 다른 동의 급경사 목록이 공개돼 있지 않아 적정성은 판단할 수 없다"
+   }
+  },
+  {
+   "id": "claim-heat-gap",
+   "type": "Claim",
+   "space": "claim",
+   "label": "중곡1동·자양3동·자양4동·군자동은 열선 없이 비치 자재와 인력으로만 대응한다",
+   "props": {
+    "gist": "열선 0구간. 염화칼슘함·모래주머니는 있다. 급경사가 없어서인지 우선순위 밖인지는 데이터로 알 수 없다"
+   }
+  },
+  {
+   "id": "claim-update-gap",
+   "type": "Claim",
+   "space": "claim",
+   "label": "구가 공개한 열선 목록은 서울시 집계보다 한 시즌 뒤처져 있다",
+   "props": {
+    "gist": "14개소 1,547m 차이. 2025년 설치분이 구 공개 데이터에 아직 없다. 지도의 열선은 2025.1 기준"
+   }
+  },
+  {
+   "id": "claim-alley-first",
+   "type": "Claim",
+   "space": "claim",
+   "label": "이면도로 대응은 장비가 아니라 비치 자재와 주민에 기대고 있다",
+   "props": {
+    "gist": "염화칼슘함 228개소·모래주머니 45지점이 동 단위로 깔려 있고, 조례가 건축물관리자에게 대지경계 1m를 맡긴다"
+   }
+  },
+  {
+   "id": "claim-kpi-missing",
+   "type": "Claim",
+   "space": "claim",
+   "label": "조례 시한 준수와 결빙 사고는 잴 데이터가 없다",
+   "props": {
+    "gist": "자원 배치는 공개돼 있지만 결과(사고·민원·시한 준수)는 공개 데이터가 없다. 서울시 평가 등급만 남는다"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "f": "org-gwangjin",
+   "rel": "manages",
+   "t": "ds-heat"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "manages",
+   "t": "ds-salt"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "manages",
+   "t": "ds-cacl"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "manages",
+   "t": "ds-sand"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "manages",
+   "t": "ds-press"
+  },
+  {
+   "f": "org-seoul",
+   "rel": "manages",
+   "t": "ds-seoul-heat"
+  },
+  {
+   "f": "team-road",
+   "rel": "owns",
+   "t": "ds-heat"
+  },
+  {
+   "f": "team-road",
+   "rel": "owns",
+   "t": "ds-salt"
+  },
+  {
+   "f": "team-dong",
+   "rel": "owns",
+   "t": "ds-cacl"
+  },
+  {
+   "f": "team-dong",
+   "rel": "owns",
+   "t": "ds-sand"
+  },
+  {
+   "f": "team-road",
+   "rel": "operates",
+   "t": "lev-heat"
+  },
+  {
+   "f": "team-road",
+   "rel": "operates",
+   "t": "lev-salt"
+  },
+  {
+   "f": "team-road",
+   "rel": "operates",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "team-road",
+   "rel": "operates",
+   "t": "lev-fleet"
+  },
+  {
+   "f": "team-dong",
+   "rel": "operates",
+   "t": "lev-cacl"
+  },
+  {
+   "f": "team-dong",
+   "rel": "operates",
+   "t": "lev-sand"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "operates",
+   "t": "lev-staff"
+  },
+  {
+   "f": "org-civic",
+   "rel": "operates",
+   "t": "lev-civic"
+  },
+  {
+   "f": "actor-owner",
+   "rel": "operates",
+   "t": "lev-owner"
+  },
+  {
+   "f": "lev-heat",
+   "rel": "targets",
+   "t": "con-slope"
+  },
+  {
+   "f": "lev-heat",
+   "rel": "targets",
+   "t": "con-school"
+  },
+  {
+   "f": "lev-heat",
+   "rel": "targets",
+   "t": "con-freeze"
+  },
+  {
+   "f": "lev-sprayer",
+   "rel": "targets",
+   "t": "con-slope"
+  },
+  {
+   "f": "lev-sprayer",
+   "rel": "targets",
+   "t": "con-freeze"
+  },
+  {
+   "f": "lev-salt",
+   "rel": "targets",
+   "t": "con-arterial"
+  },
+  {
+   "f": "lev-fleet",
+   "rel": "targets",
+   "t": "con-arterial"
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "targets",
+   "t": "con-alley"
+  },
+  {
+   "f": "lev-sand",
+   "rel": "targets",
+   "t": "con-alley"
+  },
+  {
+   "f": "lev-sand",
+   "rel": "targets",
+   "t": "con-freeze"
+  },
+  {
+   "f": "lev-staff",
+   "rel": "targets",
+   "t": "con-transit"
+  },
+  {
+   "f": "lev-civic",
+   "rel": "targets",
+   "t": "con-alley"
+  },
+  {
+   "f": "lev-owner",
+   "rel": "targets",
+   "t": "con-alley"
+  },
+  {
+   "f": "lev-heat",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "상시 가동"
+   }
+  },
+  {
+   "f": "lev-sprayer",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "상시 가동"
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "비치"
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "비치"
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "비치"
+   }
+  },
+  {
+   "f": "lev-fleet",
+   "rel": "lowers",
+   "t": "kpi-ice-incident",
+   "props": {
+    "status": "단계 동원"
+   }
+  },
+  {
+   "f": "lev-staff",
+   "rel": "lowers",
+   "t": "kpi-deadline",
+   "props": {
+    "status": "단계 동원"
+   }
+  },
+  {
+   "f": "lev-civic",
+   "rel": "lowers",
+   "t": "kpi-deadline",
+   "props": {
+    "status": "단계 동원"
+   }
+  },
+  {
+   "f": "lev-owner",
+   "rel": "lowers",
+   "t": "kpi-deadline",
+   "props": {
+    "status": "법정 의무"
+   }
+  },
+  {
+   "f": "con-freeze",
+   "rel": "raises",
+   "t": "kpi-ice-incident"
+  },
+  {
+   "f": "con-slope",
+   "rel": "raises",
+   "t": "kpi-ice-incident"
+  },
+  {
+   "f": "kpi-coverage",
+   "rel": "operationalizes",
+   "t": "kpi-ice-incident"
+  },
+  {
+   "f": "pol-law-27",
+   "rel": "delegates",
+   "t": "pol-ord"
+  },
+  {
+   "f": "pol-ord",
+   "rel": "obligates",
+   "t": "actor-owner"
+  },
+  {
+   "f": "pol-ord",
+   "rel": "basis",
+   "t": "lev-owner"
+  },
+  {
+   "f": "pol-period",
+   "rel": "basis",
+   "t": "lev-staff"
+  },
+  {
+   "f": "pol-period",
+   "rel": "basis",
+   "t": "lev-fleet"
+  },
+  {
+   "f": "org-seoul",
+   "rel": "defines",
+   "t": "pol-stage"
+  },
+  {
+   "f": "org-gwangjin",
+   "rel": "defines",
+   "t": "pol-period"
+  },
+  {
+   "f": "con-snowfall",
+   "rel": "triggers",
+   "t": "pol-stage"
+  },
+  {
+   "f": "pol-stage",
+   "rel": "defines",
+   "t": "stage-0"
+  },
+  {
+   "f": "pol-stage",
+   "rel": "defines",
+   "t": "stage-1"
+  },
+  {
+   "f": "pol-stage",
+   "rel": "defines",
+   "t": "stage-2"
+  },
+  {
+   "f": "pol-stage",
+   "rel": "defines",
+   "t": "stage-3"
+  },
+  {
+   "f": "stage-0",
+   "rel": "escalates_to",
+   "t": "stage-1"
+  },
+  {
+   "f": "stage-1",
+   "rel": "escalates_to",
+   "t": "stage-2"
+  },
+  {
+   "f": "stage-2",
+   "rel": "escalates_to",
+   "t": "stage-3"
+  },
+  {
+   "f": "stage-0",
+   "rel": "mobilizes",
+   "t": "lev-heat"
+  },
+  {
+   "f": "stage-0",
+   "rel": "mobilizes",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-heat"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-salt"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-cacl"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-sand"
+  },
+  {
+   "f": "stage-1",
+   "rel": "mobilizes",
+   "t": "lev-staff"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-heat"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-salt"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-cacl"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-sand"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-staff"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-fleet"
+  },
+  {
+   "f": "stage-2",
+   "rel": "mobilizes",
+   "t": "lev-owner"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-heat"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-salt"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-cacl"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-sand"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-staff"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-fleet"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-owner"
+  },
+  {
+   "f": "stage-3",
+   "rel": "mobilizes",
+   "t": "lev-civic"
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-중곡1동",
+   "props": {
+    "count": 4
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-중곡1동",
+   "props": {
+    "count": 8
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-중곡1동",
+   "props": {
+    "count": 3,
+    "bags": 500
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-중곡2동",
+   "props": {
+    "count": 1,
+    "length_m": 30
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-중곡2동",
+   "props": {
+    "count": 5
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-중곡2동",
+   "props": {
+    "count": 9
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-중곡2동",
+   "props": {
+    "count": 3,
+    "bags": 500
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-중곡3동",
+   "props": {
+    "count": 2,
+    "length_m": 220
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-중곡3동",
+   "props": {
+    "count": 5
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-중곡3동",
+   "props": {
+    "count": 7
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-중곡3동",
+   "props": {
+    "count": 1,
+    "bags": 100
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-중곡4동",
+   "props": {
+    "count": 10,
+    "length_m": 1684
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-중곡4동",
+   "props": {
+    "count": 9
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-중곡4동",
+   "props": {
+    "count": 74
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-중곡4동",
+   "props": {
+    "count": 5,
+    "bags": 800
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-능동",
+   "props": {
+    "count": 2,
+    "length_m": 100
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-능동",
+   "props": {
+    "count": 8
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-능동",
+   "props": {
+    "count": 10
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-능동",
+   "props": {
+    "count": 6,
+    "bags": 920
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-구의1동",
+   "props": {
+    "count": 1,
+    "length_m": 70
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-구의1동",
+   "props": {
+    "count": 1
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-구의1동",
+   "props": {
+    "count": 8
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-구의1동",
+   "props": {
+    "count": 1,
+    "bags": 200
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-구의2동",
+   "props": {
+    "count": 12,
+    "length_m": 1519
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-구의2동",
+   "props": {
+    "count": 17
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-구의2동",
+   "props": {
+    "count": 26
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-구의2동",
+   "props": {
+    "count": 3,
+    "bags": 600
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-구의3동",
+   "props": {
+    "count": 1,
+    "length_m": 30
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-구의3동",
+   "props": {
+    "count": 6
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-구의3동",
+   "props": {
+    "count": 12
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-구의3동",
+   "props": {
+    "count": 3,
+    "bags": 500
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-광장동",
+   "props": {
+    "count": 5,
+    "length_m": 556
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-광장동",
+   "props": {
+    "count": 27
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-광장동",
+   "props": {
+    "count": 18
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-광장동",
+   "props": {
+    "count": 3,
+    "bags": 1000
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-자양1동",
+   "props": {
+    "count": 4,
+    "length_m": 125
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-자양1동",
+   "props": {
+    "count": 4
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-자양1동",
+   "props": {
+    "count": 5
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-자양1동",
+   "props": {
+    "count": 3,
+    "bags": 500
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-자양2동",
+   "props": {
+    "count": 1,
+    "length_m": 110
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-자양2동",
+   "props": {
+    "count": 2
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-자양2동",
+   "props": {
+    "count": 14
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-자양2동",
+   "props": {
+    "count": 1,
+    "bags": 160
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-자양3동",
+   "props": {
+    "count": 4
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-자양3동",
+   "props": {
+    "count": 2
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-자양3동",
+   "props": {
+    "count": 1,
+    "bags": 130
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-자양4동",
+   "props": {
+    "count": 2
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-자양4동",
+   "props": {
+    "count": 10
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-자양4동",
+   "props": {
+    "count": 4,
+    "bags": 600
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "area-화양동",
+   "props": {
+    "count": 2,
+    "length_m": 75
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-화양동",
+   "props": {
+    "count": 4
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-화양동",
+   "props": {
+    "count": 6
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-화양동",
+   "props": {
+    "count": 3,
+    "bags": 600
+   }
+  },
+  {
+   "f": "lev-salt",
+   "rel": "covers",
+   "t": "area-군자동",
+   "props": {
+    "count": 10
+   }
+  },
+  {
+   "f": "lev-cacl",
+   "rel": "covers",
+   "t": "area-군자동",
+   "props": {
+    "count": 19
+   }
+  },
+  {
+   "f": "lev-sand",
+   "rel": "covers",
+   "t": "area-군자동",
+   "props": {
+    "count": 5,
+    "bags": 900
+   }
+  },
+  {
+   "f": "ds-heat",
+   "rel": "contains",
+   "t": "ev-heat"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "contains",
+   "t": "ev-heat-top"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "contains",
+   "t": "ev-heat-none"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "contains",
+   "t": "ev-heat-school"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "contains",
+   "t": "ev-heat-pending"
+  },
+  {
+   "f": "ds-salt",
+   "rel": "contains",
+   "t": "ev-salt"
+  },
+  {
+   "f": "ds-cacl",
+   "rel": "contains",
+   "t": "ev-cacl"
+  },
+  {
+   "f": "ds-sand",
+   "rel": "contains",
+   "t": "ev-sand"
+  },
+  {
+   "f": "ds-seoul-heat",
+   "rel": "contains",
+   "t": "ev-seoul"
+  },
+  {
+   "f": "ds-seoul-heat",
+   "rel": "derived_from",
+   "t": "ev-update-gap"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "derived_from",
+   "t": "ev-update-gap"
+  },
+  {
+   "f": "ds-press",
+   "rel": "contains",
+   "t": "ev-press"
+  },
+  {
+   "f": "ds-heat",
+   "rel": "derived_from",
+   "t": "ev-coverage"
+  },
+  {
+   "f": "ds-salt",
+   "rel": "derived_from",
+   "t": "ev-coverage"
+  },
+  {
+   "f": "ds-cacl",
+   "rel": "derived_from",
+   "t": "ev-coverage"
+  },
+  {
+   "f": "ds-sand",
+   "rel": "derived_from",
+   "t": "ev-coverage"
+  },
+  {
+   "f": "ev-heat",
+   "rel": "describes",
+   "t": "lev-heat"
+  },
+  {
+   "f": "ev-salt",
+   "rel": "describes",
+   "t": "lev-salt"
+  },
+  {
+   "f": "ev-cacl",
+   "rel": "describes",
+   "t": "lev-cacl"
+  },
+  {
+   "f": "ev-sand",
+   "rel": "describes",
+   "t": "lev-sand"
+  },
+  {
+   "f": "ev-press",
+   "rel": "describes",
+   "t": "lev-sprayer"
+  },
+  {
+   "f": "ev-press",
+   "rel": "describes",
+   "t": "lev-fleet"
+  },
+  {
+   "f": "ev-press",
+   "rel": "describes",
+   "t": "lev-staff"
+  },
+  {
+   "f": "ev-heat-school",
+   "rel": "describes",
+   "t": "con-school"
+  },
+  {
+   "f": "ev-coverage",
+   "rel": "describes",
+   "t": "kpi-coverage"
+  },
+  {
+   "f": "ev-press",
+   "rel": "describes",
+   "t": "kpi-eval"
+  },
+  {
+   "f": "ev-heat-top",
+   "rel": "supports",
+   "t": "claim-heat-concentration"
+  },
+  {
+   "f": "ev-heat-school",
+   "rel": "supports",
+   "t": "claim-heat-concentration"
+  },
+  {
+   "f": "ev-heat-none",
+   "rel": "supports",
+   "t": "claim-heat-gap"
+  },
+  {
+   "f": "ev-coverage",
+   "rel": "supports",
+   "t": "claim-heat-gap"
+  },
+  {
+   "f": "ev-update-gap",
+   "rel": "supports",
+   "t": "claim-update-gap"
+  },
+  {
+   "f": "ev-heat-pending",
+   "rel": "supports",
+   "t": "claim-update-gap"
+  },
+  {
+   "f": "ev-cacl",
+   "rel": "supports",
+   "t": "claim-alley-first"
+  },
+  {
+   "f": "ev-sand",
+   "rel": "supports",
+   "t": "claim-alley-first"
+  },
+  {
+   "f": "ev-press",
+   "rel": "supports",
+   "t": "claim-kpi-missing"
+  },
+  {
+   "f": "claim-kpi-missing",
+   "rel": "governs",
+   "t": "kpi-deadline"
+  },
+  {
+   "f": "claim-kpi-missing",
+   "rel": "governs",
+   "t": "kpi-ice-incident"
+  },
+  {
+   "f": "claim-update-gap",
+   "rel": "governs",
+   "t": "lev-heat"
+  }
+ ]
+}

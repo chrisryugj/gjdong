@@ -1321,3 +1321,30 @@
 /* 모바일 하단 시트 손잡이 */
 .dump-page .dump-grip { width: 40px; height: 5px; border-radius: 9999px; background: var(--cp-border-strong); }
 
+
+/* ── /snow 제설 온톨로지(2026-09-20). /dumping 유리·도면지 테마를 그대로 쓰되 액센트만 겨울 청빙으로. 지도 데이터 색(열선 벽돌·제설함 청회·염화칼슘 청빙·모래 앰버)은 lib/snow/labels RESOURCES */
+.crowd-page.crowd-light.dump-page.snow-page {
+  --dump-ground: #e6e6df;
+  --dump-paper: #eff0ea;
+  --dump-paper-white: #fafaf6;
+  --dump-accent: #2a6f97;
+  --dump-accent-ink: #1d5578;
+  --dump-accent-wash: rgba(42, 111, 151, 0.14);
+  --cp-overlay: rgba(239, 240, 234, 0.9);
+  --cp-panel2: #f2f3ee;
+}
+:root[data-theme="dark"] .crowd-page.crowd-light.dump-page.snow-page {
+  --dump-ground: #0b1216;
+  --dump-paper: #0f171c;
+  --dump-paper-white: #151f25;
+  --dump-accent: #7cc0e8;
+  --dump-accent-ink: #a6d6f2;
+  --dump-accent-wash: rgba(124, 192, 232, 0.2);
+  --cp-overlay: rgba(15, 23, 28, 0.9);
+}
+/* 지도 툴팁(map-geo tip): 제목 → 항목 줄(이름·값) → 각주 */
+.snow-tip { width: 240px; padding: 9px 12px 8px; font-size: 13.5px; line-height: 1.45; }
+.snow-tip b { display: block; margin-bottom: 3px; font-size: 14.5px; font-weight: 800; color: var(--cp-text-strong, #0f172a); word-break: keep-all; }
+.snow-tip div { display: flex; gap: 8px; }
+.snow-tip div span { flex: 0 0 64px; color: var(--cp-text-dim, #64748b); }
+.snow-tip p { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--cp-border-faint, rgba(0,0,0,.07)); font-size: 11.5px; color: var(--cp-text-faint, #94a3b8); }

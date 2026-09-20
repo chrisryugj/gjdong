@@ -1,0 +1,93 @@
+// /snow 그래프의 한글 표시명. 관계·클래스·속성 키를 화면 말로
+
+export const REL_KO: Record<string, string> = {
+  manages: "관리",
+  owns: "보유",
+  operates: "운영",
+  contains: "포함",
+  derived_from: "결합 산출",
+  supports: "뒷받침",
+  describes: "서술",
+  targets: "겨냥",
+  lowers: "낮추려 함",
+  raises: "위험 높임",
+  operationalizes: "대신 측정",
+  covers: "배치",
+  mobilizes: "동원",
+  escalates_to: "격상",
+  defines: "정함",
+  triggers: "발동 입력",
+  delegates: "위임",
+  obligates: "의무 부과",
+  basis: "근거",
+  governs: "해석 규칙",
+}
+export const relLabel = (rel: string) => REL_KO[rel] ?? rel
+
+export const TYPE_KO: Record<string, string> = {
+  Org: "기관·주체",
+  Team: "부서",
+  Dataset: "데이터셋",
+  Evidence: "관측",
+  Concept: "취약요인",
+  Claim: "판단",
+  KPI: "목표지표",
+  Lever: "대응자원",
+  Policy: "법령·기준",
+  Stage: "대응 단계",
+  Area: "행정동",
+}
+export const typeLabel = (t: string) => TYPE_KO[t] ?? t
+
+export const PROP_KO: Record<string, string> = {
+  name: "이름",
+  role: "역할",
+  rows: "행 수",
+  source: "출처",
+  asof: "기준일",
+  derived_by: "산출",
+  confidence: "신뢰도",
+  note: "비고",
+  def: "정의",
+  gist: "요지",
+  unit: "단위",
+  count: "개소",
+  length_m: "연장(m)",
+  bags: "포",
+  kind: "구분",
+  measurable: "측정 가능",
+  law: "법령",
+  article: "조문",
+  efYd: "시행일",
+  enacted: "제정일",
+  dept: "소관",
+  day_hours: "주간 시한(시간)",
+  night_until: "야간 시한",
+  heavy_cm: "폭설 기준(cm)",
+  heavy_hours: "폭설 시한(시간)",
+  scope_m: "범위(m)",
+  from: "시작",
+  to: "종료",
+  order: "순서",
+  threshold_cm: "적설 임계(cm)",
+  until_cm: "상한(cm)",
+  heatSeg: "열선 구간",
+  heatM: "열선 연장(m)",
+  salt: "제설함",
+  cacl: "염화칼슘함",
+  sand: "모래주머니 지점",
+  sandBags: "모래주머니 포",
+  status: "상태",
+  unimog: "유니목",
+  dump15t: "15톤 덤프",
+  squads: "실무반",
+}
+export const propLabel = (k: string) => PROP_KO[k] ?? k
+
+// 자원 4종(지도 레이어·범례·동별 표의 정본 순서와 색). 색은 테마 불변 지도 문법: 열선 벽돌(열), 제설함 잉크 청회, 염화칼슘함 청빙, 모래주머니 모래 앰버
+export const RESOURCES = [
+  { id: "heat", label: "도로열선", unit: "구간", color: "#b2452f" },
+  { id: "salt", label: "제설함", unit: "개소", color: "#3f4f66" },
+  { id: "cacl", label: "염화칼슘보관함", unit: "개소", color: "#2a7fb0" },
+  { id: "sand", label: "모래주머니", unit: "지점", color: "#b8862b" },
+] as const
