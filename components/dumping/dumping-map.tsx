@@ -382,6 +382,19 @@ export default function DumpingMap({
     map.on("dragstart", stopOrbit)
     map.on("wheel", stopOrbit)
     map.on("touchstart", stopOrbit)
+    // 지도가 움직이는 동안(회전·드론·카메라 큐·드래그) html.lg-moving을 붙여 유리 굴절 필터를 쉬게 한다(globals.css).
+    // 굴절(backdrop-filter: url)은 지도가 바뀔 때마다 다시 그려져 회전 fps를 반으로 깎았다(2026-09-21 실측 25→56). 멈추면 240ms 뒤 굴절 복귀
+    const root = document.documentElement
+    let movingTimer = 0
+    const onMove = () => {
+      if (!movingTimer) root.classList.add("lg-moving")
+      else window.clearTimeout(movingTimer)
+      movingTimer = window.setTimeout(() => {
+        movingTimer = 0
+        root.classList.remove("lg-moving")
+      }, 240)
+    }
+    map.on("move", onMove)
     // 컨테이너 크기가 바뀌면(패널 드래그·모바일 시트) 캔버스를 다시 잰다
     const observer = new ResizeObserver(() => {
       const m = mapRef.current
@@ -395,6 +408,8 @@ export default function DumpingMap({
     observer.observe(boxRef.current)
     return () => {
       observer.disconnect()
+      window.clearTimeout(movingTimer)
+      root.classList.remove("lg-moving")
       popup.remove()
       map.remove()
       mapRef.current = null

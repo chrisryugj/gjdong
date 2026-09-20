@@ -98,11 +98,6 @@ const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): D
     use: "골목 비율·간선 이격거리 계산(은폐 가설 검정), 상권 통제 변수",
   },
   {
-    name: "지도 바탕·건물 입체·지형",
-    scale: "OpenStreetMap(Protomaps 2026-09-18 추출) · Mapzen 지형 타일",
-    use: "지도 바탕과 입체 보기의 건물 높이·아차산 지형. 분석 수치에는 쓰지 않음. 정적 파일로 자체 호스팅",
-  },
-  {
     name: "행정동 경계",
     scale: "행안부 KIKcd_H (admdongkor)",
     use: "동 경계 지도, 동별 집계의 기준",
@@ -174,12 +169,14 @@ function DatasetGroup({
   title,
   desc,
   items,
+  note,
 }: {
   badge: string
   badgeCls: string
   title: string
   desc: string
   items: Dataset[]
+  note?: string // 종수에 안 세는 표시용 자료 등, 목록 아래 각주
 }) {
   return (
     <section className="rounded-xl border border-[var(--cp-border)] p-3">
@@ -199,6 +196,7 @@ function DatasetGroup({
           </div>
         ))}
       </div>
+      {note && <p className="mt-2 border-t border-[var(--cp-border-faint)] pt-2 text-[13.5px] leading-relaxed text-[var(--cp-text-faint)]">{note}</p>}
     </section>
   )
 }
@@ -273,6 +271,8 @@ export default function MethodsModal({
             title={`공개 데이터 직접 수집 ${collected(data, topBeta, ledgerRows).length}종`}
             desc="누구나 접근할 수 있는 공공 API·공개 지도에서 분석팀이 수집해 격자에 결합했습니다."
             items={collected(data, topBeta, ledgerRows)}
+            // 지도 바탕은 분석 수치에 안 쓰는 표시용이라 종수(22 = 7·9·6, 보고 덱과 같은 수)에 넣지 않는다
+            note="종수에 안 센 표시용 자료: 지도 바탕 OpenStreetMap(Protomaps 2026-09-18 추출) · 아차산 지형 Mapzen 지형 타일 · 구 안 건물 입체 국토교통부 GIS건물통합정보(2026-09-09). 분석 수치에는 쓰지 않고 정적 파일로 자체 호스팅합니다."
           />
           {seoulOpen(data).length > 0 && (
             <DatasetGroup

@@ -1260,6 +1260,13 @@
 }
 /* 유리 끔(--lg≈0): 굴절·흐림 없이 불투명 종이 패널 */
 .lg-flat .dump-page .lg-shell, .lg-flat .dump-page .dump-fl { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--dump-paper) !important; }
+/* 지도가 움직이는 동안(html.lg-moving, dumping-map이 move 이벤트로 붙였다 240ms 뒤 뗀다): 굴절 url() 필터 대신 .dump-fl과 같은 흐림 유리.
+   굴절은 지도가 바뀔 때마다 다시 그려져 회전·드론 fps를 반으로 깎는다(2026-09-21 실측 25→56). 안쪽 서리 층 흐림도 쉰다(쉘이 이미 흐림) */
+.lg-on.lg-moving:not(.lg-flat) .dump-page .lg-shell {
+  -webkit-backdrop-filter: blur(calc(24px * var(--lg-lo) - var(--lg-hi) * 20px)) saturate(1.5) brightness(1.04) !important;
+  backdrop-filter: blur(calc(24px * var(--lg-lo) - var(--lg-hi) * 20px)) saturate(1.5) brightness(1.04) !important;
+}
+.lg-on.lg-moving:not(.lg-flat) .dump-page .lg-inner { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .lg-flat .dump-page .lg-inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: transparent; }
 .lg-flat .dump-page .lg-shell::before, .lg-flat .dump-page .lg-shell::after { display: none; }
 /* 유리 다이얼: 평소엔 물방울 하나, 누르면 옆으로 늘어나 슬라이더가 나온다 */
@@ -1354,6 +1361,13 @@
 .lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(251, 249, 243, 0.9); }
 :root[data-theme="dark"].lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(14, 24, 35, 0.9); }
 /* 시연 장면 3 자동 격상 진행선(캡션 카드 위 2px). 남은 시간은 캡션 키커에 */
+/* /snow 결재용 한 장(#snow-check) 인쇄: 모달만 출력(#dump-brief 규칙과 같은 :has(#id) 특이성 패턴) */
+@media print {
+  body:has(#snow-check) * { visibility: hidden; }
+  body:has(#snow-check) #snow-check, body:has(#snow-check) #snow-check * { visibility: visible; }
+  #snow-check { display: block; position: absolute; top: 0; left: 0; right: 0; max-width: none; max-height: none; overflow: visible; border: none; box-shadow: none; }
+  #snow-check > div { max-height: none; overflow: visible; }
+}
 @keyframes snow-progress { from { width: 0; } to { width: 100%; } }
 .snow-progress { width: 0; animation: snow-progress linear forwards; }
 /* 지도 툴팁(map-geo tip): 꼬리표 › 제목 › 항목 줄(이름·값) › 각주. 12px 미만 금지 */
