@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert"
-import { MOBILIZED, ordinanceDeadline, stageForSnow } from "../lib/snow/stage"
+import { inSnowSeason, MOBILIZED, ordinanceDeadline, stageForSnow } from "../lib/snow/stage"
 
 test("적설 예보 → 서울시 단계: 0 평시 · 0.5 보강 · 3 1단계 · 5 2단계 · 12 3단계", () => {
   assert.strictEqual(stageForSnow(0).id, "calm")
@@ -10,6 +10,22 @@ test("적설 예보 → 서울시 단계: 0 평시 · 0.5 보강 · 3 1단계 ·
   assert.strictEqual(stageForSnow(5).id, "stage-2")
   assert.strictEqual(stageForSnow(12).id, "stage-3")
   assert.strictEqual(stageForSnow(Number.NaN).id, "calm")
+})
+
+test("특보는 예보와 별개로 단계를 올린다: 주의보=2단계, 경보=3단계, 예보가 더 높으면 예보", () => {
+  assert.strictEqual(stageForSnow(0, "advisory").id, "stage-2")
+  assert.strictEqual(stageForSnow(0, "warning").id, "stage-3")
+  assert.strictEqual(stageForSnow(12, "advisory").id, "stage-3")
+  assert.strictEqual(stageForSnow(3, "none").id, "stage-1")
+})
+
+test("제설대책기간은 11월 15일부터 3월 15일까지", () => {
+  assert.ok(inSnowSeason(new Date(2026, 10, 15)))
+  assert.ok(inSnowSeason(new Date(2026, 0, 3)))
+  assert.ok(inSnowSeason(new Date(2026, 2, 15)))
+  assert.ok(!inSnowSeason(new Date(2026, 2, 16)))
+  assert.ok(!inSnowSeason(new Date(2026, 8, 20)))
+  assert.ok(!inSnowSeason(new Date(2026, 10, 14)))
 })
 
 test("단계 동원 목록은 누적이다", () => {

@@ -10,16 +10,22 @@ import { fitZoom, HUB, LAYOUTS, layerColumns, layoutFor, type LayoutId, type P3 
 // /snow 온톨로지 그래프. /dumping ontology-graph의 SVG 투영·라벨 배치 규약을 따르되 배치·색·라벨은 제설 도메인.
 // 구면은 3D(드래그 = 회전, 가만두면 자동 회전), 층별·선택 중심은 평면(드래그 = 이동). 휠·버튼 = 줌
 
+// 색 문법: 지도와 충돌하지 않게 자원(lever)은 남색, 행정동(area)은 회녹, 위험·지표(outcome)는 벽돌. 열선 주황·청빙은 지도 자원 색이라 그래프에서 안 쓴다
 export const SPACE_COLOR: Record<string, string> = {
   subject: "#64748b",
   resource: "#2563eb",
   evidence: "#9333ea",
   concept: "#0d9488",
   claim: "#d97706",
-  outcome: "#dc2626",
-  lever: "#b2452f",
+  outcome: "#c8553d",
+  lever: "#4b5563",
   policy: "#db2777",
-  area: "#2a7fb0",
+  area: "#5b7a6a",
+}
+// 그래프에 그리는 노드: 취약구간 실체(Entity 56)는 지도가 보여 주므로 그래프에서는 뺀다(72노드에서도 헤어볼이었다)
+export function viewGraph(graph: OntoGraph): OntoGraph {
+  const hide = new Set(graph.nodes.filter((n) => n.type === "Entity").map((n) => n.id))
+  return { nodes: graph.nodes.filter((n) => !hide.has(n.id)), edges: graph.edges.filter((e) => !hide.has(e.f) && !hide.has(e.t)) }
 }
 
 const W = 1200
@@ -43,10 +49,11 @@ interface Props {
   onSelect: (id: string | null) => void
 }
 
-export default function OntoGraphView({ graph, selectedId, onSelect }: Props) {
+export default function OntoGraphView({ graph: fullGraph, selectedId, onSelect }: Props) {
+  const graph = useMemo(() => (fullGraph ? viewGraph(fullGraph) : null), [fullGraph])
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: DEFAULT_ZOOM })
-  const [layout, setLayout] = useState<LayoutId>("sphere")
+  const [layout, setLayout] = useState<LayoutId>("layers")
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ sx: number; sy: number; yaw: number; pitch: number; px: number; py: number; moved: boolean } | null>(null)
   const interactedRef = useRef(false)
@@ -56,6 +63,12 @@ export default function OntoGraphView({ graph, selectedId, onSelect }: Props) {
   const pos = useMemo(() => (graph ? layoutFor(layout, graph, radialCenter) : new Map<string, P3>()), [graph, layout, radialCenter])
   const viewRef = useRef(view)
   viewRef.current = view
+  const fittedRef = useRef(false)
+  useEffect(() => {
+    if (!graph || fittedRef.current) return
+    fittedRef.current = true
+    setView((v) => ({ ...v, k: fitZoom(layoutFor("layers", graph, null), W, H) }))
+  }, [graph])
   const panRef = useRef(pan)
   panRef.current = pan
 
@@ -158,7 +171,7 @@ export default function OntoGraphView({ graph, selectedId, onSelect }: Props) {
 
   if (!graph) return <div className="flex h-full items-center justify-center text-base text-[var(--cp-text-dim)]">온톨로지 로딩 중…</div>
 
-  const focus = hoverId ?? selectedId ?? (layout === "radial" ? HUB : null)
+  const focus = hoverId ?? selectedId ?? HUB
   const focusSet = focus ? (neighbors.get(focus) ?? new Set()) : null
   const projected = graph.nodes
     .map((n) => {
@@ -343,7 +356,7 @@ export default function OntoGraphView({ graph, selectedId, onSelect }: Props) {
         <button type="button" onClick={() => setView((v) => ({ ...v, k: clampZoom(v.k * 0.78) }))} aria-label="축소" className="h-8 w-8 border-t border-[var(--cp-border)] text-[16px] leading-none text-[var(--cp-text)] hover:bg-[var(--cp-hover)]">−</button>
       </div>
       <div className="pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-4rem)] rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text-dim)]">
-        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · {flat ? "드래그로 이동, 휠로 확대" : "드래그로 회전, 휠로 확대"}, 동그라미를 누르면 상세
+        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · {flat ? "끌어서 이동" : "끌어서 회전"}, 두 손가락 또는 휠로 확대, 동그라미를 누르면 상세
       </div>
     </div>
   )

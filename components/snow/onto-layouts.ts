@@ -8,11 +8,11 @@ import { SPACES } from "@/lib/snow/schema"
 
 export type LayoutId = "sphere" | "layers" | "radial"
 export const LAYOUTS: { id: LayoutId; label: string; help: string; flat: boolean }[] = [
-  { id: "sphere", label: "구면", help: "결빙 사고·민원 지표를 가운데 두고 연결 거리만큼 바깥 구면에 놓습니다", flat: false },
-  { id: "layers", label: "층별 흐름", help: "데이터 → 관측 → 판단 → 요인 → 지표 → 자원 → 행정동 → 법령·단계 → 주체. 근거가 왼쪽에서 오른쪽으로 읽힙니다", flat: true },
+  { id: "layers", label: "층별 흐름", help: "데이터 › 관측 › 판단 › 요인 › 지표 › 자원 › 구역 › 법령·단계 › 주체. 근거가 왼쪽에서 오른쪽으로 읽힙니다", flat: true },
   { id: "radial", label: "선택 중심", help: "고른 항목을 가운데 두고 연결 거리만큼 바깥 원에 놓습니다", flat: true },
+  { id: "sphere", label: "구면", help: "취약구간 커버리지 지표를 가운데 두고 연결 거리만큼 바깥 구면에 놓습니다", flat: false },
 ]
-export const HUB = "kpi-ice-incident"
+export const HUB = "kpi-coverage"
 export const SPACE_ORDER = ["resource", "evidence", "claim", "concept", "outcome", "lever", "area", "policy", "subject"] as const satisfies readonly (typeof SPACES)[number][]
 
 export interface P3 {

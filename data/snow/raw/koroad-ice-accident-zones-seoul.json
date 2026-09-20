@@ -1,0 +1,73 @@
+{
+ "fetched": "2026-09-20",
+ "years": [
+  {
+   "year": 2017,
+   "seoul": 23,
+   "gwangjin": 1,
+   "gwangjinSpots": [
+    {
+     "name": "서울특별시 광진구 화양동(건대입구역 부근)",
+     "n": null,
+     "lat": 37.541293955253,
+     "lng": 127.071130654057
+    }
+   ]
+  },
+  {
+   "year": 2018,
+   "seoul": 7,
+   "gwangjin": 1,
+   "gwangjinSpots": [
+    {
+     "name": "서울특별시 광진구 화양동(건대입구역 부근)",
+     "n": null,
+     "lat": 37.541293955253,
+     "lng": 127.071130654057
+    }
+   ]
+  },
+  {
+   "year": 2019,
+   "seoul": 3,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2020,
+   "seoul": 4,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2021,
+   "seoul": 5,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2022,
+   "seoul": 5,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2023,
+   "seoul": 6,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2024,
+   "seoul": 18,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  },
+  {
+   "year": 2025,
+   "seoul": 22,
+   "gwangjin": 0,
+   "gwangjinSpots": []
+  }
+ ]
+}

@@ -47,12 +47,16 @@ test("검증기는 도메인·레인지·미지원 판단·status 없는 lowers�
   assert.ok(codes.includes("CLAIM_UNSUPPORTED"))
 })
 
-test("행정동 15개 · 대응 단계 4개 · 자원 9종 · 데이터셋 6벌", () => {
+test("행정동 15 · 담당 구역 15(행정동 대용) · 취약구간 56 · 대응 단계 4 · 자원 9종 · 데이터셋 14벌", () => {
   const count = (t: string) => graph.nodes.filter((n) => n.type === t).length
   assert.strictEqual(count("Area"), 15)
+  assert.strictEqual(count("Zone"), 15)
+  assert.strictEqual(count("Entity"), 56)
   assert.strictEqual(count("Stage"), 4)
   assert.strictEqual(count("Lever"), 9)
-  assert.strictEqual(count("Dataset"), 6)
-  assert.ok(observedSignatures(graph).includes("Stage -mobilizes-> Lever"))
-  assert.ok(observedSignatures(graph).includes("Policy -delegates-> Policy"))
+  assert.strictEqual(count("Dataset"), 14)
+  assert.ok(graph.nodes.filter((n) => n.type === "Zone").every((n) => n.props.proxy === "행정동 경계 대용"), "구역 정본(담당 구간표)이 아직 없어 전부 대용이어야 한다")
+  const sig = observedSignatures(graph)
+  for (const s of ["Stage -mobilizes-> Lever", "Policy -delegates-> Policy", "Team -assigned-> Zone", "Zone -within-> Area", "Entity -within-> Zone", "Entity -exemplifies-> Concept", "Lever -covers-> Zone", "Lever -covers-> Entity"]) assert.ok(sig.includes(s), s)
+  assert.ok(!sig.includes("Lever -covers-> Area"), "커버리지는 행정동이 아니라 담당 구역 단위")
 })

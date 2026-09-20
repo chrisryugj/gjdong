@@ -1322,7 +1322,9 @@
 .dump-page .dump-grip { width: 40px; height: 5px; border-radius: 9999px; background: var(--cp-border-strong); }
 
 
-/* ── /snow 제설 온톨로지(2026-09-20). /dumping 유리·도면지 테마를 그대로 쓰되 액센트만 겨울 청빙으로. 지도 데이터 색(열선 벽돌·제설함 청회·염화칼슘 청빙·모래 앰버)은 lib/snow/labels RESOURCES */
+/* ── /snow 광진 제설 상황판(2라운드 2026-09-20). 다크(겨울 밤 상황실)가 기본, 라이트는 인쇄용 보조.
+   지도 데이터 색은 lib/snow/labels RESOURCES·RISK(열선 주황 #f0a04b가 밤 지도 유일 난색, 자재 청회·청빙, 모래 모래색, 취약 벽돌).
+   왼쪽 카드는 거의 불투명(0.96): 지도가 글 뒤로 비치면 안 읽힌다(1라운드 실측). 유리 다이얼 무시 */
 .crowd-page.crowd-light.dump-page.snow-page {
   --dump-ground: #e6e6df;
   --dump-paper: #eff0ea;
@@ -1334,17 +1336,25 @@
   --cp-panel2: #f2f3ee;
 }
 :root[data-theme="dark"] .crowd-page.crowd-light.dump-page.snow-page {
-  --dump-ground: #0b1216;
-  --dump-paper: #0f171c;
-  --dump-paper-white: #151f25;
+  --dump-ground: #0b1622;
+  --dump-paper: #0f1a26;
+  --dump-paper-white: #14212e;
+  --dump-ink: #ece7dc;
   --dump-accent: #7cc0e8;
   --dump-accent-ink: #a6d6f2;
   --dump-accent-wash: rgba(124, 192, 232, 0.2);
-  --cp-overlay: rgba(15, 23, 28, 0.9);
+  --cp-overlay: rgba(11, 22, 34, 0.9);
+  --cp-panel2: #14212e;
 }
-/* 지도 툴팁(map-geo tip): 제목 → 항목 줄(이름·값) → 각주 */
-.snow-tip { width: 240px; padding: 9px 12px 8px; font-size: 13.5px; line-height: 1.45; }
-.snow-tip b { display: block; margin-bottom: 3px; font-size: 14.5px; font-weight: 800; color: var(--cp-text-strong, #0f172a); word-break: keep-all; }
+/* 카드 불투명: 다이얼과 무관하게 고정 */
+.dump-page.snow-page .lg-inner, .lg-on .dump-page.snow-page .lg-inner { background: rgba(251, 249, 243, 0.96); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+:root[data-theme="dark"] .dump-page.snow-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page.snow-page .lg-inner { background: rgba(15, 26, 38, 0.96); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+.lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(251, 249, 243, 0.9); }
+:root[data-theme="dark"].lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(14, 24, 35, 0.9); }
+/* 지도 툴팁(map-geo tip): 꼬리표 › 제목 › 항목 줄(이름·값) › 각주. 12px 미만 금지 */
+.snow-tip { width: 252px; padding: 9px 12px 8px; font-size: 13.5px; line-height: 1.45; }
+.snow-tip .k { display: block; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dump-accent); font-weight: 700; }
+.snow-tip b { display: block; margin: 2px 0 4px; font-size: 15px; font-weight: 800; color: var(--cp-text-strong, #0f172a); word-break: keep-all; }
 .snow-tip div { display: flex; gap: 8px; }
-.snow-tip div span { flex: 0 0 64px; color: var(--cp-text-dim, #64748b); }
-.snow-tip p { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--cp-border-faint, rgba(0,0,0,.07)); font-size: 11.5px; color: var(--cp-text-faint, #94a3b8); }
+.snow-tip div span { flex: 0 0 96px; color: var(--cp-text-dim, #64748b); }
+.snow-tip p { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--cp-border-faint, rgba(0,0,0,.07)); font-size: 12px; color: var(--cp-text-faint, #94a3b8); }

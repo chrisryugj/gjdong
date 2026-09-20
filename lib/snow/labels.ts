@@ -8,11 +8,14 @@ export const REL_KO: Record<string, string> = {
   derived_from: "결합 산출",
   supports: "뒷받침",
   describes: "서술",
-  targets: "겨냥",
+  targets: "대상",
   lowers: "낮추려 함",
   raises: "위험 높임",
   operationalizes: "대신 측정",
   covers: "배치",
+  assigned: "담당",
+  within: "소속",
+  exemplifies: "실체",
   mobilizes: "동원",
   escalates_to: "격상",
   defines: "정함",
@@ -36,6 +39,8 @@ export const TYPE_KO: Record<string, string> = {
   Policy: "법령·기준",
   Stage: "대응 단계",
   Area: "행정동",
+  Zone: "담당 구역",
+  Entity: "취약구간",
 }
 export const typeLabel = (t: string) => TYPE_KO[t] ?? t
 
@@ -81,13 +86,41 @@ export const PROP_KO: Record<string, string> = {
   unimog: "유니목",
   dump15t: "15톤 덤프",
   squads: "실무반",
+  phys_m: "도로 길이(m)",
+  proxy: "구역 정본",
+  basis: "근거",
+  center_name: "동주민센터",
+  weak: "적설취약구간",
+  weakNoHeat: "열선 없는 취약구간",
+  weakGap: "자원 공백 취약구간",
+  ice: "상습결빙구간",
+  schools: "초등학교",
+  type: "유형",
+  cls: "도로 구분",
+  km: "총길이(km)",
+  dong: "행정동",
+  agency: "관리청",
+  heat_near_m: "가장 가까운 열선(m)",
+  materials_near: "100m 안 자재",
+  gap: "자원 공백",
+  request: "확보 방법",
+  within_m: "기준 거리(m)",
+  heat_id: "열선 번호",
 }
 export const propLabel = (k: string) => PROP_KO[k] ?? k
 
-// 자원 4종(지도 레이어·범례·동별 표의 정본 순서와 색). 색은 테마 불변 지도 문법: 열선 벽돌(열), 제설함 잉크 청회, 염화칼슘함 청빙, 모래주머니 모래 앰버
+// 자원 4종(지도 레이어·범례·동별 표의 정본 순서와 색). 지도 문법: 밤 지도 위에서 열선만 난색(주황), 자재는 차가운 색 2단, 모래주머니는 모래색 테두리.
+// color=다크(기본) · colorLight=라이트(인쇄용 보조)
 export const RESOURCES = [
-  { id: "heat", label: "도로열선", unit: "구간", color: "#b2452f" },
-  { id: "salt", label: "제설함", unit: "개소", color: "#3f4f66" },
-  { id: "cacl", label: "염화칼슘보관함", unit: "개소", color: "#2a7fb0" },
-  { id: "sand", label: "모래주머니", unit: "지점", color: "#b8862b" },
+  { id: "heat", label: "도로열선", unit: "구간", color: "#f0a04b", colorLight: "#c2410c" },
+  { id: "salt", label: "제설함", unit: "개소", color: "#8fa3c0", colorLight: "#3f4f66" },
+  { id: "cacl", label: "염화칼슘보관함", unit: "개소", color: "#7cc0e8", colorLight: "#2a7fb0" },
+  { id: "sand", label: "모래주머니", unit: "지점", color: "#c9a961", colorLight: "#9a6f1f" },
 ] as const
+// 취약 층(자원이 아니라 위험). 벽돌색 하나로 통일하고 선 모양으로 구분한다
+export const RISK = {
+  weak: { label: "적설취약구간", color: "#e0705a", colorLight: "#a8322a" },
+  ice: { label: "상습결빙구간", color: "#e0705a", colorLight: "#a8322a" },
+  slope: { label: "급경사 추정", color: "#e0705a", colorLight: "#a8322a" },
+  school: { label: "초등학교", color: "#ece7dc", colorLight: "#14201c" },
+} as const
