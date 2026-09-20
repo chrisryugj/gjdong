@@ -28,6 +28,7 @@ const FILES = [
   "components/snow/ui.tsx",
   "lib/snow/queries.ts",
   "lib/snow/facts.ts",
+  "lib/snow/costs.ts",
   "lib/snow/labels.ts",
   "lib/snow/schema.ts",
   "lib/snow/stage.ts",
@@ -200,6 +201,7 @@ test("점검 후보 5행 전부 동사 제목(비치·검토·요청·점검) + 
     assert.match(c.due, /대책기간 전/, `${c.id} 기한 없음`)
     assert.ok(/\d/.test(c.scale), `${c.id} 규모에 수량 없음: ${c.scale}`)
     assert.ok(c.done.length > 0, `${c.id} 완료 기준 없음`)
+    assert.ok(c.cost.length > 0, `${c.id} 개략 비용 없음`)
   }
   assert.deepStrictEqual(
     checks.map((c) => c.owner),
@@ -207,4 +209,20 @@ test("점검 후보 5행 전부 동사 제목(비치·검토·요청·점검) + 
     "순서: 구 소관 행동 가능 › 시 요청 › 동 단위 › 학교",
   )
   assert.strictEqual(checks.find((c) => c.id === "c-school")?.dept, "내부 확인", "학교 소관은 데이터에 없어 내부 확인 슬롯")
+})
+
+// 4라운드 후속: 우선순위 점수와 예산 역산. 광장로(경사 18.6%·초등학교·급경사)가 1위, 예산 0이면 신설 0, 무한이면 구 관리 열선 없는 13곳 전부
+test("우선순위 1위는 광장로(경사 추정·초등학교·행안부 급경사), 예산 역산은 우선순위 순 누적", async () => {
+  const { gapSummary, planHeatBudget, segPriority, segName } = await import("../lib/snow/facts")
+  const data = mapJson as unknown as SnowMapData
+  const g = gapSummary(data)
+  assert.strictEqual(segName(g.noHeatList[0]), "광장로")
+  assert.ok(segPriority(g.noHeatList[0], data).reasons.some((r) => /초등학교/.test(r)))
+  assert.strictEqual(planHeatBudget(data, 0).planned.length, 0)
+  const all = planHeatBudget(data, Infinity)
+  assert.strictEqual(all.planned.length, 13)
+  assert.strictEqual(all.remaining, 0)
+  const five = planHeatBudget(data, 5e8)
+  assert.ok(five.planned.length >= 1 && five.planned.length < 13)
+  assert.ok(five.cost <= 5e8)
 })

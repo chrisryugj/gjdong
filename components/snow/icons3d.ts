@@ -238,6 +238,12 @@ interface Ramp {
   slots: number
 }
 const SEG_WALL_PX = 12 // 구간 벽 화면 높이
+const SNOW_MAX = 2400
+const SNOW_RADIUS_PX = 700 // 화면 중심에서 눈이 내리는 반경(px)
+const SNOW_HEIGHT_PX = 420 // 눈이 시작하는 높이(px)
+const SNOW_FALL_PX = 70 // 낙하 속도(px/s)
+const SNOW_DRIFT_PX = 14 // 바람(px/s)
+const RAMP_WALL_FROM_ZOOM = 14.3 // 경사면은 이 줌부터(조망에서는 보라 얼룩으로 읽혔다. 화살은 계속)
 interface Truck {
   cum: number[]
   pts: { x: number; z: number }[]
@@ -312,6 +318,11 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   private rampData: SlopeRamp[] = []
   private segWalls: THREE.Mesh[] = []
   private segWallData: SegWall[] = []
+  // 눈(4라운드 후속 wow): 시나리오 적설(cm)에 비례한 눈송이가 화면 중심 주변에 내린다. 화면 기준 크기·속도(mpp 배율)라 어느 줌에서든 같은 밀도
+  private snow: THREE.Points | null = null
+  private snowPos: Float32Array | null = null
+  private snowLevel = 0 // 0~1
+  private snowCenter = { x: 0, z: 0 }
   private chev: THREE.InstancedMesh | null = null
   private chevGeom = chevronGeometry()
   private emissive = new Map<IconKind, number>() // 종류별 발광(2단계 제설함 0.6)
@@ -512,9 +523,11 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     const rot = new THREE.Matrix4()
     const sc = new THREE.Matrix4().makeScale(k, k, k)
     const zero = new THREE.Matrix4().makeScale(0, 0, 0)
+    const zoom = this.map?.getZoom() ?? 0
     for (const r of this.ramps) {
       const ex = Math.min(RAMP_MAX_EXAGGERATION, Math.max(1, (RAMP_MIN_PX * mpp) / r.rise))
       r.wall.scale.y = ex
+      r.wall.visible = zoom >= RAMP_WALL_FROM_ZOOM
       let j = 1
       for (let q = 0; q < r.slots; q++) {
         const s = q * gap + phase
@@ -535,6 +548,73 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       }
     }
     chev.instanceMatrix.needsUpdate = true
+  }
+
+  /** 눈 강도 0~1(시나리오 적설 cm ÷ 10). 0이면 치운다 */
+  setSnow(level: number) {
+    const v = Math.max(0, Math.min(1, level))
+    if (v === this.snowLevel && (v === 0) === !this.snow) return
+    this.snowLevel = v
+    if (v === 0) {
+      if (this.snow) {
+        this.scene.remove(this.snow)
+        this.snow.geometry.dispose()
+        ;(this.snow.material as THREE.Material).dispose()
+        this.snow = null
+        this.snowPos = null
+      }
+      this.map?.triggerRepaint()
+      return
+    }
+    if (!this.snow) {
+      const N = SNOW_MAX
+      this.snowPos = new Float32Array(N * 3)
+      const geom = new THREE.BufferGeometry()
+      geom.setAttribute("position", new THREE.BufferAttribute(this.snowPos, 3))
+      geom.setDrawRange(0, 0)
+      const mat = new THREE.PointsMaterial({ color: "#ffffff", size: 2.6, sizeAttenuation: false, transparent: true, opacity: 0.85, depthTest: false })
+      this.snow = new THREE.Points(geom, mat)
+      this.snow.frustumCulled = false
+      this.snow.renderOrder = 30
+      this.scene.add(this.snow)
+      this.snowCenter = { x: NaN, z: NaN }
+    }
+    this.map?.triggerRepaint()
+  }
+  private updateSnow(now: number, mpp: number) {
+    const map = this.map
+    const snow = this.snow
+    const pos = this.snowPos
+    if (!map || !snow || !pos) return
+    const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 0.016
+    const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), 0)
+    const cx = (c.x - this.anchor.x) / this.scale
+    const cz = (c.y - this.anchor.y) / this.scale
+    const R = SNOW_RADIUS_PX * mpp
+    const H = SNOW_HEIGHT_PX * mpp
+    const n = Math.round(SNOW_MAX * this.snowLevel)
+    const reseed = !Number.isFinite(this.snowCenter.x) || Math.hypot(cx - this.snowCenter.x, cz - this.snowCenter.z) > R * 0.5
+    if (reseed) {
+      for (let i = 0; i < SNOW_MAX; i++) {
+        pos[i * 3] = cx + (Math.random() * 2 - 1) * R
+        pos[i * 3 + 1] = Math.random() * H
+        pos[i * 3 + 2] = cz + (Math.random() * 2 - 1) * R
+      }
+      this.snowCenter = { x: cx, z: cz }
+    }
+    const fall = SNOW_FALL_PX * mpp * dt
+    const drift = SNOW_DRIFT_PX * mpp * dt
+    for (let i = 0; i < n; i++) {
+      pos[i * 3 + 1] -= fall * (0.7 + ((i * 7919) % 100) / 200)
+      pos[i * 3] += drift * Math.sin(now / 1400 + i)
+      if (pos[i * 3 + 1] < 0) {
+        pos[i * 3] = cx + (Math.random() * 2 - 1) * R
+        pos[i * 3 + 1] = H
+        pos[i * 3 + 2] = cz + (Math.random() * 2 - 1) * R
+      }
+    }
+    snow.geometry.setDrawRange(0, n)
+    ;(snow.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true
   }
 
   /** 제설 장비 노선(상습결빙구간 선형). 노선마다 1대(2.5km 넘으면 2대)가 왕복한다. 빈 배열이면 치운다 */
@@ -736,6 +816,10 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     }
     if (this.trucks.length) {
       this.updateTrucks(now, mpp)
+      animating = true
+    }
+    if (this.snow) {
+      this.updateSnow(now, mpp)
       animating = true
     }
     this.lastTick = now

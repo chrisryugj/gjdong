@@ -98,6 +98,14 @@ const SHOTS = [
       await wait(3200)
     },
   },
+  {
+    name: "04b-budget",
+    desc: "열선 예산 역산 10억(우선순위 순 신설 구간이 호박색 벽)",
+    run: async (page) => {
+      await page.locator('input[aria-label="열선 신설 예산(원)"]').fill("1000000000")
+      await wait(2200)
+    },
+  },
   { name: "05-slope-on", desc: "지형 경사 추정 켬(조망·다크)", run: async (page) => layer(page, "지형 경사 추정", true) },
   {
     name: "06-slope-zoom",

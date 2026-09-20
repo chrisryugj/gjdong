@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { LayerId, OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
 import { inSnowSeason, MOBILIZED, stageForSnow, type StageId } from "@/lib/snow/stage"
-import { buildChecklist, gapSummary, heatTopDongs, segOwner, totals, type Finding } from "@/lib/snow/facts"
+import { buildChecklist, gapSummary, heatTopDongs, planHeatBudget, segOwner, totals, type Finding } from "@/lib/snow/facts"
 import SnowMap, { type CameraCue, type StageView } from "./snow-map"
 import OntoGraphView from "./onto-graph"
 import GapPanel from "./gap-panel"
@@ -80,6 +80,13 @@ export default function SnowDashboard() {
   const [forecast, setForecast] = useState<SnowForecast | null | "error">(null)
   const [loadErr, setLoadErr] = useState(false)
   const inSeason = useMemo(() => inSnowSeason(new Date()), [])
+  // 대책기간 시작(11월 15일, inSnowSeason과 같은 날)까지 남은 날. 보고받는 사람이 첫 줄에서 보는 시계
+  const daysToSeason = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), 10, 15)
+    if (start < now) start.setFullYear(start.getFullYear() + 1)
+    return Math.ceil((start.getTime() - now.getTime()) / 86400000)
+  }, [])
   const [simCm, setSimCm] = useState(5)
   const [useForecast, setUseForecast] = useState(inSeason)
   const [view, setView] = useState<MapView>(DEFAULT_VIEW)
@@ -92,6 +99,8 @@ export default function SnowDashboard() {
   const [focusDetail, setFocusDetail] = useState<string | null>(null) // 칩 둘째 줄(구간 요약. 목록에서 눈을 떼도 맥락이 남게)
   const [orbit, setOrbit] = useState(false) // 자동 회전(시연 장면 1·5). 지도를 만지면 꺼진다
   const [fly, setFly] = useState<FlyStop[] | null>(null) // 드론 비행(시연 장면 6). 지도를 만지면 꺼진다
+  const [budget, setBudget] = useState(0) // 열선 예산 역산(원). 공백 탭 슬라이더. 지도 벽이 신설 구간을 호박색으로
+  const [voice, setVoice] = useState(false) // 시연 음성 해설(브라우저 speechSynthesis 한국어 목소리). 장면·격상 캡션을 읽는다
   const [demoProgress, setDemoProgress] = useState<{ key: number; ms: number; at: number } | null>(null) // 장면 3 자동 격상 진행선
   const [remain, setRemain] = useState(0)
   const [cameraCue, setCameraCue] = useState<CameraCue | null>(null)
@@ -444,6 +453,20 @@ export default function SnowDashboard() {
     setSimCm(5)
     resetAll()
   }
+  // 음성 해설: 장면이 바뀌거나 격상 캡션이 바뀔 때 읽는다. 시연이 끝나면 멈춘다
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+    const synth = window.speechSynthesis
+    synth.cancel()
+    if (!voice || demo === null || !scenes[demo]) return
+    const u = new SpeechSynthesisUtterance(demoCaption ?? scenes[demo].caption)
+    u.lang = "ko-KR"
+    u.rate = 1.05
+    const ko = synth.getVoices().find((v) => v.lang.replace("_", "-").toLowerCase().startsWith("ko"))
+    if (ko) u.voice = ko
+    synth.speak(u)
+    return () => synth.cancel()
+  }, [voice, demo, demoCaption, scenes])
   useEffect(() => {
     if (demo === null) return
     const onKey = (e: KeyboardEvent) => {
@@ -511,6 +534,8 @@ export default function SnowDashboard() {
             rankDigits={demo === 1}
             trucks={stageView === "stage-2" || stageView === "stage-3"}
             fly={fly}
+            planned={tab === "gap" && budget > 0 && data ? planHeatBudget(data, budget).planned.map((w) => w.i) : []}
+            snowCm={effectiveCm}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}
@@ -538,7 +563,7 @@ export default function SnowDashboard() {
               <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
-                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
+                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `대책기간 11월 15일까지 D-${daysToSeason} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
               </span>
             </span>
           </button>
@@ -611,7 +636,7 @@ export default function SnowDashboard() {
             )}
           </div>
           <div key={tab} className={`min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] ${demoOn ? "hidden" : ""}`}>
-            {tab === "gap" && <GapPanel data={data} activeLabel={focusLabel} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
+            {tab === "gap" && <GapPanel data={data} activeLabel={focusLabel} budget={budget} onBudget={setBudget} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
             {tab === "stage" && <StagePanel data={data} graph={graph} forecast={forecast} simCm={simCm} onSimCm={setSimCm} stage={stage} useForecast={useForecast} onUseForecast={setUseForecast} inSeason={inSeason} />}
             {tab === "resources" && (
               <ResourcePanel
@@ -717,6 +742,10 @@ export default function SnowDashboard() {
               </button>
               <button onClick={() => setDemo(Math.min(scenes.length - 1, demo + 1))} disabled={demo === scenes.length - 1} aria-label="다음 장면" className="h-8 w-8 rounded-full border border-[var(--cp-border)] text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)] disabled:opacity-35">
                 ›
+              </button>
+              <button onClick={() => setVoice((v) => !v)} aria-pressed={voice} title="장면 캡션을 브라우저 한국어 목소리로 읽습니다" className={`ml-1 flex h-8 items-center gap-1 rounded-full border px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${voice ? "border-(--dump-accent) text-(--dump-accent)" : "border-[var(--cp-border)] text-[var(--cp-text-muted)]"}`}>
+                <Ico name="speaker" size={13} />
+                음성
               </button>
               <button onClick={endDemo} className="ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]">
                 끝

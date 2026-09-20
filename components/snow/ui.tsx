@@ -49,7 +49,7 @@ export function NumRow({ n, big, unit, title, meta, body, accent = false, active
 
 export type Col = { k: string; w?: string; align?: "left" | "right"; dim?: boolean }
 // 열 정렬 표. 머리 한 줄(키커) + 행 30px 헤어라인. cells는 col 순서. 행을 누르면 onRow
-export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass }: { cols: Col[]; rows: T[]; cell: (r: T, k: string) => React.ReactNode; rowKey: (r: T) => string; onRow?: (r: T) => void; rowClass?: (r: T) => string }) {
+export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass, rowH = 30 }: { cols: Col[]; rows: T[]; cell: (r: T, k: string) => React.ReactNode; rowKey: (r: T) => string; onRow?: (r: T) => void; rowClass?: (r: T) => string; rowH?: number }) {
   const grid = cols.map((c) => c.w ?? "1fr").join(" ")
   return (
     <div className="text-[13.5px]">
@@ -66,13 +66,13 @@ export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass }: { cols: 
             {cell(r, c.k)}
           </span>
         ))
-        const cls = `grid h-[30px] w-full items-center gap-x-2 border-b border-[var(--cp-border-faint)] text-left ${rowClass?.(r) ?? ""}`
+        const cls = `grid w-full items-center gap-x-2 border-b border-[var(--cp-border-faint)] text-left ${rowClass?.(r) ?? ""}`
         return onRow ? (
-          <button key={rowKey(r)} onClick={() => onRow(r)} className={`${cls} hover:bg-[var(--cp-hover)]`} style={{ gridTemplateColumns: grid }}>
+          <button key={rowKey(r)} onClick={() => onRow(r)} className={`${cls} hover:bg-[var(--cp-hover)]`} style={{ gridTemplateColumns: grid, height: rowH }}>
             {inner}
           </button>
         ) : (
-          <div key={rowKey(r)} className={cls} style={{ gridTemplateColumns: grid }}>
+          <div key={rowKey(r)} className={cls} style={{ gridTemplateColumns: grid, height: rowH }}>
             {inner}
           </div>
         )

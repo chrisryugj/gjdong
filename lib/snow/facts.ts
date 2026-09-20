@@ -1,4 +1,5 @@
 import type { DongRow, IceSeg, ResourceId, SnowMapData, WeakSeg } from "./types"
+import { COST, heatCost, heatCostText, man } from "./costs"
 
 // 화면 수치의 단일 산출처. 패널·툴팁·시연 캡션·문서가 전부 여기서 계산한 값을 본다(정적 사본 금지)
 
@@ -80,6 +81,71 @@ export const segType = (s: SegLike) => (s.src === "weak" ? s.type : "결빙")
 // 소관(3라운드, 보고받는 사람 관점): 구가 직접 자재를 둘 수 있는 구간인지. 행안부 적설취약구간 47은 전부 광진구 관리청, 상습결빙구간 9는 서울시(시설공단·동부도로사업소) 6 + 서울시(광진구) 3
 export const segOwner = (s: SegLike): "구" | "시" => (s.src === "weak" ? "구" : /\(광진구\)/.test(s.agency) ? "구" : "시")
 
+// 우선순위(4라운드 후속, 의사결정자 관점: "13곳 중 어디부터"). 점수 = 자재도 없음 3 + 경사 추정 최대 경사%/10 + 150m 안 초등학교 1.5교당 + 행안부 유형(급경사 1 · 고갯길 0.5) + 구 소관 0.5.
+// 전부 이 화면 데이터에서 나온 근거이고 가중치는 가정이다(데이터·방법). 근거 문구를 표·칩·결재 한 장에 같이 적는다
+export interface Priority {
+  score: number
+  reasons: string[]
+}
+export function segPriority(s: SegLike, data: SnowMapData): Priority {
+  const reasons: string[] = []
+  let score = 0
+  if (s.gap) {
+    score += 3
+    reasons.push(`${data.gaps.materialNearM}m 안 자재 0`)
+  }
+  if (s.src === "weak") {
+    const grades = data.slopes.filter((sl) => sl.weakNear.includes(s.i)).map((sl) => sl.grade)
+    if (grades.length) {
+      const g = Math.max(...grades)
+      score += g / 10
+      reasons.push(`경사 추정 ${g}%`)
+    }
+    const schools = data.schools.filter((sc) => sc.weakNear.includes(s.i)).length
+    if (schools) {
+      score += schools * 1.5
+      reasons.push(`초등학교 ${schools}교 ${data.gaps.schoolNearM}m 안`)
+    }
+    if (s.type === "급경사") {
+      score += 1
+      reasons.push("행안부 급경사")
+    } else if (s.type === "고갯길") {
+      score += 0.5
+      reasons.push("행안부 고갯길")
+    }
+  } else reasons.push("간선·자동차전용도로")
+  if (segOwner(s) === "구") score += 0.5
+  else reasons.push("시 관리")
+  return { score: Math.round(score * 10) / 10, reasons }
+}
+export const priorityText = (p: Priority) => p.reasons.join(" · ")
+
+// 열선 예산 역산(의사결정자 관점 wow): 예산(원)을 넣으면 구 관리 열선 없는 취약구간을 우선순위 순으로 신설해 몇 곳이 해소되는지. 단가·차로 가정은 costs.ts
+export interface BudgetPlan {
+  budget: number
+  planned: WeakSeg[]
+  meters: number
+  cost: number
+  remaining: number // 남는 열선 없는 구간 수
+  total: number
+  next: { seg: WeakSeg; cost: number } | null // 다음 한 곳을 더 하려면
+}
+export function planHeatBudget(data: SnowMapData, budget: number): BudgetPlan {
+  const cands = data.weak.filter((w) => !w.heatCovered).map((w) => ({ w, p: segPriority({ ...w, src: "weak" as const }, data).score, cost: heatCost(w.pathM).high })).sort((a, b) => b.p - a.p)
+  const planned: WeakSeg[] = []
+  let cost = 0
+  let meters = 0
+  let next: BudgetPlan["next"] = null
+  for (const c of cands) {
+    if (cost + c.cost <= budget) {
+      planned.push(c.w)
+      cost += c.cost
+      meters += c.w.pathM
+    } else if (!next) next = { seg: c.w, cost: c.cost }
+  }
+  return { budget, planned, meters: Math.round(meters), cost, remaining: cands.length - planned.length, total: cands.length, next }
+}
+
 export interface GapSummary {
   total: number // 취약구간 전체(적설취약 47 + 결빙 9)
   noHeat: number // 60m 안 열선 없음
@@ -115,8 +181,8 @@ export function gapSummary(data: SnowMapData): GapSummary {
     schoolsNoHeat: data.gaps.schoolsNoHeat,
     slopeNoHeat: data.gaps.slopeNoHeat,
     slopeKm: data.gaps.slopeKm,
-    // 공백(자재도 없음) 먼저, 그 안에서 구 소관 먼저, 자재 적은 순, 열선이 먼 순
-    noHeatList: noHeat.sort((a, b) => Number(b.gap) - Number(a.gap) || Number(segOwner(a) === "시") - Number(segOwner(b) === "시") || a.materialsNear - b.materialsNear || (b.near.heat ?? 0) - (a.near.heat ?? 0)),
+    // 우선순위 점수 순(공백·경사·학교·유형·소관). 같으면 자재 적은 순, 열선이 먼 순
+    noHeatList: noHeat.sort((a, b) => segPriority(b, data).score - segPriority(a, data).score || a.materialsNear - b.materialsNear || (b.near.heat ?? 0) - (a.near.heat ?? 0)),
   }
 }
 
@@ -232,6 +298,7 @@ export interface CheckItem {
   due: string // 기한
   scale: string // 규모(수량)
   done: string // 완료 기준(이 화면의 판정이 바뀌는 조건, 또는 회신·확정)
+  cost: string // 개략 비용(lib/snow/costs 출처 단가. 없으면 "미산정"과 이유)
   short: string // 시연 캡션·칩용 짧은 이름
   title: string // 동사로 끝나는 제목
   body: string // 근거 한 줄(사실만)
@@ -260,6 +327,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       due,
       scale: `구간 ${g.gu.none}곳`,
       done: `${data.gaps.materialNearM}m 안 비치 자재 1개소 이상(재계산 시 구 관리 공백 0)`,
+      cost: `제설함 1개소 약 ${man(COST.saltBoxWon)}(소매가) · 충전은 구 비축 제설제`,
       short: `${g.gu.noneNames.join("·")} 자재 비치`,
       title: `${g.gu.noneNames.join("·")}에 제설 자재 비치`,
       body: `구 관리 취약구간 중 열선도 ${data.gaps.materialNearM}m 안 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다. ${data.gaps.materialNearM}m는 이 화면의 가정입니다.`,
@@ -275,6 +343,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       due,
       scale: `구간 ${onSlope.length}곳 · ${fmt(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}m`,
       done: "구간별 열선 신설 여부 결정(예산 반영 여부 포함)",
+      cost: `전부 신설 시 ${heatCostText(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}`,
       short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
       title: `급경사 추정과 겹치는 열선 없는 취약구간 ${onSlope.length}곳의 열선 신설 검토`,
       body: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${(() => {
@@ -297,6 +366,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       due,
       scale: `구간 ${siNone.length}곳(${agencyCounts.map(([a, n]) => `${a} ${n}`).join(" · ")})`,
       done: "관리청 제설 계획·살포 구간 확인 완료(구 상황실 공유)",
+      cost: "구 지출 없음(관리청 소관)",
       short: `시 관리 결빙 ${siNone.length}곳 관리청 확인 요청`,
       title: `서울시 관리 결빙구간 ${siNone.length}곳의 제설 계획을 관리청에 확인 요청`,
       body: `열선도 자재도 없는 상습결빙구간이지만 구 자재로 대응하는 구간이 아닙니다. 관리청의 제설 계획·장비 살포 현황은 구 데이터에 없습니다.`,
@@ -311,6 +381,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     due,
     scale: `동 ${g.noHeatDongs.length}곳 · 자재 ${fmt(noHeatDongRows.reduce((s, d) => s + d.salt + d.cacl + d.sand, 0))}개소`,
     done: "동별 자재 점검 결과(수량·상태)",
+    cost: "추가 구입 없이 점검(보충분은 점검 뒤 산정)",
     short: `열선 없는 동 ${g.noHeatDongs.length}곳 자재 점검`,
     title: `열선 없는 동 ${g.noHeatDongs.length}곳의 비치 자재 점검`,
     body: `${g.noHeatDongs.join("·")}은 열선 없이 비치 자재로 첫 결빙에 대응합니다. 이 동들의 적설취약구간은 ${noHeatDongRows.reduce((s, d) => s + d.weak, 0)}곳입니다.`,
@@ -326,6 +397,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       due,
       scale: `학교 ${schoolsGap.length}교`,
       done: "통학로 제설 소관 확정",
+      cost: "미산정(소관 확정 뒤)",
       short: `열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
       title: `${data.gaps.schoolNearM}m 안 열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
       body: schoolsWeak.length ? `그중 ${schoolsWeak.map((s) => s.name.replace(/^서울/, "")).join("·")}은 ${data.gaps.schoolNearM}m 안에 행안부 취약구간도 있습니다. 통학로 제설 소관은 데이터에 없습니다.` : "취약구간과 겹치는 학교는 없습니다. 통학로 제설 소관은 데이터에 없습니다.",

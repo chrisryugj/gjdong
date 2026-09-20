@@ -5,6 +5,7 @@ import type { OntoGraph, SnowMapData } from "@/lib/snow/types"
 import { CLASSES, RELATIONS, validateGraph } from "@/lib/snow/schema"
 import { relLabel, typeLabel } from "@/lib/snow/labels"
 import { fmt } from "@/lib/snow/facts"
+import { COST } from "@/lib/snow/costs"
 import ModalShell from "@/components/dumping/modal-shell"
 
 // 데이터·방법 모달. 심사·검증용 한 곳: 쓰인 데이터(기준일·행 수·이용허락) › 못 구한 데이터(정보공개청구 대상) › 가공(도로 스냅·거리 기준·경사 추정·지오코딩) › 그래프 규약 › 한계
@@ -98,6 +99,22 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
               <td className="py-1.5 pr-2 font-mono text-[12.5px] text-[var(--cp-text-muted)]">2건</td>
               <td className="py-1.5 text-[12.5px] text-[var(--cp-text-dim)]">보도 인용</td>
             </tr>
+            <tr className="border-t border-[var(--cp-border-faint)] align-top">
+              <td className="py-1.5 pr-2 font-mono text-[12.5px] text-[var(--cp-text-dim)]">2024-02-20</td>
+              <td className="py-1.5 pr-2 text-[var(--cp-text)]">
+                개략 단가 · 도로열선 <a href={COST.heatSourceUrl} target="_blank" rel="noreferrer" className="text-(--dump-accent) underline-offset-2 hover:underline">{COST.heatSource}</a>
+              </td>
+              <td className="py-1.5 pr-2 font-mono text-[12.5px] text-[var(--cp-text-muted)]">1건</td>
+              <td className="py-1.5 text-[12.5px] text-[var(--cp-text-dim)]">보도 인용 · 조달 단가 아님</td>
+            </tr>
+            <tr className="border-t border-[var(--cp-border-faint)] align-top">
+              <td className="py-1.5 pr-2 font-mono text-[12.5px] text-[var(--cp-text-dim)]">2026-09-21</td>
+              <td className="py-1.5 pr-2 text-[var(--cp-text)]">
+                개략 단가 · 제설함 <a href={COST.saltBoxSourceUrl} target="_blank" rel="noreferrer" className="text-(--dump-accent) underline-offset-2 hover:underline">{COST.saltBoxSource}</a>
+              </td>
+              <td className="py-1.5 pr-2 font-mono text-[12.5px] text-[var(--cp-text-muted)]">1건</td>
+              <td className="py-1.5 text-[12.5px] text-[var(--cp-text-dim)]">소매가 조회 · 조달 단가 아님</td>
+            </tr>
           </tbody>
         </table>
       )}
@@ -111,7 +128,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
             <Missing t="자동원격액상살포기 52대 위치" w="살포기는 수치만 있고 지도에 없습니다" how="도로과 · 정보공개청구" />
             <Missing t="조례 시한 준수·제설 민원 건수" w="결과 지표를 측정할 수 없어 대책 평가가 투입 지표까지만 가능합니다" how="정보공개청구(민원은 120 다산콜·구 민원 통계)" />
             <Missing t="열선 가동 이력(온도·시각)" w="상시 설비의 실제 가동 여부를 확인할 수 없습니다" how="도로과" />
-            <Missing t="자재·열선 단가(제설함·염화칼슘함·모래주머니 구입비, 열선 m당 공사비)" w="점검 후보에 개략 비용을 붙일 수 없어 부서·기한·규모까지만 적었습니다" how="도로과 · 계약 단가표 · 정보공개청구" />
+            <Missing t="열선·자재 조달 단가(계약 단가표·실시설계)" w="개략 비용은 언론 보도 단가(서울시 관계자, 열선 1차로 100m당 1억)와 제설함 소매가로 산정했습니다. 취약구간 차로수도 파일에 없어 1~2차로 범위로 보입니다. 조달 단가가 오면 교체합니다" how="도로과 · 계약 단가표 · 정보공개청구" />
             <Missing t="초등학교 통학로 제설 소관" w="점검 후보의 학교 항목은 담당 부서를 내부 확인으로 비웠습니다" how="교육지원청 · 학교 행정실" />
           </ul>
           <p className="text-[13px] text-[var(--cp-text-dim)]">확인한 것: 도로교통공단 결빙 교통사고 다발지역(반경 200m 3건 이상)은 {data.accidents ? `${data.accidents.years[0].year}년부터 ${data.accidents.years[data.accidents.years.length - 1].year}년까지 광진구 0곳` : "미수신"}입니다. 한국도로공사 결빙취약구간은 고속도로만이라 광진구 해당 없음, 서울시 제설제 사용량은 구별 값이 없습니다.</p>
@@ -137,6 +154,9 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
           </Block>
           <Block t="지오코딩과 동 기준점">
             {data.meta.geocode.rule}. 열선 기점·종점 지오코딩 실패 {data.meta.geocode.heatGeoFail}건, 모래주머니 동주민센터 대체 {data.meta.geocode.sandApprox}지점, 제설함 구 경계선 위 동 미판정 {data.meta.saltNoDong}개소. 동별 기둥·라벨은 동주민센터 위치입니다.
+          </Block>
+          <Block t="우선순위와 예산 역산">
+            열선 없는 취약구간의 순서는 점수입니다: {data.gaps.materialNearM}m 안 자재도 없음 3점, 지형 추정 최대 경사(%)의 10분의 1, {data.gaps.schoolNearM}m 안 초등학교 1교당 1.5점, 행안부 유형 급경사 1점·고갯길 0.5점, 구 소관 0.5점. 가중치는 이 화면의 가정이고 근거 항목은 표 둘째 줄에 그대로 적습니다. 열선 예산 역산은 구 관리 열선 없는 구간을 이 순서로 신설한다고 보고 구간 물리 길이 × 2차로 × 1차로 100m당 1억원으로 셉니다.
           </Block>
           <Block t="단계 판정">
             기상청 단기예보(광진구 격자 nx 62·ny 126)의 24시간 신적설 합과 기상특보 현황(서울 109)의 대설주의보·경보로 서울시 기준 단계를 정합니다. 둘 중 높은 단계입니다. 대책기간(11월 15일부터 3월 15일까지) 밖에서는 슬라이더 시나리오가 기본입니다.

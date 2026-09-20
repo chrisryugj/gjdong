@@ -28,11 +28,12 @@ export const weakColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get
 // 4라운드 냉독: 결빙구간도 같은 규칙(열선 있는 구 관리 3곳이 시 관리 공백 6곳과 같은 진홍이라 "진홍 = 열선 없음"과 모순)
 export const iceColorExpr = weakColorExpr
 // 입체 구간 벽(icons3d setSegWalls): 열선 없는 취약·결빙구간(선형 있는 것)만 진홍. 법령 탭(ownerView)은 56곳 전부 관리청 색
-export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, layers: { weak: boolean; ice: boolean }): { coords: [number, number][]; color: string }[] {
+export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, layers: { weak: boolean; ice: boolean }, planned: number[] = []): { coords: [number, number][]; color: string }[] {
   const out: { coords: [number, number][]; color: string }[] = []
   if (layers.weak)
     for (const w of data.weak) {
       if (ownerView) out.push({ coords: w.path, color: ownerColor("구", dark) })
+      else if (planned.includes(w.i)) out.push({ coords: w.path, color: resColor("heat", dark) }) // 예산 역산으로 신설이 정해진 구간은 열선 색
       else if (!w.heatCovered) out.push({ coords: w.path, color: riskColor(dark) })
     }
   if (layers.ice)

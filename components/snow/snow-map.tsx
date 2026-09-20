@@ -159,6 +159,8 @@ interface SnowMapProps {
   rankDigits?: boolean // 동별 기둥 1~3위 입체 숫자(시연 장면 2에서만. 평소엔 라벨 "1위")
   trucks?: boolean // 제설차가 상습결빙구간 선형을 왕복(2단계부터)
   fly?: FlyStop[] | null // 드론 비행 경유지(점검 후보). 사용자가 만지면 onOrbitStop
+  planned?: number[] // 열선 예산 역산으로 신설이 정해진 취약구간 번호(호박색 벽·선)
+  snowCm?: number // 시나리오·예보 적설(cm). 대응 단계 탭·시연 장면 3에서 눈이 내린다(0이면 없음)
   theme: BasemapTheme
   resetSeq: number
   cameraCue?: CameraCue | null
@@ -167,7 +169,7 @@ interface SnowMapProps {
   onOrbitStop?: () => void
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -192,6 +194,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
   const iconsRef = useRef<SnowIcons3DLayer | null>(null)
   const [iconsReady, setIconsReady] = useState(false)
   const [flyInfo, setFlyInfo] = useState<{ i: number; total: number; label: string } | null>(null)
+  const plannedKey = planned.join(",")
+  const minorRoadColorRef = useRef<unknown>(null) // 바탕 이면도로 원래 색(3단계 점등 뒤 복원)
 
   const padding = (): PaddingOptions => {
     const p = fitPadRef.current
@@ -344,6 +348,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const d = dataRef.current
     if (!map || !ready || !d) return
     setReady(false)
+    minorRoadColorRef.current = null
     map.once("style.load", () => {
       if (mapRef.current !== map) return
       declareLayers(map)
@@ -423,7 +428,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     for (const id of [S.ice, S.iceCase, S.iceLabel]) vis(id, on("ice"))
     vis(S.iceEnds, on("ice") && !tilt)
     // 입체에서는 선이 있는 결빙구간 번호가 3D 숫자라 "결빙 n" 글 라벨은 선형 미확인 묶음만 남긴다
-    map.setFilter(S.iceLabel, tilt ? ["==", ["get", "points"], 1] : null)
+    map.setFilter(S.iceLabel, null)
     map.setLayoutProperty(S.iceLabel, "visibility", on("ice") && !colMetric ? "visible" : "none") // 기둥 모드에서는 기둥 라벨과 겹친다(자양4동)
     for (const id of [S.slope, S.slopeCase]) vis(id, on("slope"))
     vis(S.slopeArrow, on("slope") && !tilt) // 입체에서는 3D 화살이 대신한다
@@ -448,7 +453,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setPaintProperty(S.dongLine, "line-width", ["case", ["==", ["get", "name"], selectedDong ?? ""], 3, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 3, 1])
     map.setPaintProperty(S.dongLine, "line-opacity", ["case", ["==", ["get", "name"], selectedDong ?? ""], 1, ["all", ["==", ["get", "noHeat"], 1], ["==", st === "stage-3" ? 1 : 0, 1]], 0.95, 0.55])
     // 법령·책임 탭: 취약구간·결빙구간을 관리청별 색으로(구 청빙 · 시 잉크). 위험 색은 쓰지 않는다
-    map.setPaintProperty(S.weak, "line-color", (ownerView ? ownerColorExpr(dark) : weakColorExpr(dark)) as maplibregl.ExpressionSpecification)
+    map.setPaintProperty(S.weak, "line-color", (ownerView ? ownerColorExpr(dark) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), weakColorExpr(dark)] : weakColorExpr(dark)) as maplibregl.ExpressionSpecification)
     map.setPaintProperty(S.ice, "line-color", (ownerView ? ownerColorExpr(dark) : iceColorExpr(dark)) as maplibregl.ExpressionSpecification)
     map.setPaintProperty(S.iceCase, "line-opacity", ownerView ? 0.8 : ["case", ["==", ["get", "status"], "heat"], 0, 0.8])
     map.setPaintProperty(S.ice, "line-opacity", ownerView ? 0.95 : ["case", ["==", ["get", "status"], "heat"], 0.7, 0.9])
@@ -458,16 +463,26 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setPaintProperty(S.weakCase, "line-opacity", ownerView ? 0.8 : ["case", ["==", ["get", "status"], "heat"], 0, 0.8])
     map.setPaintProperty(S.iceLabel, "text-halo-color", ownerView ? ownerColor("시", dark) : ["case", ["==", ["get", "status"], "heat"], weakMuted(dark), badgeColor(dark)])
     map.setPaintProperty(S.iceLabel, "text-color", ownerView ? (dark ? "#0b1216" : "#ffffff") : "#ffffff")
-    // 3D 아이콘도 같은 단계 문법: 흐림·제설함 확대·2단계부터 제설함 발광
+    // 3단계: 이면도로(protomaps roads_minor)를 종이색으로 점등. 전 직원·민관협력·건축물관리자가 맡는 구간이 이면도로(그래프 con-alley)라 그 망을 보인다
+    if (map.getLayer("roads_minor")) {
+      if (minorRoadColorRef.current == null) minorRoadColorRef.current = map.getPaintProperty("roads_minor", "line-color") as unknown
+      map.setPaintProperty("roads_minor", "line-color", st === "stage-3" ? (dark ? "#dfe7ee" : "#5b6b80") : (minorRoadColorRef.current as string))
+    }
+    // 결빙구간 번호(입체 숫자)에 "결빙" 접두: 입체에서는 선 있는 행 위에 "결빙" 글자만, 평면은 "결빙 n"(냉독: 숫자만 있으면 취약 번호와 구분이 안 됐다)
+    map.setLayoutProperty(S.iceLabel, "text-field", tilt ? ["case", ["==", ["get", "points"], 1], ["get", "text"], "결빙"] : ["get", "text"])
+    map.setLayoutProperty(S.iceLabel, "text-anchor", tilt ? ["case", ["==", ["get", "points"], 1], "top-left", "bottom"] : ["case", ["==", ["get", "points"], 1], "top-left", "center"])
+    map.setLayoutProperty(S.iceLabel, "text-offset", tilt ? ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, -1.3]]] : ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, 0]]])
+    // 3D 아이콘도 같은 단계 문법: 흐림·제설함 확대·2단계부터 제설함 발광·눈
     const icons = iconsRef.current
     if (icons) {
+      icons.setSnow(st == null ? 0 : Math.min(1, snowCm / 10))
       // 법령 탭은 구간 색이 주인공: 자재·학교·열선 핀은 흐리게(청빙 선이 원통 228개 속에 묻히던 냉독)
       icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMat)
       icons.setDim(["school", "schoolGap", "heat"], ownerView ? 0.3 : 1)
       icons.setBoost("salt", saltBoost3D)
       icons.setEmissive("salt", saltBoost3D > 1 ? 0.6 : 0)
     }
-  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric])
+  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm])
 
   // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다.
   // 동별 기둥 모드(colMetric)에서는 자재·학교·열선 핀을 내린다(기둥+배지+핀이 겹쳐 과밀. 냉독 지적). 2D 원은 그대로
@@ -489,7 +504,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 경사 추정: 고도 단면 경사면 + 오르막 화살(입체 전용. 평면은 글리프 화살 레이어)
     icons.setSlopes(layers.includes("slope") ? slopeRamps(data) : [])
     // 구간 벽: 열선 없는 취약·결빙구간 19곳(조망에서 선이 2D로 읽히던 냉독). 법령 탭은 56곳 관리청 색
-    icons.setSegWalls(colMetric ? [] : segWalls(data, themeRef.current === "dark", ownerView, { weak: layers.includes("weak"), ice: layers.includes("ice") }))
+    icons.setSegWalls(colMetric ? [] : segWalls(data, themeRef.current === "dark", ownerView, { weak: layers.includes("weak"), ice: layers.includes("ice") }, planned))
     // 결빙: 선이 있는 행은 가운데, 선형 미확인 행은 제 끝점(앞 행과 공유하지 않는 쪽)
     icons.setPoints(
       "iceBadge",
@@ -504,7 +519,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
           })
         : [],
     )
-  }, [ready, styleSeq, data, layers, iconsReady, colMetric, ownerView, theme])
+  }, [ready, styleSeq, data, layers, iconsReady, colMetric, ownerView, theme, plannedKey])
 
   // 제설차(2단계부터): 보도자료 장비 수(유니목·15톤 덤프)만큼 상습결빙구간 선형(긴 순)을 왕복한다. 위치 데이터가 없는 장비를 "간선 살포 구간"에 놓는 시각화
   useEffect(() => {
