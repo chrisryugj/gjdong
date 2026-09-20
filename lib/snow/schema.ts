@@ -70,7 +70,7 @@ export const RELATIONS: RelDef[] = [
   { rel: "covers", en: "covers", kind: "coverage", def: "대응자원이 담당 구역에 몇 개소 있는가(count·length_m·bags), 또는 취약구간의 기준 거리 안에 있는가(within_m)", domain: ["Lever"], range: ["Zone", "Entity"] },
   { rel: "assigned", en: "assigned to", kind: "coverage", def: "동주민센터가 담당 구역을 맡는다", domain: ["Team"], range: ["Zone"] },
   { rel: "within", en: "within", kind: "coverage", def: "담당 구역이 행정동 안에, 취약구간이 담당 구역 안에 있다", domain: ["Zone", "Entity"], range: ["Area", "Zone"] },
-  { rel: "exemplifies", en: "exemplifies", kind: "targeting", def: "취약구간이 어떤 취약요인의 실체인가(고갯길·급경사 › 급경사, 결빙구간 › 야간 결빙·간선도로)", domain: ["Entity"], range: ["Concept"] },
+  { rel: "exemplifies", en: "exemplifies", kind: "targeting", def: "취약구간이 어떤 취약요인의 실체인가(고갯길·급경사 유형은 급경사 요인, 결빙구간은 야간 결빙·간선도로 요인)", domain: ["Entity"], range: ["Concept"] },
   { rel: "mobilizes", en: "mobilizes", kind: "governance", def: "대응 단계가 동원하는 자원. 상위 단계는 하위 단계 자원을 포함한다", domain: ["Stage"], range: ["Lever"] },
   { rel: "escalates_to", en: "escalates to", kind: "governance", def: "적설 예보가 임계값을 넘으면 다음 단계로", domain: ["Stage"], range: ["Stage"] },
   { rel: "defines", en: "defines", kind: "governance", def: "주체·기준이 단계나 기준을 정한다", domain: ["Org", "Policy"], range: ["Policy", "Stage"] },

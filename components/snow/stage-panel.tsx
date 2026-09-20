@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import type { OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
 import { fmtHM, ordinanceDeadline, STAGES, stageForSnow, type StageDef } from "@/lib/snow/stage"
 import { fmt } from "@/lib/snow/facts"
+import { WMO_KO as WMO } from "@/lib/snow/weather"
 import { SectionHead } from "@/components/dumping/section-head"
 import { StatBand, Table } from "./ui"
 
@@ -24,7 +25,6 @@ interface Props {
   inSeason: boolean
 }
 
-const WMO: Record<number, string> = { 0: "맑음", 1: "대체로 맑음", 2: "구름 조금", 3: "흐림", 45: "안개", 48: "안개", 51: "이슬비", 53: "이슬비", 55: "이슬비", 61: "비", 63: "비", 65: "강한 비", 68: "비 또는 눈", 71: "눈", 73: "눈", 75: "강한 눈", 77: "싸락눈", 80: "소나기", 81: "소나기", 82: "강한 소나기", 85: "소낙눈", 86: "강한 소낙눈", 95: "뇌우" }
 const MAPPED = ["lev-heat", "lev-salt", "lev-cacl", "lev-sand"]
 const LEVER_COLS = [
   { k: "번호", w: "24px", dim: true },

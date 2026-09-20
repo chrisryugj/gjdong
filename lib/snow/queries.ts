@@ -132,7 +132,7 @@ export function runCompetencyQuestions(graph: OntoGraph): CqResult[] {
   out.push({
     id: "cq-lineage",
     q: "출처 데이터셋이 끊긴 관측은?",
-    why: "계보가 없는 숫자는 재현할 수 없습니다",
+    why: "계보가 없는 숫자는 재현이 안 됩니다",
     items: graph.nodes.filter((n) => n.type === "Evidence" && !sourced.has(n.id)).map((n) => ({ id: n.id, label: n.label })),
     empty: "관측 전부에 출처 데이터셋이 있습니다",
     core: false,

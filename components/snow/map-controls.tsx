@@ -2,6 +2,7 @@
 
 import type { LayerId } from "@/lib/snow/types"
 import { OWNER_STYLE, RESOURCES, RISK } from "@/lib/snow/labels"
+import type { WeatherMode } from "@/lib/snow/weather"
 import { Ico } from "@/components/dumping/icons"
 
 // 오른쪽 열: 레이어 토글(취약 층 · 자원 층) · 입체 보기 · 범례(스와치). 동별 기둥 지표 선택은 자원 현황 탭 한 곳에만 둔다(중복 제거)
@@ -29,6 +30,7 @@ const rowColor = (id: LayerId, dark: boolean) => {
 
 // 보기 그룹(4라운드, dumping 레이어 패널과 같은 메뉴): 입체 보기 · 자동 회전 · 드론 비행(점검 후보 5곳) · 시연(xl). 자동 회전·드론은 입체에서만
 const ROW = "flex w-full items-center gap-2 rounded-lg px-1.5 py-[3px] text-left text-[13.5px] transition-colors hover:bg-[var(--cp-hover)]"
+const WEATHER_LABEL = { live: "실황", snow: "눈", rain: "비", fog: "안개" } as const
 export interface ViewControls {
   orbit: boolean
   fly: boolean
@@ -37,6 +39,9 @@ export interface ViewControls {
   onOrbit: (v: boolean) => void
   onFly: (v: boolean) => void
   onDemo: (v: boolean) => void
+  weatherMode: WeatherMode // 지도 날씨: 실황 또는 미리보기
+  weatherLive: string // 실황 문구(기온·날씨)
+  onWeather: () => void // 누를 때마다 실황 › 눈 › 비 › 안개 순환
 }
 export function LayerPanel({ view, onChange, dark, counts, controls }: { view: MapView; onChange: (v: MapView) => void; dark: boolean; counts?: Partial<Record<LayerId, string>>; controls?: ViewControls }) {
   const toggle = (id: LayerId) => onChange({ ...view, layers: view.layers.includes(id) ? view.layers.filter((x) => x !== id) : [...view.layers, id] })
@@ -112,11 +117,22 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
               controls.onFly(!controls.fly)
             }}
             aria-pressed={controls.fly}
-            title="구 전체를 내려다보다 눈 오기 전 점검 후보 5곳을 낮게 차례로 돌아봅니다(입체). 지도를 만지면 멈춥니다"
+            title="구 전체를 내려다보다 눈 오기 전 점검 후보 5건의 대표 지점을 낮게 차례로 돌아봅니다(입체). 지도를 만지면 멈춥니다"
             className={`${ROW} ${controls.fly ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
           >
             <Ico name="drone" size={14} />
             <span className="min-w-0 flex-1 truncate">드론 비행</span>
+          </button>
+        )}
+        {controls && (
+          <button
+            onClick={controls.onWeather}
+            aria-pressed={controls.weatherMode !== "live"}
+            title={`지도 날씨. 실황은 기상청 단기예보(${controls.weatherLive}). 누르면 눈·비·안개 미리보기로 바뀝니다`}
+            className={`${ROW} ${controls.weatherMode !== "live" ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
+          >
+            <Ico name={controls.weatherMode === "snow" ? "drop" : controls.weatherMode === "rain" ? "drop" : controls.weatherMode === "fog" ? "layers" : "sun"} size={14} />
+            <span className="min-w-0 flex-1 truncate">{controls.weatherMode === "live" ? "날씨 실황" : `날씨 ${WEATHER_LABEL[controls.weatherMode]}(미리보기)`}</span>
           </button>
         )}
         {controls?.demoAvailable && (
@@ -162,7 +178,7 @@ function Swatch({ kind, color, on, color2 }: { kind: SwatchKind; color: string; 
   )
 }
 
-export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = false }: { dark: boolean; tilt?: boolean; stageLabel: string; stageNote: string | null; ownerView?: boolean }) {
+export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = false, budgetOn = false }: { dark: boolean; tilt?: boolean; stageLabel: string; stageNote: string | null; ownerView?: boolean; budgetOn?: boolean }) {
   const risk = dark ? RISK.weak.color : RISK.weak.colorLight
   const slope = dark ? RISK.slope.color : RISK.slope.colorLight
   const arrow = dark ? "#0b1216" : "#fbf9f3"
@@ -176,18 +192,18 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   const rows: { k: string; swatch: React.ReactNode; name: string; means: string; inline?: boolean }[] = [
     { k: "heat", swatch: <Swatch kind="glow" color={heat} on />, name: "도로열선", means: tilt ? "흐르는 선이 발열. 축소하면 노란 육각" : "흐르는 선이 발열. 축소하면 점" },
     ownerView
-      ? { k: "weak", swatch: <Swatch kind="line" color={gu} on />, name: "적설취약구간", means: `하늘색 = ${OWNER_STYLE.gu.label}(47곳 전부)` }
-      : { k: "weak", swatch: <Swatch kind="line" color={risk} on />, name: "적설취약구간", means: tilt ? "진홍 벽·숫자 = 열선 없음(번호는 표와 같음), 회색 선 = 있음" : "진홍 선·번호 배지 = 열선 없음, 회색 = 있음" },
+      ? { k: "weak", swatch: <Swatch kind="line" color={gu} on />, name: "적설취약구간", means: `하늘색이 ${OWNER_STYLE.gu.label}(47곳 전부)` }
+      : { k: "weak", swatch: <Swatch kind="line" color={risk} on />, name: "적설취약구간", means: tilt ? "진홍 벽과 숫자는 열선 없음(번호는 표와 같음), 회색 선은 열선 있음" : "진홍 선과 번호 배지(확대 시)는 열선 없음, 회색은 열선 있음" },
     ownerView
-      ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName} = ${OWNER_STYLE.si.label}, 하늘색 = 구 관리. 빈 ${tilt ? "고리" : "원"} = 선형 미확인` }
-      : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "·벽" : ""} = 열선 없음, 회색 = 있음. 빈 ${tilt ? "고리" : "원"} = 선형 미확인` },
-    { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "경사면 높이 = 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
+      ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName}이 ${OWNER_STYLE.si.label}, 하늘색이 구 관리. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` }
+      : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "과 낮은 벽" : ""}은 열선 없음, 회색은 열선 있음. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` },
+    { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "확대하면 경사면 높이가 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
     { k: "salt", swatch: <Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on />, name: "제설함", means: tilt ? "상자 · 도로과" : "도로과", inline: true },
     { k: "cacl", swatch: <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on />, name: "염화칼슘보관함", means: tilt ? "원통 · 동주민센터" : "동주민센터", inline: true },
     { k: "sand", swatch: <Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on />, name: "모래주머니", means: tilt ? "포대 · 2022년 기준" : "2022년 기준", inline: true },
     tilt
-      ? { k: "school", swatch: <Swatch kind="flag" color={ink} color2={heat} on />, name: "초등학교", means: "깃대 핀. 노란 깃발 = 열선 있음, 무채색 깃발·진홍 받침 = 없음" }
-      : { k: "school", swatch: <Swatch kind="ring" color={ink} on />, name: "초등학교", means: "원 테두리 노랑 = 열선 있음, 진홍 = 없음" },
+      ? { k: "school", swatch: <Swatch kind="flag" color={ink} color2={heat} on />, name: "초등학교", means: "깃대 핀. 노란 깃발은 열선 있음, 무채색 깃발과 진홍 받침은 열선 없음" }
+      : { k: "school", swatch: <Swatch kind="ring" color={ink} on />, name: "초등학교", means: "원 테두리가 노랑이면 열선 있음, 진홍이면 없음" },
   ]
   return (
     <div className="px-3 py-2 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
@@ -209,7 +225,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[12px] leading-[1.35]">하늘색 고리 = 지금 보는 곳{tilt ? " · 기둥 = 동별 자원" : ""}</p>
+      <p className="mt-1 text-[12px] leading-[1.35]">{ownerView ? "고리는 지금 보는 곳" : "하늘색 고리는 지금 보는 곳"}{tilt ? ", 기둥은 동별 자원" : ""}{budgetOn ? ". 호박색 벽은 예산 역산으로 신설이 정해진 구간" : ""}</p>
     </div>
   )
 }

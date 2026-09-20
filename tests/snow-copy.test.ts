@@ -26,9 +26,12 @@ const FILES = [
   "components/snow/map-geo.ts",
   "components/snow/snow-dashboard.tsx",
   "components/snow/ui.tsx",
+  "components/snow/onto-graph.tsx",
+  "components/snow/onto-layouts.ts",
   "lib/snow/queries.ts",
   "lib/snow/facts.ts",
   "lib/snow/costs.ts",
+  "lib/snow/weather.ts",
   "lib/snow/labels.ts",
   "lib/snow/schema.ts",
   "lib/snow/stage.ts",
@@ -75,6 +78,11 @@ const FORBIDDEN: [RegExp, string][] = [
   [/온톨로지에 묻기|온톨로지 탭/, "온톨로지(탭·제목에서 제외)"],
   [/헤어볼/, "은어"],
   [/\(보도\)/, "(보도) 접미(소제목으로 묶는다)"],
+  // 4라운드 후속(사용자: "작대기·AI 어투 전수검사"): 꺾쇠 화살·등호·말줄임표·"수 있습니다"는 화면 문장에서 뺀다
+  [/›|‹|»/, "꺾쇠 화살(작대기)"],
+  [/[가-힣)\]] = [가-힣(]/, "등호로 뜻을 잇는 범례체(은/는으로)"],
+  [/…|\.\.\.(?=\s|$|["'`)])/, "말줄임표"],
+  [/수 있습니다|수 없습니다|수 있어/, "'수 있습니다'(번역투)"],
 ]
 // 반말 종결(화면 문장). 명사 종결·표 안은 허용하므로 문장 끝 "다."·"다\"" 만 잡는다. 법령 원문 인용(blockquote·조문 요지 gist)은 제외 목록
 // "…입니다." "…습니다."는 합니다체. 그 밖의 "다."로 끝나는 종결만 반말로 본다

@@ -1,5 +1,5 @@
-// /snow 개략 단가(4라운드 후속, 2026-09-21). 냉독 3회 공통 지적 "비용이 없어 결재 형태가 아니다" → 공개 출처가 있는 단가만 싣고 출처·가정을 화면에 같이 적는다.
-// 조달 단가·실시설계가 아니다. 결재 한 장에는 "개략"으로 표기하고 데이터·방법 모달 "쓰인 데이터"에 출처를 둔다.
+// /snow 개략 단가(4라운드 후속, 2026-09-21). 냉독 3회 공통 지적 "비용이 없어 보고 형태가 아니다" → 공개 출처가 있는 단가만 싣고 출처·가정을 화면에 같이 적는다.
+// 조달 단가·실시설계가 아니다. 보고 요약 한 장에는 "개략"으로 표기하고 데이터·방법 모달 "쓰인 데이터"에 출처를 둔다.
 
 export const COST = {
   // 도로열선: 서울시 관계자 "열선 100m 설치 평균 1억원, 관리 연 360만원"(헤럴드경제 2024-02-20). 왕복 2차선 200m = 4억이라 차로당 100m 1억으로 읽는다
@@ -28,5 +28,5 @@ export function heatCost(meters: number, lanes = COST.lanesAssumed): { low: numb
 }
 export const heatCostText = (meters: number) => {
   const c = heatCost(meters)
-  return `약 ${eok(c.low)}~${eok(c.high)}(1~${COST.lanesAssumed}차로, 1차로 100m당 1억) · 관리 연 ${man(c.upkeepLow)}~${man(c.upkeepHigh)}(100m당 연 360만원)`
+  return `약 ${eok(c.high)}(2차로 가정, 1차로면 ${eok(c.low)}. 1차로 100m당 1억) · 관리 연 ${man(c.upkeepHigh)}(1차로면 ${man(c.upkeepLow)}. 100m당 연 360만원)`
 }

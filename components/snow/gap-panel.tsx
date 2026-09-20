@@ -1,7 +1,7 @@
 "use client"
 
 import type { SnowMapData } from "@/lib/snow/types"
-import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText, segName, segOwner, segPriority, segType, type Finding, type SegLike } from "@/lib/snow/facts"
+import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText, segName, segOwner, segPriority, segType, seoulRank, type Finding, type SegLike } from "@/lib/snow/facts"
 import { COST, eok, heatCost, man } from "@/lib/snow/costs"
 import { useState } from "react"
 import { SectionHead } from "@/components/dumping/section-head"
@@ -84,7 +84,7 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
         비치 자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 서울시 관리 결빙구간 {g.si.total}곳 중 {g.si.none}곳은 열선도 자재도 없습니다.
       </p>
-      <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">구 보도자료의 취약지점 {data.ops.weakPoints}개소 목록은 비공개라 행안부 적설취약구간 {data.weak.length}곳을 씁니다.</p>
+      <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">구 보도자료의 취약지점 {data.ops.weakPoints}개소 목록은 비공개라 행안부 적설취약구간 {data.weak.length}곳을 씁니다. 광진구 열선 연장은 서울 25개 구 중 {seoulRank(data).rank}위입니다(자원 현황 탭).</p>
       <StatBand
         items={[
           { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
@@ -94,20 +94,20 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         ]}
       />
 
-      <SectionHead n="01" sub={`번호가 우선순위(구 소관 행동 가능 › 시 요청 › 동 › 학교). 행동 · 부서 · 기한 · 규모 · 개략 비용 · 완료 기준. 부서와 규모는 데이터에 있는 것만, 비용은 공개 단가(열선 1차로 100m당 1억·관리 연 360만원(서울시 관계자, 2024 보도) · 제설함 ${man(COST.saltBoxWon)} 소매가)로 개략 산정, 조달 단가가 아닙니다. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도`}>
+      <SectionHead n="01" sub={`번호가 우선순위입니다. 구가 바로 할 수 있는 것, 시에 요청할 것, 동 단위, 학교 순. 행마다 부서 · 기한 · 규모 · 개략 비용 · 완료 기준 · 필요한 결정. 부서와 규모는 데이터에 있는 것만 적었고, 비용은 공개 단가(열선은 1차로 100m당 1억과 관리 연 360만원(서울시 관계자, 2024년 보도), 제설함은 소매가 ${man(COST.saltBoxWon)})로 개략 산정한 값이라 조달 단가가 아닙니다. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도`}>
         눈 오기 전 점검 후보 {checks.length}
       </SectionHead>
       <div>
         {checks.map((c, i) => (
-          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 비용 ${c.cost} · 완료 기준: ${c.done} · 결정: ${c.request}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
+          <NumRow key={c.id} n={i + 1} big={c.scale.split(" ")[1]?.replace(/\(.*$/, "") ?? String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 비용 ${c.cost} · 완료 기준: ${c.done} · 필요한 결정: ${c.request}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
         ))}
       </div>
       <button onClick={() => setPrint(true)} className="mt-2 rounded-full border border-[var(--cp-border)] px-3.5 py-1.5 text-[13px] font-semibold text-(--dump-accent) hover:bg-[var(--cp-hover)]">
-        결재용 한 장
+        보고 요약 한 장
       </button>
       {print && <CheckPrint data={data} onClose={() => setPrint(false)} />}
 
-      <SectionHead n="02" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 공백 = 열선도 자재도 없음. 우선순위 점수 순(공백 3 · 경사 추정 %/10 · 초등학교 1.5 · 급경사 1 · 고갯길 0.5 · 구 소관 0.5), 둘째 줄이 근거`}>
+      <SectionHead n="02" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 공백은 열선도 자재도 없는 구간. 우선순위 점수 순(공백 3 · 경사 추정 %/10 · 초등학교 1.5 · 급경사 1 · 고갯길 0.5 · 구 소관 0.5), 둘째 줄이 근거`}>
         열선 없는 구간 {g.noHeat}곳(구 {g.gu.noHeat} · 시 {g.si.noHeat})
       </SectionHead>
       {/* 열선 예산 역산(의사결정자 관점 wow): 예산을 밀면 우선순위 순으로 신설 구간이 정해지고 지도 벽이 호박색으로 바뀐다 */}
@@ -119,8 +119,8 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         </div>
         <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-muted)]">
           {budget
-            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설(개략 ${eok(plan.cost)} = 표의 신설 비용 합, 2차로 가정 · 1차로 100m당 1억)하고 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
-            : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해지고 표 "신설 비용" 열에 구간별 개략 비용이 보입니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 1차로 100m당 1억).`}
+            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설하고(표의 신설 비용을 더해 개략 ${eok(plan.planned.reduce((s, w) => s + Math.round(heatCost(w.pathM).high / 1e7) * 1e7, 0))}, 2차로 가정에 1차로 100m당 1억) 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
+            : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해지고 표의 "신설 비용" 열에 구간별 개략 비용이 보입니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 1차로 100m당 1억).`}
         </p>
       </div>
       <Table cols={budget ? COLS_BUDGET : COLS} rows={first} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />

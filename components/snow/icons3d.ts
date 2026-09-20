@@ -244,6 +244,8 @@ const SNOW_RADIUS_PX = 700 // 화면 중심에서 눈이 내리는 반경(px)
 const SNOW_HEIGHT_PX = 420 // 눈이 시작하는 높이(px)
 const SNOW_FALL_PX = 70 // 낙하 속도(px/s)
 const SNOW_DRIFT_PX = 14 // 바람(px/s)
+const RAIN_MAX = 1600
+const RAIN_LEN_PX = 11 // 빗줄기 길이(px)
 const RAMP_WALL_FROM_ZOOM = 14.3 // 경사면은 이 줌부터(조망에서는 보라 얼룩으로 읽혔다)
 const RAMP_CHEV_FROM_ZOOM = 13.8 // 화살도 조망에서는 낙서처럼 보여 이 줌부터. 조망은 굵은 보라 선만
 interface Truck {
@@ -286,7 +288,7 @@ function digitGeometry(text: string): THREE.BufferGeometry {
 function makeDigit(text: string, color: string, dark: boolean): THREE.Group {
   const g = new THREE.Group()
   // 숫자는 라벨: 깊이 검사 없이 벽·건물 위에(투명 목록 renderOrder 20 > 벽 10). 같은 진홍 벽 위에서 숫자가 묻히던 실측(라이트 z16 "31") → 어두운 겉껍질 윤곽선(뒷면만, 1.12배)
-  const outline = new THREE.Mesh(digitGeometry(text).clone().scale(1.12, 1.12, 1.6), new THREE.MeshBasicMaterial({ color: dark ? "#07111a" : "#fbf9f3", side: THREE.BackSide, transparent: true, depthTest: false }))
+  const outline = new THREE.Mesh(digitGeometry(text).clone().scale(1.12, 1.12, 1.6), new THREE.MeshBasicMaterial({ color: dark ? "#07111a" : "#2b2622", side: THREE.BackSide, transparent: true, depthTest: false }))
   outline.renderOrder = 19
   const m = new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3, transparent: true, depthTest: false }))
   m.renderOrder = 20
@@ -325,6 +327,11 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   private snowPos: Float32Array | null = null
   private snowLevel = 0 // 0~1
   private snowCenter = { x: 0, z: 0 }
+  // 비(4라운드 후속, 지도 날씨): 짧은 세로 빗줄기(LineSegments). 눈과 같은 화면 기준 규칙, 3배 빠르고 바람 없음
+  private rain: THREE.LineSegments | null = null
+  private rainPos: Float32Array | null = null
+  private rainLevel = 0
+  private rainCenter = { x: 0, z: 0 }
   private chev: THREE.InstancedMesh | null = null
   private chevGeom = chevronGeometry()
   private emissive = new Map<IconKind, number>() // 종류별 발광(2단계 제설함 0.6)
@@ -583,6 +590,70 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     }
     this.map?.triggerRepaint()
   }
+  /** 비 강도 0~1. 0이면 치운다 */
+  setRain(level: number) {
+    const v = Math.max(0, Math.min(1, level))
+    if (v === this.rainLevel && (v === 0) === !this.rain) return
+    this.rainLevel = v
+    if (v === 0) {
+      if (this.rain) {
+        this.scene.remove(this.rain)
+        this.rain.geometry.dispose()
+        ;(this.rain.material as THREE.Material).dispose()
+        this.rain = null
+        this.rainPos = null
+      }
+      this.map?.triggerRepaint()
+      return
+    }
+    if (!this.rain) {
+      this.rainPos = new Float32Array(RAIN_MAX * 6)
+      const geom = new THREE.BufferGeometry()
+      geom.setAttribute("position", new THREE.BufferAttribute(this.rainPos, 3))
+      geom.setDrawRange(0, 0)
+      this.rain = new THREE.LineSegments(geom, new THREE.LineBasicMaterial({ color: "#b9cbe0", transparent: true, opacity: 0.55, depthTest: false }))
+      this.rain.frustumCulled = false
+      this.rain.renderOrder = 30
+      this.scene.add(this.rain)
+      this.rainCenter = { x: NaN, z: NaN }
+    }
+    this.map?.triggerRepaint()
+  }
+  private updateRain(now: number, mpp: number) {
+    const map = this.map
+    const rain = this.rain
+    const pos = this.rainPos
+    if (!map || !rain || !pos) return
+    const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 0.016
+    const c = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), 0)
+    const cx = (c.x - this.anchor.x) / this.scale
+    const cz = (c.y - this.anchor.y) / this.scale
+    const R = SNOW_RADIUS_PX * mpp
+    const H = SNOW_HEIGHT_PX * mpp
+    const len = RAIN_LEN_PX * mpp
+    const n = Math.round(RAIN_MAX * this.rainLevel)
+    if (!Number.isFinite(this.rainCenter.x) || Math.hypot(cx - this.rainCenter.x, cz - this.rainCenter.z) > R * 0.5) {
+      for (let i = 0; i < RAIN_MAX; i++) {
+        const x = cx + (Math.random() * 2 - 1) * R
+        const y = Math.random() * H
+        const z = cz + (Math.random() * 2 - 1) * R
+        pos.set([x, y, z, x, y + len, z], i * 6)
+      }
+      this.rainCenter = { x: cx, z: cz }
+    }
+    const fall = SNOW_FALL_PX * 3.2 * mpp * dt
+    for (let i = 0; i < n; i++) {
+      pos[i * 6 + 1] -= fall
+      pos[i * 6 + 4] -= fall
+      if (pos[i * 6 + 1] < 0) {
+        const x = cx + (Math.random() * 2 - 1) * R
+        const z = cz + (Math.random() * 2 - 1) * R
+        pos.set([x, H, z, x, H + len, z], i * 6)
+      }
+    }
+    rain.geometry.setDrawRange(0, n * 2)
+    ;(rain.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true
+  }
   private updateSnow(now: number, mpp: number) {
     const map = this.map
     const snow = this.snow
@@ -823,6 +894,10 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     }
     if (this.snow) {
       this.updateSnow(now, mpp)
+      animating = true
+    }
+    if (this.rain) {
+      this.updateRain(now, mpp)
       animating = true
     }
     this.lastTick = now

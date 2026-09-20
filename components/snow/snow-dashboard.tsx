@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { LayerId, OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
 import { inSnowSeason, MOBILIZED, stageForSnow, type StageId } from "@/lib/snow/stage"
+import { WEATHER_PREVIEW, weatherFx, weatherLabel, type WeatherMode } from "@/lib/snow/weather"
 import { buildChecklist, gapSummary, heatTopDongs, planHeatBudget, segOwner, totals, type Finding } from "@/lib/snow/facts"
 import SnowMap, { type CameraCue, type StageView } from "./snow-map"
 import OntoGraphView from "./onto-graph"
@@ -102,7 +103,8 @@ export default function SnowDashboard() {
   const [budget, setBudget] = useState(0) // 열선 예산 역산(원). 공백 탭 슬라이더. 지도 벽이 신설 구간을 호박색으로
   const [demoDongs, setDemoDongs] = useState(false) // 시연 장면 4: 열선 없는 동 외곽 강조(3단계를 빌리지 않는다)
   const [focusRadius, setFocusRadius] = useState(40) // 초점 고리 반지름(m)
-  const [voice, setVoice] = useState(false) // 시연 음성 해설(브라우저 speechSynthesis 한국어 목소리). 장면·격상 캡션을 읽는다
+  const [voice, setVoice] = useState(false)
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("live") // 지도 날씨: 실황(기본) 또는 미리보기(눈·비·안개) // 시연 음성 해설(브라우저 speechSynthesis 한국어 목소리). 장면·격상 캡션을 읽는다
   const [demoProgress, setDemoProgress] = useState<{ key: number; ms: number; at: number } | null>(null) // 장면 3 자동 격상 진행선
   const [remain, setRemain] = useState(0)
   const [cameraCue, setCameraCue] = useState<CameraCue | null>(null)
@@ -170,6 +172,10 @@ export default function SnowDashboard() {
 
   // 단계 판정: 대책기간 안에서 예보를 쓰면 24시간 적설 + 특보, 아니면 슬라이더
   const fc = forecast && forecast !== "error" ? forecast : null
+  // 지도 날씨: 실황(현재 시각 예보 행. 없으면 첫 행)에서 WMO 코드로 눈·비·안개. 미리보기를 고르면 그 효과
+  const nowWx = fc ? (fc.now ?? fc.hours[0] ?? null) : null
+  const liveFx = weatherFx(nowWx?.code, nowWx?.snow ?? 0)
+  const weather = WEATHER_PREVIEW.find((w) => w.id === weatherMode)?.fx ?? liveFx
   const effectiveCm = useForecast && fc ? fc.snow24 : simCm
   const stage = stageForSnow(effectiveCm, useForecast && fc ? (fc.warning?.level ?? "none") : "none")
   // 지도 단계 상태: 대응 단계 탭·시연에서만. 공백 탭은 단계 무관(자재 전부 점등)
@@ -539,10 +545,13 @@ export default function SnowDashboard() {
         onOrbit: setOrbit,
         onFly: (v) => setFly(v && flyStops.length ? flyStops : null),
         onDemo: (v) => (v ? setDemo(0) : endDemo()),
+        weatherMode,
+        weatherLive: nowWx ? `${nowWx.temp}° ${weatherLabel(nowWx.code)}` : "실황 없음",
+        onWeather: () => setWeatherMode((m) => WEATHER_PREVIEW[(WEATHER_PREVIEW.findIndex((w) => w.id === m) + 1) % WEATHER_PREVIEW.length].id),
       }}
     />
   )
-  const legend = <Legend dark={dark} tilt={view.tilt} ownerView={tab === "law"} stageLabel={stageView ? (stageView === "calm" ? "평시" : stageView === "stage-0" ? "보강" : stageView.replace("stage-", "") + "단계") : ""} stageNote={stageNote} />
+  const legend = <Legend dark={dark} tilt={view.tilt} ownerView={tab === "law"} budgetOn={tab === "gap" && budget > 0} stageLabel={stageView ? (stageView === "calm" ? "평시" : stageView === "stage-0" ? "보강" : stageView.replace("stage-", "") + "단계") : ""} stageNote={stageNote} />
 
   return (
     <div
@@ -570,6 +579,7 @@ export default function SnowDashboard() {
             dimMaterials={tab === "gap"}
             noHeatDongs={demoDongs}
             focusRadius={focusRadius}
+            weather={weather}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}
@@ -597,7 +607,7 @@ export default function SnowDashboard() {
               <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
-                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `대책기간 시작(11월 15일) D-${daysToSeason} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
+                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""}` : data ? `대책기간 시작(11월 15일) D-${daysToSeason}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 적설취약 ${data.weak.length}곳 · 결빙 ${data.ice.length}곳` : "겨울철 제설대책"}
               </span>
             </span>
           </button>

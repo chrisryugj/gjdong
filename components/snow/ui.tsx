@@ -19,7 +19,7 @@ export function StatBand({ items }: { items: { k: string; v: string; u?: string;
   )
 }
 
-// 번호 · 큰 숫자 · 문장 한 줄(+메타 한 줄 + 보충 한 줄). 발견·판단·점검 후보 목록. 누르면 지도. meta = "부서 · 기한 · 규모"(4라운드 결재 문서화)
+// 번호 · 큰 숫자 · 문장 한 줄(+메타 한 줄 + 보충 한 줄). 발견·판단·점검 후보 목록. 누르면 지도. meta = "부서 · 기한 · 규모"(4라운드 보고 문서화)
 export function NumRow({ n, big, unit, title, meta, body, accent = false, active = false, onClick }: { n: number; big?: string; unit?: string; title: string; meta?: string; body?: string; accent?: boolean; active?: boolean; onClick?: () => void }) {
   const inner = (
     <>

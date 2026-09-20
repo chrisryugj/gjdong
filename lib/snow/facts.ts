@@ -82,7 +82,7 @@ export const segType = (s: SegLike) => (s.src === "weak" ? s.type : "결빙")
 export const segOwner = (s: SegLike): "구" | "시" => (s.src === "weak" ? "구" : /\(광진구\)/.test(s.agency) ? "구" : "시")
 
 // 우선순위(4라운드 후속, 의사결정자 관점: "13곳 중 어디부터"). 점수 = 자재도 없음 3 + 경사 추정 최대 경사%/10 + 150m 안 초등학교 1.5교당 + 행안부 유형(급경사 1 · 고갯길 0.5) + 구 소관 0.5.
-// 전부 이 화면 데이터에서 나온 근거이고 가중치는 가정이다(데이터·방법). 근거 문구를 표·칩·결재 한 장에 같이 적는다
+// 전부 이 화면 데이터에서 나온 근거이고 가중치는 가정이다(데이터·방법). 근거 문구를 표·칩·보고 요약 한 장에 같이 적는다
 export interface Priority {
   score: number
   reasons: string[]
@@ -282,7 +282,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       kicker: "노출",
       // 결과 지표(민원·사고)가 없어 편익을 못 세는 대신, 공백이 결빙 조건에 놓이는 날수를 기상청 결빙일수(서울 108)로 보인다. 4차 냉독: "열선 3곳 신설하면 무엇이 얼마나 줄어드는가"의 최소 근거
       title: `서울은 겨울마다 결빙일이 평균 ${Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))}일입니다.`,
-      body: `기상청 서울(108) ${data.climate.freezeDays[0]?.year}~${data.climate.freezeDays[data.climate.freezeDays.length - 1]?.year}년 결빙일수 평균. 열선 없는 취약구간 ${g.weakNoHeat}곳은 그 날수만큼 결빙 조건에 놓입니다. 민원·사고 결과 지표는 데이터가 없어 편익은 셀 수 없습니다.`,
+      body: `기상청 서울(108) ${data.climate.freezeDays[0]?.year}~${data.climate.freezeDays[data.climate.freezeDays.length - 1]?.year}년 결빙일수 평균. 열선 없는 취약구간 ${g.weakNoHeat}곳은 그 날수만큼 결빙 조건에 놓입니다. 민원·사고 결과 지표는 데이터가 없어 편익은 세지 못합니다.`,
       n: String(Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))),
       unit: "일/년",
       kind: "limit",
@@ -301,7 +301,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
   return out
 }
 
-// ─── 눈 오기 전 점검 후보(보고받는 사람 관점, 3라운드 → 4라운드 결재 문서화). 데이터가 가리키는 후보를 행동 동사·부서·기한·규모와 함께 늘어놓는다.
+// ─── 눈 오기 전 점검 후보(보고받는 사람 관점, 3라운드 → 4라운드 보고 문서화). 데이터가 가리키는 후보를 행동 동사·부서·기한·규모와 함께 늘어놓는다.
 // 부서·기한·규모는 데이터에 있는 것만: 부서는 그래프 Team 노드의 역할(적설취약구간·제설함·열선 = 도로과 도로관리팀, 염화칼슘함·모래주머니·동 단위 = 동주민센터, 시 관리 = 관리청명), 학교 소관은 데이터가 없어 "내부 확인".
 // 기한은 대책기간 시작(ops.period.from)의 달 기준 "대책기간 전". 비용은 단가 데이터가 없어 쓰지 않는다(데이터·방법 "못 구한 데이터"). 조치 여부와 순서는 담당 부서가 정한다 ───
 export interface CheckItem {
@@ -313,7 +313,7 @@ export interface CheckItem {
   scale: string // 규모(수량)
   done: string // 완료 기준(이 화면의 판정이 바뀌는 조건, 또는 회신·확정)
   cost: string // 개략 비용(lib/snow/costs 출처 단가. 없으면 "미산정"과 이유)
-  request: string // 결정 요청 한 줄(결재가 필요한 것과 부서 지시로 끝나는 것을 가른다. 냉독 4차)
+  request: string // 필요한 결정 한 줄(결정이 필요한 것과 부서 지시로 끝나는 것을 가른다. 냉독 4차)
   short: string // 시연 캡션·칩용 짧은 이름
   title: string // 동사로 끝나는 제목
   body: string // 근거 한 줄(사실만)
@@ -360,7 +360,10 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${onSlope.length}곳 · ${fmt(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}m`,
       done: "구간별 열선 신설 여부 결정(예산 반영 여부 포함)",
       cost: `전부 신설 시 ${heatCostText(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}(단가 출처 같음)`,
-      request: `열선 신설 검토 착수 여부 결정(예산 반영 시 우선순위 1위 ${onSlope.map((w) => ({ w, p: segPriority({ ...w, src: "weak" as const }, data).score })).sort((a, b) => b.p - a.p)[0]?.w.name ?? ""}부터)`,
+      request: (() => {
+        const first = onSlope.map((w) => ({ w, p: segPriority({ ...w, src: "weak" as const }, data).score })).sort((a, b) => b.p - a.p)[0]?.w
+        return `열선 신설 검토 착수 여부 결정(예산 반영 시 우선순위 1위 ${first ? `${first.name}(지도 ${first.i})` : ""}부터)`
+      })(),
       short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
       title: `급경사 추정과 겹치는 열선 없는 취약구간 ${onSlope.length}곳의 열선 신설 검토`,
       body: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${(() => {

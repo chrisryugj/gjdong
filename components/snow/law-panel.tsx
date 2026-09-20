@@ -101,7 +101,7 @@ export default function LawPanel({ data, dark = true }: Props) {
             <li><span className="text-[var(--cp-text-dim)]">취약지점</span> <b>{data.ops.weakPoints}개소</b></li>
             <li><span className="text-[var(--cp-text-dim)]">시즌 제설제</span> <b>{data.ops.saltTons.toLocaleString("ko-KR")}톤</b></li>
           </ul>
-          <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">보도자료 수치라 개소 정의가 공개 데이터와 다를 수 있습니다. 위치가 공개된 자원만 지도에 있습니다.</p>
+          <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">보도자료 수치라 개소 정의가 공개 데이터와 다릅니다(취약지점 89개소와 행안부 47곳). 위치가 공개된 자원만 지도에 있습니다.</p>
         </>
       )}
     </div>

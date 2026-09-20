@@ -159,9 +159,9 @@ const SHOTS = [
   },
   {
     name: "14b-check-print",
-    desc: "결재용 한 장(결재란·결정 요청·후보 5 표)",
+    desc: "보고 요약 한 장(결정이 필요한 것·후보 5 표)",
     run: async (page) => {
-      await page.getByRole("button", { name: "결재용 한 장" }).click()
+      await page.getByRole("button", { name: "보고 요약 한 장" }).click()
       await wait(900)
     },
   },
@@ -206,6 +206,29 @@ const SHOTS = [
     },
   },
   { name: "19-light", desc: "라이트 첫 화면", run: async (page) => theme(page, true) },
+  {
+    name: "19b-weather-rain",
+    desc: "지도 날씨 미리보기 비(보기 그룹 날씨 버튼 2번)",
+    run: async (page) => {
+      const b = page.locator("button").filter({ hasText: /^날씨/ }).first()
+      await b.click()
+      await wait(300)
+      await b.click()
+      await wait(2200)
+    },
+  },
+  {
+    name: "19c-weather-fog",
+    desc: "지도 날씨 미리보기 안개(3번)",
+    run: async (page) => {
+      const b = page.locator("button").filter({ hasText: /^날씨/ }).first()
+      for (let i = 0; i < 3; i++) {
+        await b.click()
+        await wait(300)
+      }
+      await wait(1600)
+    },
+  },
   { name: "20-mobile", desc: "모바일 390(평면 기본)", viewport: MOBILE, run: async () => {} },
   {
     name: "21-mobile-layers",

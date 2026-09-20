@@ -124,10 +124,10 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
           <p className="text-[13.5px] text-[var(--cp-text-muted)]">공개 데이터에서 찾지 못한 것입니다. 있으면 화면의 판단이 바뀌는 순서로 적었습니다.</p>
           <ul className="space-y-2">
             <Missing t="동주민센터별 제설 담당 구역(구간표·구역도)" w="지금은 행정동 경계를 담당 구역으로 대용합니다(그래프 담당 구역 노드의 구역 정본 속성에 표시). 실제 운영 단위가 오면 커버리지 단위를 교체합니다" how="광진구 제설대책 추진계획 첨부 · 정보공개청구" />
-            <Missing t="제설취약지점 89개소 목록(보도자료 수치)" w="행안부 적설취약구간 47곳으로 대신합니다. 구 내부 목록과 다를 수 있습니다" how="도로과 · 정보공개청구" />
+            <Missing t="제설취약지점 89개소 목록(보도자료 수치)" w="행안부 적설취약구간 47곳으로 대신합니다. 구 내부 목록과 같은지는 확인하지 못했습니다" how="도로과 · 정보공개청구" />
             <Missing t="자동원격액상살포기 52대 위치" w="살포기는 수치만 있고 지도에 없습니다" how="도로과 · 정보공개청구" />
-            <Missing t="조례 시한 준수·제설 민원 건수" w="결과 지표를 측정할 수 없어 대책 평가가 투입 지표까지만 가능합니다" how="정보공개청구(민원은 120 다산콜·구 민원 통계)" />
-            <Missing t="열선 가동 이력(온도·시각)" w="상시 설비의 실제 가동 여부를 확인할 수 없습니다" how="도로과" />
+            <Missing t="조례 시한 준수·제설 민원 건수" w="결과 지표가 없어 대책 평가는 투입 지표까지만 됩니다" how="정보공개청구(민원은 120 다산콜·구 민원 통계)" />
+            <Missing t="열선 가동 이력(온도·시각)" w="상시 설비가 실제로 가동됐는지 확인하지 못합니다" how="도로과" />
             <Missing t="열선·자재 조달 단가(계약 단가표·실시설계)" w="개략 비용은 언론 보도 단가(서울시 관계자, 열선 1차로 100m당 1억)와 제설함 소매가로 산정했습니다. 취약구간 차로수도 파일에 없어 1~2차로 범위로 보입니다. 조달 단가가 오면 교체합니다" how="도로과 · 계약 단가표 · 정보공개청구" />
             <Missing t="초등학교 통학로 제설 소관" w="점검 후보의 학교 항목은 담당 부서를 내부 확인으로 비웠습니다" how="교육지원청 · 학교 행정실" />
           </ul>
@@ -188,7 +188,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
             <ul className="mt-1.5 space-y-1 text-[13px]">
               {RELATIONS.map((r) => (
                 <li key={r.rel} className="text-[var(--cp-text-dim)]">
-                  <b className="text-[var(--cp-text)]">{relLabel(r.rel)}</b> · {r.domain.map(typeLabel).join("·")} › {r.range.map(typeLabel).join("·")} · {r.def}
+                  <b className="text-[var(--cp-text)]">{relLabel(r.rel)}</b> · {r.domain.map(typeLabel).join("·")}에서 {r.range.map(typeLabel).join("·")}로 · {r.def}
                 </li>
               ))}
             </ul>
@@ -200,7 +200,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
         <ul className="space-y-2 text-[14px] leading-relaxed text-[var(--cp-text)]">
           <li>자원 위치는 공공데이터 4종이고 기준일이 {data.asof.sand.slice(0, 7)}(모래주머니)부터 {data.asof.cacl.slice(0, 7)}(염화칼슘보관함)까지 다릅니다. 한 지도에 올리지만 같은 시점이 아닙니다.</li>
           <li>열선 선형은 OSM 도로망에 붙인 근사입니다. 노선명과 다른 도로로 이어졌거나 한 점에서 연장만큼 그린 구간은 툴팁에 그렇게 적혀 있습니다.</li>
-          <li>급경사는 지형 타일(약 7.6m 격자) 고도로 계산한 추정치이고 실측 경사가 아닙니다. 고가 옆 도로는 제외했지만 오탐이 남아 있을 수 있습니다.</li>
+          <li>급경사는 지형 타일(약 7.6m 격자) 고도로 계산한 추정치이고 실측 경사가 아닙니다. 고가 옆 도로는 제외했지만 오탐이 일부 남습니다.</li>
           <li>공백 판정의 거리 기준({data.gaps.heatNearM}m·{data.gaps.materialNearM}m)은 이 화면의 가정입니다. 구 지침의 기준이 있으면 그 값으로 바꿉니다.</li>
           <li>담당 구역은 행정동 경계를 대용합니다. 동주민센터 담당 구간표가 오면 커버리지 단위를 교체합니다.</li>
           <li>인력·장비·살포기 수치는 보도자료이고 위치가 없습니다. 조례 시한 준수와 민원은 측정 자료가 없습니다.</li>

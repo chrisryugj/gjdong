@@ -5,6 +5,7 @@ import maplibregl, { type LngLatBoundsLike, type Map as MlMap, type PaddingOptio
 import { Protocol } from "pmtiles"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { LayerId, SnowMapData } from "@/lib/snow/types"
+import type { WeatherFx } from "@/lib/snow/weather"
 import type { StageId } from "@/lib/snow/stage"
 import { BASEMAP_BOUNDS, BASEMAP_SOURCE, buildBasemapStyle, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapTheme } from "@/lib/dumping/basemap-style"
 import {
@@ -161,6 +162,7 @@ interface SnowMapProps {
   fly?: FlyStop[] | null // 드론 비행 경유지(점검 후보). 사용자가 만지면 onOrbitStop
   planned?: number[] // 열선 예산 역산으로 신설이 정해진 취약구간 번호(호박색 벽·선)
   snowCm?: number // 시나리오·예보 적설(cm). 대응 단계 탭·시연 장면 3에서 눈이 내린다(0이면 없음)
+  weather?: WeatherFx // 실황 날씨(기상청 단기예보 WMO 코드) 또는 미리보기: 눈송이·빗줄기·안개 덮개. 시나리오 눈과 겹치면 큰 쪽
   dimMaterials?: boolean // 공백 탭: 자재 핀을 흐리게(383개 핀에 공백 벽 19곳이 묻히던 냉독)
   noHeatDongs?: boolean // 열선 없는 동 외곽 강조(3단계와 시연 장면 4. 장면 4가 3단계를 빌려 쓰면 범례 단계 줄이 어긋났다)
   focusRadius?: number // 초점 고리 반지름(m). 구간=자재 기준 100m, 학교=150m
@@ -172,7 +174,7 @@ interface SnowMapProps {
   onOrbitStop?: () => void
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, weather = { kind: "none", level: 0 }, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -479,14 +481,15 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 3D 아이콘도 같은 단계 문법: 흐림·제설함 확대·2단계부터 제설함 발광·눈
     const icons = iconsRef.current
     if (icons) {
-      icons.setSnow(st == null ? 0 : Math.min(1, snowCm / 10))
+      icons.setSnow(Math.max(st == null ? 0 : Math.min(1, snowCm / 10), weather.kind === "snow" ? weather.level : 0))
+      icons.setRain(weather.kind === "rain" ? weather.level : 0)
       // 법령 탭은 구간 색이 주인공: 자재·학교·열선 핀은 흐리게(청빙 선이 원통 228개 속에 묻히던 냉독)
       icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMaterials ? Math.min(dimMat, 0.4) : dimMat)
       icons.setDim(["school", "schoolGap", "heat"], ownerView ? 0.3 : 1)
       icons.setBoost("salt", saltBoost3D)
       icons.setEmissive("salt", saltBoost3D > 1 ? 0.6 : 0)
     }
-  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm, dimMaterials, noHeatDongs])
+  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm, dimMaterials, noHeatDongs, weather.kind, weather.level])
 
   // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다.
   // 동별 기둥 모드(colMetric)에서는 자재·학교·열선 핀을 내린다(기둥+배지+핀이 겹쳐 과밀. 냉독 지적). 2D 원은 그대로
@@ -721,6 +724,10 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
   return (
     <div className="relative h-full w-full">
       <div ref={boxRef} className="h-full w-full" style={{ background: "var(--dump-ground)" }} />
+      {/* 안개: 지도 위 흐린 덮개(가운데는 덜, 가장자리는 더). 지도 조작은 그대로 통과 */}
+      {weather.kind === "fog" && weather.level > 0 && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 transition-opacity duration-700" style={{ opacity: weather.level, background: theme === "dark" ? "radial-gradient(ellipse at center, rgba(160,176,190,0.22) 0%, rgba(160,176,190,0.5) 70%, rgba(160,176,190,0.62) 100%)" : "radial-gradient(ellipse at center, rgba(236,240,244,0.35) 0%, rgba(236,240,244,0.7) 70%, rgba(236,240,244,0.82) 100%)" }} />
+      )}
       {flyInfo && (
         <div className="dump-fl lg-shell lg-dense pointer-events-none absolute z-[1046] flex items-center gap-3 rounded-full px-4 py-2" style={{ left: (fitPadding?.tl[0] ?? 16) + 0, top: (fitPadding?.tl[1] ?? 16) + 8, maxWidth: 420 }} aria-live="polite">
           <span className="min-w-0">

@@ -355,7 +355,7 @@ async function main() {
     // ★강을 가로지르는 직선(청담대교 구간)이 지도에 그려졌던 실사고. 원자료 기점·종점이 램프 위라 선형을 확정할 수 없다
     if (bucket === "ice" && snap.method === "straight") {
       const t = snapAlongTrunk(net, a, b, { roadName: base.road, chains: trunkChains }) ?? snapAlongTrunk(net, a, b, { chains: trunkChains, maxOffM: 200, maxRatio: 2.2 })
-      snap = t ?? { coords: [a, b], len: distM(a, b), method: "points", approx: true, note: "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없습니다. 두 끝점만 표시합니다", roadName: "" }
+      snap = t ?? { coords: [a, b], len: distM(a, b), method: "points", approx: true, note: "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정하지 못했습니다. 두 끝점만 표시합니다", roadName: "" }
     }
     tally(bucket, snap.method)
     const pts = samplePath(snap.coords)
@@ -793,7 +793,7 @@ function buildGraph(map) {
   EV("ev-freeze", `결빙일 연 ${fzLast.total}일`, `서울의 결빙일수는 ${fzLast.year}년 ${fzLast.total}일, 최근 ${fz.length}년 평균 ${fzAvg}일입니다. 12월·1월·2월에 몰립니다.`, { confidence: 1, ...PROV("freeze") })
   if (map.accidents) EV("ev-accidents", `결빙사고 다발지역 0곳`, `도로교통공단 결빙 교통사고 다발지역(반경 200m 3건 이상)은 ${accLast} 서울 연 ${Math.min(...accYears.map((y) => y.seoul))}~${Math.max(...accYears.map((y) => y.seoul))}곳이고 광진구는 0곳입니다.`, { confidence: 1, ...PROV("accidents") })
   EV("ev-seoul", `서울 열선 연장 ${seoulRank}위`, `서울 25개 구 열선 ${fmt(map.seoul.reduce((s, x) => s + x.n, 0))}개소 ${fmt(map.seoul.reduce((s, x) => s + x.m, 0))}m 중 광진구는 ${seoulGj?.n}개소 ${fmt(seoulGj?.m ?? 0)}m로 연장 ${seoulRank}위입니다.`, { confidence: 1, ...PROV("seoul") })
-  EV("ev-press", `보도 수치(인력·살포기)`, `보도자료 수치는 인력 ${fmt(map.ops.staff)}명 · 살포기 ${map.ops.sprayers}대 · 취약지점 ${map.ops.weakPoints}개소 · 제설함류 ${map.ops.boxSites}개소입니다. 공공데이터가 아닌 보도 수치라 개소 정의가 다를 수 있습니다.`, { confidence: 0.6, source: map.ops.source, asof: "2026-02-12", derived_by: "기사 본문 전사" })
+  EV("ev-press", `보도 수치(인력·살포기)`, `보도자료 수치는 인력 ${fmt(map.ops.staff)}명 · 살포기 ${map.ops.sprayers}대 · 취약지점 ${map.ops.weakPoints}개소 · 제설함류 ${map.ops.boxSites}개소입니다. 공공데이터가 아닌 보도 수치라 개소 정의가 공개 데이터와 다릅니다.`, { confidence: 0.6, source: map.ops.source, asof: "2026-02-12", derived_by: "기사 본문 전사" })
   EV("ev-coverage", noneAll.length ? `자원 없는 동 ${noneAll.length}곳` : "15개 동 전부 자원 있음", noneAll.length ? `자원 4종이 모두 없는 동은 ${noneAll.join("·")} ${noneAll.length}곳입니다.` : `자원 4종 중 하나도 없는 동은 없습니다. 열선만 없는 동이 ${noHeat.length}곳입니다.`, { confidence: 1, source: "map.json dongs", asof: map.asof.cacl, derived_by: "scripts/snow-data.mjs" })
   for (const [ds, evs] of Object.entries({
     "ds-heat": ["ev-heat", "ev-heat-top", "ev-heat-none", "ev-heat-2025"],
@@ -836,7 +836,7 @@ function buildGraph(map) {
   E("ev-press", "describes", "kpi-eval")
 
   const CL = (id, label, gist, props = {}) => N(id, "Claim", "claim", label, { gist, ...props })
-  CL("claim-weak-gap", `취약구간 ${g.weakNoHeat}곳 열선 없음`, `적설취약구간 ${g.weakTotal}곳 중 ${g.weakNoHeat}곳에 열선이 없습니다. 그중 ${g.weakNone}곳은 ${g.materialNearM}m 안에 비치 자재도 없습니다.`, { note: "거리 기준은 도로 스냅 선형 기준. 취약구간 지정 사유(고갯길·급경사)와 열선 설치 기준이 같은지는 공개 자료로 알 수 없습니다" })
+  CL("claim-weak-gap", `취약구간 ${g.weakNoHeat}곳 열선 없음`, `적설취약구간 ${g.weakTotal}곳 중 ${g.weakNoHeat}곳에 열선이 없습니다. 그중 ${g.weakNone}곳은 ${g.materialNearM}m 안에 비치 자재도 없습니다.`, { note: "거리 기준은 도로 스냅 선형 기준. 취약구간 지정 사유(고갯길·급경사)와 열선 설치 기준이 같은지는 공개 자료에 없습니다" })
   const weakTopHeat = map.dongs.find((d) => d.d === weakTop.d)?.heatSeg ?? 0
   CL("claim-heat-concentration", `열선 ${top2.map((d) => d.d).join("·")} 집중`, `열선 ${top2Seg}/${map.heat.length}구간이 ${top2.map((d) => d.d).join("·")}에 있습니다. 적설취약구간이 가장 많은 ${weakTop.d}(${weakTop.weak}곳)에는 열선이 ${weakTopHeat}구간입니다.`)
   CL("claim-heat-gap", `열선 없는 동 ${noHeat.length}곳`, `${noHeat.join("·")}은 열선 없이 비치 자재와 인력으로 대응합니다. 이 동들의 적설취약구간은 ${map.dongs.filter((d) => noHeat.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳입니다.`)

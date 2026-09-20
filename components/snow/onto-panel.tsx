@@ -150,7 +150,7 @@ function NodeCard({ node, graph, byId, onSelect }: { node: OntoNode; graph: Onto
           <ul className="mt-1 space-y-0.5">
             {out.map((e, i) => (
               <li key={`o${i}`}>
-                <span className="text-[var(--cp-text-dim)]">{relLabel(e.rel)} › </span>
+                <span className="text-[var(--cp-text-dim)]">{relLabel(e.rel)}: </span>
                 <button onClick={() => onSelect(e.t)} className="text-[var(--cp-text)] hover:text-(--dump-accent)">{byId.get(e.t)?.label ?? e.t}</button>
                 {e.props && <span className="ml-1 text-[12px] text-[var(--cp-text-faint)]">{Object.entries(e.props).map(([k, v]) => `${propLabel(k)} ${v}`).join(" · ")}</span>}
               </li>
@@ -158,7 +158,7 @@ function NodeCard({ node, graph, byId, onSelect }: { node: OntoNode; graph: Onto
             {inn.map((e, i) => (
               <li key={`i${i}`}>
                 <button onClick={() => onSelect(e.f)} className="text-[var(--cp-text)] hover:text-(--dump-accent)">{byId.get(e.f)?.label ?? e.f}</button>
-                <span className="text-[var(--cp-text-dim)]"> › {relLabel(e.rel)}</span>
+                <span className="text-[var(--cp-text-dim)]">, {relLabel(e.rel)}</span>
                 {e.props && <span className="ml-1 text-[12px] text-[var(--cp-text-faint)]">{Object.entries(e.props).map(([k, v]) => `${propLabel(k)} ${v}`).join(" · ")}</span>}
               </li>
             ))}

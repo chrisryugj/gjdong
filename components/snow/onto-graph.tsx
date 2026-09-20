@@ -169,7 +169,7 @@ export default function OntoGraphView({ graph: fullGraph, selectedId, onSelect }
     return () => el.removeEventListener("wheel", onWheel)
   }, [graph])
 
-  if (!graph) return <div className="flex h-full items-center justify-center text-base text-[var(--cp-text-dim)]">온톨로지 로딩 중…</div>
+  if (!graph) return <div className="flex h-full items-center justify-center text-base text-[var(--cp-text-dim)]">근거 그래프를 불러오는 중</div>
 
   const focus = hoverId ?? selectedId ?? HUB
   const focusSet = focus ? (neighbors.get(focus) ?? new Set()) : null
