@@ -157,6 +157,14 @@ const SHOTS = [
       await wait(600)
     },
   },
+  {
+    name: "14b-check-print",
+    desc: "결재용 한 장(결재란·결정 요청·후보 5 표)",
+    run: async (page) => {
+      await page.getByRole("button", { name: "결재용 한 장" }).click()
+      await wait(900)
+    },
+  },
   ...[0, 1, 2, 3, 4, 5].map((k) => ({
     name: `15-demo-${k + 1}`,
     desc: `시연 장면 ${k + 1}`,
