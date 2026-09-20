@@ -1351,6 +1351,9 @@
 :root[data-theme="dark"] .dump-page.snow-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page.snow-page .lg-inner { background: rgba(15, 26, 38, 0.96); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
 .lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(251, 249, 243, 0.9); }
 :root[data-theme="dark"].lg-on .dump-page.snow-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(14, 24, 35, 0.9); }
+/* 시연 장면 3 자동 격상 진행선(캡션 카드 위 2px). 남은 시간은 캡션 키커에 */
+@keyframes snow-progress { from { width: 0; } to { width: 100%; } }
+.snow-progress { width: 0; animation: snow-progress linear forwards; }
 /* 지도 툴팁(map-geo tip): 꼬리표 › 제목 › 항목 줄(이름·값) › 각주. 12px 미만 금지 */
 .snow-tip { width: 252px; padding: 9px 12px 8px; font-size: 13.5px; line-height: 1.45; }
 .snow-tip .k { display: block; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dump-accent); font-weight: 700; }

@@ -285,9 +285,22 @@ function walkAround(net, hit, name, total) {
       const n = net.nodes.get(cur)
       const cands = n.adj.map((i) => net.edges[i]).filter((e) => e !== prevEdge)
       if (!cands.length) break
+      // 후보: 노선명이 있으면 같은 이름, 없으면 같은 이름(빈 이름 포함)·같은 종류(primary_link 등). 그중 진행 방향이 가장 곧은 것(100° 넘게 꺾이면 끝).
+      // 3라운드: 이름 없는 램프 열선(천호대로 아차산역 4구간)이 옆 링크로 갈아타 U자 고리를 그렸다
       const same = cands.filter((e) => nm && e.name === nm)
-      const pick = (same.length ? same : cands.filter((e) => e.name === prevEdge.name))[0] ?? (same.length ? null : null)
-      if (!pick) break
+      const pool = same.length ? same : cands.filter((e) => e.name === prevEdge.name && e.detail === prevEdge.detail)
+      const back = prevEdge.akey === cur ? prevEdge.b : prevEdge.a
+      const here = n.p
+      const heading = (from, to) => Math.atan2((to[1] - from[1]) * Math.cos((from[0] * Math.PI) / 180), to[0] - from[0])
+      const h0 = heading(back, here)
+      const turn = (e) => {
+        const other = e.akey === cur ? e.b : e.a
+        let d = Math.abs(heading(here, other) - h0)
+        if (d > Math.PI) d = 2 * Math.PI - d
+        return d
+      }
+      const pick = pool.sort((x, y) => turn(x) - turn(y))[0]
+      if (!pick || turn(pick) > (100 * Math.PI) / 180) break
       const other = pick.akey === cur ? pick.b : pick.a
       const from = net.nodes.get(cur).p
       if (pick.len >= remain) {
@@ -329,7 +342,8 @@ export function lanesNum(lanes) {
 
 // 기점 a·종점 b([lat,lng])를 도로 선형으로. expectM = 기대 물리 길이(연장÷차로수). 반환 {coords:[[lat,lng]...], len, method, approx, note, roadName}
 // opts.kinds: 후보 도로 종류 제한(간선 결빙구간은 ["major_road","highway"]). opts.nameOnly: 노선명 도로에만 붙인다(못 붙이면 직선)
-export function snapPath(net, a, b, name, expectM, { allowPath = false, kinds = null, nameOnly = false } = {}) {
+// opts.unnamedSameCap: 두 점이 같고 노선명 도로에 못 붙었을 때(좌표 한 점뿐인 행. 능동로 120이 건국대 안 이름 없는 길 300m로 그려진 실사고) 연장 상한(m)
+export function snapPath(net, a, b, name, expectM, { allowPath = false, kinds = null, nameOnly = false, unnamedSameCap = null } = {}) {
   const same = distM(a, b) < 15
   const nm = normRoadName(name)
   const eo = { allowPath, kinds, nameOnly, namedRadius: nameOnly ? 260 : 150 }
@@ -337,8 +351,10 @@ export function snapPath(net, a, b, name, expectM, { allowPath = false, kinds = 
   const hb = same ? ha : nearestEdge(net, b, { name: nm, ...eo })
   if (!ha || !hb) return { coords: [a, b], len: distM(a, b), method: "straight", approx: true, note: "기점·종점 110m 안에 도로가 없어 직선", roadName: "" }
   if (same) {
-    const w = walkAround(net, ha, nm, Math.max(expectM || 60, 30))
-    return { coords: w.coords, len: w.len, method: "point", approx: true, note: `기점과 종점이 같은 주소라 ${ha.byName ? "노선명 도로" : "가장 가까운 도로"}를 따라 연장만큼 그림`, roadName: ha.edge.name }
+    let len = Math.max(expectM || 60, 30)
+    if (!ha.byName && unnamedSameCap != null) len = Math.min(len, unnamedSameCap)
+    const w = walkAround(net, ha, nm, len)
+    return { coords: w.coords, len: w.len, method: "point", approx: true, note: `기점과 종점이 같은 주소라 ${ha.byName ? "노선명 도로" : "가장 가까운 도로"}를 따라 ${ha.byName || unnamedSameCap == null ? "연장만큼" : `${len}m만`} 그림`, roadName: ha.edge.name }
   }
   // 후보: ① 노선명 가중 경로 ② 같은 출발·도착 조각에서 이름 무시 최단 ③ 가장 가까운 도로(이름 무시)에서 최단. 기대 물리 길이에 가장 가까운 것
   const cands = []

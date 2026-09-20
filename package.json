@@ -7,7 +7,9 @@
     "dev": "node scripts/dumping-data.mjs decrypt && next dev",
     "dumping:encrypt": "node scripts/dumping-data.mjs encrypt",
     "dumping:decrypt": "node scripts/dumping-data.mjs decrypt",
-    "snow:data": "node scripts/snow-data.mjs",
+    "snow:data": "node scripts/snow-data.mjs && node scripts/snow-verify.mjs",
+    "snow:verify": "node scripts/snow-verify.mjs",
+    "pretest": "node scripts/snow-verify.mjs",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
     "start": "next start"

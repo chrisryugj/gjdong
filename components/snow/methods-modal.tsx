@@ -122,7 +122,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
             서울시 자치구별 도로열선(2026-05-31) 광진 {data.heat.length}행을 정본으로 씁니다. 구 공개 파일(2025-01-31) {data.meta.heatJoin.guRows}행과 시점·종점 지번으로 조인해 {data.meta.heatJoin.guMatched}행에 노선명·차로수를 보충했습니다. 구 파일에서 조인되지 않은 행은 {data.meta.heatJoin.guUnmatched.join("·") || "없음"}번(서울 파일이 같은 위치 두 행을 한 행으로 합친 것)입니다.
           </Block>
           <Block t="도로 선형(스냅)">
-            {snap.rule}. 열선 {data.heat.length}구간 결과: 노선명 도로 {snap.heat.named ?? 0} · 다른 도로 {snap.heat.network ?? 0} · 한 점 연장 {snap.heat.point ?? 0} · 직선 {snap.heat.straight ?? 0}. 근사(approx) 표기 {snap.heatApprox}구간. 물리 길이는 1차로 기준 연장을 차로수로 나눈 값입니다(2차로 278m 구간의 도로 경로 163m 실측).
+            {snap.rule}. 열선 {data.heat.length}구간 결과: 노선명 도로 {snap.heat.named ?? 0} · 다른 도로 {snap.heat.network ?? 0} · 한 점 연장 {snap.heat.point ?? 0} · 직선 {snap.heat.straight ?? 0}. 근사(approx) 표기 {snap.heatApprox}구간. 물리 길이는 1차로 기준 연장을 차로수로 나눈 값입니다(2차로 278m 구간의 도로 경로 163m 실측). 도로망은 타일 경계에서 끊긴 조각을 같은 이름·종류의 끝점끼리 45m 안이면 이어 붙였습니다(봉합 전에는 한강 남쪽 도로가 섬이 되어 결빙구간이 강을 가로지르는 직선으로 그려졌습니다). 직선으로 둔 열선은 지도에 없는 보행로(동의초 통학로 보도열선 등)입니다. 취약구간 중 좌표가 한 점뿐이고 노선명 도로에 붙지 않는 행은 가장 가까운 도로에 60m만 표시합니다(능동로 120). 모든 선형은 물 위·구 밖·우회 검사를 통과합니다(scripts/snow-verify.mjs).
           </Block>
           <Block t="공백 판정 거리">
             취약구간(행안부 적설취약구간 {data.weak.length}·상습결빙구간 {data.ice.length})마다 도로 스냅 선형 사이 최근접 거리를 잽니다. {data.gaps.heatNearM}m 안에 열선이 있으면 열선 있음, {data.gaps.materialNearM}m 안에 제설함·염화칼슘함·모래주머니가 있으면 자재 있음, 둘 다 없으면 공백입니다. 초등학교는 {data.gaps.schoolNearM}m입니다. 거리 기준은 이 화면의 가정이고 구 지침이 아닙니다.
@@ -131,7 +131,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
             {sl.rule}. 결과 {sl.count}구간 {sl.km}km. 후보 {sl.count + sl.dropped}구간 중 {sl.dropped}구간을 고가·제방 인접 오탐으로 제외했습니다. 행안부 취약구간 {data.weak.length}곳 중 {sl.weakOnSlope}곳이 추정 구간 40m 안에 있습니다. 짧은 취약구간(20~50m)은 100m 창에 잡히지 않습니다.
           </Block>
           <Block t="상습결빙구간 좌표">
-            행안부 파일의 기점·종점 두 점만 씁니다. 총길이(km)와 방위각은 두 점과 맞지 않고(1.4km인데 두 점 거리 307m, 방위각이 정반대인 행) 도로명도 지도와 다릅니다(동부간선도로 좌표가 강변북로 램프 위). 자동차전용도로 램프는 도로망이 끊겨 {snap.ice.straight ?? 0}곳을 직선으로 뒀습니다.
+            행안부 파일의 기점·종점 두 점만 씁니다. 총길이(km)와 방위각은 두 점과 맞지 않고(1.4km인데 두 점 거리 307m, 방위각이 정반대인 행) 도로명도 지도와 다릅니다(동부간선도로 좌표가 강변북로 램프 위). 자동차전용도로 램프 위 좌표는 간선 체인을 두 점 사이에서 잘라 그리고({snap.ice.trunk ?? 0}곳), 그래도 선형을 확정할 수 없는 {snap.ice.points ?? 0}곳(동부간선도로)은 선을 그리지 않고 기점·종점만 빈 원으로 표시합니다.
           </Block>
           <Block t="지오코딩과 동 기준점">
             {data.meta.geocode.rule}. 열선 기점·종점 지오코딩 실패 {data.meta.geocode.heatGeoFail}건, 모래주머니 동주민센터 대체 {data.meta.geocode.sandApprox}지점, 제설함 구 경계선 위 동 미판정 {data.meta.saltNoDong}개소. 동별 기둥·라벨은 동주민센터 위치입니다.

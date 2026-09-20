@@ -19,11 +19,15 @@ const RISK_ROWS: { id: LayerId; label: string; note: string; swatch: "line" | "d
   { id: "slope", label: RISK.slope.label, note: "지형 추정", swatch: "dot" },
   { id: "school", label: RISK.school.label, note: "21교", swatch: "ring" },
 ]
+// 행별 색: 취약구간·결빙구간 진홍, 급경사 추정 보라(추정치), 학교 잉크. 값은 lib/snow/labels RISK가 정본
+const rowColor = (id: LayerId, dark: boolean) => {
+  if (id === "slope") return dark ? RISK.slope.color : RISK.slope.colorLight
+  if (id === "school") return dark ? "#ece7dc" : "#14201c"
+  return dark ? RISK.weak.color : RISK.weak.colorLight
+}
 
 export function LayerPanel({ view, onChange, dark, counts }: { view: MapView; onChange: (v: MapView) => void; dark: boolean; counts?: Partial<Record<LayerId, string>> }) {
   const toggle = (id: LayerId) => onChange({ ...view, layers: view.layers.includes(id) ? view.layers.filter((x) => x !== id) : [...view.layers, id] })
-  const risk = dark ? RISK.weak.color : RISK.weak.colorLight
-  const ink = dark ? "#ece7dc" : "#14201c"
   return (
     <div className="p-1.5">
       <div className="dump-kicker px-1.5 pb-1 text-[10px] text-[var(--cp-text-dim)]">취약 층</div>
@@ -33,7 +37,7 @@ export function LayerPanel({ view, onChange, dark, counts }: { view: MapView; on
           return (
             <li key={r.id}>
               <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)]"}`}>
-                <Swatch kind={r.swatch} color={r.id === "school" ? ink : risk} on={on} />
+                <Swatch kind={r.swatch} color={rowColor(r.id, dark)} on={on} />
                 <span className="flex-1">{r.label}</span>
                 <span className="text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? r.note}</span>
               </button>
@@ -59,7 +63,8 @@ export function LayerPanel({ view, onChange, dark, counts }: { view: MapView; on
       </ul>
       <button onClick={() => onChange({ ...view, tilt: !view.tilt })} aria-pressed={view.tilt} className={`mt-2 flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${view.tilt ? "text-(--dump-accent)" : "text-[var(--cp-text-muted)]"}`}>
         <Ico name="tilt" size={14} />
-        입체 보기
+        <span className="flex-1">입체 보기</span>
+        <span className="text-[12px] text-[var(--cp-text-faint)]">{view.tilt ? "핀 3D" : "핀 평면"}</span>
       </button>
     </div>
   )
@@ -79,14 +84,16 @@ function Swatch({ kind, color, on }: { kind: "line" | "dash" | "dot" | "ring" | 
 
 export function Legend({ dark, stageLabel, stageNote }: { dark: boolean; stageLabel: string; stageNote: string | null }) {
   const risk = dark ? RISK.weak.color : RISK.weak.colorLight
+  const slope = dark ? RISK.slope.color : RISK.slope.colorLight
   const heat = dark ? RESOURCES[0].color : RESOURCES[0].colorLight
   return (
     <div className="px-3 py-2 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
       <div className="dump-kicker mb-1 text-[10px]">범례</div>
       <ul className="space-y-[3px]">
-        <li className="flex items-center gap-2"><Swatch kind="glow" color={heat} on /> 열선(흐름 = 발열)</li>
+        <li className="flex items-center gap-2"><Swatch kind="glow" color={heat} on /> 열선(흐름 = 발열) · <Swatch kind="fill" color={heat} on /> 위치(축소 시)</li>
         <li className="flex items-center gap-2"><Swatch kind="line" color={risk} on /> 취약구간 · 진하면 열선 없음</li>
-        <li className="flex items-center gap-2"><Swatch kind="dot" color={risk} on /> 급경사 추정</li>
+        <li className="flex items-center gap-2"><Swatch kind="dash" color={risk} on /> 결빙구간 · 빈 원은 선형 미확인</li>
+        <li className="flex items-center gap-2"><Swatch kind="dot" color={slope} on /> 급경사 추정 · 흐리면 열선 있음</li>
         <li className="flex items-center gap-2"><Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on /> 제설함 · <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on /> 염화칼슘함</li>
         <li className="flex items-center gap-2"><Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on /> 모래주머니 · <Swatch kind="ring" color={dark ? "#ece7dc" : "#14201c"} on /> 초등학교</li>
       </ul>

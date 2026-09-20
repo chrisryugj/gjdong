@@ -5,8 +5,10 @@ import type { OntoGraph, SnowForecast, SnowMapData } from "@/lib/snow/types"
 import { fmtHM, ordinanceDeadline, STAGES, stageForSnow, type StageDef } from "@/lib/snow/stage"
 import { fmt } from "@/lib/snow/facts"
 import { SectionHead } from "@/components/dumping/section-head"
+import { StatBand, Table } from "./ui"
 
-// 대응 단계 탭. 01 예보·특보로 서울시 단계 판정(대책기간 밖이면 시나리오 기본) 02 조례 제5조 시한 03 동원 자원(위치 공개 4종 / 규모만 공개)
+// 대응 단계 탭. 01 예보·특보로 서울시 단계 판정(대책기간 밖이면 시나리오 기본) 02 이 단계가 동원하는 자원(표) 03 조례 제5조 시한
+// 3라운드(보고받는 사람 관점): 단계 다음에 바로 "무엇을 동원하나"가 오게 순서를 바꿨다(시한은 건축물관리자 몫이라 셋째). 단계 5칸은 상자 대신 밑줄 탭
 // 단계 › 동원 자원은 graph.json의 mobilizes 엣지가 정본. 자원 수치는 map.json(facts)
 // 문장 규칙: 합니다체, 한 문장 사실 하나, 화살표·괄호 남발 금지
 
@@ -23,6 +25,13 @@ interface Props {
 }
 
 const WMO: Record<number, string> = { 0: "맑음", 1: "대체로 맑음", 2: "구름 조금", 3: "흐림", 45: "안개", 48: "안개", 51: "이슬비", 53: "이슬비", 55: "이슬비", 61: "비", 63: "비", 65: "강한 비", 68: "비 또는 눈", 71: "눈", 73: "눈", 75: "강한 눈", 77: "싸락눈", 80: "소나기", 81: "소나기", 82: "강한 소나기", 85: "소낙눈", 86: "강한 소낙눈", 95: "뇌우" }
+const MAPPED = ["lev-heat", "lev-salt", "lev-cacl", "lev-sand"]
+const LEVER_COLS = [
+  { k: "번호", w: "24px", dim: true },
+  { k: "자원", w: "minmax(0,1fr)" },
+  { k: "수량", w: "minmax(0,1.1fr)", align: "right" as const },
+  { k: "출처", w: "56px", dim: true },
+]
 
 export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stage, useForecast, onUseForecast, inSeason }: Props) {
   const [endAt, setEndAt] = useState(() => {
@@ -44,8 +53,7 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
   const liveStage = fc ? stageForSnow(fc.snow24, warn) : null
   const deadline = ordinanceDeadline(endAt, dailyCm)
   const endStr = `${endAt.getFullYear()}-${String(endAt.getMonth() + 1).padStart(2, "0")}-${String(endAt.getDate()).padStart(2, "0")}T${String(endAt.getHours()).padStart(2, "0")}:${String(endAt.getMinutes()).padStart(2, "0")}`
-  const mapped = mobilized.filter((n) => ["lev-heat", "lev-salt", "lev-cacl", "lev-sand"].includes(n.id))
-  const scaled = mobilized.filter((n) => !["lev-heat", "lev-salt", "lev-cacl", "lev-sand"].includes(n.id))
+  const rows = [...mobilized.filter((n) => MAPPED.includes(n.id)), ...mobilized.filter((n) => !MAPPED.includes(n.id))].map((n, i) => ({ n, i: i + 1, mapped: MAPPED.includes(n.id) }))
   const headline = useForecast && fc ? (fc.snow24 > 0 || warn !== "none" ? `예보 적설 ${fc.snow24}cm${warn !== "none" ? `와 ${warn === "warning" ? "대설경보" : "대설주의보"}` : ""}로 서울시 기준 ${stage.label}입니다.` : "예보 적설이 없어 평시입니다.") : `시나리오: 적설 ${simCm}cm 예보라면 서울시 기준 ${stage.label}입니다.`
 
   return (
@@ -54,6 +62,16 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
         {stage.id === "calm" ? "열선과 살포기는 기온 조건으로 자동 가동합니다." : `자원 ${mobilized.length}종을 동원합니다. ${stage.gist}`}
       </p>
+      {inSeason && fc && (
+        <StatBand
+          items={[
+            { k: "현재 기온", v: fc.now ? `${fc.now.temp.toFixed(1)}°` : "없음", u: fc.now ? (WMO[fc.now.code] ?? "") : "실황" },
+            { k: "24시간 적설", v: `${fc.snow24}`, u: "cm", accent: fc.snow24 > 0 },
+            { k: "특보", v: warn === "warning" ? "경보" : warn === "advisory" ? "주의보" : "없음", u: fc.warning ? "대설" : "미수신", accent: warn !== "none" },
+            { k: "판정 단계", v: liveStage ? liveStage.label : "", u: "서울시 기준" },
+          ]}
+        />
+      )}
 
       <SectionHead n="01" sub={fc ? `${fc.model} · ${new Date(fc.fetched).toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 갱신 · 광진구청 격자` : forecast === "error" ? "예보를 받지 못했습니다" : "예보를 불러오는 중"}>
         {inSeason ? "지금 예보와 특보" : "시나리오"}
@@ -69,14 +87,7 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
           )}
         </p>
       )}
-      {inSeason && fc && (
-        <div className="grid grid-cols-3 gap-2">
-          <Tile k="현재 기온" v={fc.now ? `${fc.now.temp.toFixed(1)}°` : "실황 없음"} s={fc.now ? (WMO[fc.now.code] ?? "") : ""} />
-          <Tile k="24시간 적설" v={`${fc.snow24}cm`} s={liveStage ? liveStage.label : ""} accent={fc.snow24 > 0} />
-          <Tile k="특보" v={warn === "warning" ? "대설경보" : warn === "advisory" ? "대설주의보" : "없음"} s={fc.warning ? "기상청 서울" : "미수신"} accent={warn !== "none"} />
-        </div>
-      )}
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-1 flex items-center gap-3">
         <input type="range" min={0} max={15} step={0.5} value={simCm} disabled={useForecast} onChange={(e) => onSimCm(Number(e.target.value))} aria-label="예보 적설(cm)" className="dump-range flex-1" />
         <span className="w-16 text-right font-mono text-[17px] font-semibold text-[var(--cp-text-strong)]">{simCm}cm</span>
       </div>
@@ -86,13 +97,14 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
           예보와 특보로 단계를 정합니다
         </label>
       )}
-      <ol className="mt-3 grid grid-cols-5 gap-1">
+      {/* 단계 5칸: 밑줄 탭. 현재 단계만 액센트 밑줄, 지난 단계는 진한 글자, 앞 단계는 흐림 */}
+      <ol className="mt-3 grid grid-cols-5 border-b border-[var(--cp-border)]" role="list">
         {STAGES.map((s) => {
           const on = s.order <= stage.order
           const cur = s.id === stage.id
           return (
-            <li key={s.id} className={`rounded-lg border px-1.5 py-1.5 text-center ${cur ? "border-(--dump-accent) bg-(--dump-accent)/10" : on ? "border-[var(--cp-border-strong)]" : "border-[var(--cp-border)] opacity-55"}`}>
-              <div className={`text-[13px] font-bold ${cur ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}>{s.label}</div>
+            <li key={s.id} className={`-mb-px px-1 pb-2 text-center ${cur ? "border-b-2 border-(--dump-accent)" : "border-b-2 border-transparent"} ${on ? "" : "opacity-45"}`} aria-current={cur ? "step" : undefined}>
+              <div className={`text-[13.5px] font-bold ${cur ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}>{s.label}</div>
               <div className="mt-0.5 text-[12px] leading-tight text-[var(--cp-text-dim)]">{s.cond.replace("적설 ", "").replace(" 예보", "").replace(" 또는 대설주의보", "").replace(" 또는 대설경보", "")}</div>
             </li>
           )
@@ -100,7 +112,27 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       </ol>
       <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">2단계는 대설주의보, 3단계는 대설경보로도 발령합니다. 출처 서울시 2026-02-01.</p>
 
-      <SectionHead n="02" sub="광진구 건축물관리자의 제설·제빙에 관한 조례 제5조. 주간·야간 시각은 조례에 없어 07시부터 19시까지를 주간으로 가정합니다">
+      <SectionHead n="02" sub={`${stage.label}에서 동원하는 자원 ${mobilized.length}종. 위치가 공개된 4종은 지도에 있고 나머지는 보도자료(${data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "").replace(/\(.*\)/, "") ?? ""}) 규모만 있습니다`}>
+        동원 자원
+      </SectionHead>
+      {rows.length ? (
+        <Table
+          cols={LEVER_COLS}
+          rows={rows}
+          rowKey={(r) => r.n.id}
+          cell={(r, k) => {
+            if (k === "번호") return String(r.i).padStart(2, "0")
+            if (k === "자원") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.n.label}</span>
+            if (k === "수량") return leverCount(r.n.id, data)
+            return r.mapped ? "지도" : "보도자료"
+          }}
+        />
+      ) : (
+        <p className="text-[13px] text-[var(--cp-text-dim)]">이 단계에서 동원하는 자원이 없습니다</p>
+      )}
+      {idle.length > 0 && <p className="mt-2 text-[13px] text-[var(--cp-text-faint)]">대기: {idle.map((n) => n.label).join(" · ")}</p>}
+
+      <SectionHead n="03" sub="광진구 건축물관리자의 제설·제빙에 관한 조례 제5조. 주간·야간 시각은 조례에 없어 07시부터 19시까지를 주간으로 가정합니다">
         조례 시한
       </SectionHead>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-[var(--cp-text-muted)]">
@@ -127,46 +159,6 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
         눈이 {fmtHM(endAt)}에 그치면 건축물관리자는 <b className="text-(--dump-accent)">{fmtHM(deadline.due)}</b>까지 보도와 이면도로를 치워야 합니다.
       </p>
       <p className="text-[13px] text-[var(--cp-text-dim)]">{deadline.text}. 조례 제5조 제1항.</p>
-
-      <SectionHead n="03" sub={`${stage.label}에서 동원하는 자원 ${mobilized.length}종`}>
-        동원 자원
-      </SectionHead>
-      <div className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">위치 공개 자원 · 지도에 표시</div>
-      <ul className="mt-1 space-y-1.5">
-        {mapped.map((n, i) => (
-          <li key={n.id} className="flex items-baseline gap-2">
-            <span className="dump-idx w-5 shrink-0 text-[12px] text-(--dump-accent)">{String(i + 1).padStart(2, "0")}</span>
-            <span className="text-[14.5px] font-semibold text-[var(--cp-text-strong)]">{n.label}</span>
-            <span className="text-[12.5px] text-[var(--cp-text-dim)]">{leverCount(n.id, data)}</span>
-          </li>
-        ))}
-        {mapped.length === 0 && <li className="text-[13px] text-[var(--cp-text-dim)]">이 단계에서 지도 자원 동원 없음</li>}
-      </ul>
-      {scaled.length > 0 && (
-        <>
-          <div className="dump-kicker mt-3 text-[10px] text-[var(--cp-text-dim)]">규모만 공개 · 보도자료 {data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "") ?? ""}</div>
-          <ul className="mt-1 space-y-1.5">
-            {scaled.map((n, i) => (
-              <li key={n.id} className="flex items-baseline gap-2">
-                <span className="dump-idx w-5 shrink-0 text-[12px] text-[var(--cp-text-faint)]">{String(mapped.length + i + 1).padStart(2, "0")}</span>
-                <span className="text-[14.5px] font-semibold text-[var(--cp-text-strong)]">{n.label}</span>
-                <span className="text-[12.5px] text-[var(--cp-text-dim)]">{leverCount(n.id, data)}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {idle.length > 0 && <p className="mt-2 text-[13px] text-[var(--cp-text-faint)]">대기: {idle.map((n) => n.label).join(" · ")}</p>}
-    </div>
-  )
-}
-
-function Tile({ k, v, s, accent = false }: { k: string; v: string; s: string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl border border-[var(--cp-border)] px-3 py-2.5">
-      <div className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">{k}</div>
-      <div className={`mt-0.5 font-mono text-[22px] font-semibold leading-none ${accent ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}>{v}</div>
-      <div className="mt-1 text-[12px] text-[var(--cp-text-dim)]">{s}</div>
     </div>
   )
 }
@@ -185,13 +177,13 @@ function leverCount(id: string, data: SnowMapData | null): string {
     case "lev-sprayer":
       return `${data.ops.sprayers}대`
     case "lev-fleet":
-      return `유니목 ${data.ops.unimog}대 · 15톤 덤프 ${data.ops.dump15t}대`
+      return `유니목 ${data.ops.unimog} · 덤프 ${data.ops.dump15t}대`
     case "lev-staff":
-      return `${fmt(data.ops.staff)}명 · 실무반 ${data.ops.squads}개`
+      return `${fmt(data.ops.staff)}명 · ${data.ops.squads}개 반`
     case "lev-owner":
-      return "조례 제4조 범위"
+      return "조례 제4조"
     case "lev-civic":
-      return "자율방재단·의용소방대"
+      return "방재단·의용소방대"
     default:
       return ""
   }

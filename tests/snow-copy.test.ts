@@ -5,7 +5,7 @@ import path from "node:path"
 import graphJson from "../data/snow/graph.json" with { type: "json" }
 import type { OntoGraph } from "../lib/snow/types"
 import { runCompetencyQuestions } from "../lib/snow/queries"
-import { REL_KO, TYPE_KO } from "../lib/snow/labels"
+import { HEAT_STYLE, REL_KO, RESOURCES, RISK, TYPE_KO } from "../lib/snow/labels"
 
 // /snow 카피 게이트(deck-copy-rules 정본 적용). 화면 문장·그래프 라벨·역량 질문·툴팁에서 비유 동사·줄표·화살표·AI 관용어를 0으로 박는다.
 // 1라운드 위반 실측: 겨냥(10곳)·받친다·말한다·"표로는 못 던지는 질문"·"커버리지의 바닥"·"X가 아니라 Y"·반말 혼재·화살표 남발
@@ -21,6 +21,7 @@ const FILES = [
   "components/snow/map-controls.tsx",
   "components/snow/map-geo.ts",
   "components/snow/snow-dashboard.tsx",
+  "components/snow/ui.tsx",
   "lib/snow/queries.ts",
   "lib/snow/facts.ts",
   "lib/snow/labels.ts",
@@ -138,4 +139,47 @@ test("글자 크기: 화면 컴포넌트에 12px 미만 본문 클래스 없음(
     }
   }
   assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
+// 3라운드: 정보 밀도(dumping 정책 탭 규격). 타일·모달 밖에서 둥근 테두리 상자를 두르지 않는다. 패널 파일당 `rounded-xl border` 2개 상한
+test("패널에 둥근 테두리 상자(rounded-xl border) 탭당 2개 이하", () => {
+  const PANELS = ["components/snow/gap-panel.tsx", "components/snow/stage-panel.tsx", "components/snow/resource-panel.tsx", "components/snow/onto-panel.tsx", "components/snow/law-panel.tsx", "components/snow/ui.tsx"]
+  const hits: string[] = []
+  for (const f of PANELS) {
+    const n = (stripComments(read(f)).match(/rounded-(?:xl|lg|2xl) border(?![-a-z])/g) ?? []).length
+    if (n > 2) hits.push(`${f} · ${n}개`)
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
+// 3라운드: 색 문법. 열선(노랑빛 호박)과 취약·결빙(진홍)이 같은 난색으로 읽히지 않게 hue 차 40° 이상. 급경사 추정(보라)은 둘 모두와 40° 이상
+function hue(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  if (d === 0) return 0
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h *= 60
+  return h < 0 ? h + 360 : h
+}
+const hueDiff = (a: string, b: string) => {
+  const d = Math.abs(hue(a) - hue(b)) % 360
+  return d > 180 ? 360 - d : d
+}
+test("열선·취약·급경사 색 hue 차 40° 이상(다크·라이트)", () => {
+  const heat = RESOURCES[0]
+  for (const [heatC, riskC, slopeC] of [
+    [heat.color, RISK.weak.color, RISK.slope.color],
+    [heat.colorLight, RISK.weak.colorLight, RISK.slope.colorLight],
+  ]) {
+    assert.ok(hueDiff(heatC, riskC) >= 40, `열선 ${heatC} vs 취약 ${riskC} hue 차 ${hueDiff(heatC, riskC).toFixed(1)}°`)
+    assert.ok(hueDiff(slopeC, riskC) >= 40, `급경사 ${slopeC} vs 취약 ${riskC} hue 차 ${hueDiff(slopeC, riskC).toFixed(1)}°`)
+    assert.ok(hueDiff(slopeC, heatC) >= 40, `급경사 ${slopeC} vs 열선 ${heatC} hue 차 ${hueDiff(slopeC, heatC).toFixed(1)}°`)
+  }
+  assert.strictEqual(RISK.weak.color, RISK.ice.color, "취약구간·결빙구간은 같은 색(선 모양으로 구분)")
+  assert.ok(hueDiff(HEAT_STYLE.glow.dark, heat.color) < 15, "글로우는 열선과 같은 색상")
 })

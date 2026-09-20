@@ -109,18 +109,29 @@ export const PROP_KO: Record<string, string> = {
 }
 export const propLabel = (k: string) => PROP_KO[k] ?? k
 
-// 자원 4종(지도 레이어·범례·동별 표의 정본 순서와 색). 지도 문법: 밤 지도 위에서 열선만 난색(주황), 자재는 차가운 색 2단, 모래주머니는 모래색 테두리.
+// 자원 4종(지도 레이어·범례·동별 표의 정본 순서와 색). 지도 문법: 밤 지도 위에서 열선만 난색(노랑빛 호박), 자재는 차가운 색 2단, 모래주머니는 모래색 테두리.
 // color=다크(기본) · colorLight=라이트(인쇄용 보조)
+// 3라운드(2026-09-20): 열선 주황 #f0a04b와 취약 벽돌 #e0705a가 다크에서 같은 난색이라 구분이 안 됐다(사용자 지적) → 열선은 노랑 쪽(#ffb703), 취약·결빙은 진홍(#e5484d)으로 갈라 hue 차 40° 이상. tests/snow-copy.test.ts가 단언한다
 export const RESOURCES = [
-  { id: "heat", label: "도로열선", unit: "구간", color: "#f0a04b", colorLight: "#c2410c" },
+  { id: "heat", label: "도로열선", unit: "구간", color: "#ffb703", colorLight: "#c98a00" },
   { id: "salt", label: "제설함", unit: "개소", color: "#8fa3c0", colorLight: "#3f4f66" },
   { id: "cacl", label: "염화칼슘보관함", unit: "개소", color: "#7cc0e8", colorLight: "#2a7fb0" },
   { id: "sand", label: "모래주머니", unit: "지점", color: "#c9a961", colorLight: "#9a6f1f" },
 ] as const
-// 취약 층(자원이 아니라 위험). 벽돌색 하나로 통일하고 선 모양으로 구분한다
+// 열선 보조색: 글로우(선 바깥 번짐)·흐름 심선(밝은 점선). 본선은 RESOURCES.heat
+export const HEAT_STYLE = {
+  glow: { dark: "#ffd166", light: "#e0a92a" },
+  flow: { dark: "#fff4d6", light: "#fff7e0" },
+} as const
+// 취약 층(자원이 아니라 위험). 취약구간·결빙구간은 진홍 하나로 통일하고 선 모양으로 구분한다(실선·점선). 급경사 추정은 별도 보라 점선(추정치라 위험 층과 색을 나눈다).
+// casing=선 바깥 어두운 케이싱(도로 위에서 뜨게), badge=번호 배지 후광
 export const RISK = {
-  weak: { label: "적설취약구간", color: "#e0705a", colorLight: "#a8322a" },
-  ice: { label: "상습결빙구간", color: "#e0705a", colorLight: "#a8322a" },
-  slope: { label: "급경사 추정", color: "#e0705a", colorLight: "#a8322a" },
+  weak: { label: "적설취약구간", color: "#e5484d", colorLight: "#b01e33" },
+  ice: { label: "상습결빙구간", color: "#e5484d", colorLight: "#b01e33" },
+  slope: { label: "경사 추정(지형)", color: "#b48ee8", colorLight: "#6d4fb3" },
   school: { label: "초등학교", color: "#ece7dc", colorLight: "#14201c" },
+} as const
+export const RISK_STYLE = {
+  casing: { dark: "#0b1216", light: "#fbf9f3" },
+  badge: { dark: "#9f1f24", light: "#7f1a1e" },
 } as const

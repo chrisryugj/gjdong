@@ -389,9 +389,10 @@ async function main() {
     const km = kmRaw > 5 ? kmRaw / 1000 : kmRaw // 76·30처럼 m 단위가 섞였다
     const a = [+r["시점 위도"], +r["시점 경도"]]
     const b = [+r["종점 위도"], +r["종점 경도"]]
-    // 시점≈종점인 행은 총도로길이가 관리 구간 전체 길이라 그대로 그리면 과장된다(아차산로 22번이 2km. 2026-09-20 실측) → 300m 상한, 없으면 60m
+    // 시점≈종점인 행은 총도로길이가 관리 구간 전체 길이라 그대로 그리면 과장된다(아차산로 22번이 2km. 2026-09-20 실측) → 300m 상한, 없으면 60m.
+    // 노선명 도로에 못 붙는 한 점(능동로 120: 좌표가 건국대 안, 능동로는 400m 밖)은 60m만(3라운드. 이름 없는 길 300m로 그려졌던 실사고)
     const expectM = Math.min(300, km ? km * 1000 : 60)
-    weak.push(segRecord("weak", { i: ++wi, name, road: routeRoadName(name.replace(/\(.*$/, "").replace(/,\d+길/, "")), type: r["도로취약유형명"], cls: r["도로분류명"], km, agency: r["관리청명"] }, a, b, routeRoadName(name.replace(/\(.*$/, "")), expectM))
+    weak.push(segRecord("weak", { i: ++wi, name, road: routeRoadName(name.replace(/\(.*$/, "").replace(/,\d+길/, "")), type: r["도로취약유형명"], cls: r["도로분류명"], km, agency: r["관리청명"] }, a, b, routeRoadName(name.replace(/\(.*$/, "")), expectM, { unnamedSameCap: 60 }))
   }
   const ice = []
   for (const r of csv(FILES.ice)) {

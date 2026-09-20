@@ -2,6 +2,7 @@
 
 import type { SnowMapData } from "@/lib/snow/types"
 import { SectionHead } from "@/components/dumping/section-head"
+import { Table } from "./ui"
 
 // 법령·책임 탭. 01 자연재해대책법 제27조 02 광진구 조례(제3~9조 요지) 03 서울시 대응 단계 기준 04 대책기간·동원 규모(보도자료). 원문은 법제처에서 2026-09-20 조회
 // 헤드라인은 조문에 있는 사실만: 보도는 접한 구간 전부, 이면도로는 대지경계 1m. 차도는 조례에 없다(구 제설대책기간 운영, 보도자료)
@@ -36,16 +37,27 @@ export default function LawPanel({ data }: Props) {
       <SectionHead n="02" sub="2020-10-28 제정·시행 · 소관 도로과 도로관리팀 · 법제처 자치법규 1540021">
         광진구 건축물관리자의 제설·제빙에 관한 조례
       </SectionHead>
-      <ul className="space-y-2">
-        {ORD.map((o) => (
-          <li key={o.a} className="flex gap-2.5 text-[14px] leading-snug">
-            <span className="w-14 shrink-0 font-mono text-[12.5px] text-(--dump-accent)">{o.a}</span>
-            <span>
-              <b className="text-[var(--cp-text-strong)]">{o.t}</b> <span className="text-[var(--cp-text-muted)]">{o.g}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <Table
+        cols={[
+          { k: "조", w: "48px", dim: true },
+          { k: "항목", w: "60px" },
+          { k: "요지", w: "minmax(0,1fr)", dim: true },
+        ]}
+        rows={ORD}
+        rowKey={(o) => o.a}
+        cell={(o, k) => (k === "조" ? <span className="font-mono text-[12.5px] text-(--dump-accent)">{o.a}</span> : k === "항목" ? <span className="font-semibold text-[var(--cp-text-strong)]">{o.t}</span> : <span title={o.g}>{o.g}</span>)}
+      />
+      <details className="mt-1.5">
+        <summary className="cursor-pointer text-[13px] text-(--dump-accent)">요지 전문</summary>
+        <ul className="mt-1 space-y-1.5 text-[13.5px] leading-snug text-[var(--cp-text-muted)]">
+          {ORD.map((o) => (
+            <li key={o.a} className="flex gap-2">
+              <span className="w-12 shrink-0 font-mono text-[12.5px] text-(--dump-accent)">{o.a}</span>
+              <span>{o.g}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
       <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">조례에 과태료 조항은 없습니다. 대응 단계 탭의 시한 계산은 제5조 제1항을 그대로 적용합니다.</p>
 
       <SectionHead n="03" sub="서울시 보도자료 2026-02-01(대설예비특보 2단계 발령). 자치구가 같은 기준을 따릅니다">

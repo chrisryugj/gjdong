@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next"
 import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google"
 import SnowClient from "@/components/snow/client"
-// /dumping과 같은 서체(결론 문장 고운바탕, 본문·숫자 IBM Plex Sans KR). 테마는 /snow만 다크 기본(겨울 밤 상황실): 저장된 선택이 없으면 dark, 스위치를 누르면 공용 키(dump-theme)에 저장
-const SNOW_THEME_INIT = `(function(){try{var t=localStorage.getItem("dump-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();`
+// /dumping과 같은 서체(결론 문장 고운바탕, 본문·숫자 IBM Plex Sans KR). 테마는 /snow만 다크 기본(겨울 밤 상황실): 저장된 선택이 없으면 dark.
+// 저장 키는 /snow 전용 snow-theme(3라운드. 공용 dump-theme를 읽으면 /dumping을 라이트로 쓴 브라우저에서 /snow까지 라이트로 떴다). 스위치가 data-theme을 바꾸면 snow-dashboard의 MutationObserver가 이 키에 저장
+const SNOW_THEME_INIT = `(function(){try{var t=localStorage.getItem("snow-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();`
 const batang = Gowun_Batang({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-batang", display: "swap", preload: false })
 const plex = IBM_Plex_Sans_KR({ subsets: ["latin"], weight: ["400", "600", "700"], variable: "--font-plex", display: "swap", preload: false })
 

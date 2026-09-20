@@ -5,8 +5,10 @@ import { RESOURCES } from "@/lib/snow/labels"
 import { fmt, heatByYear, seoulRank, totals } from "@/lib/snow/facts"
 import { COL_METRICS, type ColMetric, colValue } from "./map-geo"
 import { SectionHead } from "@/components/dumping/section-head"
+import { Table } from "./ui"
 
-// 자원 현황 탭. 01 자원 4종(열선은 구간, 자재는 개소. 단위가 달라 합계를 내지 않는다) 02 동별 배치(지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치) 03 서울 25개 구 열선 비교
+// 자원 현황 탭. 01 자원 4종 표(열선은 구간, 자재는 개소. 단위가 달라 합계를 내지 않는다. 행을 누르면 지도 기둥 지표) 02 동별 배치(지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치) 03 서울 25개 구 열선 비교
+// 3라운드: 4종 상자 → 표 4행(dumping 규격, 상자 0)
 // 문장 규칙: 합니다체, 한 문장 사실 하나
 
 interface Props {
@@ -42,23 +44,33 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
       <SectionHead n="01" sub={`공공데이터포털 광진구 3종과 서울시 열선 집계. 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`}>
         자원 4종
       </SectionHead>
-      <div className="grid grid-cols-2 gap-2">
-        {RESOURCES.map((r) => {
-          const v = r.id === "heat" ? `${t.heatSeg}구간` : r.id === "salt" ? `${t.salt}개소` : r.id === "cacl" ? `${t.cacl}개소` : `${t.sand}지점`
-          const s = r.id === "heat" ? `${fmt(t.heatM)}m(1차로 기준) · 서울시 집계 ${data.asof.heat.slice(0, 7)}` : r.id === "salt" ? "도로과 · 간선도로변" : r.id === "cacl" ? "동주민센터 · 이면도로" : `${fmt(t.sandBags)}포 · ${data.asof.sand.slice(0, 4)}년 기준`
-          const on = metric === r.id
-          return (
-            <button key={r.id} onClick={() => onColMetric(on ? null : r.id)} aria-pressed={on} className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${on ? "border-[var(--cp-border-active)] bg-[var(--cp-hover)]" : "border-[var(--cp-border)] hover:bg-[var(--cp-hover)]"}`}>
-              <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--cp-text-dim)]">
-                <i className={`h-2.5 w-2.5 ${r.id === "heat" ? "h-1 w-4 rounded-full" : "rounded-full"}`} style={r.id === "sand" ? { border: `2px solid ${color(r.id)}` } : { background: color(r.id) }} />
-                {r.label}
-              </div>
-              <div className="mt-0.5 font-mono text-[22px] font-semibold leading-none text-[var(--cp-text-strong)]">{v}</div>
-              <div className="mt-1 text-[12px] leading-snug text-[var(--cp-text-dim)]">{s}</div>
-            </button>
-          )
-        })}
-      </div>
+      <Table
+        cols={[
+          { k: "자원", w: "minmax(0,1fr)" },
+          { k: "수량", w: "68px", align: "right" },
+          { k: "관리·기준", w: "minmax(0,1.2fr)", dim: true },
+        ]}
+        rows={RESOURCES.map((r) => ({
+          id: r.id,
+          label: r.label,
+          v: r.id === "heat" ? `${t.heatSeg}구간` : r.id === "salt" ? `${t.salt}개소` : r.id === "cacl" ? `${t.cacl}개소` : `${t.sand}지점`,
+          s: r.id === "heat" ? `${fmt(t.heatM)}m · 서울시 ${data.asof.heat.slice(0, 7)}` : r.id === "salt" ? "도로과 · 간선도로변" : r.id === "cacl" ? "동주민센터 · 이면도로" : `${fmt(t.sandBags)}포 · ${data.asof.sand.slice(0, 4)}년`,
+        }))}
+        rowKey={(r) => r.id}
+        onRow={(r) => onColMetric(metric === r.id ? null : r.id)}
+        rowClass={(r) => (metric === r.id ? "bg-[var(--cp-hover2)]" : "")}
+        cell={(r, k) => {
+          if (k === "자원")
+            return (
+              <span className="flex items-center gap-1.5">
+                <i className={`shrink-0 ${r.id === "heat" ? "h-1 w-4 rounded-full" : "h-2.5 w-2.5 rounded-full"}`} style={r.id === "sand" ? { border: `2px solid ${color(r.id)}` } : { background: color(r.id) }} />
+                <span className={`font-semibold ${metric === r.id ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}>{r.label}</span>
+              </span>
+            )
+          if (k === "수량") return <span className="font-semibold text-[var(--cp-text-strong)]">{r.v}</span>
+          return r.s
+        }}
+      />
 
       <SectionHead n="02" sub="지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치에 섭니다. 동 이름을 누르면 지도가 그 동을 보여 줍니다">
         동별 배치

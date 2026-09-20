@@ -12,7 +12,7 @@ import ResourcePanel from "./resource-panel"
 import OntoPanel from "./onto-panel"
 import LawPanel from "./law-panel"
 import MethodsModal from "./methods-modal"
-import { boundsOf, type ColMetric, dongBounds, heatPaths } from "./map-geo"
+import { boundsOf, type ColMetric, dongBounds, heatPaths, segMid } from "./map-geo"
 import { ALL_LAYERS, DEFAULT_VIEW, LayerPanel, Legend, type MapView } from "./map-controls"
 import ThemeSwitch, { useTheme } from "@/components/dumping/theme"
 import LiquidGlass from "@/components/dumping/liquid-glass"
@@ -23,6 +23,7 @@ import { useSidebarWidth } from "@/components/dumping/use-sidebar-width"
 // 광진 제설 상황판(/snow). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
 // 탭: 공백(결론·발견) · 대응 단계(예보·특보 › 단계 › 시한 › 동원) · 자원 현황(4종·동별 기둥·서울 비교) · 근거 그래프 · 법령·책임
 // 다크(겨울 밤 상황실)가 기본. 라이트는 인쇄용 보조. 왼쪽 카드는 거의 불투명(.snow-page .lg-inner)
+// 3라운드(2026-09-20): 테마 저장 키 snow-theme(/dumping의 dump-theme와 분리. 그쪽을 라이트로 쓰면 여기까지 라이트로 뜨던 실사고), 자동 회전·초점 고리·시연 중 카드 접기·격상 진행바, 급경사 칩
 
 type Tab = "gap" | "stage" | "resources" | "onto" | "law"
 const TABS: { id: Tab; label: string }[] = [
@@ -84,6 +85,11 @@ export default function SnowDashboard() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [focusHeat, setFocusHeat] = useState<number[] | null>(null)
   const [focusLabel, setFocusLabel] = useState<string | null>(null) // 지도가 어디를 보고 있는지(구간·발견 카드 클릭 뒤) 지도 위 칩
+  const [focusPoint, setFocusPoint] = useState<[number, number] | null>(null) // 땅 위 맥동 고리
+  const [focusDetail, setFocusDetail] = useState<string | null>(null) // 칩 둘째 줄(구간 요약. 목록에서 눈을 떼도 맥락이 남게)
+  const [orbit, setOrbit] = useState(false) // 자동 회전(시연 장면 1·4). 지도를 만지면 꺼진다
+  const [demoProgress, setDemoProgress] = useState<{ key: number; ms: number; at: number } | null>(null) // 장면 3 자동 격상 진행선
+  const [remain, setRemain] = useState(0)
   const [cameraCue, setCameraCue] = useState<CameraCue | null>(null)
   const [resetSeq, setResetSeq] = useState(0)
   const [mapCollapsed, setMapCollapsed] = useState(false)
@@ -104,6 +110,27 @@ export default function SnowDashboard() {
     const t = window.setTimeout(() => setSettled(true), 1500)
     return () => window.clearTimeout(t)
   }, [])
+  // 테마 선택을 /snow 전용 키에 저장(ThemeSwitch는 dump-theme에 쓴다. 수정 0). 첫 페인트는 app/snow/page.tsx 인라인 스크립트가 같은 키를 읽는다
+  useEffect(() => {
+    const save = () => {
+      try {
+        localStorage.setItem("snow-theme", document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark")
+      } catch {
+        // 사생활 모드
+      }
+    }
+    const mo = new MutationObserver(save)
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
+    return () => mo.disconnect()
+  }, [])
+  // 격상 진행선 남은 시간
+  useEffect(() => {
+    if (!demoProgress) return
+    const tick = () => setRemain(Math.max(0, demoProgress.ms - (performance.now() - demoProgress.at)))
+    tick()
+    const id = window.setInterval(tick, 200)
+    return () => window.clearInterval(id)
+  }, [demoProgress])
 
   useEffect(() => {
     let alive = true
@@ -139,27 +166,47 @@ export default function SnowDashboard() {
     setSelectedNode(null)
     setFocusHeat(null)
     setFocusLabel(null)
+    setFocusDetail(null)
+    setFocusPoint(null)
+    setOrbit(false)
     setLayersOpen(false)
     setResetSeq((v) => v + 1)
   }
+  // 탭을 바꾸면 초점·카메라를 구 전체로(냉독: 확대된 채 탭이 바뀌어 "지도가 그대로"였다)
   const switchTab = (t: Tab) => {
+    if (t === tab) return
     setTab(t)
     setLayersOpen(false)
     if (t !== "resources") setColMetric(null)
     if (t === "resources" && colMetric == null) setColMetric("materials")
+    setFocusHeat(null)
+    setFocusLabel(null)
+    setFocusDetail(null)
+    setFocusPoint(null)
+    setSelectedDong(null)
+    setOrbit(false)
+    setResetSeq((v) => v + 1)
   }
   const onFinding = (f: Finding["focus"] | null, label?: string) => {
     if (!data || !f) return
     setFocusHeat(f.heat ?? null)
     setFocusLabel(label ?? null)
+    setFocusDetail(null)
+    setOrbit(false)
     if (f.layer) setView((v) => ({ ...v, layers: v.layers.includes(f.layer!) ? v.layers : [...v.layers, f.layer!] }))
     if (f.dong) {
       setSelectedDong(f.dong)
+      const d = data.dongs.find((x) => x.d === f.dong)
+      setFocusPoint(d ? d.center : null)
     } else {
+      setFocusPoint(null)
       setSelectedDong(null)
       if (f.layer === "weak") {
         const b = boundsOf(data.weak.filter((w) => !w.heatCovered).map((w) => w.path))
         if (b) cue({ bounds: b, maxZoom: 15.2 })
+      } else if (f.layer === "ice") {
+        const b = boundsOf(data.ice.filter((s) => !s.heatCovered).map((s) => (s.method === "points" ? [s.a, s.b] : s.path)))
+        if (b) cue({ bounds: b, maxZoom: 14.6 })
       } else if (f.layer === "school") {
         const b = boundsOf(data.schools.filter((s) => !s.heatNear.length).map((s) => [[s.lat, s.lng]] as [number, number][]))
         if (b) cue({ bounds: b, maxZoom: 14.6 })
@@ -170,9 +217,12 @@ export default function SnowDashboard() {
     }
     setMapCollapsed(false)
   }
-  const onSegment = (heatIds: number[] | null, layer: "weak" | "ice", pathIdx?: [number, number][], label?: string) => {
+  const onSegment = (heatIds: number[] | null, layer: "weak" | "ice", pathIdx?: [number, number][], label?: string, detail?: string) => {
     setFocusHeat(heatIds && heatIds.length ? heatIds : null)
     setFocusLabel(label ?? null)
+    setFocusDetail(detail ?? null)
+    setFocusPoint(pathIdx && pathIdx.length ? segMid(pathIdx) : null)
+    setOrbit(false)
     setSelectedDong(null)
     setView((v) => ({ ...v, layers: v.layers.includes(layer) ? v.layers : [...v.layers, layer] }))
     if (pathIdx) {
@@ -194,17 +244,21 @@ export default function SnowDashboard() {
     return [
       {
         title: "공백",
-        caption: `취약구간 ${g.total}곳 중 ${g.noHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 그중 ${g.none}곳은 비치 자재도 없습니다.`,
-        note: `행안부 적설취약구간 ${t.weak}곳 · 상습결빙구간 ${t.ice}곳 · 광진구 자원 4종 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`,
+        caption: `구 관리 취약구간 ${g.gu.total}곳 중 ${g.gu.noHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다. 비치 자재도 없는 곳은 ${g.gu.none}곳입니다.`,
+        note: `서울시 관리 결빙구간 ${g.si.total}곳 중 ${g.si.none}곳은 열선도 자재도 없음(시 소관) · 행안부 적설취약구간 ${t.weak}곳 · 상습결빙구간 ${t.ice}곳 · 자원 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`,
         apply: () => {
           setTab("gap")
           setDemoStage(null)
           setFocusHeat(null)
+          setFocusPoint(null)
           setSelectedDong(null)
           setColMetric(null)
-          setView({ layers: ["weak", "ice", "heat"], tilt: true })
+          setDemoProgress(null)
+          // 열선은 끈다: "열선이 없다"는 장면에 열선 핀이 지도를 덮으면 말과 그림이 반대(냉독 지적). 진한 진홍 선 = 열선 없는 구간
+          setView({ layers: ["weak", "ice"], tilt: true })
           const b = boundsOf(noHeatWeak.map((w) => w.path))
           cue({ bounds: b ?? undefined, maxZoom: 14.4, pitch: 55, bearing: -18, duration: 2200 })
+          setOrbit(true)
         },
       },
       {
@@ -215,11 +269,15 @@ export default function SnowDashboard() {
           setTab("resources")
           setDemoStage(null)
           setFocusHeat(null)
+          setFocusPoint(null)
           setSelectedDong(null)
           setColMetric(null)
+          setOrbit(false)
+          setDemoProgress(null)
           setView({ layers: ["heat"], tilt: true })
           const b = boundsOf(heatPaths(data).filter((p) => p.length > 1))
           cue({ bounds: b ?? undefined, maxZoom: 14.9, pitch: 58, bearing: 12, duration: 2400 })
+          // 도착 즈음 동별 열선 기둥이 솟는다(snow-map riseColumns)
           later(2600, () => setColMetric("heat"))
         },
       },
@@ -234,13 +292,18 @@ export default function SnowDashboard() {
           setDemoStage("stage-0")
           setDemoCaption(null)
           setFocusHeat(null)
+          setFocusPoint(null)
           setSelectedDong(null)
           setColMetric(null)
-          setView({ layers: ["heat", "salt", "cacl", "sand"], tilt: true })
+          setOrbit(false)
+          // 보강 단계는 열선만. 1단계에서 자재 3종이 켜지며 3D 핀이 솟는다(점등). 진행선은 3단계 도착까지
+          setView({ layers: ["heat"], tilt: true })
+          setDemoProgress({ key: Date.now(), ms: 7400, at: performance.now() })
           cue({ maxZoom: 13.6, pitch: 50, bearing: -18, duration: 1800 })
           later(2400, () => {
             setSimCm(3)
             setDemoStage("stage-1")
+            setView({ layers: ["heat", "salt", "cacl", "sand"], tilt: true })
             setDemoCaption(`예보 적설 3cm이면 1단계입니다. 자원 6종을 동원하고 비치 자재 ${t.materials.toLocaleString("ko-KR")}개소가 켜집니다.`)
           })
           later(4800, () => {
@@ -263,11 +326,14 @@ export default function SnowDashboard() {
           setTab("resources")
           setDemoStage("stage-3")
           setFocusHeat(null)
+          setFocusPoint(null)
           setSelectedDong(null)
           setColMetric("materials")
+          setDemoProgress(null)
           setView({ layers: ["heat", "salt", "cacl", "sand", "weak"], tilt: true })
           const b = boundsOf(g.noHeatDongs.map((d) => dongBounds(data, d)).filter((x): x is NonNullable<typeof x> => !!x).map((b) => [[b[0][1], b[0][0]], [b[1][1], b[1][0]]] as [number, number][]))
           cue({ bounds: b ?? undefined, maxZoom: 14.6, pitch: 55, bearing: 24, duration: 2400 })
+          setOrbit(true)
         },
       },
       {
@@ -279,7 +345,10 @@ export default function SnowDashboard() {
           setDemoStage(null)
           setColMetric(null)
           setFocusHeat(null)
+          setFocusPoint(null)
           setSelectedDong(null)
+          setOrbit(false)
+          setDemoProgress(null)
           setView({ layers: ["heat", "weak"], tilt: true })
           cue({ maxZoom: 13.4, pitch: 40, bearing: -18, duration: 2000 })
         },
@@ -302,6 +371,7 @@ export default function SnowDashboard() {
     setDemo(null)
     setDemoStage(null)
     setDemoCaption(null)
+    setDemoProgress(null)
     setUseForecast(inSeason)
     setSimCm(5)
     resetAll()
@@ -322,12 +392,17 @@ export default function SnowDashboard() {
   const rightPane = tab === "onto" ? "graph" : "map"
   const sideW = side.width ?? 440
   const sheetTop = mapCollapsed ? "104px" : split.mapH != null ? `${split.mapH}px` : SHEET_TOP_MOBILE
+  // 시연 중에는 왼쪽 카드를 제목만 남기고 접는다(냉독 S2-10). 지도가 그 자리를 쓴다
+  const demoOn = demo !== null && isXl
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
-    ? { tl: [16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, 24] }
+    ? demoOn
+      ? { tl: [24, 76 + 8 + 64], br: [16 + RIGHT_W + 24, 140] }
+      : { tl: [16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.48 + 8) : 8] }
   const counts: Partial<Record<LayerId, string>> = data
-    ? { weak: `${data.weak.length}곳`, ice: `${data.ice.length}곳`, slope: `${data.slopes.length}구간`, school: `${data.schools.length}교`, heat: `${data.heat.length}구간`, salt: `${data.salt.length}`, cacl: `${data.cacl.length}`, sand: `${data.sand.length}` }
+    ? { weak: `${data.weak.length}곳`, ice: `${data.ice.length}곳`, slope: `${data.slopes.length}구간 · 열선 없음 ${data.gaps.slopeNoHeat}`, school: `${data.schools.length}교`, heat: `${data.heat.length}구간`, salt: `${data.salt.length}`, cacl: `${data.cacl.length}`, sand: `${data.sand.length}` }
     : {}
+  const slopeOn = view.layers.includes("slope") && rightPane === "map" && !!data
   const layerPanel = <LayerPanel view={view} onChange={setView} dark={dark} counts={counts} />
   const legend = <Legend dark={dark} stageLabel={stageView ? (stageView === "calm" ? "평시" : stageView === "stage-0" ? "보강" : stageView.replace("stage-", "") + "단계") : ""} stageNote={stageNote} />
 
@@ -345,12 +420,15 @@ export default function SnowDashboard() {
             colMetric={colMetric}
             selectedDong={selectedDong}
             focusHeat={focusHeat}
+            focusPoint={focusPoint}
             tilt={view.tilt}
+            orbit={orbit}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}
             fitPadding={fitPadding}
             onSelectDong={(d) => setSelectedDong(d)}
+            onOrbitStop={() => setOrbit(false)}
           />
         ) : (
           <div className="absolute inset-x-0 bottom-[calc(100%-var(--dump-sheet-top))] top-[104px] md:bottom-0 md:left-[calc(32px+var(--dump-side-w,440px))] md:right-0 md:top-[76px]">
@@ -367,7 +445,10 @@ export default function SnowDashboard() {
             <SnowMark size={30} />
             <span className="min-w-0">
               <h1 className="truncate text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
-              <span className="dump-kicker mt-1 block truncate text-[10px] text-[var(--cp-text-dim)]">{data ? `열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}</span>
+              {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
+              <span className="dump-kicker mt-1 block truncate text-[10px] text-[var(--cp-text-dim)]">
+                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
+              </span>
             </span>
           </button>
           <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
@@ -399,8 +480,14 @@ export default function SnowDashboard() {
       )}
 
       {/* 왼쪽 카드 = 모바일 하단 시트 */}
-      <aside className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:bottom-4 md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl`}>
+      <aside className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl ${demoOn ? "md:bottom-auto" : "md:bottom-4"}`}>
         <div className="lg-inner flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
+          {demoOn && scenes[demo] && (
+            <div className="px-4 py-3">
+              <span className="dump-kicker block text-[10px] text-[var(--cp-text-dim)]">시연 중 · {TABS.find((t) => t.id === tab)?.label}</span>
+              <p className="mt-1 text-[14px] leading-snug text-[var(--cp-text-muted)]">카드는 시연이 끝나면 돌아옵니다. Esc 또는 끝 버튼으로 마칩니다.</p>
+            </div>
+          )}
           <div className="flex h-8 shrink-0 items-center md:hidden">
             <div
               role="separator"
@@ -424,7 +511,7 @@ export default function SnowDashboard() {
               </button>
             )}
           </div>
-          <div key={tab} className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
+          <div key={tab} className={`min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] ${demoOn ? "hidden" : ""}`}>
             {tab === "gap" && <GapPanel data={data} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
             {tab === "stage" && <StagePanel data={data} graph={graph} forecast={forecast} simCm={simCm} onSimCm={setSimCm} stage={stage} useForecast={useForecast} onUseForecast={setUseForecast} inSeason={inSeason} />}
             {tab === "resources" && (
@@ -461,22 +548,37 @@ export default function SnowDashboard() {
         <span className={`absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${side.dragging ? "bg-(--dump-accent)" : "bg-[var(--cp-border-strong)] opacity-0 group-hover:opacity-100"}`} />
       </div>
 
-      {/* 지도가 보고 있는 곳(구간·발견 카드 클릭 뒤). 누르면 구 전체로 */}
-      {rightPane === "map" && (focusLabel || selectedDong) && demo === null && (
-        <button
-          onClick={() => {
-            setFocusLabel(null)
-            setFocusHeat(null)
-            setSelectedDong(null)
-            setResetSeq((v) => v + 1)
-          }}
-          className="dump-fl lg-shell lg-dense absolute z-[1046] flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] text-[var(--cp-text-strong)] md:top-[76px]"
-          style={{ left: isMd ? "calc(16px + var(--dump-side-w, 440px) + 16px)" : 12, top: isMd ? undefined : 108 }}
-        >
-          <span className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">지금 보는 곳</span>
-          <span className="font-semibold">{focusLabel ?? selectedDong}</span>
-          <span aria-hidden className="text-[var(--cp-text-dim)]">✕</span>
-        </button>
+      {/* 지도 위 칩: 지금 보는 곳(구간·발견 카드 클릭 뒤. 누르면 구 전체로) · 급경사 추정 수치(레이어를 켜면). 카드 오른쪽 위 한 줄 */}
+      {rightPane === "map" && demo === null && (focusLabel || selectedDong || slopeOn) && (
+        <div className="pointer-events-none absolute z-[1046] flex flex-wrap items-center gap-2 md:top-[76px]" style={{ left: isMd ? "calc(16px + var(--dump-side-w, 440px) + 16px)" : 12, top: isMd ? undefined : 108, right: isMd ? RIGHT_W + 32 : 12 }}>
+          {(focusLabel || selectedDong) && (
+            <button
+              onClick={() => {
+                setFocusLabel(null)
+                setFocusHeat(null)
+                setFocusPoint(null)
+                setSelectedDong(null)
+                setResetSeq((v) => v + 1)
+              }}
+              className="dump-fl lg-shell lg-dense pointer-events-auto flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] text-[var(--cp-text-strong)]"
+            >
+              <span className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">지금 보는 곳</span>
+              <span className="font-semibold">{focusLabel ?? selectedDong}</span>
+              {focusDetail && <span className="text-[12.5px] text-[var(--cp-text-muted)]">{focusDetail}</span>}
+              <span aria-hidden className="text-[var(--cp-text-dim)]">✕</span>
+            </button>
+          )}
+          {slopeOn && data && (
+            <button onClick={() => setView((v) => ({ ...v, layers: v.layers.filter((l) => l !== "slope") }))} className="dump-fl lg-shell lg-dense pointer-events-auto flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] text-[var(--cp-text-strong)]" title="급경사 추정 레이어 끄기">
+              <i className="h-1 w-4 shrink-0 rounded-full" style={{ background: dark ? "#b48ee8" : "#6d4fb3" }} aria-hidden />
+              <span className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">지형 추정</span>
+              <span className="font-semibold">
+                경사 {data.slopes.length}구간 · 열선 없음 {data.gaps.slopeNoHeat}
+              </span>
+              <span aria-hidden className="text-[var(--cp-text-dim)]">✕</span>
+            </button>
+          )}
+        </div>
       )}
       {rightPane === "map" && (
         <div className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`} style={{ width: RIGHT_W }}>
@@ -487,12 +589,18 @@ export default function SnowDashboard() {
 
       {/* 시연 캡션(xl 이상) */}
       {rightPane === "map" && demo !== null && scenes[demo] && (
-        <div className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block" style={{ left: "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32, bottom: 20 }} aria-live="polite">
+        <div className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block" style={{ left: 16, right: RIGHT_W + 32, bottom: 20 }} aria-live="polite">
+          {demoProgress && (
+            <div className="absolute inset-x-5 top-0 h-[2px] overflow-hidden rounded-full bg-[var(--cp-track)]" aria-hidden>
+              <i key={demoProgress.key} className="snow-progress block h-full rounded-full bg-(--dump-accent)" style={{ animationDuration: `${demoProgress.ms}ms` }} />
+            </div>
+          )}
           <div className="flex items-start gap-4 px-5 py-3.5">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="dump-kicker text-[10.5px] text-[var(--cp-text-dim)]">
                   시연 {demo + 1} / {scenes.length} · {scenes[demo].title}
+                  {demoProgress && remain > 0 && ` · 자동 격상 ${Math.ceil(remain / 1000)}초`}
                 </span>
                 <span className="flex items-center gap-1" aria-hidden>
                   {scenes.map((_, k) => (

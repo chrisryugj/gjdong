@@ -7,8 +7,9 @@ import { CLASSES, RELATIONS, validateGraph } from "@/lib/snow/schema"
 import { lineageOf, runCompetencyQuestions } from "@/lib/snow/queries"
 import { SectionHead } from "@/components/dumping/section-head"
 import { SPACE_COLOR } from "./onto-graph"
+import { NumRow } from "./ui"
 
-// 근거 그래프 탭. 헤드라인은 그래프가 증명한 판단 1개. 01 판단 카드 02 데이터로 답하는 질문(기본 6 + 더 보기) 03 고른 항목 상세(속성·관계·근거 계보 세로 3단)
+// 근거 그래프 탭. 헤드라인은 그래프가 증명한 판단 1개. 01 판단 번호 행(3라운드: 상자 → 행) 02 데이터로 답하는 질문(기본 6 + 더 보기) 03 고른 항목 상세(속성·관계·근거 계보 세로 3단)
 // 스키마 설명 문단은 데이터·방법 모달로 옮겼다. 영문 관계 id는 화면에 안 보인다
 
 interface Props {
@@ -44,21 +45,13 @@ export default function OntoPanel({ graph, selectedId, onSelect, onOpenMethods }
       <SectionHead n="01" sub="관측이 뒷받침하는 판단. 누르면 그래프가 그 판단을 가운데 둡니다">
         판단 {claims.length}
       </SectionHead>
-      <ul className="space-y-1.5">
-        {claims.map((c) => {
+      <div>
+        {claims.map((c, i) => {
           const sup = graph.edges.filter((e) => e.rel === "supports" && e.t === c.id).length
           const on = selectedId === c.id
-          return (
-            <li key={c.id}>
-              <button onClick={() => onSelect(on ? null : c.id)} aria-pressed={on} className={`w-full rounded-xl border px-3 py-2 text-left ${on ? "border-[var(--cp-border-active)] bg-[var(--cp-hover)]" : "border-[var(--cp-border)] hover:bg-[var(--cp-hover)]"}`}>
-                <span className="block text-[14.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{c.label}</span>
-                <span className="mt-0.5 block text-[13px] leading-snug text-[var(--cp-text-muted)]">{String(c.props.gist ?? "")}</span>
-                <span className="mt-1 block text-[12px] text-[var(--cp-text-dim)]">뒷받침 관측 {sup}건</span>
-              </button>
-            </li>
-          )
+          return <NumRow key={c.id} n={i + 1} big={String(sup)} unit="관측" title={c.label} body={String(c.props.gist ?? "")} active={on} onClick={() => onSelect(on ? null : c.id)} />
         })}
-      </ul>
+      </div>
 
       <SectionHead n="02" sub="표로는 계산할 수 없는 질문입니다. 그래프에서 그 자리에서 계산하고 데이터가 바뀌면 답도 바뀝니다">
         데이터로 답하는 질문 {cq.length}
@@ -130,7 +123,7 @@ function NodeCard({ node, graph, byId, onSelect }: { node: OntoNode; graph: Onto
   ]
   const many = (arr: typeof out) => arr.length > 8
   return (
-    <div className="mt-3 rounded-xl border border-[var(--cp-border-strong)] p-3">
+    <div className="mt-3 rounded-xl bg-[var(--cp-panel2)] p-3">
       <div className="flex items-start gap-2">
         <span className="mt-1 rounded px-1.5 py-0.5 text-[12px] font-bold" style={{ background: `${color}22`, color }}>
           {typeLabel(node.type)}

@@ -1,5 +1,6 @@
 // /snow 선형 검증. map.json의 열선·취약구간·결빙구간 경로가 ①물(한강·중랑천, pmtiles water 레이어) 위를 지나는지 ②구 경계 밖으로 얼마나 나가는지 ③직선의 몇 배로 도는지 표로 낸다.
-//   node scripts/snow-verify.mjs            위반이 있으면 종료 코드 1(게이트)
+//   node scripts/snow-verify.mjs            위반이 있으면 종료 코드 1(게이트. npm test 앞 pretest, snow:data 뒤)
+// 겸해서 docs/snow-data-survey.md 4절의 열선 55 선형 표(<!-- snow-survey --> 마커 사이)를 map.json에서 다시 쓴다(3라운드. 손으로 쓴 표가 봉합 전 수치로 남았던 실사고)
 // 물 위 판정: 경로를 15m 간격 표본화해 water 폴리곤(z14) 안에 든 점 수. 교량 위 정상 경로(청담대교·잠실대교 램프)는 도로 종류가 bridge인 조각에서만 허용
 import fs from "node:fs"
 import path from "node:path"
@@ -93,7 +94,34 @@ function outsideM(ring, p) {
   return best
 }
 
+// 4절 표: 열선 55행 + 취약·결빙 방법 집계
+function writeSurvey() {
+  const p = path.join(ROOT, "docs/snow-data-survey.md")
+  const doc = fs.readFileSync(p, "utf8")
+  const START = "<!-- snow-survey:start"
+  const END = "<!-- snow-survey:end -->"
+  const i0 = doc.indexOf(START)
+  const i1 = doc.indexOf(END)
+  if (i0 < 0 || i1 < 0) return
+  const head = doc.slice(0, doc.indexOf("-->", i0) + 3)
+  const tally = (arr) => arr.reduce((o, x) => ((o[x.method] = (o[x.method] || 0) + 1), o), {})
+  const ko = { named: "노선명 도로(named)", network: "다른 도로(network)", point: "한 점 연장(point)", straight: "직선(straight)", trunk: "간선 체인 절단(trunk)", points: "선형 미확인·끝점만(points)" }
+  const line = (label, arr) => `${label} ${arr.length}구간: ${Object.entries(tally(arr)).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ko[k] ?? k} ${v}`).join(" · ")}`
+  const rows = map.heat.map((h) => `| ${h.i} | ${h.d ?? ""} | ${h.route || "(노선명 없음)"} | ${h.from} ~ ${h.to} | ${h.m} | ${h.lanes || "-"} | ${h.physM ?? "-"} | ${Math.round(distM(h.a, h.b))} | ${h.pathM} | ${h.method} | ${h.approx ? "예" : ""} | ${h.snapNote || h.roadName || ""} |`)
+  const body = [
+    "",
+    `${line("결과 열선", map.heat)}. approx 표기 ${map.heat.filter((h) => h.approx).length}(named가 아닌 전부 + 우회 의심). ${line("취약구간", map.weak)}. ${line("상습결빙구간", map.ice)}. 선형 검증(물 위·구 밖·우회) 위반 0은 \`docs/snow-verify-latest.md\`.`,
+    "",
+    "| # | 동 | 노선명 | 시점 ~ 종점 | 연장(1차로) | 차로 | 물리 기대 | 직선 | 경로 | 방법 | 근사 | 비고 |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ...rows,
+    "",
+  ].join("\n")
+  fs.writeFileSync(p, head + body + doc.slice(i1))
+}
+
 async function main() {
+  writeSurvey()
   const water = await loadWater()
   const ring = map.ring
   const rows = []

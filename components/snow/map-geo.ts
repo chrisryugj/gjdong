@@ -1,5 +1,5 @@
 import type { DongRow, HeatSeg, IceSeg, ResourceId, SnowMapData, WeakSeg } from "@/lib/snow/types"
-import { RESOURCES, RISK } from "@/lib/snow/labels"
+import { HEAT_STYLE, RESOURCES, RISK, RISK_STYLE } from "@/lib/snow/labels"
 import { dongValue, fmt } from "@/lib/snow/facts"
 
 // /snow 지도의 순수 계산부. 지도 엔진을 모른다: GeoJSON 조립·기둥 높이·툴팁 HTML. 테스트가 여기만 읽는다
@@ -12,6 +12,11 @@ export const RES_COLOR: Record<ResourceId, string> = Object.fromEntries(RESOURCE
 export const RES_COLOR_LIGHT: Record<ResourceId, string> = Object.fromEntries(RESOURCES.map((r) => [r.id, r.colorLight])) as Record<ResourceId, string>
 export const resColor = (id: ResourceId, dark: boolean) => (dark ? RES_COLOR[id] : RES_COLOR_LIGHT[id])
 export const riskColor = (dark: boolean) => (dark ? RISK.weak.color : RISK.weak.colorLight)
+export const slopeColor = (dark: boolean) => (dark ? RISK.slope.color : RISK.slope.colorLight)
+export const heatGlow = (dark: boolean) => (dark ? HEAT_STYLE.glow.dark : HEAT_STYLE.glow.light)
+export const heatFlow = (dark: boolean) => (dark ? HEAT_STYLE.flow.dark : HEAT_STYLE.flow.light)
+export const casingColor = (dark: boolean) => (dark ? RISK_STYLE.casing.dark : RISK_STYLE.casing.light)
+export const badgeColor = (dark: boolean) => (dark ? RISK_STYLE.badge.dark : RISK_STYLE.badge.light)
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c)
 
 // 카드형 툴팁: 꼬리표 · 제목 · 행(라벨·값) · 각주. 12px 이하 금지(CSS .snow-tip)
@@ -23,8 +28,12 @@ const methodNote = (h: { method: string; snapNote: string; roadName: string }): 
   if (h.method === "named") return undefined
   if (h.method === "network") return `노선명과 다른 도로(${h.roadName || "이름 없음"})를 따라 그렸습니다`
   if (h.method === "point") return "기점과 종점이 같은 주소라 도로를 따라 연장만큼 그렸습니다"
+  if (/보행로/.test(h.snapNote)) return "지도에 없는 보행로입니다. 도로망에 경로가 없어 두 점을 직선으로 이었습니다"
+  if (/지오코딩/.test(h.snapNote)) return "기점·종점 주소를 찾지 못해 위치가 근사입니다"
   return "도로망에서 경로를 찾지 못해 직선으로 그렸습니다"
 }
+// 지도에 없는 보행로(동의초 통학로 보도열선 등). 툴팁·문서에서 같은 판정을 쓴다
+export const isFootpath = (h: { method: string; snapNote: string }) => h.method === "straight" && /보행로/.test(h.snapNote)
 
 // 열선 55구간. 도로 스냅 선형(path). w=선 굵기 등급(차로수)
 export function heatFC(data: SnowMapData): FC {
@@ -38,8 +47,9 @@ export function heatFC(data: SnowMapData): FC {
         year: h.year ?? 0,
         w: (h.lanesN ?? 1) >= 2 ? 2 : 1,
         approx: h.approx ? 1 : 0,
+        foot: isFootpath(h) ? 1 : 0,
         tip: tip(
-          "도로열선",
+          isFootpath(h) ? "도로열선 · 지도에 없는 보행로" : "도로열선",
           h.route || h.roadName || `${h.from}`,
           [
             ["행정동", h.d ?? "미판정"],
@@ -120,7 +130,7 @@ export function weakFC(data: SnowMapData): FC {
         kind: "weak",
         status: segStatus(w),
         type: w.type,
-        tip: tip(`적설취약구간 · ${w.type}`, w.name, [...segRows(w, data), ["관리청", w.agency.replace("서울특별시 ", "")]], w.approx ? "기점·종점을 도로에 붙여 그린 근사 선형입니다" : undefined),
+        tip: tip(`적설취약구간 · ${w.type}`, w.name, [...segRows(w, data), ["관리청", w.agency.replace("서울특별시 ", "")]], w.method === "point" && !w.roadName ? "원자료가 좌표 한 점이라 가장 가까운 도로에 60m만 표시했습니다. 선형은 미확인입니다" : w.approx ? "기점·종점을 도로에 붙여 그린 근사 선형입니다" : undefined),
       },
       geometry: { type: "LineString", coordinates: w.path.map(ll) },
     })),
@@ -128,8 +138,9 @@ export function weakFC(data: SnowMapData): FC {
 }
 // 구간 번호 배지(가운데 점)
 export function weakLabelFC(data: SnowMapData): FC {
-  return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w) }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
+  return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w), heat: w.heatCovered ? 1 : 0 }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
 }
+export const segMid = (path: [number, number][]): [number, number] => path[Math.floor(path.length / 2)]
 
 // 행안부 상습결빙구간 9. 전부 간선·자동차전용도로. method=points(선형 미확인)는 선을 그리지 않고 끝점만 iceEndsFC로
 export function iceFC(data: SnowMapData): FC {
@@ -147,18 +158,47 @@ export function iceFC(data: SnowMapData): FC {
     })),
   )
 }
-// 선형 미확인 결빙구간의 기점·종점 마커(선 없음)
+// 선형 미확인 결빙구간의 기점·종점 마커(선 없음). 이웃 행이 끝점을 공유하면(동부간선도로 1·2) 한 점만 그린다
 export function iceEndsFC(data: SnowMapData): FC {
   const out: GeoJSON.Feature[] = []
+  const seen = new Set<string>()
   data.ice.forEach((s, i) => {
     if (s.method !== "points") return
-    for (const [k, p] of [["기점", s.a], ["종점", s.b]] as const)
+    for (const [k, p] of [["기점", s.a], ["종점", s.b]] as const) {
+      const key = `${p[0].toFixed(5)},${p[1].toFixed(5)}`
+      if (seen.has(key)) continue
+      seen.add(key)
       out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), kind: "ice", tip: tip("상습결빙구간 · 선형 미확인", `${s.road} ${s.km}km · ${k}`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")]], "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없어 두 끝점만 표시합니다") }, geometry: { type: "Point", coordinates: ll(p) } })
+    }
   })
   return fc(out)
 }
+// 결빙구간 라벨. 선이 있는 행은 가운데에 "결빙 n", 선형 미확인(points) 행은 끝점이 겹치는 이웃 행을 묶어 기점 하나에만 "결빙 1·2 · 선형 미확인"(번호 배지 겹침 실사고)
 export function iceLabelFC(data: SnowMapData): FC {
-  return fc(data.ice.map((s, i) => ({ type: "Feature", properties: { id: s.id, n: String(i + 1), status: segStatus(s) }, geometry: { type: "Point", coordinates: ll(s.method === "points" ? s.a : s.path[Math.floor(s.path.length / 2)]) } })))
+  const out: GeoJSON.Feature[] = []
+  const pointRows = data.ice.map((s, i) => ({ s, n: i + 1 })).filter(({ s }) => s.method === "points")
+  data.ice.forEach((s, i) => {
+    if (s.method === "points") return
+    out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), text: `결빙 ${i + 1}`, status: segStatus(s), points: 0 }, geometry: { type: "Point", coordinates: ll(segMid(s.path)) } })
+  })
+  // 끝점을 공유하는 points 행끼리 묶는다(단순 연결: 앞 행의 종점 = 뒤 행의 기점)
+  const used = new Set<number>()
+  for (const { s, n } of pointRows) {
+    if (used.has(n)) continue
+    const group = [n]
+    let tail = s.b
+    for (const other of pointRows) {
+      if (used.has(other.n) || other.n === n) continue
+      if (Math.abs(other.s.a[0] - tail[0]) < 1e-5 && Math.abs(other.s.a[1] - tail[1]) < 1e-5) {
+        group.push(other.n)
+        used.add(other.n)
+        tail = other.s.b
+      }
+    }
+    used.add(n)
+    out.push({ type: "Feature", properties: { id: s.id, n: group.join("·"), text: `결빙 ${group.join("·")}\n선형 미확인`, status: segStatus(s), points: 1 }, geometry: { type: "Point", coordinates: ll(s.a) } })
+  }
+  return fc(out)
 }
 
 // DEM 추정 급경사(점선). 열선 없는 것만 강조 가능하게 heat 속성
@@ -172,7 +212,7 @@ export function slopeFC(data: SnowMapData): FC {
         heat: s.heatIds.length ? 1 : 0,
         grade: s.grade,
         tip: tip(
-          "급경사 추정",
+          "추정 · 급경사",
           s.name,
           [
             ["경사", `${s.grade}% (${s.len}m 구간, 높이차 ${s.rise}m)`],
@@ -243,22 +283,32 @@ export function dongColsFC(data: SnowMapData, m: ColMetric, dark: boolean, accen
   const max = Math.max(1, ...data.dongs.map((d) => colValue(d, m)))
   const color = m === "materials" ? accent : m === "weak" ? riskColor(dark) : resColor(m, dark)
   const def = COL_METRICS.find((x) => x.id === m)!
+  const order = [...data.dongs].filter((d) => colValue(d, m) > 0).sort((a, b) => colValue(b, m) - colValue(a, m))
   return fc(
-    data.dongs
-      .filter((d) => colValue(d, m) > 0)
-      .map((d) => ({
-        type: "Feature",
-        properties: {
-          name: d.d,
-          v: colValue(d, m),
-          label: `${d.d}\n${fmt(colValue(d, m))}${def.unit}`,
-          h: 40 + (colValue(d, m) / max) * COL_MAX_M,
-          color,
-          tip: tip(def.label, d.d, dongRows(d), `동주민센터 ${d.centerName} 위치에 표시`),
-        },
-        geometry: squareAround(d.center[0], d.center[1], 120),
-      })),
+    order.map((d, rank) => ({
+      type: "Feature",
+      properties: {
+        name: d.d,
+        v: colValue(d, m),
+        rank: rank + 1,
+        label: `${d.d}\n${fmt(colValue(d, m))}${def.unit}`,
+        h: 40 + (colValue(d, m) / max) * COL_MAX_M,
+        color,
+        tip: tip(def.label, `${d.d} · ${rank + 1}위`, dongRows(d), `동주민센터 ${d.centerName} 위치에 표시`),
+      },
+      geometry: squareAround(d.center[0], d.center[1], 120),
+    })),
   )
+}
+// 동별 기둥 1~3위(입체 숫자 배지, icons3d dongRank). 기둥 꼭대기 높이 h 위에 선다
+export function dongRanks(data: SnowMapData, m: ColMetric, dark: boolean, accent: string): { lng: number; lat: number; rank: number; h: number; color: string }[] {
+  const cols = dongColsFC(data, m, dark, accent)
+  return cols.features
+    .filter((f) => Number(f.properties?.rank) <= 3)
+    .map((f) => {
+      const d = data.dongs.find((x) => x.d === f.properties?.name)!
+      return { lng: d.center[1], lat: d.center[0], rank: Number(f.properties?.rank), h: Number(f.properties?.h), color: String(f.properties?.color) }
+    })
 }
 
 export function dongRows(d: DongRow): [string, string][] {
@@ -268,6 +318,39 @@ export function dongRows(d: DongRow): [string, string][] {
     ["적설취약구간", d.weak ? `${d.weak}곳${d.weakNoHeat ? ` · 열선 없음 ${d.weakNoHeat}` : ""}` : "없음"],
     ["초등학교", d.schools ? `${d.schools}교` : "없음"],
   ]
+}
+
+// ─── 입체 보기 전용 도형(dumping 18라운드 규약). 평면의 원은 입체에서 3D 모델(icons3d)로 바뀌고, 툴팁은 같은 자리의 투명 말뚝(fill-extrusion, opacity 0)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가) ───
+export const POST_R_M = 7 // 자재·학교 말뚝 반지름(m). 아이콘 발자국과 비슷하게
+export const POST_H_M = 16
+export const FOCUS_RING_R_M = 40 // 초점 고리(구간·발견 카드 클릭)
+export function postsFC(points: FC, r = POST_R_M, h = POST_H_M): FC {
+  return fc(
+    points.features.map((f) => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      return { type: "Feature", properties: { ...f.properties, h }, geometry: squareAround(lat, lng, r * 2) }
+    }),
+  )
+}
+export function discPolygon(lng: number, lat: number, r: number, n = 20): GeoJSON.Polygon {
+  const dLat = r / 111320
+  const dLng = r / (111320 * Math.cos((lat * Math.PI) / 180))
+  const ring: [number, number][] = []
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2
+    ring.push([lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat])
+  }
+  return { type: "Polygon", coordinates: [ring] }
+}
+export function ringPolygon(lng: number, lat: number, r: number, t: number, n = 24): GeoJSON.Polygon {
+  const outer = discPolygon(lng, lat, r, n).coordinates[0]
+  const inner = discPolygon(lng, lat, Math.max(1, r - t), n).coordinates[0].reverse()
+  return { type: "Polygon", coordinates: [outer, inner] }
+}
+// 땅 위 맥동 고리(초점). [lat,lng] 한 점
+export function focusRingFC(p: [number, number] | null): FC {
+  if (!p) return fc([])
+  return fc([{ type: "Feature", properties: { h: 14 }, geometry: ringPolygon(p[1], p[0], FOCUS_RING_R_M, 8) }])
 }
 
 export function ringFC(ring: [number, number][]): { line: FC; mask: FC; bounds: [[number, number], [number, number]] } {
