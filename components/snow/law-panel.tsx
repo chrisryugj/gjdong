@@ -28,7 +28,7 @@ export default function LawPanel({ data }: Props) {
       <SectionHead n="01" sub="법률 제20961호 · 시행 2025-10-01 · 법제처 국가법령정보센터 MST 276321">
         자연재해대책법 제27조
       </SectionHead>
-      <blockquote className="border-l-2 border-(--dump-accent) pl-3 text-[14px] leading-relaxed text-[var(--cp-text)]">
+      <blockquote className="rounded-xl bg-[var(--cp-panel2)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--cp-text)]">
         ① 건축물의 소유자·점유자 또는 관리자로서 그 건축물에 대한 관리 책임이 있는 자(건축물관리자)는 관리하고 있는 건축물 주변의 보도, 이면도로, 보행자 전용도로, 시설물의 지붕(대통령령으로 정하는 시설물의 지붕으로 한정)에 대한 제설·제빙 작업을 하여야 한다.
         <br />② 건축물관리자의 구체적 제설·제빙 책임 범위 등에 관하여 필요한 사항은 해당 지방자치단체의 조례로 정한다.
       </blockquote>

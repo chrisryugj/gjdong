@@ -101,9 +101,12 @@ function Tile({ k, v, u, accent = false }: { k: string; v: string; u: string; ac
 function SegRow({ name, kind, d, near, mat, gap = false, onClick }: { name: string; kind: string; d: string | null; near: number | null; mat: number; gap?: boolean; onClick: () => void }) {
   return (
     <li>
-      <button onClick={onClick} className={`flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[var(--cp-hover)] ${gap ? "border-l-2 border-(--dump-accent)" : "border-l-2 border-transparent"}`}>
+      <button onClick={onClick} className="flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[var(--cp-hover)]">
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14.5px] font-semibold text-[var(--cp-text-strong)]">{name}</span>
+          <span className="block truncate text-[14.5px] font-semibold text-[var(--cp-text-strong)]">
+            {name}
+            {gap && <span className="dump-kicker ml-2 text-[10px] text-(--dump-accent)">공백</span>}
+          </span>
           <span className="block text-[12.5px] text-[var(--cp-text-dim)]">
             {kind} · {d ?? "동 미판정"}
           </span>

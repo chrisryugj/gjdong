@@ -62,6 +62,10 @@
 - `npm run build` 통과 · `npm run lint` 0 errors · `npm test` 295 통과(snow 24 포함).
 - 커밋 9c8e39c main 푸시, Vercel 배포 60초 뒤 프로덕션 실측: `/snow` 200 · `/api/snow/data/graph` 162노드 · `/api/snow/data/map` 열선 55·취약 47·결빙 9·급경사 117 · `/api/snow/forecast` 기상청 단기예보(발표 09/20 23시) 정상(Vercel env `DATA_GO_KR_KEY` 유효).
 
+## 6-1. 배포 뒤 수정
+
+- 사용자 지적: 목록 행·동원 자원·법령 인용에 쓴 `border-l-2` 왼쪽 액센트선은 세로 컬러바 금지 규칙 위반. 전부 제거(번호 인덱스·면 틴트·키커 태그로 대체)하고 `tests/snow-copy.test.ts`에 `border-[lr]-` 금지 게이트 추가.
+
 ## 7. 남은 일
 
 - 동주민센터 담당 구간표(사용자 내부 파일 또는 정보공개청구) 확보 시 Zone 정본 교체.

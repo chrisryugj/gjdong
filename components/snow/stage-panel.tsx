@@ -133,8 +133,9 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       </SectionHead>
       <div className="dump-kicker text-[10px] text-[var(--cp-text-dim)]">위치 공개 자원 · 지도에 표시</div>
       <ul className="mt-1 space-y-1.5">
-        {mapped.map((n) => (
-          <li key={n.id} className="flex items-baseline gap-2 border-l-2 border-(--dump-accent) pl-2.5">
+        {mapped.map((n, i) => (
+          <li key={n.id} className="flex items-baseline gap-2">
+            <span className="dump-idx w-5 shrink-0 text-[12px] text-(--dump-accent)">{String(i + 1).padStart(2, "0")}</span>
             <span className="text-[14.5px] font-semibold text-[var(--cp-text-strong)]">{n.label}</span>
             <span className="text-[12.5px] text-[var(--cp-text-dim)]">{leverCount(n.id, data)}</span>
           </li>
@@ -145,8 +146,9 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
         <>
           <div className="dump-kicker mt-3 text-[10px] text-[var(--cp-text-dim)]">규모만 공개 · 보도자료 {data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "") ?? ""}</div>
           <ul className="mt-1 space-y-1.5">
-            {scaled.map((n) => (
-              <li key={n.id} className="flex items-baseline gap-2 border-l-2 border-[var(--cp-border-strong)] pl-2.5">
+            {scaled.map((n, i) => (
+              <li key={n.id} className="flex items-baseline gap-2">
+                <span className="dump-idx w-5 shrink-0 text-[12px] text-[var(--cp-text-faint)]">{String(mapped.length + i + 1).padStart(2, "0")}</span>
                 <span className="text-[14.5px] font-semibold text-[var(--cp-text-strong)]">{n.label}</span>
                 <span className="text-[12.5px] text-[var(--cp-text-dim)]">{leverCount(n.id, data)}</span>
               </li>

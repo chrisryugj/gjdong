@@ -109,6 +109,17 @@ test("그래프 노드 라벨·요지·역량 질문 문장에도 금지어 0, �
   assert.deepStrictEqual(hits, [], hits.join("\n"))
 })
 
+test("세로 컬러바 0: border-l-*·border-r-* 색선을 강조에 쓰지 않는다(사용자 규칙. 번호 인덱스·면 틴트로 대신한다)", () => {
+  const hits: string[] = []
+  for (const f of FILES.filter((x) => x.endsWith(".tsx"))) {
+    const src = stripComments(read(f))
+    const re = /border-[lr]-(\d|\[)/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src))) hits.push(`${f}:${src.slice(0, m.index).split("\n").length}`)
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
 test("글자 크기: 화면 컴포넌트에 12px 미만 본문 클래스 없음(키커 dump-kicker 9.5~10.5px만 허용)", () => {
   const hits: string[] = []
   for (const f of FILES.filter((x) => x.endsWith(".tsx"))) {
