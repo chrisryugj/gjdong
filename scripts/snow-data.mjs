@@ -9,7 +9,7 @@
 //   동 기준점 = 동주민센터(lib/dumping/dong-centers.json 카카오 실측 15곳)
 import fs from "node:fs"
 import path from "node:path"
-import { loadRoads, loadDem, snapPath, steepSegments, roadChains, routeRoadName, lanesNum, distM, nearestEdge } from "./snow-roads.mjs"
+import { loadRoads, loadDem, snapPath, snapAlongTrunk, steepSegments, roadChains, routeRoadName, lanesNum, distM } from "./snow-roads.mjs"
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..")
 const RAW = path.join(ROOT, "data/snow/raw")
@@ -217,6 +217,7 @@ async function main() {
   const centerName = Object.fromEntries(DONGS.map((d) => [d, centersFile[d].name]))
 
   const net = await loadRoads()
+  const trunkChains = roadChains(net, { kinds: ["highway", "major_road"], excludeDetail: [], skipBridges: false })
   const snapStats = { heat: {}, weak: {}, ice: {} }
   const tally = (bucket, method) => (snapStats[bucket][method] = (snapStats[bucket][method] ?? 0) + 1)
 
@@ -349,7 +350,13 @@ async function main() {
     return { near: out, heatIds, matNear }
   }
   const segRecord = (bucket, base, a, b, name, expectM, snapOpts = {}) => {
-    const snap = snapPath(net, a, b, name, expectM, snapOpts)
+    let snap = snapPath(net, a, b, name, expectM, snapOpts)
+    // 결빙구간(간선·자동차전용도로): 다익스트라가 직선으로 떨어지면 간선 체인 절단으로 재시도, 그래도 안 되면 선을 그리지 않고 끝점만(points).
+    // ★강을 가로지르는 직선(청담대교 구간)이 지도에 그려졌던 실사고. 원자료 기점·종점이 램프 위라 선형을 확정할 수 없다
+    if (bucket === "ice" && snap.method === "straight") {
+      const t = snapAlongTrunk(net, a, b, { roadName: base.road, chains: trunkChains }) ?? snapAlongTrunk(net, a, b, { chains: trunkChains, maxOffM: 200, maxRatio: 2.2 })
+      snap = t ?? { coords: [a, b], len: distM(a, b), method: "points", approx: true, note: "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없습니다. 두 끝점만 표시합니다", roadName: "" }
+    }
     tally(bucket, snap.method)
     const pts = samplePath(snap.coords)
     const mid = midOf(snap.coords)
@@ -382,7 +389,9 @@ async function main() {
     const km = kmRaw > 5 ? kmRaw / 1000 : kmRaw // 76·30처럼 m 단위가 섞였다
     const a = [+r["시점 위도"], +r["시점 경도"]]
     const b = [+r["종점 위도"], +r["종점 경도"]]
-    weak.push(segRecord("weak", { i: ++wi, name, road: routeRoadName(name.replace(/\(.*$/, "").replace(/,\d+길/, "")), type: r["도로취약유형명"], cls: r["도로분류명"], km, agency: r["관리청명"] }, a, b, routeRoadName(name.replace(/\(.*$/, "")), km ? km * 1000 : 0))
+    // 시점≈종점인 행은 총도로길이가 관리 구간 전체 길이라 그대로 그리면 과장된다(아차산로 22번이 2km. 2026-09-20 실측) → 300m 상한, 없으면 60m
+    const expectM = Math.min(300, km ? km * 1000 : 60)
+    weak.push(segRecord("weak", { i: ++wi, name, road: routeRoadName(name.replace(/\(.*$/, "").replace(/,\d+길/, "")), type: r["도로취약유형명"], cls: r["도로분류명"], km, agency: r["관리청명"] }, a, b, routeRoadName(name.replace(/\(.*$/, "")), expectM))
   }
   const ice = []
   for (const r of csv(FILES.ice)) {

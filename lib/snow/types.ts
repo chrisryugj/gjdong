@@ -24,7 +24,8 @@ export interface DongRow {
   centerName: string
 }
 
-export type SnapMethod = "named" | "network" | "point" | "straight"
+// named=노선명 도로 · network=다른 도로 · point=두 점 같아 연장만큼 · straight=직선 · trunk=간선 체인 절단(결빙구간) · points=선형 미확인, 끝점만 표시(결빙구간)
+export type SnapMethod = "named" | "network" | "point" | "straight" | "trunk" | "points"
 
 export interface HeatSeg {
   i: number

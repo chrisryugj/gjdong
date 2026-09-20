@@ -131,10 +131,10 @@ export function weakLabelFC(data: SnowMapData): FC {
   return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w) }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
 }
 
-// 행안부 상습결빙구간 9. 전부 간선·자동차전용도로
+// 행안부 상습결빙구간 9. 전부 간선·자동차전용도로. method=points(선형 미확인)는 선을 그리지 않고 끝점만 iceEndsFC로
 export function iceFC(data: SnowMapData): FC {
   return fc(
-    data.ice.map((s, i) => ({
+    data.ice.filter((s) => s.method !== "points").map((s, i) => ({
       type: "Feature",
       properties: {
         id: s.id,
@@ -147,8 +147,18 @@ export function iceFC(data: SnowMapData): FC {
     })),
   )
 }
+// 선형 미확인 결빙구간의 기점·종점 마커(선 없음)
+export function iceEndsFC(data: SnowMapData): FC {
+  const out: GeoJSON.Feature[] = []
+  data.ice.forEach((s, i) => {
+    if (s.method !== "points") return
+    for (const [k, p] of [["기점", s.a], ["종점", s.b]] as const)
+      out.push({ type: "Feature", properties: { id: s.id, n: String(i + 1), kind: "ice", tip: tip("상습결빙구간 · 선형 미확인", `${s.road} ${s.km}km · ${k}`, [...segRows(s, data), ["관리청", s.agency.replace("서울특별시", "서울시")]], "원자료 기점·종점이 자동차전용도로 램프 위라 도로 선형을 확정할 수 없어 두 끝점만 표시합니다") }, geometry: { type: "Point", coordinates: ll(p) } })
+  })
+  return fc(out)
+}
 export function iceLabelFC(data: SnowMapData): FC {
-  return fc(data.ice.map((s, i) => ({ type: "Feature", properties: { id: s.id, n: String(i + 1), status: segStatus(s) }, geometry: { type: "Point", coordinates: ll(s.path[Math.floor(s.path.length / 2)]) } })))
+  return fc(data.ice.map((s, i) => ({ type: "Feature", properties: { id: s.id, n: String(i + 1), status: segStatus(s) }, geometry: { type: "Point", coordinates: ll(s.method === "points" ? s.a : s.path[Math.floor(s.path.length / 2)]) } })))
 }
 
 // DEM 추정 급경사(점선). 열선 없는 것만 강조 가능하게 heat 속성

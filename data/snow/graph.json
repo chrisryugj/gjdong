@@ -242,7 +242,7 @@
     "unit": "구간",
     "count": 55,
     "length_m": 6066,
-    "phys_m": 4874,
+    "phys_m": 4876,
     "kind": "상시 설비",
     "def": "급경사·통학로 노면 아래 발열선. 강설 전 자동 가동으로 결빙을 줄입니다"
    }
@@ -786,7 +786,7 @@
     "cacl": 26,
     "sand": 3,
     "sandBags": 600,
-    "weak": 12,
+    "weak": 13,
     "ice": 1,
     "schools": 3
    }
@@ -804,7 +804,7 @@
     "salt": 17,
     "cacl": 26,
     "sand": 3,
-    "weak": 12,
+    "weak": 13,
     "weakNoHeat": 1,
     "weakGap": 0
    }
@@ -856,7 +856,7 @@
     "cacl": 18,
     "sand": 3,
     "sandBags": 1000,
-    "weak": 13,
+    "weak": 12,
     "ice": 3,
     "schools": 3
    }
@@ -874,8 +874,8 @@
     "salt": 27,
     "cacl": 18,
     "sand": 3,
-    "weak": 13,
-    "weakNoHeat": 4,
+    "weak": 12,
+    "weakNoHeat": 6,
     "weakGap": 0
    }
   },
@@ -1195,8 +1195,8 @@
     "cls": "구도",
     "km": 1,
     "dong": "광장동",
-    "heat_near_m": 17,
-    "materials_near": 7,
+    "heat_near_m": 117,
+    "materials_near": 5,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1405,7 +1405,7 @@
     "km": 0.4,
     "dong": "구의2동",
     "heat_near_m": 0,
-    "materials_near": 13,
+    "materials_near": 11,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1423,8 +1423,8 @@
     "cls": "구도",
     "km": 0.35,
     "dong": "구의2동",
-    "heat_near_m": 0,
-    "materials_near": 7,
+    "heat_near_m": 8,
+    "materials_near": 6,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1462,7 +1462,7 @@
     "km": 0.8,
     "dong": "구의2동",
     "heat_near_m": 0,
-    "materials_near": 9,
+    "materials_near": 10,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1499,8 +1499,8 @@
     "cls": "시도",
     "km": 2,
     "dong": "광장동",
-    "heat_near_m": 32,
-    "materials_near": 7,
+    "heat_near_m": 432,
+    "materials_near": 2,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1517,9 +1517,9 @@
     "type": "기타",
     "cls": "시도",
     "km": 1,
-    "dong": "광장동",
-    "heat_near_m": 4,
-    "materials_near": 7,
+    "dong": "구의2동",
+    "heat_near_m": 2,
+    "materials_near": 5,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1613,8 +1613,8 @@
     "cls": "구도",
     "km": 0.1,
     "dong": "중곡4동",
-    "heat_near_m": 17,
-    "materials_near": 12,
+    "heat_near_m": 15,
+    "materials_near": 11,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1652,7 +1652,7 @@
     "km": 0.4,
     "dong": "구의2동",
     "heat_near_m": 0,
-    "materials_near": 14,
+    "materials_near": 7,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1708,8 +1708,8 @@
     "cls": "구도",
     "km": 0.05,
     "dong": "구의2동",
-    "heat_near_m": 21,
-    "materials_near": 3,
+    "heat_near_m": 0,
+    "materials_near": 5,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -1727,7 +1727,7 @@
     "cls": "구도",
     "km": 0.08,
     "dong": "구의2동",
-    "heat_near_m": 138,
+    "heat_near_m": 117,
     "materials_near": 1,
     "gap": false,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
@@ -2031,9 +2031,9 @@
     "cls": "시도",
     "km": 1.4,
     "dong": "자양2동",
-    "heat_near_m": 348,
-    "materials_near": 1,
-    "gap": false,
+    "heat_near_m": 404,
+    "materials_near": 0,
+    "gap": true,
     "source": "공공데이터포털 15067396 행정안전부_상습 결빙구간(2025-11-07) 광진구 9행",
     "asof": "2025-11-07",
     "derived_by": "scripts/snow-data.mjs"
@@ -2088,7 +2088,7 @@
     "cls": "구도",
     "km": 1,
     "dong": "광장동",
-    "heat_near_m": 34,
+    "heat_near_m": 16,
     "materials_near": 6,
     "gap": false,
     "source": "공공데이터포털 15067396 행정안전부_상습 결빙구간(2025-11-07) 광진구 9행",
@@ -2126,9 +2126,9 @@
     "cls": "시도",
     "km": 0.68,
     "dong": "광장동",
-    "heat_near_m": 120,
-    "materials_near": 1,
-    "gap": false,
+    "heat_near_m": 187,
+    "materials_near": 0,
+    "gap": true,
     "source": "공공데이터포털 15067396 행정안전부_상습 결빙구간(2025-11-07) 광진구 9행",
     "asof": "2025-11-07",
     "derived_by": "scripts/snow-data.mjs"
@@ -2159,7 +2159,7 @@
    "space": "evidence",
    "label": "열선 55구간",
    "props": {
-    "gist": "열선은 55구간 6,066m(1차로 기준)입니다. 도로 기준 물리 길이는 약 4,874m이고 11개 동에 있습니다.",
+    "gist": "열선은 55구간 6,066m(1차로 기준)입니다. 도로 기준 물리 길이는 약 4,876m이고 11개 동에 있습니다.",
     "confidence": 1,
     "source": "서울 열린데이터광장 OA-22584 자치구별 도로열선 설치현황(2026-05-31) 광진구 55행",
     "asof": "2026-05-31",
@@ -2198,7 +2198,7 @@
    "space": "evidence",
    "label": "통학로 열선 4구간",
    "props": {
-    "gist": "노선명에 통학로·학교가 적힌 열선이 4구간입니다. 초등학교 21교 중 150m 안에 열선이 있는 학교는 5교입니다.",
+    "gist": "노선명에 통학로·학교가 적힌 열선이 4구간입니다. 초등학교 21교 중 150m 안에 열선이 있는 학교는 6교입니다.",
     "confidence": 0.9,
     "source": "서울 열린데이터광장 OA-22584 자치구별 도로열선 설치현황(2026-05-31) 광진구 55행 · 나이스 교육정보 개방포털 학교기본정보(schoolInfo, 적재일 2026-04-23) 광진구 초등학교 21교",
     "asof": "2026-05-31",
@@ -2263,7 +2263,7 @@
    "space": "evidence",
    "label": "적설취약구간 47곳",
    "props": {
-    "gist": "행안부 적설취약구간이 광진구에 47곳(고갯길 37 · 급경사 8 · 기타 2) 있고 8개 동에 걸칩니다. 광장동가 13곳으로 가장 많습니다.",
+    "gist": "행안부 적설취약구간이 광진구에 47곳(고갯길 37 · 급경사 8 · 기타 2) 있고 8개 동에 걸칩니다. 구의2동가 13곳으로 가장 많습니다.",
     "confidence": 1,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행",
     "asof": "2026-08-27",
@@ -2274,9 +2274,9 @@
    "id": "ev-weak-heat",
    "type": "Evidence",
    "space": "evidence",
-   "label": "취약구간 열선 36/47",
+   "label": "취약구간 열선 34/47",
    "props": {
-    "gist": "적설취약구간 47곳 중 60m 안에 열선이 있는 곳은 36곳입니다. 11곳은 열선이 없습니다.",
+    "gist": "적설취약구간 47곳 중 60m 안에 열선이 있는 곳은 34곳입니다. 13곳은 열선이 없습니다.",
     "confidence": 0.9,
     "source": "공공데이터포털 15162108 행정안전부_적설취약구간_도로 현황(2026-08-27) 광진구 47행 · 서울 열린데이터광장 OA-22584 자치구별 도로열선 설치현황(2026-05-31) 광진구 55행 · 도로망 벡터타일(OpenStreetMap, Protomaps 2026-09-18 빌드) 로컬 파일",
     "asof": "2026-08-27",
@@ -2326,9 +2326,9 @@
    "id": "ev-slope",
    "type": "Evidence",
    "space": "evidence",
-   "label": "지형 추정 급경사 117구간",
+   "label": "지형 추정 급경사 114구간",
    "props": {
-    "gist": "지형 고도로 추정한 경사 8% 이상 이면도로가 117구간 16.2km입니다. 행안부 취약구간 47곳 중 30곳이 이 추정 구간과 겹칩니다. 추정치입니다.",
+    "gist": "지형 고도로 추정한 경사 8% 이상 이면도로가 114구간 16km입니다. 행안부 취약구간 47곳 중 30곳이 이 추정 구간과 겹칩니다. 추정치입니다.",
     "confidence": 0.5,
     "source": "지형 고도 타일(Mapzen terrarium, AWS 공개 타일 z14) 로컬 파일 · 도로망 벡터타일(OpenStreetMap, Protomaps 2026-09-18 빌드) 로컬 파일",
     "asof": "2026-09-18",
@@ -2404,9 +2404,9 @@
    "id": "claim-weak-gap",
    "type": "Claim",
    "space": "claim",
-   "label": "취약구간 11곳 열선 없음",
+   "label": "취약구간 13곳 열선 없음",
    "props": {
-    "gist": "적설취약구간 47곳 중 11곳에 열선이 없습니다. 그중 1곳은 100m 안에 비치 자재도 없습니다.",
+    "gist": "적설취약구간 47곳 중 13곳에 열선이 없습니다. 그중 1곳은 100m 안에 비치 자재도 없습니다.",
     "note": "거리 기준은 도로 스냅 선형 기준. 취약구간 지정 사유(고갯길·급경사)와 열선 설치 기준이 같은지는 공개 자료로 알 수 없습니다"
    }
   },
@@ -2416,7 +2416,7 @@
    "space": "claim",
    "label": "열선 구의2동·중곡4동 집중",
    "props": {
-    "gist": "열선 27/55구간이 구의2동·중곡4동에 있습니다. 적설취약구간이 가장 많은 광장동(13곳)에는 열선이 7구간입니다."
+    "gist": "열선 27/55구간이 구의2동·중곡4동에 있습니다. 적설취약구간이 가장 많은 구의2동(13곳)에는 열선이 16구간입니다."
    }
   },
   {
@@ -3825,33 +3825,6 @@
    "t": "zone-광장동"
   },
   {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-6",
-   "props": {
-    "heat_id": 1,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-6",
-   "props": {
-    "heat_id": 2,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-6",
-   "props": {
-    "heat_id": 19,
-    "within_m": 60
-   }
-  },
-  {
    "f": "lev-salt",
    "rel": "covers",
    "t": "seg-weak-6",
@@ -3865,7 +3838,7 @@
    "rel": "covers",
    "t": "seg-weak-6",
    "props": {
-    "count": 3,
+    "count": 1,
     "within_m": 100
    }
   },
@@ -4195,15 +4168,6 @@
    }
   },
   {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-16",
-   "props": {
-    "heat_id": 21,
-    "within_m": 60
-   }
-  },
-  {
    "f": "lev-salt",
    "rel": "covers",
    "t": "seg-weak-16",
@@ -4263,25 +4227,7 @@
    "rel": "covers",
    "t": "seg-weak-17",
    "props": {
-    "heat_id": 15,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-17",
-   "props": {
     "heat_id": 19,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-17",
-   "props": {
-    "heat_id": 33,
     "within_m": 60
    }
   },
@@ -4308,7 +4254,7 @@
    "rel": "covers",
    "t": "seg-weak-17",
    "props": {
-    "count": 11,
+    "count": 9,
     "within_m": 100
    }
   },
@@ -4354,7 +4300,7 @@
    "rel": "covers",
    "t": "seg-weak-18",
    "props": {
-    "count": 7,
+    "count": 6,
     "within_m": 100
    }
   },
@@ -4446,7 +4392,7 @@
    "rel": "covers",
    "t": "seg-weak-20",
    "props": {
-    "count": 8,
+    "count": 9,
     "within_m": 100
    }
   },
@@ -4516,34 +4462,7 @@
    "t": "zone-광장동"
   },
   {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-22",
-   "props": {
-    "heat_id": 30,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-22",
-   "props": {
-    "heat_id": 36,
-    "within_m": 60
-   }
-  },
-  {
    "f": "lev-salt",
-   "rel": "covers",
-   "t": "seg-weak-22",
-   "props": {
-    "count": 5,
-    "within_m": 100
-   }
-  },
-  {
-   "f": "lev-cacl",
    "rel": "covers",
    "t": "seg-weak-22",
    "props": {
@@ -4559,7 +4478,25 @@
   {
    "f": "seg-weak-23",
    "rel": "within",
-   "t": "zone-광장동"
+   "t": "zone-구의2동"
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "seg-weak-23",
+   "props": {
+    "heat_id": 42,
+    "within_m": 60
+   }
+  },
+  {
+   "f": "lev-heat",
+   "rel": "covers",
+   "t": "seg-weak-23",
+   "props": {
+    "heat_id": 43,
+    "within_m": 60
+   }
   },
   {
    "f": "lev-heat",
@@ -4584,7 +4521,7 @@
    "rel": "covers",
    "t": "seg-weak-23",
    "props": {
-    "count": 7,
+    "count": 5,
     "within_m": 100
    }
   },
@@ -4756,20 +4693,11 @@
    }
   },
   {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-28",
-   "props": {
-    "heat_id": 8,
-    "within_m": 60
-   }
-  },
-  {
    "f": "lev-cacl",
    "rel": "covers",
    "t": "seg-weak-28",
    "props": {
-    "count": 12,
+    "count": 11,
     "within_m": 100
    }
   },
@@ -4843,24 +4771,6 @@
    "rel": "covers",
    "t": "seg-weak-30",
    "props": {
-    "heat_id": 12,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-30",
-   "props": {
-    "heat_id": 15,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-30",
-   "props": {
     "heat_id": 19,
     "within_m": 60
    }
@@ -4875,29 +4785,11 @@
    }
   },
   {
-   "f": "lev-heat",
-   "rel": "covers",
-   "t": "seg-weak-30",
-   "props": {
-    "heat_id": 46,
-    "within_m": 60
-   }
-  },
-  {
-   "f": "lev-salt",
-   "rel": "covers",
-   "t": "seg-weak-30",
-   "props": {
-    "count": 1,
-    "within_m": 100
-   }
-  },
-  {
    "f": "lev-cacl",
    "rel": "covers",
    "t": "seg-weak-30",
    "props": {
-    "count": 13,
+    "count": 7,
     "within_m": 100
    }
   },
@@ -5008,7 +4900,7 @@
    "rel": "covers",
    "t": "seg-weak-33",
    "props": {
-    "count": 3,
+    "count": 5,
     "within_m": 100
    }
   },
@@ -5553,15 +5445,6 @@
    "t": "zone-자양2동"
   },
   {
-   "f": "lev-cacl",
-   "rel": "covers",
-   "t": "seg-ice-11000-94",
-   "props": {
-    "count": 1,
-    "within_m": 100
-   }
-  },
-  {
    "f": "seg-ice-11000-97",
    "rel": "exemplifies",
    "t": "con-freeze"
@@ -5716,15 +5599,6 @@
    "f": "seg-ice-11000-96",
    "rel": "within",
    "t": "zone-광장동"
-  },
-  {
-   "f": "lev-salt",
-   "rel": "covers",
-   "t": "seg-ice-11000-96",
-   "props": {
-    "count": 1,
-    "within_m": 100
-   }
   },
   {
    "f": "seg-ice-11215-2",

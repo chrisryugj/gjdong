@@ -7,7 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { LayerId, SnowMapData } from "@/lib/snow/types"
 import type { StageId } from "@/lib/snow/stage"
 import { BASEMAP_BOUNDS, BASEMAP_SOURCE, buildBasemapStyle, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapTheme } from "@/lib/dumping/basemap-style"
-import { caclFC, type ColMetric, dongBounds, dongColsFC, dongFC, heatEndsFC, heatFC, iceFC, iceLabelFC, resColor, ringFC, riskColor, saltFC, sandFC, schoolFC, slopeFC, weakFC, weakLabelFC } from "./map-geo"
+import { caclFC, type ColMetric, dongBounds, dongColsFC, dongFC, heatEndsFC, heatFC, iceEndsFC, iceFC, iceLabelFC, resColor, ringFC, riskColor, saltFC, sandFC, schoolFC, slopeFC, weakFC, weakLabelFC } from "./map-geo"
 
 // /snow 지도. /dumping 지도의 바탕(정적 pmtiles)과 "한 번 선언, 이후 setData·setPaintProperty" 규약을 따른다.
 // 주인공은 열선: 밤 지도 위 유일한 난색, 글로우 + 천천히 흐르는 점선(발열이 흐른다는 데이터 뜻). 줌아웃에서도 최소 3px.
@@ -26,6 +26,7 @@ const S = {
   weak: "snow-weak",
   weakLabel: "snow-weak-label",
   ice: "snow-ice",
+  iceEnds: "snow-ice-ends",
   iceLabel: "snow-ice-label",
   heatGlow: "snow-heat-glow",
   heat: "snow-heat",
@@ -39,7 +40,7 @@ const S = {
   cols: "snow-cols",
   colLabel: "snow-col-label",
 } as const
-const HOVER = [S.cols, S.school, S.sand, S.salt, S.cacl, S.heat, S.weak, S.ice, S.slope]
+const HOVER = [S.cols, S.school, S.sand, S.salt, S.cacl, S.heat, S.weak, S.ice, S.iceEnds, S.slope]
 const TILT_PITCH = 55
 const TILT_BEARING = -18
 const ACCENT = { light: "#2a6f97", dark: "#7cc0e8" } as const
@@ -263,6 +264,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     setFC(map, S.weak, weakFC(data))
     setFC(map, S.weakLabel, weakLabelFC(data))
     setFC(map, S.ice, iceFC(data))
+    setFC(map, S.iceEnds, iceEndsFC(data))
     setFC(map, S.iceLabel, iceLabelFC(data))
     setFC(map, S.slope, slopeFC(data))
     setFC(map, S.school, schoolFC(data))
@@ -290,6 +292,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     vis(S.weak, on("weak"))
     vis(S.weakLabel, on("weak"))
     vis(S.ice, on("ice"))
+    vis(S.iceEnds, on("ice"))
     vis(S.iceLabel, on("ice"))
     vis(S.slope, on("slope"))
     vis(S.school, on("school"))
@@ -404,6 +407,8 @@ function declareLayers(map: MlMap) {
   map.addLayer({ id: S.slope, type: "line", source: S.slope, layout: { "line-cap": "round" }, paint: { "line-color": "#e0705a", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 15, 2.2], "line-opacity": 0.75, "line-dasharray": [1, 2] } })
   map.addLayer({ id: S.weak, type: "line", source: S.weak, layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#e0705a", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 3, 15, 5], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.38, 0.95] } })
   map.addLayer({ id: S.ice, type: "line", source: S.ice, layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#e0705a", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 4, 15, 7], "line-opacity": ["case", ["==", ["get", "status"], "heat"], 0.45, 0.9], "line-dasharray": [3, 1.2] } })
+  // 선형 미확인 결빙구간 끝점(선 없음): 벽돌 테두리 빈 원
+  map.addLayer({ id: S.iceEnds, type: "circle", source: S.iceEnds, paint: { "circle-color": "#0b1216", "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4, 15, 7], "circle-stroke-color": "#e0705a", "circle-stroke-width": 2.2, "circle-opacity": 0.9 } })
   // 열선: 글로우 › 본선 › 흐르는 점선(밝은 심). 최소 폭 3px
   map.addLayer({ id: S.heatGlow, type: "line", source: S.heat, layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f0a04b", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 9, 15, ["*", ["get", "w"], 14]], "line-opacity": 0.45, "line-blur": 6 } })
   map.addLayer({ id: S.heat, type: "line", source: S.heat, layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f0a04b", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 3, 15, ["+", 4, ["*", ["get", "w"], 1.5]]], "line-opacity": 1 } })
@@ -469,6 +474,8 @@ function applyTheme(map: MlMap, theme: BasemapTheme) {
   map.setPaintProperty(S.ring, "line-color", dark ? "#6b7f8e" : "#64748b")
   const risk = riskColor(dark)
   for (const id of [S.slope, S.weak, S.ice]) map.setPaintProperty(id, "line-color", risk)
+  map.setPaintProperty(S.iceEnds, "circle-stroke-color", risk)
+  map.setPaintProperty(S.iceEnds, "circle-color", ground)
   map.setPaintProperty(S.weakLabel, "text-halo-color", dark ? "#a8322a" : "#7f2a22")
   map.setPaintProperty(S.iceLabel, "text-halo-color", dark ? "#a8322a" : "#7f2a22")
   const heat = resColor("heat", dark)

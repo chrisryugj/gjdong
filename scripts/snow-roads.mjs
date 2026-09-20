@@ -41,7 +41,10 @@ export function distM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 const round6 = (v) => Math.round(v * 1e6) / 1e6
-const key = (p) => `${round6(p[0])},${round6(p[1])}`
+// 노드 키는 약 2m 격자로 양자화한다. ★타일마다 같은 교차점 좌표가 미세하게 달라(타일 격자 양자화) 6자리 키로는 그래프가 3,953조각으로 끊겼다(청담대교 남단이 섬. 2026-09-20 실측)
+const GRID_LAT = 0.000018 // ≈2.0m
+const GRID_LNG = 0.0000227 // ≈2.0m at 37.55N
+const key = (p) => `${Math.round(p[0] / GRID_LAT)},${Math.round(p[1] / GRID_LNG)}`
 
 function tileXY(lng, lat, z) {
   const n = 2 ** z
@@ -100,9 +103,8 @@ export async function loadRoads({ bbox = GWANGJIN_BBOX, z = 15, includePaths = t
           for (let j = 1; j < pts.length; j++) {
             const a = pts[j - 1]
             const b = pts[j]
-            // 타일 버퍼(경계 밖 부분)는 이웃 타일이 같은 좌표로 다시 내니 bbox 밖 점을 끼운 조각은 버린다
-            const inside = (p) => p[1] >= lngW - 1e-9 && p[1] <= lngE + 1e-9 && p[0] <= latN + 1e-9 && p[0] >= latS - 1e-9
-            if (!inside(a) && !inside(b)) continue
+            // 타일 버퍼 조각은 이웃 타일과 같은 좌표라 아래 seen(양 끝 좌표 키)으로 중복 제거된다.
+            // ★양 끝이 타일 밖인 조각을 버리면 긴 간선·교량 조각(청담대교 등)이 모든 타일에서 사라져 경로가 끊긴다(2026-09-20 실사고). 버리지 않는다
             const ak = nodeOf(a)
             const bk = nodeOf(b)
             if (ak === bk) continue
@@ -118,7 +120,43 @@ export async function loadRoads({ bbox = GWANGJIN_BBOX, z = 15, includePaths = t
       }
     }
   }
+  stitchTileSeams(nodes, edges)
   return { nodes, edges }
+}
+
+// ★타일 경계 봉합. z15 타일 경계에서 잘린 긴 선분(교량·간선)은 양쪽 타일의 잘린 끝점 좌표가 서로 다르다(extent 양자화 + 버퍼).
+// 청담대교 분당수서로가 37.5273(타일 y 경계)에서 285m·401m 두 조각으로 끊겨 한강 남쪽 1,541노드가 섬이 됐다(2026-09-20 실측).
+// 끝점(차수 1) 노드끼리 같은 이름·같은 종류이고 45m 안이면 짧은 엣지로 잇는다
+function stitchTileSeams(nodes, edges, { maxM = 45 } = {}) {
+  const ends = []
+  for (const [k, n] of nodes) if (n.adj.length === 1) ends.push({ k, n, e: edges[n.adj[0]] })
+  const cell = (p) => `${Math.floor(p[0] / 0.0005)},${Math.floor(p[1] / 0.0006)}`
+  const buckets = new Map()
+  for (const x of ends) (buckets.get(cell(x.n.p)) ?? buckets.set(cell(x.n.p), []).get(cell(x.n.p))).push(x)
+  const used = new Set()
+  let stitched = 0
+  for (const x of ends) {
+    if (used.has(x.k)) continue
+    const [ci, cj] = cell(x.n.p).split(",").map(Number)
+    let best = null
+    for (let di = -1; di <= 1; di++)
+      for (let dj = -1; dj <= 1; dj++)
+        for (const y of buckets.get(`${ci + di},${cj + dj}`) ?? []) {
+          if (y.k === x.k || used.has(y.k)) continue
+          if (y.e.name !== x.e.name || y.e.kind !== x.e.kind) continue
+          const d = distM(x.n.p, y.n.p)
+          if (d <= maxM && (!best || d < best.d)) best = { y, d }
+        }
+    if (!best) continue
+    const { y, d } = best
+    const idx = edges.push({ a: x.n.p, b: y.n.p, akey: x.k, bkey: y.k, name: x.e.name, kind: x.e.kind, detail: x.e.detail, len: d, bridge: x.e.bridge || y.e.bridge, seam: true }) - 1
+    x.n.adj.push(idx)
+    y.n.adj.push(idx)
+    used.add(x.k)
+    used.add(y.k)
+    stitched++
+  }
+  return stitched
 }
 
 // 점에서 선분까지: 투영점·거리·선분 위치 비율
@@ -345,6 +383,62 @@ export function snapPath(net, a, b, name, expectM, { allowPath = false, kinds = 
     note: byName ? (detour ? "경로가 직선거리의 2배를 넘어 우회일 수 있음" : "") : `노선명과 다른 도로(${roadNames.slice(0, 2).join("·") || "이름 없음"})로 이었음`,
     roadName: roadNames[0] ?? "",
   }
+}
+
+// 간선(자동차전용도로) 구간: 두 점을 간선 체인(roadChains) 위에 투영해 체인을 그 사이만 자른다.
+// 상습결빙구간(동부간선·강변북로·청담대교·천호대로 등)은 램프 연결이 끊긴 그래프에서 다익스트라가 8km를 돌거나 실패한다(2026-09-20 실측) → 체인 절단이 정답.
+// 방향별 차로가 별도 체인이라 U자로 도는 체인이 있다 → 절단 길이가 직선의 maxRatio배를 넘으면 기각. 행안부 도로명은 OSM과 달라 별칭 표를 둔다
+const TRUNK_ALIAS = { 동부간선도로: ["동부간선로", "강변북로", "분당수서로"], 강변역로: ["강변역로", "강변북로"], 광나루로: ["광나루로"], 자양로: ["자양로"], 워커힐로: ["워커힐로"], 천호대로: ["천호대로"], 아차산로: ["아차산로"] }
+export function snapAlongTrunk(net, a, b, { roadName = "", kinds = ["highway", "major_road"], maxOffM = 160, maxRatio = 2.5, chains = null } = {}) {
+  const list = chains ?? roadChains(net, { kinds, excludeDetail: [], skipBridges: false })
+  const wanted = TRUNK_ALIAS[normRoadName(roadName)] ?? (roadName ? [normRoadName(roadName)] : null)
+  const straight = distM(a, b)
+  const proj = (c, p) => {
+    let bestD = Infinity
+    let bestS = 0
+    let bestQ = null
+    let acc = 0
+    for (let i = 1; i < c.pts.length; i++) {
+      const r = projectOnSeg(p, c.pts[i - 1], c.pts[i])
+      const L = distM(c.pts[i - 1], c.pts[i])
+      if (r.d < bestD) {
+        bestD = r.d
+        bestS = acc + r.t * L
+        bestQ = r.q
+      }
+      acc += L
+    }
+    return { d: bestD, s: bestS, q: bestQ }
+  }
+  const cut = (c, pa, pb) => {
+    const [s0, s1, q0, q1] = pa.s <= pb.s ? [pa.s, pb.s, pa.q, pb.q] : [pb.s, pa.s, pb.q, pa.q]
+    const coords = [q0]
+    let acc = 0
+    for (let i = 1; i < c.pts.length; i++) {
+      const L = distM(c.pts[i - 1], c.pts[i])
+      if (acc > s0 && acc < s1) coords.push(c.pts[i - 1])
+      acc += L
+      if (acc >= s1) break
+    }
+    coords.push(q1)
+    let len = 0
+    for (let i = 1; i < coords.length; i++) len += distM(coords[i - 1], coords[i])
+    return { coords, len }
+  }
+  let best = null
+  for (const c of list) {
+    if (c.len < 150) continue
+    if (wanted && !wanted.includes(c.name)) continue
+    const pa = proj(c, a)
+    const pb = proj(c, b)
+    if (pa.d > maxOffM || pb.d > maxOffM) continue
+    const k = cut(c, pa, pb)
+    if (k.len > straight * maxRatio + 40) continue
+    const score = pa.d + pb.d + Math.abs(k.len - straight) * 0.2
+    if (!best || score < best.score) best = { c, k, score, off: Math.round(Math.max(pa.d, pb.d)) }
+  }
+  if (!best) return null
+  return { coords: best.k.coords, len: best.k.len, method: "trunk", approx: best.off > 60, note: `${best.c.name || "간선"}을 따라 두 점 사이를 그림(도로에서 최대 ${best.off}m)`, roadName: best.c.name }
 }
 
 // ─── 지형(terrarium) ───

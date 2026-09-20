@@ -12,14 +12,14 @@ const get = (id: string) => {
   return r
 }
 
-test("취약구간 56곳(적설취약 47 + 상습결빙 9) 중 60m 안 열선 없는 곳 17, 자원 공백 5(이면도로 1 + 자동차전용·간선 결빙구간 4)", () => {
+test("취약구간 56곳(적설취약 47 + 상습결빙 9) 중 60m 안 열선 없는 곳 19, 자원 공백 7(이면도로 1 + 간선·자동차전용도로 결빙구간 6). 도로망 타일 봉합 뒤 수치", () => {
   const r = get("cq-seg-gap")
-  assert.strictEqual(r.badge, "17/56")
-  assert.strictEqual(r.items.length, 17)
+  assert.strictEqual(r.badge, "19/56")
+  assert.strictEqual(r.items.length, 19)
   const gaps = r.items.filter((i) => i.note?.includes("자원 공백")).map((i) => i.label)
-  assert.strictEqual(gaps.length, 5)
+  assert.strictEqual(gaps.length, 7)
   assert.ok(gaps.includes("능동로 120"))
-  assert.strictEqual(gaps.filter((l) => /상습결빙구간/.test(l)).length, 4)
+  assert.strictEqual(gaps.filter((l) => /상습결빙구간/.test(l)).length, 6)
   assert.ok(r.core)
 })
 
