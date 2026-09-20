@@ -31,7 +31,10 @@ export async function GET() {
     let now: SnowForecast["now"] = null
     for (let i = 0; i < h.time.length; i++) {
       const t = h.time[i]
-      const row = { t, temp: h.temperature_2m[i] ?? 0, snow: h.snowfall[i] ?? 0, code: h.weather_code[i] ?? 0 }
+      const temp = h.temperature_2m[i]
+      const snow = h.snowfall[i]
+      if (temp == null || snow == null) continue // null 시각은 버린다(0으로 바꾸면 "최저 0도 = 결빙" 거짓 화면)
+      const row = { t, temp, snow, code: h.weather_code[i] ?? 0 }
       if (t === nowKey) now = { temp: row.temp, snow: row.snow, code: row.code }
       if (t >= nowKey) hours.push(row)
     }
