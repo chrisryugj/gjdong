@@ -39,7 +39,8 @@ export function mixHex(a: string, b: string, t: number): string {
 export const BIN_RECO_LABEL = "가로쓰레기통 배치추천(데이터팀)"
 
 // 바탕(면)은 하나만. 두 히트맵을 겹치면 색이 섞여 판독 불가라 중첩 금지
-export const BASE_DEF: Record<BaseMode, { idx: 4 | 5 | 6 | 8; stops: number[]; unit: string; pal: string[]; legend: string }> = {
+export type DataBase = Exclude<BaseMode, "none">
+export const BASE_DEF: Record<DataBase, { idx: 4 | 5 | 6 | 8; stops: number[]; unit: string; pal: string[]; legend: string }> = {
   unm: { idx: 6, stops: UNM_STOPS, unit: "세대", pal: PAL_GREEN, legend: "다가구·단독" },
   comp: { idx: 4, stops: CNT_STOPS, unit: "건", pal: PAL_BLUE, legend: "민원" },
   enf: { idx: 5, stops: CNT_STOPS, unit: "건", pal: PAL_AMBER, legend: "과태료" },
@@ -745,6 +746,20 @@ export const RECO_RING_R_M = 17 // 배치추천 고리(아직 없는 것이라 �
 export const RECO_RING_H_M = 12
 export const FOCUS_RING_R_M = 46 // 초점 고리(목록 클릭·드론 목표)
 export const NEUTRAL_BUILDING = { light: "#d7d5cd", dark: "#2a343b" } as const
+
+// 실사풍 건물 색(바탕 "없음"·기본): 층수로 건물 유형을 짐작해 칠한다. 1~2층 단독(따뜻한 베이지) · 3~4층 다가구(벽돌 톤) · 5~9층 근생·빌라(콘크리트)
+// · 10~19층 아파트(회백) · 20층+ 고층(유리 청회). 같은 층수라도 UFID 끝자리로 ±1층 흔들어 이웃 건물이 똑같은 색으로 붙지 않게 한다
+export const REAL_BUILDING = {
+  light: ["#ddd2be", "#cdb9a3", "#c9c5bb", "#bfc2c4", "#adb8c3"],
+  dark: ["#3a3730", "#403832", "#343a3e", "#323b44", "#2f3e4c"],
+} as const
+export function realBuildingExpr(theme: "light" | "dark"): unknown[] {
+  const pal = REAL_BUILDING[theme]
+  const flr: unknown[] = ["coalesce", ["get", "flr"], 2]
+  // UFID 문자열 끝 두 자리 → 0·1·2 → -1·0·+1
+  const jitter: unknown[] = ["-", ["%", ["to-number", ["slice", ["to-string", ["get", "id"]], -2], 0], 3], 1]
+  return ["interpolate", ["linear"], ["+", flr, jitter], 1, pal[0], 4, pal[1], 8, pal[2], 16, pal[3], 28, pal[4]]
+}
 
 // 중심 둘레 반지름 r(m)인 정다각형(원 근사). n=20이면 화면에서 원으로 읽힌다
 export function discPolygon(lng: number, lat: number, r: number, n = 20): GeoJSON.Polygon {

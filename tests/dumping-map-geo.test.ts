@@ -29,6 +29,8 @@ import {
   routeChains,
   dongCenter,
   dongAnchors,
+  realBuildingExpr,
+  REAL_BUILDING,
   DONG_MIN_GAP_M,
   stepExpr,
 } from "../components/dumping/map-geo"
@@ -229,4 +231,14 @@ test("동 기준점끼리는 최소 간격을 지킨다(중곡1동·2동 주민�
       const d = Math.hypot((p[0] - q[0]) * 111320 * Math.cos((p[1] * Math.PI) / 180), (p[1] - q[1]) * 111320)
       assert.ok(d >= DONG_MIN_GAP_M - 1, `${names[i]}·${names[j]} ${d.toFixed(0)}m`)
     }
+})
+
+test("실사 건물 색 식: 층수 보간 + UFID 끝자리 흔들림, 테마별 팔레트 5단", () => {
+  const e = realBuildingExpr("light") as unknown[]
+  assert.equal(e[0], "interpolate")
+  const stops = e.slice(3).filter((_, i) => i % 2 === 0)
+  assert.deepEqual(stops, [1, 4, 8, 16, 28])
+  const cols = e.slice(3).filter((_, i) => i % 2 === 1)
+  assert.deepEqual(cols, [...REAL_BUILDING.light])
+  assert.notDeepEqual(realBuildingExpr("dark").slice(3).filter((_, i) => i % 2 === 1), cols)
 })

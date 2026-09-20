@@ -56,6 +56,7 @@ import {
   mixHex,
   postsFC,
   radiusMetersExpr,
+  realBuildingExpr,
   ringFC,
   ringPolygon,
   ringsFC,
@@ -433,18 +434,25 @@ export default function DumpingMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
-    const def = BASE_DEF[base]
-    const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
     // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
     const muted = layers.length > 0 || showCandidates || showBinRecos || showHotspots || showCritical
     // 동을 골랐으면 그 동 안은 항상 또렷하게. 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
     const dimmed: unknown[] = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted]
-    const positive: unknown[] = [">", ["get", prop], 0]
-    // 값 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다(흐림 상태에선 숨김)
-    map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, def.pal), ZERO_CELL])
-    map.setPaintProperty(S.grid, "fill-opacity", ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]])
-    map.setPaintProperty(L_GRID_LINE, "line-color", ["case", positive, "#ffffff", ZERO_CELL])
-    map.setPaintProperty(L_GRID_LINE, "line-opacity", ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
+    if (base === "none") {
+      // 바탕 없음: 격자를 안 칠한다. 동 선택 시 그 동만 옅은 격자선으로 범위를 알린다
+      map.setPaintProperty(S.grid, "fill-opacity", 0)
+      map.setPaintProperty(L_GRID_LINE, "line-color", ZERO_CELL)
+      map.setPaintProperty(L_GRID_LINE, "line-opacity", selectedDong ? ["case", dimmed, 0, 0.35] : 0)
+    } else {
+      const def = BASE_DEF[base]
+      const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
+      const positive: unknown[] = [">", ["get", prop], 0]
+      // 값 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다(흐림 상태에선 숨김)
+      map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, def.pal), ZERO_CELL])
+      map.setPaintProperty(S.grid, "fill-opacity", ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]])
+      map.setPaintProperty(L_GRID_LINE, "line-color", ["case", positive, "#ffffff", ZERO_CELL])
+      map.setPaintProperty(L_GRID_LINE, "line-opacity", ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
+    }
     const dimPt: unknown[] = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted && !selectedDong]
     // 날씨별 원이 켜져 있으면 보통 원 대신 그쪽만
     setFC(map, S.circles, weather ? emptyFC() : circlesFC(data, circles))
@@ -462,13 +470,20 @@ export default function DumpingMap({
     map.setFilter(S.weatherCols, colFilter)
     // 건물 색 = 그 건물이 선 칸의 바탕 값(feature-state). 값 0·칸 밖·다른 동은 중립색. 평면 격자와 같은 램프라 범례가 그대로 통한다.
     // 시설·후보·배치추천 말뚝이 서면 히트맵을 중립색 쪽으로 55% 눌러 말뚝이 앞에 선다(빨간 후보가 주황 건물에 묻혔던 실측). 동별 기둥은 기둥이 주인공이라 건물은 중립
+    // 바탕 없음이면 층수 실사 색(map-geo realBuildingExpr). 동 선택·동별 기둥 때도 실사 색 유지(중립 회색보다 지도가 살아 있다)
     const neutral = NEUTRAL_BUILDING[themeRef.current]
-    const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
-    const pointsOn = layers.length > 0 || showCandidates || showBinRecos
-    const pal = pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
     const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", showDongBars]
-    if (map.getLayer(L_BUILDINGS_NSDI))
-      map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val), neutral])
+    if (map.getLayer(L_BUILDINGS_NSDI)) {
+      if (base === "none") map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", realBuildingExpr(themeRef.current))
+      else {
+        const def = BASE_DEF[base]
+        const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
+        const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
+        const pointsOn = layers.length > 0 || showCandidates || showBinRecos
+        const pal = pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
+        map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val), neutral])
+      }
+    }
   }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme, showDongBars])
 
   // 동 선택. 전체 동은 상시 얇게, 선택 동은 굵게 + 은은한 채움 + 동 전체가 화면에 들어오게
@@ -945,7 +960,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
       minzoom: 12,
       layout: { visibility: "none" },
       paint: {
-        "fill-extrusion-color": "#d7d5cd",
+        "fill-extrusion-color": realBuildingExpr("light") as ExpressionSpecification,
         "fill-extrusion-height": ["case", [">", ["coalesce", ["get", "h"], 0], 0], ["get", "h"], ["*", ["max", 2, ["coalesce", ["get", "flr"], 2]], 3.2]],
         // 불투명. 반투명이면 원기둥·말뚝과 교차하는 벽이 그 속에 비친다(17라운드 실측 "기둥 텍스처 깨짐")
         "fill-extrusion-opacity": 1,

@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, ZERO_CELL, type CandidateFocus } from "./map-geo"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, type CandidateFocus } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
+import { useTheme } from "./theme"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
 // 지도 모드 상수는 lib/dumping/labels.ts(순환 import 회피). 여기서는 다시 내보내기만
@@ -47,6 +48,7 @@ export const DEFAULT_VIEW: MapView = {
 }
 
 const BASE_LABEL: Record<BaseMode, string> = {
+  none: "없음",
   unm: "다가구·단독",
   comp: "민원",
   enf: "과태료",
@@ -55,6 +57,7 @@ const BASE_LABEL: Record<BaseMode, string> = {
 
 // 바탕 한 줄 뜻. 범례 첫 줄에 항상 보인다. 통계 낱말 없이
 const BASE_MEANING: Record<BaseMode, string> = {
+  none: "격자를 칠하지 않습니다. 건물은 층수로 짐작한 실사 색(1~2층 단독 · 3~4층 다가구 · 5~9층 근생·빌라 · 10층+ 아파트 · 20층+ 고층)",
   unm: "색이 진할수록 다가구·단독주택이 많은 칸(적발 기록과 같이 움직이는 조건. 판정은 과태료 기준)",
   comp: "색이 진할수록 주민 신고 민원이 많은 칸(앱 신고 편향 포함)",
   enf: "색이 진할수록 과태료를 많이 부과한 칸(회귀 판정의 결과지표)",
@@ -64,6 +67,8 @@ const BASE_MEANING: Record<BaseMode, string> = {
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
   switch (m) {
+    case "none":
+      return "바탕 지표 없이 원·기둥·시설만 봅니다. 건물 색은 GIS건물통합정보의 지상층수를 유형으로 읽은 것이라 실제 용도와 다를 수 있습니다."
     case "unm":
       return "바탕색은 다가구·단독 밀집(건축물대장 다가구 가구+일반단독 동)의 밀도입니다. 아파트 세대수는 연관이 확인되지 않아 따로 레이어를 두지 않았습니다."
     case "comp":
@@ -159,7 +164,6 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
         <p className={GROUP}>바탕</p>
         {(Object.keys(BASE_LABEL) as BaseMode[]).map((m) => {
           const on = view.base === m
-          const pal = BASE_DEF[m].pal
           return (
             <button
               key={m}
@@ -169,7 +173,11 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
               onClick={() => patch({ base: m, circles: view.circles.filter((c) => c !== m) })}
               className={`${ROW} ${on ? ROW_ON : ROW_OFF}`}
             >
-              <Swatch kind="square" color={pal[4]} on={on} />
+              {m === "none" ? (
+                <i className="h-3 w-3 shrink-0 rounded-[3px] border-[1.5px] border-dashed border-[var(--cp-text-faint)]" style={{ opacity: on ? 1 : 0.7 }} />
+              ) : (
+                <Swatch kind="square" color={BASE_DEF[m].pal[4]} on={on} />
+              )}
               <span className="min-w-0 flex-1">{BASE_LABEL[m]}</span>
             </button>
           )
@@ -372,27 +380,30 @@ interface LegendProps {
 export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
   const [showHelp, setShowHelp] = useState(false)
   const [showTable, setShowTable] = useState(false)
-  const def = BASE_DEF[view.base]
+  const theme = useTheme()
+  // 바탕 없음이면 데이터 램프 대신 건물 층수 색 띠(테마별). 표는 다가구·단독 기준으로 남긴다
+  const none = view.base === "none"
+  const def = BASE_DEF[view.base === "none" ? "unm" : view.base]
 
   return (
     <div className="text-[12.5px] leading-snug text-[var(--cp-text)]">
       <div className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="dump-kicker text-[10.5px] text-[var(--cp-text-faint)]">{def.legend} · 100m</span>
+          <span className="dump-kicker text-[10.5px] text-[var(--cp-text-faint)]">{none ? "바탕 없음 · 건물 층수" : `${def.legend} · 100m`}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-[3px]">
-            {def.pal.map((c) => (
+            {(none ? [...REAL_BUILDING[theme]] : def.pal).map((c: string) => (
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
           <span className="font-mono text-[11px] leading-none text-[var(--cp-text-dim)]">
-            {def.stops[1]}+ … {def.stops[def.stops.length - 1]}+ {def.unit}
+            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ … ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
           {BASE_MEANING[view.base]}
-          {view.tilt && " 입체에서는 건물도 제 칸 색으로 칠함"}
+          {view.tilt && !none && " 입체에서는 건물도 제 칸 색으로 칠함"}
         </p>
         {(showHelp || view.weather || view.grid3d) && (
           <>

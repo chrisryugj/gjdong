@@ -419,5 +419,5 @@ export interface OntoGraph {
 export type MapMode = "overlay" | "unm" | "comp" | "enf" | "lp"
 
 // 지도 레이어 분해: 바탕(면)은 하나만, 원(점)은 자유 중첩. lp = 서울시 생활인구(노출)
-export type BaseMode = "unm" | "comp" | "enf" | "lp"
+export type BaseMode = "unm" | "comp" | "enf" | "lp" | "none" // none = 바탕 없음(격자 안 칠함, 건물은 층수 실사 색)
 export type CircleId = "comp" | "enf"
