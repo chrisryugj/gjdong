@@ -13,6 +13,11 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
   const asof = `${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`
   return (
     <ModalShell id="snow-check" onClose={onClose} title="눈 오기 전 점검 후보 · 결재용 한 장" sub={`광진 제설 상황판 · 자원 기준일 ${asof} · 빌드 ${data.meta.built}`} size="xl" zIndex={2400}>
+      {/* 결정 요청(냉독 4차: "무엇을 승인해 달라"는 한 줄이 없었다). 돈이 걸린 항목만 결정, 나머지는 지시 */}
+      <div className="mb-3 rounded-lg bg-[var(--cp-panel2)] px-3 py-2 text-[13.5px] leading-snug text-[var(--cp-text)]">
+        <span className="dump-kicker mr-2 text-[10px] text-[var(--cp-text-dim)]">결정 요청</span>
+        {checks.filter((c) => /결정/.test(c.request)).map((c) => `${c.title}: ${c.request}`).join(" / ")}. 나머지 {checks.filter((c) => !/결정/.test(c.request)).length}건은 부서 지시로 진행합니다.
+      </div>
       <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-[12px] text-[var(--cp-text-dim)]">
@@ -22,7 +27,8 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
             <th className="py-1 pr-2 font-medium">기한</th>
             <th className="py-1 pr-2 font-medium">규모</th>
             <th className="py-1 pr-2 font-medium">개략 비용</th>
-            <th className="py-1 font-medium">완료 기준</th>
+            <th className="py-1 pr-2 font-medium">완료 기준</th>
+            <th className="py-1 font-medium">결정·지시</th>
           </tr>
         </thead>
         <tbody>
@@ -37,7 +43,8 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.due}</td>
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.scale}</td>
               <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.cost}</td>
-              <td className="py-1.5 text-[var(--cp-text)]">{c.done}</td>
+              <td className="py-1.5 pr-2 text-[var(--cp-text)]">{c.done}</td>
+              <td className="py-1.5 text-[var(--cp-text)]">{c.request}</td>
             </tr>
           ))}
         </tbody>

@@ -28,5 +28,5 @@ export function heatCost(meters: number, lanes = COST.lanesAssumed): { low: numb
 }
 export const heatCostText = (meters: number) => {
   const c = heatCost(meters)
-  return `약 ${eok(c.low)}~${eok(c.high)}(1~${COST.lanesAssumed}차로, 100m당 1억) · 관리 연 ${man(c.upkeepLow)}~${man(c.upkeepHigh)}`
+  return `약 ${eok(c.low)}~${eok(c.high)}(1~${COST.lanesAssumed}차로, 1차로 100m당 1억) · 관리 연 ${man(c.upkeepLow)}~${man(c.upkeepHigh)}(100m당 연 360만원)`
 }

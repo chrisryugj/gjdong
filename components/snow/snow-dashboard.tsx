@@ -220,6 +220,28 @@ export default function SnowDashboard() {
     setFocusDetail(null)
     setOrbit(false)
     if (f.layer) setView((v) => ({ ...v, layers: v.layers.includes(f.layer!) ? v.layers : [...v.layers, f.layer!] }))
+    // 후보가 구간 번호를 지목하면 그 구간들만(하나면 확대+고리). 학교처럼 한 점이면 그 점(냉독 4차: 후보 01을 눌러도 카메라가 조망 그대로였다)
+    if (f.segIds?.length) {
+      const segs = data.weak.filter((w) => f.segIds!.includes(w.i))
+      const b = boundsOf(segs.map((w) => w.path))
+      setSelectedDong(null)
+      if (segs.length === 1) {
+        setFocusPoint(segMid(segs[0].path))
+        if (b) cue({ bounds: b, maxZoom: 16.2, pitch: 50 })
+      } else {
+        setFocusPoint(null)
+        if (b) cue({ bounds: b, maxZoom: 15.2 })
+      }
+      setMapCollapsed(false)
+      return
+    }
+    if (f.point) {
+      setSelectedDong(null)
+      setFocusPoint(f.point)
+      cue({ bounds: [[f.point[1] - 0.004, f.point[0] - 0.003], [f.point[1] + 0.004, f.point[0] + 0.003]], maxZoom: 15.8, pitch: 50 })
+      setMapCollapsed(false)
+      return
+    }
     if (f.dong) {
       setSelectedDong(f.dong)
       const d = data.dongs.find((x) => x.d === f.dong)
@@ -379,7 +401,7 @@ export default function SnowDashboard() {
       },
       {
         title: "열선 없는 동",
-        caption: `${g.noHeatDongs.join("·")} ${g.noHeatDongs.length}곳은 열선 없이 비치 자재와 인력으로 첫 결빙에 대응합니다.`,
+        caption: `${g.noHeatDongs.join("·")} ${g.noHeatDongs.length}곳은 열선 없이 비치 자재와 인력으로 첫 결빙에 대응합니다. 이 동들의 적설취약구간은 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳뿐이라 열선보다 자재 점검이 먼저입니다.`,
         note: `이 동들의 비치 자재 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.salt + d.cacl + d.sand, 0)}개소 · 적설취약구간 ${data.dongs.filter((d) => g.noHeatDongs.includes(d.d)).reduce((s, d) => s + d.weak, 0)}곳`,
         apply: () => {
           setTab("resources")
@@ -536,6 +558,7 @@ export default function SnowDashboard() {
             fly={fly}
             planned={tab === "gap" && budget > 0 && data ? planHeatBudget(data, budget).planned.map((w) => w.i) : []}
             snowCm={effectiveCm}
+            dimMaterials={tab === "gap"}
             theme={theme}
             resetSeq={resetSeq}
             cameraCue={cameraCue}
@@ -563,7 +586,7 @@ export default function SnowDashboard() {
               <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
-                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `대책기간 11월 15일까지 D-${daysToSeason} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
+                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}` : data ? `대책기간 시작(11월 15일) D-${daysToSeason} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 취약구간 ${data.weak.length + data.ice.length}곳` : "겨울철 제설대책"}
               </span>
             </span>
           </button>

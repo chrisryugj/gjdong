@@ -161,6 +161,7 @@ interface SnowMapProps {
   fly?: FlyStop[] | null // 드론 비행 경유지(점검 후보). 사용자가 만지면 onOrbitStop
   planned?: number[] // 열선 예산 역산으로 신설이 정해진 취약구간 번호(호박색 벽·선)
   snowCm?: number // 시나리오·예보 적설(cm). 대응 단계 탭·시연 장면 3에서 눈이 내린다(0이면 없음)
+  dimMaterials?: boolean // 공백 탭: 자재 핀을 흐리게(383개 핀에 공백 벽 19곳이 묻히던 냉독)
   theme: BasemapTheme
   resetSeq: number
   cameraCue?: CameraCue | null
@@ -169,7 +170,7 @@ interface SnowMapProps {
   onOrbitStop?: () => void
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, dimMaterials = false, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -416,7 +417,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const st = stageView
     // 평시(calm)·보강: 자재는 대기(흐림). 1단계부터 점등. 2단계: 제설함(간선) 확대. 3단계: 열선 없는 동 외곽 진홍
     const materialsLit = st == null || st === "stage-1" || st === "stage-2" || st === "stage-3"
-    const dimMat = materialsLit ? 1 : 0.28
+    const dimMat = (materialsLit ? 1 : 0.28) * (dimMaterials ? 0.55 : 1)
     for (const id of [S.heat, S.heatGlow, S.heatFlow]) vis(id, on("heat"))
     vis(S.heatEnds, on("heat") && !tilt)
     vis(S.salt, on("salt") && !tilt)
@@ -471,18 +472,18 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 결빙구간 번호(입체 숫자)에 "결빙" 접두: 입체에서는 선 있는 행 위에 "결빙" 글자만, 평면은 "결빙 n"(냉독: 숫자만 있으면 취약 번호와 구분이 안 됐다)
     map.setLayoutProperty(S.iceLabel, "text-field", tilt ? ["case", ["==", ["get", "points"], 1], ["get", "text"], "결빙"] : ["get", "text"])
     map.setLayoutProperty(S.iceLabel, "text-anchor", tilt ? ["case", ["==", ["get", "points"], 1], "top-left", "bottom"] : ["case", ["==", ["get", "points"], 1], "top-left", "center"])
-    map.setLayoutProperty(S.iceLabel, "text-offset", tilt ? ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, -1.3]]] : ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, 0]]])
+    map.setLayoutProperty(S.iceLabel, "text-offset", tilt ? ["case", ["==", ["get", "points"], 1], ["literal", [0.6, 1.5]], ["literal", [0, -1.3]]] : ["case", ["==", ["get", "points"], 1], ["literal", [0.6, 1.5]], ["literal", [0, 0]]])
     // 3D 아이콘도 같은 단계 문법: 흐림·제설함 확대·2단계부터 제설함 발광·눈
     const icons = iconsRef.current
     if (icons) {
       icons.setSnow(st == null ? 0 : Math.min(1, snowCm / 10))
       // 법령 탭은 구간 색이 주인공: 자재·학교·열선 핀은 흐리게(청빙 선이 원통 228개 속에 묻히던 냉독)
-      icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMat)
+      icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMaterials ? Math.min(dimMat, 0.5) : dimMat)
       icons.setDim(["school", "schoolGap", "heat"], ownerView ? 0.3 : 1)
       icons.setBoost("salt", saltBoost3D)
       icons.setEmissive("salt", saltBoost3D > 1 ? 0.6 : 0)
     }
-  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm])
+  }, [ready, styleSeq, layers, stageView, selectedDong, theme, tilt, iconsReady, ownerView, colMetric, plannedKey, snowCm, dimMaterials])
 
   // 3D 아이콘 점(입체 보기). 켜진 레이어의 자재·학교·열선 위치, 열선 없는 취약구간·결빙구간 번호. 새로 켜지면 솟아오른다.
   // 동별 기둥 모드(colMetric)에서는 자재·학교·열선 핀을 내린다(기둥+배지+핀이 겹쳐 과밀. 냉독 지적). 2D 원은 그대로

@@ -28,8 +28,8 @@ export const weakColorExpr = (dark: boolean): unknown[] => ["case", ["==", ["get
 // 4라운드 냉독: 결빙구간도 같은 규칙(열선 있는 구 관리 3곳이 시 관리 공백 6곳과 같은 진홍이라 "진홍 = 열선 없음"과 모순)
 export const iceColorExpr = weakColorExpr
 // 입체 구간 벽(icons3d setSegWalls): 열선 없는 취약·결빙구간(선형 있는 것)만 진홍. 법령 탭(ownerView)은 56곳 전부 관리청 색
-export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, layers: { weak: boolean; ice: boolean }, planned: number[] = []): { coords: [number, number][]; color: string }[] {
-  const out: { coords: [number, number][]; color: string }[] = []
+export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, layers: { weak: boolean; ice: boolean }, planned: number[] = []): { coords: [number, number][]; color: string; h?: number }[] {
+  const out: { coords: [number, number][]; color: string; h?: number }[] = []
   if (layers.weak)
     for (const w of data.weak) {
       if (ownerView) out.push({ coords: w.path, color: ownerColor("구", dark) })
@@ -39,8 +39,9 @@ export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, l
   if (layers.ice)
     data.ice.forEach((s, i) => {
       if (s.method === "points" || s.path.length < 2) return
-      if (ownerView) out.push({ coords: s.path, color: ownerColor(segOwner({ ...s, src: "ice", n: i + 1 }), dark) })
-      else if (!s.heatCovered) out.push({ coords: s.path, color: riskColor(dark) })
+      // 결빙구간 벽은 절반 높이(시 관리 간선. 적설취약 13곳의 진홍 벽과 조망에서 구분되게, 냉독 4차)
+      if (ownerView) out.push({ coords: s.path, color: ownerColor(segOwner({ ...s, src: "ice", n: i + 1 }), dark), h: 0.55 })
+      else if (!s.heatCovered) out.push({ coords: s.path, color: riskColor(dark), h: 0.55 })
     })
   return out
 }

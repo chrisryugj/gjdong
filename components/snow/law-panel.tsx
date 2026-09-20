@@ -28,7 +28,7 @@ export default function LawPanel({ data, dark = true }: Props) {
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">보도는 대지에 접한 구간 전부입니다. 근거는 조례 제4조입니다. 차도는 구 제설대책기간 운영으로 구청이 맡습니다(보도자료).</p>
       {data && (
         <p className="mt-1.5 text-[13.5px] leading-snug text-[var(--cp-text-dim)]">
-          지도는 이 탭에서 취약구간을 관리청별 색으로 표시합니다. 구 관리 {data.weak.length + data.ice.filter((s) => /\(광진구\)/.test(s.agency)).length}곳은 청빙, 서울시 관리 {data.ice.filter((s) => !/\(광진구\)/.test(s.agency)).length}곳(시설공단·동부도로사업소)은 {dark ? "흰색" : "검정"}입니다.
+          지도는 이 탭에서 취약구간을 관리청별 색으로 표시합니다. 구 관리 {data.weak.length + data.ice.filter((s) => /\(광진구\)/.test(s.agency)).length}곳은 하늘색, 서울시 관리 {data.ice.filter((s) => !/\(광진구\)/.test(s.agency)).length}곳(시설공단·동부도로사업소)은 {dark ? "흰색" : "검정"}입니다.
         </p>
       )}
 

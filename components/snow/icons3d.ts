@@ -38,6 +38,7 @@ export interface TruckRoute {
 export interface SegWall {
   coords: [number, number][]
   color: string
+  h?: number // 높이 배율(기본 1. 결빙구간 0.55)
 }
 
 const ANCHOR: [number, number] = [127.085, 37.546] // 모델 원점(구 중심). 모든 인스턴스는 여기서의 미터 오프셋
@@ -243,7 +244,8 @@ const SNOW_RADIUS_PX = 700 // 화면 중심에서 눈이 내리는 반경(px)
 const SNOW_HEIGHT_PX = 420 // 눈이 시작하는 높이(px)
 const SNOW_FALL_PX = 70 // 낙하 속도(px/s)
 const SNOW_DRIFT_PX = 14 // 바람(px/s)
-const RAMP_WALL_FROM_ZOOM = 14.3 // 경사면은 이 줌부터(조망에서는 보라 얼룩으로 읽혔다. 화살은 계속)
+const RAMP_WALL_FROM_ZOOM = 14.3 // 경사면은 이 줌부터(조망에서는 보라 얼룩으로 읽혔다)
+const RAMP_CHEV_FROM_ZOOM = 13.8 // 화살도 조망에서는 낙서처럼 보여 이 줌부터. 조망은 굵은 보라 선만
 interface Truck {
   cum: number[]
   pts: { x: number; z: number }[]
@@ -456,7 +458,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       return
     }
     for (const sw of this.segWallData) {
-      const pts = sw.coords.map(([lat, lng]) => ({ ...this.toModel(lng, lat), h: 1 }))
+      const pts = sw.coords.map(([lat, lng]) => ({ ...this.toModel(lng, lat), h: sw.h ?? 1 }))
       const wall = this.wallMesh(pts, sw.color, 0.62, true)
       this.scene.add(wall)
       this.segWalls.push(wall)
@@ -531,7 +533,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       let j = 1
       for (let q = 0; q < r.slots; q++) {
         const s = q * gap + phase
-        if (s > r.len) {
+        if (s > r.len || zoom < RAMP_CHEV_FROM_ZOOM) {
           chev.setMatrixAt(r.first + q, zero)
           continue
         }

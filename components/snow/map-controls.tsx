@@ -176,10 +176,10 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   const rows: { k: string; swatch: React.ReactNode; name: string; means: string; inline?: boolean }[] = [
     { k: "heat", swatch: <Swatch kind="glow" color={heat} on />, name: "도로열선", means: tilt ? "흐르는 선이 발열. 축소하면 노란 육각" : "흐르는 선이 발열. 축소하면 점" },
     ownerView
-      ? { k: "weak", swatch: <Swatch kind="line" color={gu} on />, name: "적설취약구간", means: `청빙 = ${OWNER_STYLE.gu.label}(47곳 전부)` }
+      ? { k: "weak", swatch: <Swatch kind="line" color={gu} on />, name: "적설취약구간", means: `하늘색 = ${OWNER_STYLE.gu.label}(47곳 전부)` }
       : { k: "weak", swatch: <Swatch kind="line" color={risk} on />, name: "적설취약구간", means: tilt ? "진홍 벽·숫자 = 열선 없음(번호는 표와 같음), 회색 선 = 있음" : "진홍 선·번호 배지 = 열선 없음, 회색 = 있음" },
     ownerView
-      ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName} = ${OWNER_STYLE.si.label}, 청빙 = 구 관리. 빈 ${tilt ? "고리" : "원"} = 선형 미확인` }
+      ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName} = ${OWNER_STYLE.si.label}, 하늘색 = 구 관리. 빈 ${tilt ? "고리" : "원"} = 선형 미확인` }
       : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "·벽" : ""} = 열선 없음, 회색 = 있음. 빈 ${tilt ? "고리" : "원"} = 선형 미확인` },
     { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "경사면 높이 = 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
     { k: "salt", swatch: <Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on />, name: "제설함", means: tilt ? "상자 · 도로과" : "도로과", inline: true },
@@ -192,6 +192,12 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   return (
     <div className="px-3 py-2 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
       <div className="dump-kicker mb-1 text-[10px]">범례{ownerView ? " · 관리청" : ""}{tilt ? "" : " · 평면"}</div>
+      {/* 단계 상태는 맨 위(맨 아래 두면 900px에서 잘려 3단계 흰 경계선 설명이 사라졌다. 냉독 4차) */}
+      {stageNote && (
+        <p className="mb-1.5 text-[12.5px] font-semibold text-[var(--cp-text)]">
+          {stageLabel}: {stageNote}
+        </p>
+      )}
       <ul className="space-y-[2px]">
         {rows.map((r) => (
           <li key={r.k} className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-x-2 break-keep">
@@ -203,12 +209,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[12px] leading-[1.35]">청빙 고리 = 지금 보는 곳{tilt ? " · 기둥 = 동별 자원" : ""}</p>
-      {stageNote && (
-        <p className="mt-1.5 text-[var(--cp-text)]">
-          {stageLabel}: {stageNote}
-        </p>
-      )}
+      <p className="mt-1 text-[12px] leading-[1.35]">하늘색 고리 = 지금 보는 곳{tilt ? " · 기둥 = 동별 자원" : ""}</p>
     </div>
   )
 }

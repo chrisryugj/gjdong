@@ -104,16 +104,16 @@ export function segPriority(s: SegLike, data: SnowMapData): Priority {
     const schools = data.schools.filter((sc) => sc.weakNear.includes(s.i)).length
     if (schools) {
       score += schools * 1.5
-      reasons.push(`초등학교 ${schools}교 ${data.gaps.schoolNearM}m 안`)
+      reasons.push(`초등학교 ${schools}교`)
     }
     if (s.type === "급경사") {
       score += 1
-      reasons.push("행안부 급경사")
+      reasons.push("급경사 유형")
     } else if (s.type === "고갯길") {
       score += 0.5
-      reasons.push("행안부 고갯길")
+      reasons.push("고갯길 유형")
     }
-  } else reasons.push("간선·자동차전용도로")
+  } else reasons.push("간선 결빙구간")
   if (segOwner(s) === "구") score += 0.5
   else reasons.push("시 관리")
   return { score: Math.round(score * 10) / 10, reasons }
@@ -136,12 +136,16 @@ export function planHeatBudget(data: SnowMapData, budget: number): BudgetPlan {
   let cost = 0
   let meters = 0
   let next: BudgetPlan["next"] = null
+  // 우선순위 순으로 쌓다가 처음 안 들어가는 구간에서 멈춘다(건너뛰어 싼 구간을 먼저 넣으면 "상위 N곳"이 거짓이 된다. 냉독 4차)
   for (const c of cands) {
     if (cost + c.cost <= budget) {
       planned.push(c.w)
       cost += c.cost
       meters += c.w.pathM
-    } else if (!next) next = { seg: c.w, cost: c.cost }
+    } else {
+      next = { seg: c.w, cost: c.cost }
+      break
+    }
   }
   return { budget, planned, meters: Math.round(meters), cost, remaining: cands.length - planned.length, total: cands.length, next }
 }
@@ -203,7 +207,7 @@ export interface Finding {
   n: string // 큰 숫자
   unit: string
   kind: "gap" | "resource" | "limit"
-  focus?: { heat?: number[]; dong?: string; layer?: "weak" | "ice" | "slope" | "school" }
+  focus?: { heat?: number[]; dong?: string; layer?: "weak" | "ice" | "slope" | "school"; segIds?: number[]; point?: [number, number] } // segIds=적설취약구간 번호(그 구간들만 조망, 하나면 확대+고리), point=[lat,lng] 한 점(학교)
 }
 export function buildFindings(data: SnowMapData): Finding[] {
   const t = totals(data)
@@ -299,6 +303,7 @@ export interface CheckItem {
   scale: string // 규모(수량)
   done: string // 완료 기준(이 화면의 판정이 바뀌는 조건, 또는 회신·확정)
   cost: string // 개략 비용(lib/snow/costs 출처 단가. 없으면 "미산정"과 이유)
+  request: string // 결정 요청 한 줄(결재가 필요한 것과 부서 지시로 끝나는 것을 가른다. 냉독 4차)
   short: string // 시연 캡션·칩용 짧은 이름
   title: string // 동사로 끝나는 제목
   body: string // 근거 한 줄(사실만)
@@ -328,11 +333,12 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${g.gu.none}곳`,
       done: `${data.gaps.materialNearM}m 안 비치 자재 1개소 이상(재계산 시 구 관리 공백 0)`,
       cost: `제설함 1개소 약 ${man(COST.saltBoxWon)}(소매가) · 충전은 구 비축 제설제`,
+      request: "부서 지시로 충분(예산 결정 불필요)",
       short: `${g.gu.noneNames.join("·")} 자재 비치`,
       title: `${g.gu.noneNames.join("·")}에 제설 자재 비치`,
       body: `구 관리 취약구간 중 열선도 ${data.gaps.materialNearM}m 안 자재도 없는 유일한 구간입니다. 가장 가까운 제설함은 ${fmt(Math.min(...data.weak.filter((w) => w.gap).map((w) => w.near.salt ?? 9999)))}m로 기준 ${data.gaps.materialNearM}m를 넘습니다. ${data.gaps.materialNearM}m는 이 화면의 가정입니다.`,
       n: g.gu.none,
-      focus: { layer: "weak" },
+      focus: { layer: "weak", segIds: data.weak.filter((w) => w.gap).map((w) => w.i) },
     })
   if (onSlope.length)
     out.push({
@@ -343,7 +349,8 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       due,
       scale: `구간 ${onSlope.length}곳 · ${fmt(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}m`,
       done: "구간별 열선 신설 여부 결정(예산 반영 여부 포함)",
-      cost: `전부 신설 시 ${heatCostText(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}`,
+      cost: `전부 신설 시 ${heatCostText(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}(단가 출처 같음)`,
+      request: `열선 신설 검토 착수 여부 결정(예산 반영 시 우선순위 1위 ${onSlope.map((w) => ({ w, p: segPriority({ ...w, src: "weak" as const }, data).score })).sort((a, b) => b.p - a.p)[0]?.w.name ?? ""}부터)`,
       short: `경사 겹침 ${onSlope.length}곳 열선 검토`,
       title: `급경사 추정과 겹치는 열선 없는 취약구간 ${onSlope.length}곳의 열선 신설 검토`,
       body: `열선 없는 적설취약구간 ${g.weakNoHeat}곳 중 ${(() => {
@@ -355,7 +362,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
         return [...cnt.entries()].map(([k, n]) => (n > 1 ? `${k} ${n}구간` : k)).join("·")
       })()}. 경사는 지형 타일 추정치입니다.`,
       n: onSlope.length,
-      focus: { layer: "weak" },
+      focus: { layer: "weak", segIds: onSlope.map((w) => w.i) },
     })
   if (siNone.length)
     out.push({
@@ -367,6 +374,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${siNone.length}곳(${agencyCounts.map(([a, n]) => `${a} ${n}`).join(" · ")})`,
       done: "관리청 제설 계획·살포 구간 확인 완료(구 상황실 공유)",
       cost: "구 지출 없음(관리청 소관)",
+      request: "관리청 공문 발송 지시",
       short: `시 관리 결빙 ${siNone.length}곳 관리청 확인 요청`,
       title: `서울시 관리 결빙구간 ${siNone.length}곳의 제설 계획을 관리청에 확인 요청`,
       body: `열선도 자재도 없는 상습결빙구간이지만 구 자재로 대응하는 구간이 아닙니다. 관리청의 제설 계획·장비 살포 현황은 구 데이터에 없습니다.`,
@@ -382,6 +390,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     scale: `동 ${g.noHeatDongs.length}곳 · 자재 ${fmt(noHeatDongRows.reduce((s, d) => s + d.salt + d.cacl + d.sand, 0))}개소`,
     done: "동별 자재 점검 결과(수량·상태)",
     cost: "추가 구입 없이 점검(보충분은 점검 뒤 산정)",
+    request: "동주민센터 점검 지시",
     short: `열선 없는 동 ${g.noHeatDongs.length}곳 자재 점검`,
     title: `열선 없는 동 ${g.noHeatDongs.length}곳의 비치 자재 점검`,
     body: `${g.noHeatDongs.join("·")}은 열선 없이 비치 자재로 첫 결빙에 대응합니다. 이 동들의 적설취약구간은 ${noHeatDongRows.reduce((s, d) => s + d.weak, 0)}곳입니다.`,
@@ -398,11 +407,12 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `학교 ${schoolsGap.length}교`,
       done: "통학로 제설 소관 확정",
       cost: "미산정(소관 확정 뒤)",
+      request: "소관 확인 지시(교육지원청 협의)",
       short: `열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
       title: `${data.gaps.schoolNearM}m 안 열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
       body: schoolsWeak.length ? `그중 ${schoolsWeak.map((s) => s.name.replace(/^서울/, "")).join("·")}은 ${data.gaps.schoolNearM}m 안에 행안부 취약구간도 있습니다. 통학로 제설 소관은 데이터에 없습니다.` : "취약구간과 겹치는 학교는 없습니다. 통학로 제설 소관은 데이터에 없습니다.",
       n: schoolsGap.length,
-      focus: { layer: "school" },
+      focus: { layer: "school", point: schoolsWeak[0] ? [schoolsWeak[0].lat, schoolsWeak[0].lng] : undefined },
     })
   return out
 }

@@ -2,7 +2,7 @@
 
 import type { SnowMapData } from "@/lib/snow/types"
 import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText, segName, segOwner, segPriority, segType, type Finding, type SegLike } from "@/lib/snow/facts"
-import { COST, eok, man } from "@/lib/snow/costs"
+import { COST, eok, heatCost, man } from "@/lib/snow/costs"
 import { useState } from "react"
 import { SectionHead } from "@/components/dumping/section-head"
 import { NumRow, StatBand, Table } from "./ui"
@@ -25,13 +25,15 @@ interface Props {
 
 // 번호 = 지도 배지와 같은 번호(적설취약구간 i · 결빙 n). 표 행번호와 지도 번호가 따로 놀던 것(냉독 지적)
 const COLS = [
-  { k: "지도 번호", w: "44px", dim: true },
+  { k: "지도 번호", w: "40px", dim: true },
   { k: "구간", w: "minmax(0,1fr)" },
-  { k: "동", w: "52px", dim: true },
-  { k: "열선까지", w: "58px", align: "right" as const },
-  { k: "자재", w: "40px", align: "right" as const },
-  { k: "소관", w: "22px", dim: true },
+  { k: "동", w: "44px", dim: true },
+  { k: "열선까지", w: "54px", align: "right" as const },
+  { k: "자재", w: "32px", align: "right" as const },
+  { k: "소관", w: "20px", dim: true },
 ]
+// 예산 역산이 켜지면 "열선까지" 자리에 구간별 신설 개략 비용(길이 × 2차로 × 1억/100m)을 보여 준다(냉독 4차: 10억 계산을 행에서 검증 못 했다)
+const COLS_BUDGET = COLS.map((c) => (c.k === "열선까지" ? { ...c, k: "신설 비용", w: "70px" } : c))
 
 export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus, onSelectSegment, onOpenMethods }: Props) {
   const [print, setPrint] = useState(false)
@@ -62,6 +64,8 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         return s.d ? s.d.replace(/동$/, "") : <span className="text-[var(--cp-text-faint)]">구 밖</span>
       case "열선까지":
         return s.near.heat == null ? "없음" : `${s.near.heat.toLocaleString("ko-KR")}m`
+      case "신설 비용":
+        return s.src === "weak" ? <span className={plannedIds.has(s.i) ? "font-semibold text-(--dump-accent)" : ""}>{`${Math.round(s.pathM)}m ${eok(heatCost(s.pathM).high)}`}</span> : <span className="text-[var(--cp-text-faint)]">시</span>
       case "자재":
         return s.materialsNear ? `${s.materialsNear}` : <span className="font-semibold text-(--dump-accent)">0</span>
       case "소관":
@@ -90,12 +94,12 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         ]}
       />
 
-      <SectionHead n="01" sub={`번호가 우선순위(구 소관 행동 가능 › 시 요청 › 동 › 학교). 행동 · 부서 · 기한 · 규모 · 개략 비용 · 완료 기준. 부서와 규모는 데이터에 있는 것만, 비용은 공개 단가(열선 1차로 100m당 1억 · 제설함 ${man(COST.saltBoxWon)})로 개략 산정. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도`}>
+      <SectionHead n="01" sub={`번호가 우선순위(구 소관 행동 가능 › 시 요청 › 동 › 학교). 행동 · 부서 · 기한 · 규모 · 개략 비용 · 완료 기준. 부서와 규모는 데이터에 있는 것만, 비용은 공개 단가(열선 1차로 100m당 1억·관리 연 360만원(서울시 관계자, 2024 보도) · 제설함 ${man(COST.saltBoxWon)} 소매가)로 개략 산정, 조달 단가가 아닙니다. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도`}>
         눈 오기 전 점검 후보 {checks.length}
       </SectionHead>
       <div>
         {checks.map((c, i) => (
-          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 비용 ${c.cost} · 완료 기준: ${c.done}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
+          <NumRow key={c.id} n={i + 1} big={String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 비용 ${c.cost} · 완료 기준: ${c.done} · 결정: ${c.request}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
         ))}
       </div>
       <button onClick={() => setPrint(true)} className="mt-2 rounded-full border border-[var(--cp-border)] px-3.5 py-1.5 text-[13px] font-semibold text-(--dump-accent) hover:bg-[var(--cp-hover)]">
@@ -115,16 +119,16 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         </div>
         <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-muted)]">
           {budget
-            ? `${eok(budget)}이면 우선순위 상위 ${plan.planned.length}곳 ${plan.meters.toLocaleString("ko-KR")}m를 신설(개략 ${eok(plan.cost)})하고 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 한 곳 더(${plan.next.seg.name})는 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
-            : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해집니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 100m당 1억).`}
+            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설(개략 ${eok(plan.cost)}, 2차로 가정 · 1차로 100m당 1억)하고 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
+            : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해지고 표 "신설 비용" 열에 구간별 개략 비용이 보입니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 1차로 100m당 1억).`}
         </p>
       </div>
-      <Table cols={COLS} rows={first} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
+      <Table cols={budget ? COLS_BUDGET : COLS} rows={first} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
       {rest.length > 0 && (
         <details className="mt-1.5">
           <summary className="cursor-pointer text-[13px] text-(--dump-accent)">나머지 {rest.length}곳</summary>
           <div className="mt-1">
-            <Table cols={COLS} rows={rest} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
+            <Table cols={budget ? COLS_BUDGET : COLS} rows={rest} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
           </div>
         </details>
       )}

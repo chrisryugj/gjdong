@@ -186,12 +186,12 @@ const SHOTS = [
       await wait(2200)
     },
   },
-  { name: "17-flat", desc: "평면 보기", run: async (page) => layer(page, "입체 보기", false) },
+  { name: "17-flat", desc: "평면 보기", run: async (page) => layer(page, "입체", false) },
   {
     name: "18-flat-slope",
     desc: "평면 + 경사(오르막 화살 글리프)",
     run: async (page) => {
-      await layer(page, "입체 보기", false)
+      await layer(page, "입체", false)
       await layer(page, "지형 경사 추정", true)
       await page.evaluate(() => window.__snowMap?.easeTo({ center: [127.0885, 37.5675], zoom: 16, pitch: 0, bearing: 0, duration: 600 }))
       await wait(2000)
