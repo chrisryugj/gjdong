@@ -143,3 +143,11 @@ export const WEATHER_DEF: Record<WeatherKey, { label: string; short: string; col
   cold: { label: "추운 날(5도 미만)", short: "추움", color: "#1d4ed8" },
   rain: { label: "비 오는 날(일강수 1mm 이상)", short: "비", color: "#0369a1" },
 }
+// 실황(기상청 단기예보, /api/snow/forecast의 WMO 코드·기온) → 날씨별 원의 조건. 비·눈(WMO 51 이상)은 "비", 그 밖은 기온 구간.
+// 원의 분류는 접수일의 일평균·일강수 기준이고 실황은 지금 한 시각이라 같은 조건의 근사치다(헤더 "지금" 줄·레이어 패널 "지금" 표시가 쓴다)
+export function liveWeatherKey(temp: number, code: number): WeatherKey {
+  if (code >= 51) return "rain"
+  if (temp >= 25) return "hot"
+  if (temp < 5) return "cold"
+  return "mild"
+}

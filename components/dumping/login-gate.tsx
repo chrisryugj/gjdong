@@ -37,7 +37,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
   return (
     <div className="crowd-page crowd-light dump-page flex h-dvh items-center justify-center bg-[var(--dump-ground)] px-4 text-[var(--cp-text)]">
       {checking ? (
-        <p className="text-base text-[var(--cp-text-dim)]">확인 중…</p>
+        <p className="text-base text-[var(--cp-text-dim)]">확인 중</p>
       ) : (
         <form
           onSubmit={submit}
@@ -67,7 +67,7 @@ export default function LoginGate({ checking, onOpen }: { checking: boolean; onO
             disabled={busy || !pw}
             className="mt-3 w-full rounded-lg bg-(--dump-accent) py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-(--dump-accent-ink) disabled:opacity-40"
           >
-            {busy ? "확인 중…" : "들어가기"}
+            {busy ? "확인 중" : "들어가기"}
           </button>
         </form>
       )}

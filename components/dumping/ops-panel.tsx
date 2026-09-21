@@ -49,7 +49,7 @@ const STATUS_KO: Record<InterventionEntry["status"], { label: string; cls: strin
 
 export default function OpsPanel({ data, interventions, onFocus, showCritical, onToggleCritical }: OpsPanelProps) {
   const [modal, setModal] = useState<OpsModalId | null>(null)
-  if (!data) return <p className="p-4 text-[15px] text-[var(--cp-text-dim)]">불러오는 중…</p>
+  if (!data) return <p className="p-4 text-[15px] text-[var(--cp-text-dim)]">불러오는 중</p>
   const d = data.decision
   const q = d.kpi.persistentQuarterly
   // 기준일(asof)은 분기 진행 중 시점이라, 직전 "분기말" 값은 배열의 마지막 항목
@@ -157,7 +157,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
 
       {/* 예측 핫스팟. 목록 클릭 시 지도 이동 + 펄스 표시. 탭이 열려 있는 동안 순위 배지 상시 표시 */}
       <section>
-        <SectionHead n="02" sub="순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수. 최근에 기록이 몰린 칸이 위로 옵니다 · 누르면 지도에서 기둥으로 표시">다음 분기 예측 핫스팟 20</SectionHead>
+        <SectionHead n="02" sub="순위는 최근 기록일수록 크게(90일마다 절반) 더한 점수. 최근에 기록이 몰린 칸이 위로 옵니다 · 누르면 지도에서 기둥으로 표시">다음 분기 예측 핫스팟 20</SectionHead>
         {/* 백테스트 요약은 문단 대신 수치 3칸(2026-09-18: 여섯 줄 문단은 읽히지 않았다) */}
         <div className="mb-2 grid grid-cols-3 gap-1.5 rounded-lg bg-(--dump-accent)/8 px-3 py-2">
           {[
@@ -176,7 +176,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             <div key={x.k} className="min-w-0">
               <p className="truncate text-[12px] text-(--dump-accent-ink)/80">{x.k}</p>
               <p className="dump-meta-v text-[18px] leading-tight text-(--dump-accent-ink)">{x.v}</p>
-              <p className="text-[11.5px] leading-snug text-(--dump-accent-ink)/70">{x.s}</p>
+              <p className="text-[12px] leading-snug text-(--dump-accent-ink)/70">{x.s}</p>
             </div>
           ))}
         </div>
@@ -202,10 +202,10 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                     {h[6] || `${h[5]} (대표 주소 없음, 격자 중심)`}
                   </span>
                   {h[12] === 1 && (
-                    <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[11.5px] font-medium text-[#a8322a]">집중관리</span>
+                    <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12px] font-medium text-[#a8322a]">집중관리</span>
                   )}
                   {h[7] === 0 && (
-                    <span className="shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[11.5px] font-medium text-amber-800">CCTV 없음</span>
+                    <span className="shrink-0 rounded bg-[#8a530e]/12 px-1.5 py-0.5 text-[12px] font-medium text-amber-800">CCTV 없음</span>
                   )}
                 </span>
                 <span className="block text-[13px] text-[var(--cp-text-dim)]">
@@ -280,7 +280,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
               </div>
             ))}
           </div>
-          <p className="mt-2 border-l-2 border-(--dump-accent) pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+          <p className="mt-2 rounded-lg bg-(--dump-accent-wash) px-3 py-2 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
             담배꽁초(차량) {cigShare}%는 주거 구조와 연관이 확인되지 않은 도로 현상입니다. 생활쓰레기 대책과 나눠
             관리해야 합니다.
           </p>
@@ -399,7 +399,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-(--dump-accent) pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+            <p className="mt-2 rounded-lg bg-(--dump-accent-wash) px-3 py-2 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               의무관리 미달 소형 주거가 {d.permits.byDong.slice(0, 3).map((r) => r.dong.replace(/동$/, "")).join("·")}에 몰립니다. 발생 예고는 아니고, 준공 때부터 배출안내·공동배출 협의를 미리 적용할 후보 지역입니다.
             </p>
           </DetailCard>

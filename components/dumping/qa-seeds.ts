@@ -14,7 +14,7 @@ export interface Seed {
   q: string
   hint: string // 접힌 상태에서 보이는 한 줄 결론. 1부 첫 문장
   answer: string // 1부. 음성으로 읽고 크게 보인다
-  detail: string // 2부. 화면 아래 작게. "- 수치: …" 꼴
+  detail: string // 2부. 화면 아래 작게. "- 수치: (문장)" 꼴
   core?: boolean // 기본 노출
   viz?: VizAction
   vizNote?: string
@@ -87,7 +87,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
         {
           q: "의류수거함 옆에서 무단투기가 많이 생기지 않나?",
           hint: "단속 자료로는 그렇지 않습니다.",
-          answer: `단속 자료로는 그렇지 않습니다. 광진구 의류수거함 ${n(data.infra.clothBins.length)}곳을 격자에 넣어 보니 과태료 적발과의 연관은 확인되지 않았고, 신고 민원과만 약한 연관이 있었습니다. 눈에 잘 띄어 신고가 느는 것인지 실제 배출이 많은 것인지는 이 자료로 구분할 수 없습니다.`,
+          answer: `단속 자료로는 그렇지 않습니다. 광진구 의류수거함 ${n(data.infra.clothBins.length)}곳을 격자에 넣어 보니 과태료 적발과의 연관은 확인되지 않았고, 신고 민원과만 약한 연관이 있었습니다. 눈에 잘 띄어 신고가 느는 것인지 실제 배출이 많은 것인지는 이 자료로 구분되지 않습니다.`,
           detail: lines(
             `수치: 과태료 β ${signed(r2.v2_100.coef.clothbin_n.beta)}(${pText(r2.v2_100.coef.clothbin_n.p)}), 민원 β ${signed(r2.v2_100_complaints.coef.clothbin_n.beta)}(${pText(r2.v2_100_complaints.coef.clothbin_n.p)})`,
             `근거: 공공데이터포털 의류수거함 위치, 카드 "통념 검증"`,
@@ -166,7 +166,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
         {
           q: "다른 구도 앱 때문에 민원이 늘었나?",
           hint: "서울 전체에서도 앱 청소 신고가 해마다 늘고 있습니다.",
-          answer: `서울 전체에서도 앱 청소 신고가 해마다 늘고 있습니다. 다만 25개 구의 무단투기 발생이나 과태료를 직접 비교한 자료는 없어 광진이 더 심한지, 다른 구도 같은 이유로 늘었는지는 알 수 없습니다.`,
+          answer: `서울 전체에서도 앱 청소 신고가 해마다 늘고 있습니다. 다만 25개 구의 무단투기 발생이나 과태료를 직접 비교한 자료는 없어 광진이 더 심한지, 다른 구도 같은 이유로 늘었는지는 이 자료에 없습니다.`,
           detail: lines(
             `수치: 서울 앱 청소 신고 ${Object.entries(sx.smartReport.cleaningByYear).filter(([y]) => y >= "2023" && y < period.lastYear).map(([y, v]) => `${y}년 ${v.toLocaleString()}`).join(", ")}건`,
             `수치: 집중관리 상습격자 앱 포함 ${k.criticalCellsNow}곳, 앱 제외 ${k.criticalCellsNowNoApp}곳`,
@@ -197,7 +197,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       q: "적발과 가장 강하게 연관된 조건은?",
       core: true,
       hint: "다가구·단독주택이 몰린 정도입니다.",
-      answer: `다가구·단독주택이 몰린 정도입니다. 건축물대장의 다가구 가구와 단독주택 동을 합친 밀도가 높은 칸일수록 과태료 적발 기록이 많았습니다. 아파트 세대수는 연관이 확인되지 않았고, 왜 다가구인지는 이 자료로 알 수 없습니다.`,
+      answer: `다가구·단독주택이 몰린 정도입니다. 건축물대장의 다가구 가구와 단독주택 동을 합친 밀도가 높은 칸일수록 과태료 적발 기록이 많았습니다. 아파트 세대수는 연관이 확인되지 않았고, 왜 다가구인지는 이 자료에 없습니다.`,
       detail: lines(
         `수치: 표준화 β ${unmText}(많을수록 적발 많음), 격자 ${n(gridN)}칸, ${unm ? pText(unm.p) : "p<0.001"}`,
         `수치: 공동주택 세대수 β ${apt ? signed(apt.beta) : "−0.011"}(${apt ? pText(apt.p) : "p=0.708"}) 연관 미확인`,
@@ -236,7 +236,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       q: "CCTV는 어디에 놓아야 하나?",
       core: true,
       hint: "늘려서 줄인다는 근거는 확인되지 않았습니다.",
-      answer: `늘려서 줄인다는 근거는 확인되지 않았습니다. 초기에 보였던 감소 효과는 비교 방법 오류로 철회됐습니다. 다만 적발 기록이 없는 자리의 카메라를 잦은 자리로 옮기는 재배치 후보 ${candidates}곳은 추가 예산 없이 검토할 수 있습니다.`,
+      answer: `늘려서 줄인다는 근거는 확인되지 않았습니다. 초기에 보였던 감소 효과는 비교 방법 오류로 철회됐습니다. 다만 적발 기록이 없는 자리의 카메라를 잦은 자리로 옮기는 재배치 후보 ${candidates}곳은 추가 예산 없이 검토 대상입니다.`,
       detail: lines(
         `수치: 대칭 DID ${signed(didSym)}(p${didP}), 이벤트 스터디 전 시점 비유의`,
         `수치: 재배치 후보 ${candidates}곳(지도 핀·순위 숫자, 상위 3 벽돌색), 이동식 CCTV 장부 ${n(cctvRows)}대`,
@@ -245,7 +245,7 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       ),
       chart: "did",
       viz: { mode: "enf", layers: ["cctvMobile"], candidates: true },
-      vizNote: `지도에 이동식 CCTV 현 위치(보라 카메라)와 재배치 후보 ${candidates}곳(핀·순위 숫자, 상위 3 벽돌색)을 표시했습니다. 바탕은 회색 단계로, 진할수록 기록이 많은 칸입니다. 지도 오른쪽 목록에서 후보지 주소를 볼 수 있습니다.`,
+      vizNote: `지도에 이동식 CCTV 현 위치(보라 카메라)와 재배치 후보 ${candidates}곳(핀·순위 숫자, 상위 3 벽돌색)을 표시했습니다. 바탕은 회색 단계로, 진할수록 기록이 많은 칸입니다. 지도 오른쪽 목록에 후보지 주소가 있습니다.`,
     },
     {
       q: "빠뜨린 대책은 없나?",
@@ -278,8 +278,8 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
     },
     {
       q: "재활용정거장은 효과가 있었나?",
-      hint: "지금 자료로는 판정할 수 없습니다.",
-      answer: `지금 자료로는 판정할 수 없습니다. 2024년이 마지막 신규 설치라 비교할 대상이 없고, 철거·미사용 ${recRemoved}곳 가운데 철거 날짜가 기록된 곳은 3곳뿐이라 전후 비교도 되지 않습니다. 효과가 없다는 뜻은 아닙니다.`,
+      hint: "지금 자료로는 판정이 되지 않습니다.",
+      answer: `지금 자료로는 판정이 되지 않습니다. 2024년이 마지막 신규 설치라 비교할 대상이 없고, 철거·미사용 ${recRemoved}곳 가운데 철거 날짜가 기록된 곳은 3곳뿐이라 전후 비교도 되지 않습니다. 효과가 없다는 뜻은 아닙니다.`,
       detail: lines(
         `수치: 장부 ${n(recRows)}건(운영 ${recOp}·철거·미사용 ${recRemoved}), 지도 ${n(recSpots)}곳`,
         `수치: 초기 계산 ${signed(recDid)}건(p=${recP.toFixed(3)})은 평균회귀 편향으로 판정 불가`,
@@ -309,13 +309,13 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       answer: `여름과 더운 날에 뚜렷하게 많습니다. 하루 평균 민원이 여름 ${S["여름"].compPerDay}건으로 겨울 ${S["겨울"].compPerDay}건의 ${summerWinter}배이고, 비 오는 날에는 단속 적발이 줄어듭니다. 민원은 발견 시각, 과태료는 단속 시각이라 투기 시각 자체는 아닙니다.`,
       detail: lines(
         `수치: 계절별 일평균 민원 봄 ${S["봄"].compPerDay}·여름 ${S["여름"].compPerDay}·가을 ${S["가을"].compPerDay}·겨울 ${S["겨울"].compPerDay}건`,
-        `수치: 적발 무강수 ${rain["무강수"].enfPerDay}건→비 ${rain["비(1mm+)"].enfPerDay}건→폭우 ${rain["폭우(10mm+)"].enfPerDay}건/일`,
+        `수치: 적발 무강수 ${rain["무강수"].enfPerDay}건, 비 ${rain["비(1mm+)"].enfPerDay}건, 폭우 ${rain["폭우(10mm+)"].enfPerDay}건/일`,
         `근거: 민원·과태료 내역, Open-Meteo 일별 관측`,
         `한계: 야외 활동·신고·단속 여건이 함께 움직이는 연관`,
       ),
       chart: "seasons",
       viz: { weather: "hot" as const },
-      vizNote: "지도에 더운 날(일평균 25도 이상)에 접수된 민원을 하루당으로 환산한 원으로 표시했습니다. 툴바 '날씨별'에서 온화·추움·비와 견줄 수 있습니다. 접수일 기준이라 투기 시각은 아닙니다.",
+      vizNote: "지도에 더운 날(일평균 25도 이상)에 접수된 민원을 하루당으로 환산한 원으로 표시했습니다. 툴바 '날씨별'에서 온화·추움·비와 견줍니다. 접수일 기준이라 투기 시각은 아닙니다.",
     },
     {
       q: "월별로는 어떻게 움직였나?",

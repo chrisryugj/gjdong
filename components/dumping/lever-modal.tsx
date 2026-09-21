@@ -325,7 +325,7 @@ export default function LeverModal({ lever, graph, onClose, onShowMap }: LeverMo
             noun={noun}
           />
           <p className="px-1 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
-            1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 구분할 수 없습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
+            1인세대·청년·외국인·다가구·단독 밀집은 같은 동네에 겹쳐 있어 넷 가운데 무엇이 진짜 원인인지 구분되지 않습니다. 어느 쪽을 겨냥하더라도 결국 같은 지역에 닿습니다.
           </p>
             </div>
           </details>

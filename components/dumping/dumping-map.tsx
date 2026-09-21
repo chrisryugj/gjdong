@@ -313,8 +313,8 @@ export default function DumpingMap({
     })
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right")
     mapRef.current = map
-    // 개발 진단용 손잡이(프로덕션 번들에는 안 실린다). Playwright에서 레이어·feature-state를 들여다볼 때
-    if (process.env.NODE_ENV !== "production") (window as unknown as { __dumpMap?: MlMap }).__dumpMap = map
+    // 진단 손잡이(scripts/dumping-shots.mjs가 프로덕션 빌드에서 카메라를 잡는다. /snow 4라운드 규약대로 프로덕션에도 둔다: 참조 하나뿐이라 비용 0)
+    ;(window as unknown as { __dumpMap?: MlMap }).__dumpMap = map
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "dump-pop", maxWidth: "340px", offset: 14 })
     popupRef.current = popup
 

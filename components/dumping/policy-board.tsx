@@ -56,12 +56,18 @@ function ProposalRow({ lv, stats, onOpen, i = 0, n }: RowProps) {
       <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{n}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(title)}</span>
+        {/* 담당 조각은 한 줄에(nowrap). "청소과·동주민센터"가 낱말 사이에서 꺾여 한 글자가 홀로 떨어지지 않게(/snow 6라운드 Meta 규약) */}
         <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
           {nb(expect)}
-          {owner && <span className="text-[var(--cp-text-faint)]"> · {owner}</span>}
+          {owner && (
+            <span className="text-[var(--cp-text-faint)]">
+              {" · "}
+              <span className="whitespace-nowrap">{owner}</span>
+            </span>
+          )}
         </span>
       </span>
-      {cost && <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+      {cost && <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${cost.cls}`}>{cost.label}</span>}
     </button>
   )
 }
@@ -78,10 +84,10 @@ function ExistingRow({ lv, graph, onOpen, i = 0 }: RowProps) {
       className="dump-rise group flex w-full flex-col gap-1 border-t border-[var(--cp-border)] py-3 text-left first:border-t-0"
     >
       <span className="flex flex-wrap items-center gap-1.5">
-        <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-bold ${status.cls}`}>{status.label}</span>
-        {cost && <span className={`rounded px-1.5 py-0.5 text-[11.5px] font-semibold ${cost.cls}`}>{cost.label}</span>}
+        <span className={`rounded px-1.5 py-0.5 text-[12px] font-bold ${status.cls}`}>{status.label}</span>
+        {cost && <span className={`rounded px-1.5 py-0.5 text-[12px] font-semibold ${cost.cls}`}>{cost.label}</span>}
         {lv.preRegistered && (
-          <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[11px] text-[var(--cp-text-dim)]">사전등록 후 평가</span>
+          <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[12px] text-[var(--cp-text-dim)]">사전등록 후 평가</span>
         )}
       </span>
       <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(lv.node.label)}</span>
@@ -116,7 +122,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
   const [openLever, setOpenLever] = useState<LeverView | null>(null)
 
   if (!graph) {
-    return <div className="p-4 text-[15px] text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다…</div>
+    return <div className="p-4 text-[15px] text-[var(--cp-text-dim)]">정책 자료를 불러오는 중입니다</div>
   }
 
   // 제안은 돈이 덜 드는 순. 추가 예산 없음 → 저비용 → 예산 필요 (같은 등급 안에서는 그래프 순서 유지)
@@ -166,8 +172,8 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
     </>
   )
   const deck = growth
-    ? `민원 증가는 대부분 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 단정할 수 없습니다.`
-    : "민원 증가는 대부분 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 단정할 수 없습니다."
+    ? `민원 증가는 대부분 앱 신고 창구에 몰려 있습니다(앱 제외 신고 ${fmtRatio(growth.fixed)}, 순찰 적발 ${fmtRatio(growth.finesPatrol)}). 발생이 늘었는지는 단정하지 않습니다.`
+    : "민원 증가는 대부분 앱 신고 창구에 몰려 있습니다. 발생이 늘었는지는 단정하지 않습니다."
 
   return (
     <div className="flex flex-col gap-5 px-4 py-4 md:px-5">
@@ -197,7 +203,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
         >
           제안 {proposals.length}건
         </SectionHead>
-        <p className="mb-1 flex flex-wrap items-center gap-1.5 pl-8 text-[11.5px]">
+        <p className="mb-1 flex flex-wrap items-center gap-1.5 pl-8 text-[12px]">
           {costCounts.map((c) => (
             <span key={c.label} className={`rounded px-1.5 py-0.5 font-semibold ${c.cls}`}>
               {c.label} {c.n}건
@@ -251,7 +257,7 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
                   </button>
                 )}
                 {main && !val && (
-                  <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[11.5px] font-semibold text-[#a8322a]">성과 평가용</span>
+                  <span className="shrink-0 rounded bg-[#a8322a]/10 px-1.5 py-0.5 text-[12px] font-semibold text-[#a8322a]">성과 평가용</span>
                 )}
               </div>
             )

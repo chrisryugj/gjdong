@@ -52,7 +52,7 @@ export default function OntoPanel({ graph, selectedId, onSelect }: OntoPanelProp
   const lineage = useMemo(() => (graph && selectedId ? lineageOf(graph, selectedId) : null), [graph, selectedId])
 
   if (!graph) {
-    return <div className="p-4 text-base text-[var(--cp-text-dim)]">지식그래프를 불러오는 중입니다…</div>
+    return <div className="p-4 text-base text-[var(--cp-text-dim)]">지식그래프를 불러오는 중입니다</div>
   }
 
   const detailCard = selected ? (

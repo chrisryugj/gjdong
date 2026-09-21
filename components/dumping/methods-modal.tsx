@@ -110,7 +110,7 @@ const collected = (data: DumpingMapData, topBeta: string, ledgerRows: number): D
   {
     name: "SGIS 100m 격자 총인구 (2024 등록센서스)",
     scale: `국가데이터처 SGIS · 광진 ${n(data.decision.regressionV2?.exposure ? data.decision.regressionV2.exposure.v3_100.n : 0)}칸 회귀 표본`,
-    use: `상주인구 노출 변수(노출 = 그 칸에 사람이 얼마나 있는가. v3 회귀 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}). 공식 1km 격자와 합산 대조해 같은 자료임을 확인`,
+    use: `상주인구 노출 변수(노출은 그 칸에 사람이 얼마나 있는가. v3 회귀 β ${data.decision.regressionV2?.exposure ? signed(data.decision.regressionV2.exposure.compare.both.resident_pop.beta) : "미산출"}). 공식 1km 격자와 합산 대조해 같은 자료임을 확인`,
   },
   {
     name: "K-apt 관리비공개 의무단지 (필지·관리비)",
@@ -301,7 +301,7 @@ export default function MethodsModal({
             <b className="text-[var(--cp-text-strong)]">재현.</b> 원자료의 컬럼 사전과 입력·산출물·코드 파일 해시(SHA-256) {rp?.hashes ?? "미산출"}개는 재현 패키지(REPRODUCE)에 고정돼 있고,
             verify.py가 해시 대조와 핵심 수치 {rp?.numbers ?? "미산출"}개 재계산을 합니다. 회귀·DID·전망 오차의 재추정은 개별 스크립트로 가능하지만
             verify.py의 범위는 아닙니다. 원자료에 건별 민원·과태료 기록이 있어 재현 패키지는 비공개 저장소(gwangjin-dumping)에 있고,
-            서울시·공공데이터포털 층은 위 목록의 원천에서 25개 구 어디서나 같은 방식으로 다시 만들 수 있습니다. 격자 집계 3종(지도 페이로드·격자별
+            서울시·공공데이터포털 층은 위 목록의 원천에서 25개 구 어디서나 같은 방식으로 다시 만들어집니다. 격자 집계 3종(지도 페이로드·격자별
             민원·격자별 시설)은 생성 코드가 없던 것을 2026-09-13에 복원해 재현 순서 안에서 다시 만들어집니다. 원자료부터 지도까지 전체를 깨끗한 환경에서
             처음부터 재생성하는 검증은 아직 하지 않았습니다.
           </p>

@@ -218,7 +218,7 @@ export default function OpsModal({
         />
         <Callout>
           민원 총건수가 {fmtRatio(g.total)}로 늘어난 동안 앱 접수만 {fmtRatio(g.app)}로 늘었고 120·직접은 {fmtRatio(g.fixed)}로 거의
-          그대로였습니다. 늘어난 것은 주로 신고 채널이며, 발생 증가는 이 자료로 배제할 수 없습니다.
+          그대로였습니다. 늘어난 것은 주로 신고 채널이며, 발생 증가는 이 자료로 배제되지 않습니다.
         </Callout>
         {d.fines.byRoute && (
           <>
@@ -280,7 +280,7 @@ export default function OpsModal({
           </>
         )}
         <Callout>
-          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고 대책 효과를 계산하는 용도로도 쓸 수 없습니다.
+          이 수치는 신고 접수량(앱 보급 추세 포함) 전망입니다. 무단투기 발생량의 예측이 아니고 대책 효과를 계산하는 용도도 아닙니다.
         </Callout>
       </ModalShell>
     )
@@ -305,7 +305,7 @@ export default function OpsModal({
         <Callout>
           담배꽁초(차량) {Math.round((cigN / f.totalN) * 100)}%는 주행 중 도로에서 발생하는 일이라
           다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 대책도 다릅니다. 지표를 합쳐
-          관리하면 어느 쪽 성과도 읽을 수 없습니다.
+          관리하면 어느 쪽 성과도 읽히지 않습니다.
         </Callout>
         <Note>
           분류는 과세대상 문구의 키워드 규칙(담배, 대형, 시간외, 규격봉투, 음식물, 이동배출 순)으로 했고 격자 회귀가 설명하는 주 대상은 생활쓰레기 계열입니다.
@@ -336,12 +336,12 @@ export default function OpsModal({
         <p className="text-[15.5px] leading-relaxed text-[var(--cp-text-muted)]">
           "절반은 이내"(중앙값)는 보통의 민원이 처리되는 속도이고, "느린 10%"는 밀릴 때의 속도입니다.{" "}
           {best && last && best[0] !== last[0]
-            ? `${best[0]}년에 크게 개선됐다가 ${last[0]}년 들어 오래 걸리는 건이 다시 늘었습니다. 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 넘어서기 시작했다는 신호로 읽을 수 있습니다.`
+            ? `${best[0]}년에 크게 개선됐다가 ${last[0]}년 들어 오래 걸리는 건이 다시 늘었습니다. 앱 민원이 급증한 시기와 겹칩니다. 처리 물량이 인력을 넘어서기 시작했다는 신호입니다.`
             : "느린 10% 처리 시간이 짧아질수록 밀리는 민원이 줄어듭니다."}
         </p>
         <Note>
           {d.sla.note}. 표본은 접수·처리 시각이 모두 있고 순서가 맞는 건만이라 전체 민원 {summarize(data).complaints.toLocaleString()}건 중{" "}
-          {(summarize(data).complaints - years.reduce((a, [, s]) => a + s.n, 0)).toLocaleString()}건(미종결·기록 오류)이 빠져 있어 체감보다 낙관적일 수 있습니다.
+          {(summarize(data).complaints - years.reduce((a, [, s]) => a + s.n, 0)).toLocaleString()}건(미종결·기록 오류)이 빠져 있어 체감보다 낙관적입니다.
           주민이 체감하는 "현장 수거까지 걸린 시간"을 측정하려면 배차·작업 기록이 필요합니다(필요 데이터 명세를 참고해 주세요).
         </Note>
       </ModalShell>
@@ -368,7 +368,7 @@ export default function OpsModal({
           ))}
         </div>
         <Callout>
-          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 채널고정 지표는 서울시 차원에서도 쓸 수 있습니다. 자치구별 증가 원인은 별도 확인이 필요합니다.
+          앱 청소 신고는 서울 전체에서 해마다 늘고 있습니다. 채널고정 지표는 서울시 차원에서도 통합니다. 자치구별 증가 원인은 별도 확인이 필요합니다.
         </Callout>
         <Note>*{period.lastYear}년은 {sr.monthly[sr.monthly.length - 1].ym.slice(5)}월까지 부분 집계. 출처 OA-12051(서울시 스마트 불편신고 분야별 신고 현황).</Note>
 
@@ -418,7 +418,7 @@ export default function OpsModal({
         해당하는 물량은 단독·다가구 허가 {pm.guTotal.detachedPermits12m}건입니다.
       </p>
       <Callout>
-        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두면, 위험 지역이 늘어난 뒤에 대응하는 것보다 먼저 대응할 수 있습니다.
+        준공과 입주 시점에 맞춰 배출안내를 동봉하고 공동배출을 미리 협의해 두면, 위험 지역이 늘어나기 전에 대응이 시작됩니다.
       </Callout>
       <Note>
         "진행중"은 허가는 났으나 사용승인 전인 건입니다(허가 5년이 지난 미착공은 제외). 출처는

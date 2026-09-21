@@ -54,7 +54,7 @@ function renderDetail(detail: string, asof?: string) {
   const ls = detailLines(detail)
   if (!ls.length) return null
   return (
-    <div className="mt-2.5 border-l-2 border-[var(--cp-border)] pl-3">
+    <div className="mt-2.5 border-t border-[var(--cp-border)] pt-2">
       <p className="mb-1 flex items-baseline gap-2 text-[12.5px] font-semibold tracking-wide text-[var(--cp-text-faint)]">
         근거 수치와 한계
         {asof && <span className="font-normal">· 자료 기준 {asof}</span>}
@@ -62,7 +62,7 @@ function renderDetail(detail: string, asof?: string) {
       <ul className="flex flex-col gap-1">
         {ls.map((l, i) => (
           <li key={i} className="flex items-start gap-1.5 text-[14.5px] leading-relaxed text-[var(--cp-text-dim)]">
-            {l.slot && <span className={`mt-[3px] shrink-0 rounded px-1 text-[11.5px] font-semibold ${SLOT_CLS[l.slot]}`}>{l.slot}</span>}
+            {l.slot && <span className={`mt-[3px] shrink-0 rounded px-1 text-[12px] font-semibold ${SLOT_CLS[l.slot]}`}>{l.slot}</span>}
             <span className="min-w-0">{nb(l.text)}</span>
           </li>
         ))}
@@ -489,7 +489,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               type="button"
               onClick={() => setVoicePick((v) => !v)}
               aria-expanded={voicePick}
-              title={`읽어 주는 목소리: ${currentVoice.label}. 누르면 다른 목소리를 골라 미리 들을 수 있습니다`}
+              title={`읽어 주는 목소리: ${currentVoice.label}. 누르면 다른 목소리를 골라 미리 듣습니다`}
               className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
                 voicePick ? "bg-(--dump-accent)/12 text-(--dump-accent)" : "border border-[var(--cp-border)] text-[var(--cp-text-dim)] hover:border-(--dump-accent) hover:text-(--dump-accent)"
               }`}
@@ -653,7 +653,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             핵심 질의응답 {seeds.length > 0 ? `${seeds.length}` : ""}
             {allSeeds.length > seeds.length ? ` / ${allSeeds.length}` : ""}
           </SectionHead>
-          {seeds.length === 0 && <p className="text-[15.5px] text-[var(--cp-text-dim)]">데이터를 불러오는 중…</p>}
+          {seeds.length === 0 && <p className="text-[15.5px] text-[var(--cp-text-dim)]">데이터를 불러오는 중</p>}
           <div className="flex flex-col gap-1.5">
             {seeds.map((s, i) => {
               const open = isOpen(s.q, i)
@@ -699,7 +699,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       {s.chart && data && (
                         <button
                           onClick={() => setBigChart(s.chart!)}
-                          title="누르면 크게 볼 수 있습니다"
+                          title="누르면 크게 보입니다"
                           className="rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)] p-2.5 text-left transition-shadow hover:border-(--dump-accent)/60"
                         >
                           <span className="mb-1 flex items-baseline justify-between">
@@ -748,7 +748,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
             </button>
           )}
           <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-faint)]">
-            준비된 답은 발견 탭과 같은 수치를 씁니다{asof ? `(자료 기준 ${asof})` : ""}. 더 깊은 근거는 발견·데이터 탭에서 볼 수 있습니다.
+            준비된 답은 발견 탭과 같은 수치를 씁니다{asof ? `(자료 기준 ${asof})` : ""}. 더 깊은 근거는 발견·데이터 탭에 있습니다.
           </p>
         </section>
       </div>

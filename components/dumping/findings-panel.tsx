@@ -19,7 +19,7 @@ const GROUP_SUB: Record<keyof typeof FINDING_GROUPS, string> = {
 // 태그에 낯선 낱말이 있으면 마우스를 올렸을 때 풀이. 모달의 "쉬운 풀이"와 같은 말
 const TAG_HELP: Record<string, string> = {
   "노출 통제":
-    "노출 = 그 칸에 사람이 얼마나 있는가(상주인구: 주민등록 거주자, 생활인구: 통신 기반 체류자). 사람이 많아서 생기는 것인지 가려내려고 회귀식에 넣은 변수",
+    "노출은 그 칸에 사람이 얼마나 있는가(상주인구: 주민등록 거주자, 생활인구: 통신 기반 체류자). 사람이 많아서 생기는 것인지 가려내려고 회귀식에 넣은 변수",
 }
 
 interface FindingsPanelProps {
@@ -54,7 +54,7 @@ export default function FindingsPanel({
     <div className="flex flex-col gap-4 p-3">
       {/* 핵심 발견 카드가 먼저. 결론 그룹은 펼치고 검증·한계 그룹은 접는다 */}
       <section>
-        <SectionHead n="01" first sub={`결론 ${FINDING_GROUPS.결론.length}장 먼저, 검증·한계는 접힘 · 카드를 누르면 자세히 볼 수 있습니다`}>
+        <SectionHead n="01" first sub={`결론 ${FINDING_GROUPS.결론.length}장 먼저, 검증·한계는 접힘 · 카드를 누르면 자세히 보입니다`}>
           핵심 발견 {findings.length}
         </SectionHead>
         {(Object.keys(FINDING_GROUPS) as (keyof typeof FINDING_GROUPS)[]).map((group) => {
@@ -92,7 +92,7 @@ export default function FindingsPanel({
                     </span>
                     <h4 className="text-[16.5px] font-bold leading-snug text-[var(--cp-text-strong)]">{nb(f.title)}</h4>
                     {/* 결론(주장)이 본문보다 먼저. 문장마다 한 줄(2026-09-18: 두 문장이 한 덩어리면 둘째가 첫째의 부연으로 읽혔다). 근거 수치 문장은 두 줄로 접고, 전문은 모달에 */}
-                    <p className="mt-2 flex flex-col gap-1 border-l-[3px] border-(--dump-accent) pl-2.5 text-[15px] font-semibold leading-snug text-(--dump-accent-ink)">
+                    <p className="mt-2 flex flex-col gap-1 rounded-lg bg-(--dump-accent-wash) px-3 py-2 text-[15px] font-semibold leading-snug text-(--dump-accent-ink)">
                       {sentencesOf(f.takeaway).map((s, k) => (
                         <span key={k} className="block">
                           {nb(s)}
@@ -122,7 +122,7 @@ export default function FindingsPanel({
           )
         })}
         <p className="mt-2 text-[14.5px] leading-relaxed text-[var(--cp-text-faint)]">
-          회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 자료와 방법은 위 데이터·방법에서 볼 수 있습니다.
+          회귀계수는 다른 조건을 통제한 뒤의 조건부 연관이며, 인과를 증명한 것은 아닙니다. 자료와 방법은 위 데이터·방법에 있습니다.
         </p>
       </section>
 
@@ -220,7 +220,7 @@ export default function FindingsPanel({
             {sel.lp != null && (
               <p className="mt-2 text-[14px] leading-relaxed text-[var(--cp-text-dim)]">
                 서울시 생활인구(체류 기준) {sel.lp.toLocaleString()}명 · 생활인구 천명당 민원 {sel.crl ?? "미산출"} · 과태료 {sel.erl ?? "미산출"}.
-                등록인구 천명당({sel.cr.toFixed(1)}/{sel.er.toFixed(1)})과 견줘 사람이 머무는 만큼 생기는지 볼 수 있습니다.
+                등록인구 천명당({sel.cr.toFixed(1)}/{sel.er.toFixed(1)})과 견줘 사람이 머무는 만큼 생기는지 견줍니다.
               </p>
             )}
             {tsClean.length >= 2 && (
@@ -274,7 +274,7 @@ export default function FindingsPanel({
                 )
               })}
             </div>
-            <p className="mt-2 border-l-2 border-(--dump-accent) pl-2.5 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
+            <p className="mt-2 rounded-lg bg-(--dump-accent-wash) px-3 py-2 text-[15px] font-medium leading-snug text-[var(--cp-text-strong)]">
               여름과 더운 날(25도 이상)에는 민원이 겨울의 {(data.env.seasons["여름"].compPerDay / Math.max(data.env.seasons["겨울"].compPerDay, 0.01)).toFixed(1)}배입니다. 비 오는 날에는 단속 적발이
               {" "}{data.env.rain["무강수"]?.enfPerDay ?? "-"}→{data.env.rain["비(1mm+)"]?.enfPerDay ?? "-"}건/일로 줄어듭니다.
             </p>

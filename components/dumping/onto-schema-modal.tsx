@@ -48,7 +48,7 @@ export default function OntoSchemaModal({ graph, onClose }: { graph: OntoGraph; 
         ))}
       </div>
 
-      <h3 className="mb-1.5 text-[14.5px] font-semibold tracking-wide text-[var(--cp-text-dim)]">관계 (엣지 종류) · 출발 → 도착</h3>
+      <h3 className="mb-1.5 text-[14.5px] font-semibold tracking-wide text-[var(--cp-text-dim)]">관계 (엣지 종류) · 출발과 도착</h3>
       <div className="flex flex-col gap-1">
         {RELATIONS.map((r) => (
           <div key={r.rel} className="rounded-lg border border-[var(--cp-border-faint)] px-2.5 py-1.5">

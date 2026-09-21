@@ -49,7 +49,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       id: "grid",
       name: "100m 격자 결합",
       question: "서로 다른 자료를 어떻게 한 지도에서 비교하나?",
-      easy: `구 전체를 100m 바둑판으로 나누고 민원·과태료·건축물대장·도로·인구를 전부 같은 칸에 넣습니다. 그래야 "이 칸은 적발도 많고 다가구도 많다"를 말할 수 있습니다.`,
+      easy: `구 전체를 100m 바둑판으로 나누고 민원·과태료·건축물대장·도로·인구를 전부 같은 칸에 넣습니다. 그래야 "이 칸은 적발도 많고 다가구도 많다"가 성립합니다.`,
       figure: "grid",
       results: [
         { k: "회귀 표본", v: `${n(sz.gridN)}칸` },
@@ -87,7 +87,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
         "차량 담배꽁초를 뺀 생활쓰레기만으로 다시 적합해도 유지(발견 탭 품목 분리)",
       ],
       cautions: [
-        "조건부 연관이지 인과 증명이 아닙니다. 왜 그 골목인지는 이 자료로 알 수 없습니다",
+        "조건부 연관이지 인과 증명이 아닙니다. 왜 그 골목인지는 이 자료에 없습니다",
         "다가구·단독 밀집은 건축물대장 대리변수(다가구 가구 + 일반단독 동)입니다",
         "강건성 검정의 β(+0.315 등)는 2026-09-13 폴백 정정 전 표본 값이며 정정 후 재적합은 아직입니다(방향·유의성 동일)",
       ],
@@ -101,7 +101,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       figure: "did",
       results: [
         { k: "초기 분석", v: "감소 효과 있음", note: "철회" },
-        { k: "비교 대상에 같은 조건 적용", v: "비교 대상도 똑같이 줄었음", note: "감소분 = 평균회귀" },
+        { k: "비교 대상에 같은 조건 적용", v: "비교 대상도 똑같이 줄었음", note: "감소분은 평균회귀" },
         { k: "이벤트 스터디", v: "유의한 시점 없음", note: "관측 22,247행" },
       ],
       checks: ["처치·대조에 같은 선택 규칙을 쓰는 대칭 설계로 다시 재도 효과 미확인(발견 탭 효과 철회 카드)"],
@@ -187,12 +187,12 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       easy: "결론을 내기 전에 통계의 전제 조건이 성립하는지 따로 검사하고, 어긋난 것은 숨기지 않고 적었습니다.",
       results: [],
       checks: [
-        "잔차가 정규분포가 아님 → 음이항·wild bootstrap 보정 모형을 같이 돌려 판정 유지",
-        "오차 크기가 칸마다 다름(이분산) → 이분산 보정 표준오차(HC3)로 판정 유지",
-        "이웃 칸끼리 닮음(공간 자기상관) → 공간 시차·공간 오차 모형에서도 다가구·단독 β 유지",
+        "잔차가 정규분포가 아니라 음이항·wild bootstrap 보정 모형을 같이 돌렸고 판정 유지",
+        "오차 크기가 칸마다 달라(이분산) 이분산 보정 표준오차(HC3)로 다시 봤고 판정 유지",
+        "이웃 칸끼리 닮아(공간 자기상관) 공간 시차·공간 오차 모형으로도 봤고 다가구·단독 β 유지",
       ],
       cautions: [
-        `청년·외국인·1인세대·다가구·단독 밀집이 상관 ${col}로 겹쳐 있어 무엇이 진짜 요인인지 구분할 수 없습니다. 어느 하나를 원인으로 지목하는 해석은 피해야 합니다`,
+        `청년·외국인·1인세대·다가구·단독 밀집이 상관 ${col}로 겹쳐 있어 무엇이 진짜 요인인지 구분되지 않습니다. 어느 하나를 원인으로 지목하는 해석은 피해야 합니다`,
       ],
       explainer: "#13-공간-자기상관과산포이분산",
     },
@@ -259,7 +259,7 @@ function FigDid() {
       <path d="M40 34 L180 44 L320 64" stroke={INK} strokeWidth="2" fill="none" strokeDasharray="5 4" />
       <text x="40" y="22" {...T} fill={WARN}>설치한 곳</text>
       <text x="60" y="62" {...T}>비교 대상(설치 안 함)</text>
-      <text x="150" y="92" {...T} fill={WARN}>둘 다 똑같이 줄었다 → 효과가 아니라 평균회귀</text>
+      <text x="150" y="92" {...T} fill={WARN}>둘 다 똑같이 줄었으니 효과가 아니라 평균회귀</text>
     </svg>
   )
 }
@@ -324,7 +324,7 @@ function FigForecast() {
       <line x1="236" y1="10" x2="236" y2="88" stroke={INK} strokeWidth="0.6" strokeDasharray="3 3" />
       <path d="M236 42 L340 26 L340 62 L236 60 Z" fill={ACC} opacity="0.15" />
       <path d="M236 51 L340 44" stroke={ACC} strokeWidth="1.8" fill="none" />
-      <text x="24" y="14" {...T}>지난 접수 = 수준 + 추세 + 계절 반복</text>
+      <text x="24" y="14" {...T}>지난 접수는 수준, 추세, 계절 반복의 합</text>
       <text x="240" y="20" {...T} fill={ACC}>전망 · 옅은 띠 = 80% 구간</text>
       <text x="238" y="86" {...T}>기준일</text>
     </svg>

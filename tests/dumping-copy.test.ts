@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import graphJson from "../data/dumping/graph.json" with { type: "json" }
 import type { DumpingMapData, OntoGraph } from "../lib/dumping/types"
 import { buildFindings, FINDING_GROUPS, FINDING_ORDER } from "../components/dumping/findings-data"
@@ -171,4 +171,78 @@ test("제안 카드의 기대효과는 6건 모두 있고 '사업'이라 부르�
     for (const [k, v] of Object.entries(m!)) assert.ok(v.length > 0 && v.length <= 45, `${r.name}: ${k} ${v.length}자 "${v}"`)
     assert.match(r.mechanismDetail, /^가정: .+ 조치: .+ 기대: /)
   }
+})
+
+// ─── 화면 소스 게이트(2026-09-21, /snow 카피 게이트 이식). 위 테스트는 데이터에서 만들어지는 문장을 보고, 이것은 컴포넌트 소스의 한글 문자열·JSX 본문을 본다.
+// 규칙: 줄표·꺾쇠 화살·말줄임표·"수 있습니다"(번역투)·등호 범례체·프로즈 화살표(낱말 → 낱말. 숫자 전후 표기 "2024→2025"와 ←→ 키 안내는 표기라 허용)·반말 종결
+// (대비 보드의 "기존 해석" 인용문은 통념을 그대로 옮긴 것이라 제외)·12px 미만 글자(키커·SVG 축 글자 제외)·세로 색선(border-l/r. 면 틴트로 대신한다) 0
+const SRC_FILES = readdirSync(new URL("../components/dumping/", import.meta.url))
+  .filter((f) => /\.(tsx|ts)$/.test(f) && !/icons3d|digit-font|use-voice|liquid-glass|onto-layouts|onto-view|^map-geo\.ts$/.test(f))
+  .map((f) => `components/dumping/${f}`)
+const readSrc = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8")
+// 한글 문자열 리터럴 + JSX 본문 텍스트(태그 사이 글)를 뽑는다(코드 식별자·주석 제외)
+function koreanStrings(src: string): string[] {
+  const out: string[] = []
+  const re = /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src))) if (/[가-힣]/.test(m[2])) out.push(m[2])
+  const jsx = />([^<>{}]*[가-힣][^<>{}]*)</g
+  while ((m = jsx.exec(src))) out.push(m[1].trim())
+  return out
+}
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+const SRC_FORBIDDEN: [RegExp, string][] = [
+  [EM_DASH, "줄표"],
+  [/›|‹|»/, "꺾쇠 화살(작대기)"],
+  [/…|\.\.\.(?=\s|$|["'`)])/, "말줄임표"],
+  [/수 있습니다|수 없습니다|수 있어/, "'수 있습니다'(번역투)"],
+  [/[가-힣)\]] = [가-힣(]/, "등호로 뜻을 잇는 범례체(은/는으로)"],
+  [/[가-힣)]\s*[→⇒⟶]\s*[가-힣("]/, "프로즈 화살표(문장으로)"],
+]
+const BANMAL = /(?<!니)(?<=[가-힣])다\.(?=\s|$|")/
+
+test("화면 소스의 한글 문자열에 줄표·꺾쇠·말줄임·'수 있습니다'·등호 범례체·프로즈 화살표 0", () => {
+  const hits: string[] = []
+  for (const f of SRC_FILES) {
+    for (const s of koreanStrings(stripComments(readSrc(f)))) for (const [re, why] of SRC_FORBIDDEN) if (re.test(s)) hits.push(`${f} · ${why} · ${s.slice(0, 60)}`)
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
+test("화면 문장은 합니다체(반말 종결 0). 대비 보드의 통념 인용문만 예외", () => {
+  const hits: string[] = []
+  for (const f of SRC_FILES) {
+    if (/contrast-panel/.test(f)) continue
+    for (const s of koreanStrings(stripComments(readSrc(f)))) if (BANMAL.test(s)) hits.push(`${f} · ${s.slice(0, 70)}`)
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
+test("글자 크기: 12px 미만 본문 클래스 없음(키커 dump-kicker·SVG 축 글자만 허용)", () => {
+  const hits: string[] = []
+  for (const f of SRC_FILES.filter((x) => x.endsWith(".tsx"))) {
+    const src = readSrc(f)
+    const re = /text-\[(\d+(?:\.\d+)?)px\]/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src))) {
+      if (Number(m[1]) >= 12) continue
+      // 그 클래스가 든 문자열 리터럴(className="…" 또는 const X = "…") 안에 키커·SVG 축 표식이 있으면 허용
+      const start = src.lastIndexOf('"', m.index)
+      const end = src.indexOf('"', m.index)
+      const cls = src.slice(start + 1, end)
+      if (!/dump-kicker|fill-\[/.test(cls)) hits.push(`${f} · ${m[1]}px · ${cls.slice(0, 60)}`)
+    }
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
+})
+
+test("세로 색선 0: border-l-*·border-r-*를 강조에 쓰지 않는다(면 틴트·번호 인덱스로 대신한다)", () => {
+  const hits: string[] = []
+  for (const f of SRC_FILES.filter((x) => x.endsWith(".tsx"))) {
+    const src = stripComments(readSrc(f))
+    const re = /border-[lr]-(\d|\[)/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src))) hits.push(`${f}:${src.slice(0, m.index).split("\n").length}`)
+  }
+  assert.deepStrictEqual(hits, [], hits.join("\n"))
 })

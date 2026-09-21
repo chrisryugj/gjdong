@@ -205,7 +205,7 @@ function BetaChart({ graph }: { graph: OntoGraph }) {
         )
       })}
       <text x={cx} y={h - 8} textAnchor="middle" fontSize={13} fill={INK_DIM}>
-        0 기준 오른쪽(+) = 많을수록 발생 증가 · 왼쪽(−) = 감소 방향 연관
+        0 기준 오른쪽(+)은 많을수록 적발 증가, 왼쪽(−)은 감소 방향 연관
       </text>
     </svg>
   )

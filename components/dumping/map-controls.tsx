@@ -68,11 +68,11 @@ const BASE_MEANING: Record<BaseMode, string> = {
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
   switch (m) {
     case "none":
-      return "바탕 지표 없이 원·기둥·시설만 봅니다. 건물 색은 GIS건물통합정보의 지상층수를 유형으로 읽은 것이라 실제 용도와 다를 수 있습니다."
+      return "바탕 지표 없이 원·기둥·시설만 봅니다. 건물 색은 GIS건물통합정보의 지상층수를 유형으로 읽은 것이라 실제 용도와 다를 여지가 있습니다."
     case "unm":
       return "바탕색은 다가구·단독 밀집(건축물대장 다가구 가구+일반단독 동)의 밀도입니다. 아파트 세대수는 연관이 확인되지 않아 따로 레이어를 두지 않았습니다."
     case "comp":
-      return "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보일 수 있습니다."
+      return "바탕색은 주민이 신고한 민원 건수입니다. 앱 보급에 따른 신고 편향이 섞여 있어 실제 발생보다 부풀어 보이기도 합니다."
     case "enf":
       return "바탕색은 단속으로 부과한 과태료 건수입니다. 대부분 신고를 받아 적발한 것이고 순찰·근무 패턴도 섞여 있어, 발생 그 자체는 아닙니다."
     case "lp":
@@ -138,9 +138,10 @@ interface LayerPanelProps {
   view: MapView
   onChange: (next: MapView) => void // 사용자가 줄을 만졌을 때. 부모는 "반영 중" 배지를 내린다
   active: { label: string; onClear: () => void } | null // 지도에 반영 중인 발견·정책 수단
+  liveWeather?: WeatherKey | null // 지금 날씨 조건(기상청 실황, lib/dumping/labels liveWeatherKey). 날씨별 원을 켜면 이 조건부터, 칩에 "지금" 표시
 }
 
-export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps) {
+export function MapLayerPanel({ data, view, onChange, active, liveWeather = null }: LayerPanelProps) {
   // 동별 막대 연도 버튼. 민원 연도(접수) 기준. 과태료 위반 연도에는 2022·2023 이월 키(구 전체 한 자리 건수)가 있어 합치면 빈 막대 칩이 생긴다
   const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => Object.keys(d.yr?.complaints ?? {})))).sort() : []
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
@@ -298,14 +299,16 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
           <Ico name="columns" size={15} />
           <span className="min-w-0 flex-1">격자 기둥</span>
         </button>
+        {/* 지금 날씨 조건(기상청 실황)이 있으면 켤 때 그 조건부터. 칩에도 "지금" 점 */}
         <button
           aria-pressed={!!view.weather}
-          title="그 날씨 조건에 접수된 민원을 하루당 환산해 원으로 보입니다(접수일 기준)"
-          onClick={() => patch({ weather: view.weather ? null : "hot" })}
+          title={`그 날씨 조건에 접수된 민원을 하루당 환산해 원으로 보입니다(접수일 기준)${liveWeather ? `. 지금은 ${WEATHER_DEF[liveWeather].short} 조건` : ""}`}
+          onClick={() => patch({ weather: view.weather ? null : (liveWeather ?? "hot") })}
           className={`${ROW} ${view.weather ? ROW_ON : ROW_OFF}`}
         >
           <Swatch kind="circle" color={view.weather ? WEATHER_DEF[view.weather].color : "#9aa5a1"} on={!!view.weather} />
           <span className="min-w-0 flex-1">날씨별 민원 원</span>
+          {liveWeather && !view.weather && <span className="dump-kicker text-[9.5px] text-[var(--cp-text-faint)]">지금 {WEATHER_DEF[liveWeather].short}</span>}
         </button>
         {view.weather && (
           <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2 pt-0.5">
@@ -313,14 +316,16 @@ export function MapLayerPanel({ data, view, onChange, active }: LayerPanelProps)
               <button
                 key={w}
                 aria-pressed={view.weather === w}
-                title={WEATHER_DEF[w].label}
+                title={`${WEATHER_DEF[w].label}${liveWeather === w ? " · 지금 조건" : ""}`}
                 onClick={() => patch({ weather: w })}
                 className={`${CHIP_SM} ${view.weather === w ? "bg-[var(--cp-panel)] font-semibold" : CHIP_OFF}`}
                 style={view.weather === w ? { borderColor: WEATHER_DEF[w].color, color: WEATHER_DEF[w].color } : undefined}
               >
+                {liveWeather === w && <i className="h-1.5 w-1.5 rounded-full" style={{ background: WEATHER_DEF[w].color }} aria-hidden />}
                 {WEATHER_DEF[w].short}
               </button>
             ))}
+            {liveWeather && <span className="w-full text-[12px] text-[var(--cp-text-dim)]">점이 지금 조건(기상청 실황 기온·강수). 원은 접수일 일평균 기준</span>}
           </div>
         )}
 
@@ -398,14 +403,14 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
-          <span className="font-mono text-[11px] leading-none text-[var(--cp-text-dim)]">
+          <span className="font-mono text-[12px] leading-none text-[var(--cp-text-dim)]">
             {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ … ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
           {BASE_MEANING[view.base]}
           {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
-          {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀 = 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라 = 현 이동식 CCTV"}
+          {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>
         {(showHelp || view.weather || view.grid3d) && (
           <>
@@ -525,7 +530,7 @@ export function CandidateList({ data, onFocusCandidate, onClose }: { data: Dumpi
           >
             {/* 상위 3 = 벽돌색(지도의 핀·고리·숫자와 같은 색, ops 핫스팟 1~3 문법), 나머지 = 앰버 테두리 */}
             <span
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold ${
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[12px] font-bold ${
                 i < 3 ? "bg-[#a8322a] text-white ring-2 ring-white" : "border-[1.5px] border-(--dump-accent) bg-white text-(--dump-accent)"
               }`}
             >

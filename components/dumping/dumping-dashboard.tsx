@@ -23,8 +23,14 @@ import LiquidTabs from "./liquid-tabs"
 import { deriveLevers, vizForLever, type LeverView } from "./lever-view"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "./use-sidebar-width"
+import { useSpeaker } from "./use-voice"
+import { sentencesOf, ttsClean } from "@/lib/dumping/answer-parts"
 import DumpMark from "./dump-mark"
 import { Ico } from "./icons"
+import { fetchBundle, startDumpingData } from "./data-early"
+import { liveWeatherKey } from "@/lib/dumping/labels"
+import { weatherLabel } from "@/lib/snow/weather"
+import type { SnowForecast } from "@/lib/snow/types"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
 type AuthState = "checking" | "locked" | "open"
@@ -39,14 +45,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "ops", label: "운영·전망" },
   { id: "onto", label: "근거 그래프" },
 ]
-
-const DATA_URL = (name: "map" | "graph" | "interventions" | "bin-recos") => `/api/dumping/data/${name}`
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const r = await fetch(url)
-  if (!r.ok) throw new Error(`${url} ${r.status}`)
-  return r.json()
-}
+// 390px 폭에서 다섯 탭이 한 줄에 들어가게 짧은 이름(/snow TABS_SHORT 규약)
+const TABS_SHORT: { id: Tab; label: string }[] = [
+  { id: "policy", label: "제안" },
+  { id: "qa", label: "묻기" },
+  { id: "findings", label: "발견" },
+  { id: "ops", label: "운영" },
+  { id: "onto", label: "근거" },
+]
 
 // 지도 전면 디자인(2026-09-18). 지도(또는 근거 그래프)가 화면 전체를 채우고 그 위에 유리 패널이 뜬다:
 // 상단 띠(마크·탭·데이터·방법), 왼쪽 카드(탭 내용, 폭 드래그), 오른쪽 열(레이어·후보 목록·범례), 아래 띠(월별 민원, xl 이상).
@@ -114,6 +120,10 @@ export default function DumpingDashboard() {
     const t = window.setTimeout(() => setSettled(true), 1500)
     return () => window.clearTimeout(t)
   }, [])
+  // 모바일(768 미만)은 평면 기본(/snow 4라운드 결정 이식: 3D 핀·기둥이 작은 화면에서 점으로 뭉개진다). 첫 마운트에 한 번
+  useEffect(() => {
+    if (!window.matchMedia("(min-width: 768px)").matches) setView((v) => ({ ...v, tilt: false }))
+  }, [])
 
   const clearActive = () => {
     setActiveFinding(null)
@@ -123,7 +133,7 @@ export default function DumpingDashboard() {
   // 좌상단 마크 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
     setTab("policy")
-    setView(DEFAULT_VIEW)
+    setView({ ...DEFAULT_VIEW, tilt: isMd })
     setSelectedDong(null)
     setSelectedNode(null)
     setOpenFinding(null)
@@ -149,30 +159,29 @@ export default function DumpingDashboard() {
     setLayersOpen(false)
   }
 
+  // 인증 확인은 client.tsx가 청크와 같이 시작했다(data-early). 그 약속을 이어받는다
   useEffect(() => {
-    fetch("/api/dumping/auth")
-      .then((r) => r.json())
-      .then((d) => setAuth(d?.ok ? "open" : "locked"))
-      .catch(() => setAuth("locked"))
+    let alive = true
+    startDumpingData().auth.then((ok) => alive && setAuth(ok ? "open" : "locked"))
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
     if (auth !== "open") return
     let alive = true
     setLoad("loading")
-    Promise.all([
-      fetchJson<DumpingMapData>(DATA_URL("map")),
-      fetchJson<OntoGraph>(DATA_URL("graph")),
-      // 조치 대장은 없어도 화면이 선다. 실패는 null(미확보)로만 표시
-      fetchJson<{ entries?: InterventionEntry[] } | null>(DATA_URL("interventions")).catch(() => null),
-      // 배치추천은 인증 라우트로만 받는다(클라이언트 번들에 평문으로 실리지 않게). 없어도 화면이 선다
-      fetchJson<DumpingMapData["binRecos"]>(DATA_URL("bin-recos")).catch(() => undefined),
-    ])
-      .then(([map, g, iv, br]) => {
+    // 첫 로드는 인증 통과 직후 미리 받기 시작한 자료 4종(data-early)을 쓴다. 재시도·재로그인은 새로 받는다
+    const early = startDumpingData()
+    const bundle = loadSeq === 0 && early.data ? early.data : fetchBundle()
+    bundle
+      .then(({ map, graph: g, interventions: iv, binRecos: br }) => {
         if (!alive) return
+        // 배치추천은 인증 라우트로만 받는다(클라이언트 번들에 평문으로 실리지 않게). 없어도 화면이 선다
         setMapData(br ? { ...map, binRecos: br } : map)
         setGraph(g)
-        // 예시 항목(registeredAt 빈값)은 목록에서 제외. 스키마 안내용으로만 파일에 남는다
+        // 조치 대장은 없어도 화면이 선다(실패는 null = 미확보). 예시 항목(registeredAt 빈값)은 목록에서 제외. 스키마 안내용으로만 파일에 남는다
         setInterventions(iv ? (iv.entries ?? []).filter((e) => e.registeredAt) : null)
         setLoad("ready")
       })
@@ -183,6 +192,25 @@ export default function DumpingDashboard() {
       alive = false
     }
   }, [auth, loadSeq])
+
+  // 지금 날씨(/snow 이식): 기상청 단기예보 광진구 격자(/api/snow/forecast, 30분 캐시). 헤더 "지금 N° 날씨"와 날씨별 민원 원의 "지금 조건" 표시가 쓴다.
+  // 눈·비 입자 효과는 안 그린다(16라운드 결정: 시간대 데이터가 없는 장식). 실황은 날씨별 원(그 조건에 접수된 민원)과 이어질 때만 데이터 뜻이 있다
+  const [wx, setWx] = useState<{ temp: number; code: number } | null>(null)
+  useEffect(() => {
+    if (auth !== "open") return
+    let alive = true
+    fetch("/api/snow/forecast")
+      .then((r) => (r.ok ? (r.json() as Promise<SnowForecast>) : null))
+      .then((f) => {
+        const now = f?.now ?? f?.hours?.[0] ?? null
+        if (alive && now) setWx({ temp: now.temp, code: now.code })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [auth])
+  const liveWeather = wx ? liveWeatherKey(wx.temp, wx.code) : null
 
   // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 25초 상한(회장 네트워크가 느려도 시연을 막지 않게. 3Mbps 실측 map load 12초 초과)에서 걷힌다
   useEffect(() => {
@@ -294,7 +322,7 @@ export default function DumpingDashboard() {
       {
         title: "결론",
         caption: "단속에 잡히는 무단투기는 사람이 많은 곳보다 다가구·단독주택 골목에 더 많습니다.",
-        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥 = 과태료 건수 · 지도가 천천히 돕니다`,
+        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥은 과태료 건수 · 지도가 천천히 돕니다`,
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, orbit: true })
@@ -308,7 +336,7 @@ export default function DumpingDashboard() {
       {
         title: "동별 비교",
         caption: topDong ? `${topDong.d}이 민원 ${topDong.comp.toLocaleString()}건 · 과태료 ${topDong.enf.toLocaleString()}건으로 ${mapData.dong.length}개 동 가운데 1위입니다.` : "",
-        note: "청회 기둥 = 민원, 앰버 기둥 = 과태료 · 1~3위는 꼭대기 배지 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
+        note: "청회 기둥은 민원, 앰버 기둥은 과태료 · 1~3위는 꼭대기 배지 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
@@ -353,7 +381,7 @@ export default function DumpingDashboard() {
       {
         title: "정책 제안",
         caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
-        note: "핀·순위 숫자 = 재배치 후보(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
+        note: "핀·순위 숫자는 재배치 후보(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라는 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
           setShowCritical(false)
@@ -383,6 +411,16 @@ export default function DumpingDashboard() {
     setCardHidden((h) => !h)
     setPadSeq((n) => n + 1)
   }, [])
+
+  // 시연 음성 해설(/snow 이식). 장면이 바뀌면 캡션을 문장 단위로 읽는다: 물어보기와 같은 Gemini TTS 큐(서버가 없으면 브라우저 목소리). 시연이 끝나면 멈춘다
+  const [voice, setVoice] = useState(false)
+  const { speak, stop: stopSpeak, unlock: unlockSpeaker } = useSpeaker()
+  useEffect(() => {
+    stopSpeak()
+    if (!voice || demo === null || !scenes[demo]) return
+    for (const s of sentencesOf(ttsClean(scenes[demo].caption))) speak(s)
+    return () => stopSpeak()
+  }, [voice, demo, scenes, speak, stopSpeak])
 
   useEffect(() => {
     if (demo === null) return
@@ -453,7 +491,7 @@ export default function DumpingDashboard() {
     ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
-  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} /> : null
+  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} /> : null
   const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} />
   const candidates =
     view.candidates && mapData ? (
@@ -579,8 +617,10 @@ export default function DumpingDashboard() {
             <DumpMark size={30} className="shrink-0" />
             <span className="min-w-0">
               <h1 className="truncate text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">클린광진 상황실</h1>
+              {/* 상태 한 줄(/snow 규약): 기준일 뒤에 지금 날씨. 날씨별 원의 "지금 조건"과 같은 실황 */}
               <span className="dump-kicker mt-1 block truncate text-[9.5px] text-[var(--cp-text-dim)]">
                 광진구 · 무단투기 100m 격자{mapData ? ` · ${mapData.decision.asof} 기준` : ""}
+                {wx && isMd ? ` · 지금 ${Math.round(wx.temp)}° ${weatherLabel(wx.code)}` : ""}
               </span>
             </span>
           </button>
@@ -622,7 +662,7 @@ export default function DumpingDashboard() {
         </div>
         {/* 탭 알약(액체 탭: 잉크 캡슐이 흘러간다). 데스크톱은 상단 가운데, 모바일은 둘째 줄 가로 스크롤 */}
         <LiquidTabs
-          items={TABS}
+          items={isMd ? TABS : TABS_SHORT}
           value={tab}
           onChange={switchTab}
           className="dump-fl lg-shell pointer-events-auto relative flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full p-1 [scrollbar-width:none] md:absolute md:left-1/2 md:top-4 md:-translate-x-1/2"
@@ -731,11 +771,11 @@ export default function DumpingDashboard() {
             >
               <span className="min-w-0 flex-1 truncate">김주임에게 물어보기</span>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--dump-ink)]" aria-hidden>
-                <Ico name="mic" size={14} className="text-white" />
+                <Ico name="mic" size={14} className="text-[var(--dump-paper)]" />
               </span>
             </button>
           )}
-          <p className="text-[11.5px] leading-snug text-[var(--cp-text-faint)]">
+          <p className="text-[12px] leading-snug text-[var(--cp-text-faint)]">
             <span className="dump-kicker mr-1.5 text-[9.5px]">한계 고지</span>
             수치는 {mapData?.decision.asof ?? ""} 기준 민원·과태료 기록의 집계이며 실제 발생량이 아닙니다.
             <span className="hidden md:inline"> 대책 효과는 조치 대장에 등록한 시범으로 판정하고, 청소차 수거 시각 자료가 확보되면 다시 분석합니다.</span>
@@ -812,6 +852,18 @@ export default function DumpingDashboard() {
                 className={`ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${cardHidden ? "text-(--dump-accent)" : "text-[var(--cp-text-muted)]"}`}
               >
                 {cardHidden ? "카드 보기" : "카드 숨김"}
+              </button>
+              <button
+                onClick={() => {
+                  unlockSpeaker() // 사용자 제스처 안에서 오디오를 연다(자동재생 정책)
+                  setVoice((v) => !v)
+                }}
+                aria-pressed={voice}
+                title="장면 캡션을 읽습니다(물어보기와 같은 목소리)"
+                className={`ml-1 flex h-8 items-center gap-1 rounded-full border px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${voice ? "border-(--dump-accent) text-(--dump-accent)" : "border-[var(--cp-border)] text-[var(--cp-text-muted)]"}`}
+              >
+                <Ico name="speaker" size={13} />
+                음성
               </button>
               <button onClick={endDemo} className="ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]">
                 끝

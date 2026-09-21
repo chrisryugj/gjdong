@@ -81,7 +81,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
                 <i className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
                 <span className="flex-1">{p.label}</span>
                 <span className="font-mono text-[var(--cp-text-strong)]">{p.n.toLocaleString()}</span>
-                <span className="w-8 text-right font-mono text-[11px] text-[var(--cp-text-faint)]">{v ? Math.round((p.n / v) * 100) : 0}%</span>
+                <span className="w-8 text-right font-mono text-[12px] text-[var(--cp-text-faint)]">{v ? Math.round((p.n / v) * 100) : 0}%</span>
               </li>
             ))}
           </ul>
@@ -120,15 +120,15 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
               role="tab"
               aria-selected={series === s.id}
               onClick={() => switchSeries(s.id)}
-              className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold transition-colors ${
-                series === s.id ? "bg-[var(--dump-ink)] text-white" : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
+              className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold transition-colors ${
+                series === s.id ? "bg-[var(--dump-ink)] text-[var(--dump-paper)]" : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
               }`}
             >
               {s.label}
             </button>
           ))}
         </div>
-        <span className="min-w-0 truncate text-[11.5px] font-semibold text-[var(--cp-text-dim)]">
+        <span className="min-w-0 truncate text-[12px] font-semibold text-[var(--cp-text-dim)]">
           <b className="font-mono text-[var(--cp-text-strong)]">{fmt(last)}</b> {(values[last] ?? 0).toLocaleString()}건 · {SERIES.find((s) => s.id === series)?.basis}
           {series === "comp" && step && (
             <>
@@ -171,7 +171,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
           )
         })}
       </div>
-      <div className="mt-1 flex justify-between font-mono text-[10px] text-[var(--cp-text-faint)]">
+      <div className="mt-1 flex justify-between font-mono text-[12px] text-[var(--cp-text-faint)]">
         {axis.map((k) => (
           <span key={k}>{fmt(k)}</span>
         ))}
@@ -186,7 +186,7 @@ export default function TimelineStrip({ data }: { data: DumpingMapData }) {
           }}
         >
           {tip(sel)}
-          {pinned === sel && <p className="mt-1 text-right text-[10.5px] text-[var(--cp-text-faint)]">고정됨 · 다시 누르면 해제</p>}
+          {pinned === sel && <p className="mt-1 text-right text-[12px] text-[var(--cp-text-faint)]">고정됨 · 다시 누르면 해제</p>}
         </div>
       )}
     </div>

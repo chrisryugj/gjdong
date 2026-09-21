@@ -94,7 +94,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         ...(typeof unmInitial === "number" && unm
           ? [`2026-09-13에 지오코딩 폴백 좌표(주소를 찾지 못한 기록이 구 중심 한 점에 모이는 것)를 격자에서 빼고 다시 적합한 값입니다. 제외 전 β ${signed(unmInitial)}, 제외 후 ${signed(unm.beta)}로 결론이 유지됐습니다(자료 정정 카드).`]
           : []),
-        "해석: 적발 기록은 시민의식보다 다가구·단독이 몰린 골목의 배출 구조와 함께 움직입니다. 대책의 겨냥 지역은 이 주거 구조로 고르고, 전달 수단(배출시설·안내)은 그 골목의 주민 특성에 맞춥니다. 왜 그 골목인지는 이 자료로 알 수 없습니다.",
+        "해석: 적발 기록은 시민의식보다 다가구·단독이 몰린 골목의 배출 구조와 함께 움직입니다. 대책의 겨냥 지역은 이 주거 구조로 고르고, 전달 수단(배출시설·안내)은 그 골목의 주민 특성에 맞춥니다. 왜 그 골목인지는 이 자료에 없습니다.",
         "주의: 이 β는 기준 모형 값이고 생활인구·상주인구 노출을 더한 v3 모형에서도 유지됩니다(노출 통제 카드). 이 변수는 건축물대장 대리변수입니다. K-apt 등록 세대로 나눠 보면 연관은 다가구·단독에만 있고, 관리사무소가 없는 다세대·연립에서는 확인되지 않았습니다(대리변수 검증 카드).",
       ],
       numbers: [
@@ -211,7 +211,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       detail: [
         `근거 그래프에 적발 기록과 연관된 요인 목록과 각 요인을 겨냥하는 개입수단을 함께 넣고 대조했습니다. 그 결과 청년(ρ ${rhoYouth.toFixed(3)})·외국인(ρ ${rhoForeign.toFixed(2)})·1인세대 요인에 대응하는 수단이 목록에 없다는 공백이 드러났습니다. 요인 목록과 대책 목록을 이어 보아야 드러나는 공백입니다.`,
         `이 공백에서 다국어 배출안내(${topFrn.d} 외국인 ${topFrn.frn}%), 전입·임대차 시점 배출안내(1인세대 전입 경로), 수거 시간대 조정(추가 예산 없음) 세 가지가 검토 대책으로 나왔습니다. 동별 안내문·대학 협력 등 기존 사업을 전수 조사한 것은 아니라서 담당 부서 대조가 먼저입니다.`,
-        `주의: 청년·외국인·1인세대·다가구·단독 밀집은 상관 ${col}로 겹쳐 있어 개별 효과를 구분할 수 없습니다(행정동 n=${dongN}). 어느 하나를 원인으로 지목하거나 특정 주민 집단의 행위로 읽는 해석은 피해야 합니다. 안내 대책은 정보 접근성 개선 가설입니다.`,
+        `주의: 청년·외국인·1인세대·다가구·단독 밀집은 상관 ${col}로 겹쳐 있어 개별 효과가 구분되지 않습니다(행정동 n=${dongN}). 어느 하나를 원인으로 지목하거나 특정 주민 집단의 행위로 읽는 해석은 피해야 합니다. 안내 대책은 정보 접근성 개선 가설입니다.`,
       ],
       numbers: [
         { k: "청년 상관 ρ", v: rhoYouth.toFixed(3) },
@@ -228,7 +228,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       body: `과태료 ${n(f.totalN)}건을 품목별로 나누면 ${food?.cat ?? "음식물 혼합배출"} ${n(food?.n ?? 0)}건 다음이 담배꽁초(차량) ${n(cig?.n ?? 0)}건입니다. 담배꽁초(차량)는 주거 구조와 연관이 확인되지 않은 도로 현상입니다.`,
       detail: [
         `과태료 과세대상 필드를 분류하면 음식물 혼합배출 ${n(food?.n ?? 0)}건(${fmtKrw(food?.amount ?? 0)}), 담배꽁초(차량) ${n(cig?.n ?? 0)}건(${fmtKrw(cig?.amount ?? 0)}), 규격봉투 미사용 ${n(bag?.n ?? 0)}건, 장소위반(이동배출) ${n(move?.n ?? 0)}건, 시간외 배출 ${n(late?.n ?? 0)}건 순입니다.`,
-        "차량 담배꽁초는 주행 중 도로에서 적발되는 일이라 다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 대책도 다릅니다. 두 현상을 한 지표로 묶어 관리하면 어느 쪽 성과도 읽을 수 없습니다.",
+        "차량 담배꽁초는 주행 중 도로에서 적발되는 일이라 다가구·단독 골목의 배출환경을 겨냥하는 생활쓰레기 대책과는 원인도 대책도 다릅니다. 두 현상을 한 지표로 묶어 관리하면 어느 쪽 성과도 읽히지 않습니다.",
         "생활쓰레기 계열(음식물·봉투·이동·시간외)이 격자 회귀가 설명하려는 주 대상이고 담배꽁초(차량)는 간선도로 축에서 따로 관리할 대상(캠페인·차량단속 협조)입니다.",
       ],
       numbers: [
@@ -298,7 +298,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `"인구가 통제되지 않았다"는 지적에 서울 열린데이터광장 250m 격자 생활인구(${seoul?.livingPop250Month ?? "2026-07"} 시간·일 평균)를 100m 칸에 면적 비례로 나눠 회귀에 넣었습니다(생활인구 추가 모형, n=${n(r2.v2_100.n)}).`,
           `생활인구가 많은 칸일수록 적발이 조금 늘지만(β ${signed(lp.beta)}), 다가구·단독 밀집의 계수는 ${signed(unm2.beta)}로 바뀌지 않았습니다. 설명력은 R² ${r2.base100.r2}→${r2.v2_100.r2}입니다.`,
           "해석: 무단투기는 사람이 많이 오가는 만큼 생기는 현상이 아니라 다가구·단독주택이 몰린 곳에서 생긴다는 결론이 두 인구 노출을 넣은 뒤에도 유지됩니다.",
-          `주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고 ${seoul?.livingPop250Month ?? "2026-07"} 한 달 평균입니다. 관측 기간 전체의 노출과 다를 수 있습니다.`,
+          `주의: 생활인구는 등록인구가 아니라 통신 기반 체류 추정치이고 ${seoul?.livingPop250Month ?? "2026-07"} 한 달 평균입니다. 관측 기간 전체의 노출과 다를 여지가 있습니다.`,
           ...(ex
             ? [
                 `상주인구도 넣었습니다. 국가데이터처 SGIS 100m 격자 총인구(2024 등록센서스, 셀당 최대 ±7 노이즈)를 같은 칸에 결합해 생활인구와 따로, 그리고 같이 넣었습니다. 상주인구만 넣으면 β ${signed(ex.compare.resident_only.resident_pop.beta)}(p=${pText(ex.compare.resident_only.resident_pop.p)}), 둘 다 넣으면 상주인구 β ${signed(ex.compare.both.resident_pop.beta)}(p=${pText(ex.compare.both.resident_pop.p)})로 연관이 확인되지 않았습니다. 다가구·단독 밀집은 β ${signed(ex.compare.both.unmanaged.beta)}로 유지됩니다. 두 인구 변수의 상관은 ${ex.corrLivingResident.toFixed(2)}, VIF는 최대 ${Math.max(...Object.values(ex.vif)).toFixed(1)}이라 같이 넣어도 됩니다.`,
@@ -321,8 +321,8 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         body: `광진구 의류수거함 ${n(tallyInfra(data.infra.clothBins).records.length)}곳을 격자에 배정해 분석하니 단속 적발과의 연관은 확인되지 않았습니다(β ${signed(cb.beta)}, p=${pText(cb.p)}). 신고 민원과는 약한 양의 연관(β ${signed(cbc.beta)}, p=${pText(cbc.p)})만 있습니다.`,
         detail: [
           `공공데이터포털의 광진구 의류수거함 위치(2026-03, ${n(data.infra.clothBins.length)}곳)를 100m 격자에 배정해 회귀 변수로 넣었습니다. 수거함이 몰린 칸이라고 과태료 적발이 더 많지는 않았습니다.`,
-          `신고 민원 기준으로는 β ${signed(cbc.beta)}로 약한 양의 연관이 있습니다. 수거함 주변이 눈에 잘 띄어 신고가 느는 것인지, 실제 배출이 더 많은데 단속이 못 잡는 것인지 지금 자료로는 구분할 수 없습니다.`,
-          "해석: 통념이 데이터로 뒷받침되지 않으면 우선순위를 낮춥니다. 수거함 밀집 격자에서 시범 정비를 사전등록 설계로 해 보면 어느 쪽인지 판정할 수 있습니다.",
+          `신고 민원 기준으로는 β ${signed(cbc.beta)}로 약한 양의 연관이 있습니다. 수거함 주변이 눈에 잘 띄어 신고가 느는 것인지, 실제 배출이 더 많은데 단속이 못 잡는 것인지 지금 자료로는 구분되지 않습니다.`,
+          "해석: 통념이 데이터로 뒷받침되지 않으면 우선순위를 낮춥니다. 수거함 밀집 격자에서 시범 정비를 사전등록 설계로 하면 어느 쪽인지 판정합니다.",
         ],
         numbers: [
           { k: "의류수거함", v: `${n(tallyInfra(data.infra.clothBins).records.length)}곳` },
@@ -366,7 +366,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
           `지금까지 "관리주체 있는 주거"로 집계하던 건축물대장 공동주택 세대에는 관리사무소가 없는 다세대 ${n(kinds["다세대"] ?? 0)}세대, 연립 ${n(kinds["연립"] ?? 0)}세대가 섞여 있었습니다. 이 세대 수는 관리주체 유무를 직접 재지 않는 대리변수였습니다.`,
           `국토교통부 K-apt 관리비공개 의무단지 ${px.complexes}단지(${px.asof})의 필지번호를 건축물대장과 조인해 관리주체가 실제로 확인된 ${n(cc.managedTotal)}세대를 얻었습니다. 공동주택 세대가 있는 ${n(cc.aptCells)}칸 중 K-apt 단지가 있는 칸은 ${n(cc.aptCellsWithKapt)}칸입니다.`,
           `주거를 세 갈래(다가구·일반단독 / K-apt 미등록 공동주택 / K-apt 등록 세대)로 나눠 같은 모형을 돌리면 다가구·일반단독만 β ${signed(sp.unmanaged_units.beta)}(p=${pText(sp.unmanaged_units.p)})로 남고 나머지 둘은 각각 β ${signed(sp.apt_nokapt.beta)}, β ${signed(sp.managed_kapt.beta)}로 0에 가깝습니다. 변수 정의를 K-apt 미등록 전체로 넓히면 β는 ${signed(px.compare.unmanaged_v4.beta)}로 약해집니다.`,
-          "해석: 발생과 같이 움직이는 것은 관리사무소 부재 일반이 아니라 다가구·단독주택 밀집입니다. 소유자 한 명이 여러 세입자에게 임대하는 구조, 배출 장소가 대문 앞 골목인 구조가 후보이지만 이 자료로는 어느 쪽인지 구분할 수 없습니다. 대책의 겨냥점은 \"다가구·단독 밀집 골목\"으로 좁혀야 합니다. 관리주체 부재 일반은 너무 넓습니다.",
+          "해석: 발생과 같이 움직이는 것은 관리사무소 부재 일반이 아니라 다가구·단독주택 밀집입니다. 소유자 한 명이 여러 세입자에게 임대하는 구조, 배출 장소가 대문 앞 골목인 구조가 후보이지만 이 자료로는 어느 쪽인지 구분되지 않습니다. 대책의 겨냥점은 \"다가구·단독 밀집 골목\"으로 좁혀야 합니다. 관리주체 부재 일반은 너무 넓습니다.",
           `주의: K-apt 등록에는 자발 등록 단지가 섞여 있고 ${px.unmatched}단지는 대장과 조인되지 않았습니다. 의무관리 기준은 300세대 이상, 150세대 이상이면서 승강기나 중앙난방이 있는 단지 등입니다.`,
           ...(ac && px.apiSensitivity
             ? [
@@ -394,7 +394,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         title: "차량 담배꽁초를 빼고 생활쓰레기만 분석해도 같은 결론입니다",
         body: `위치가 확인된 과태료 ${n(is.counts.all)}건(전체 ${n(f.totalN)}건 중 격자 부여분)을 생활쓰레기 ${n(is.counts.life)}건과 차량 담배꽁초 ${n(is.counts.cigVehicle)}건으로 나눠 같은 모형을 돌리면, 생활쓰레기에서 다가구·단독 밀집 β ${signed(life.unmanaged_units.beta)}(${pLabel(life.unmanaged_units.p)})가 유지되고 차량 담배꽁초에서는 β ${signed(cig.unmanaged_units.beta)}(p=${pText(cig.unmanaged_units.p)})로 연관이 확인되지 않았습니다.`,
         detail: [
-          `${is.definition}. 세 갈래 모형(대리변수 검증 카드)과 같은 표본·변수·변환에서 종속변수만 바꿨습니다(전체 → 생활쓰레기 → 차량 담배꽁초).`,
+          `${is.definition}. 세 갈래 모형(대리변수 검증 카드)과 같은 표본·변수·변환에서 종속변수만 바꿨습니다(전체, 생활쓰레기, 차량 담배꽁초 순).`,
           `생활쓰레기 모형: 다가구·단독 밀집 β ${signed(life.unmanaged_units.beta)}, 다세대·연립 β ${signed(life.apt_nokapt.beta)}(p=${pText(life.apt_nokapt.p)}), K-apt 등록 β ${signed(life.managed_kapt.beta)}(p=${pText(life.managed_kapt.p)}), 음식점 β ${signed(life.food_n.beta)}. R² ${is.life.r2}. 주거 정책의 대상인 생활쓰레기에서 겨냥점이 그대로 유지됩니다.`,
           `차량 담배꽁초 모형: 다가구·단독 β ${signed(cig.unmanaged_units.beta)}(p=${pText(cig.unmanaged_units.p)}), 골목 β ${signed(cig.alley_ratio.beta)}, 간선 이격 β ${signed(cig.dist_arterial.beta)}. 주거와 무관하고 큰길 쪽 현상이라 대책도 따로 세워야 합니다(품목 분해 카드).`,
           `주의: 차량 담배꽁초는 ${n(is.counts.cellsCig)}칸에만 있어 그 모형의 계수 구간이 넓습니다. ${is.note}.`,
@@ -426,7 +426,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       numbers: [
         { k: "격자에서 뺀 민원 · 과태료", v: `${n(geo.complaints)} · ${n(geo.enforcement)}건` },
         { k: "격자에서 뺀 건물", v: `${n(geo.ledger)}동` },
-        { k: "다가구·단독 β 전 → 후", v: `${typeof unmInitial === "number" ? signed(unmInitial) : "미산출"} → ${unm ? signed(unm.beta) : "미산출"}` },
+        { k: "다가구·단독 β 정정 전과 후", v: `${typeof unmInitial === "number" ? signed(unmInitial) : "미산출"}에서 ${unm ? signed(unm.beta) : "미산출"}로` },
       ],
       takeaway: "지도·핫스팟·상습격자는 위치를 찾지 못한 기록을 뺀 값입니다. 결론은 바뀌지 않았지만 1위 지점은 바뀌었습니다.",
       viz: { mode: "enf" },
@@ -444,7 +444,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         `민원 접수 시각에서 행정 종결 시각까지의 소요입니다(${data.decision.sla.note}). ${sla.lastYear}년 ${n(sla.last.n)}건, ${sla.prevYear}년 ${n(sla.prev.n)}건.`,
         sla.slower
           ? `해석: 앱 신고가 늘어난 만큼 처리 부담도 늘었습니다. 절반은 ${sla.last.medianH}시간 안에 처리되지만 오래 걸리는 건이 늘어 상위 10%는 ${sla.last.p90H}시간입니다. 발생을 줄이는 제안과 별개로 접수 폭증을 처리할 역량(배차·인력·자동 분류)은 따로 검토할 문제입니다.`
-          : "해석: 접수가 늘어도 처리 소요는 유지되고 있습니다. 다만 처리일시는 행정 종결 시각이라 현장 수거 완료와 다를 수 있습니다.",
+          : "해석: 접수가 늘어도 처리 소요는 유지되고 있습니다. 다만 처리일시는 행정 종결 시각이라 현장 수거 완료 시각과 다를 여지가 있습니다.",
         "주의: 성과 지표가 아니라 운영 부하 지표입니다. 수요 전망(운영·전망 탭)과 함께 보면 다음 달 배차 계획의 근거가 됩니다. 현장 수거 완료 시각이 확보되면 주민 체감 기준으로 다시 측정합니다.",
       ],
       numbers: [
@@ -472,7 +472,7 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
         { k: "단독·다가구", v: `${pm.guTotal.detachedPermits12m}건` },
         { k: "집중 지역", v: top3.map((r) => r.dong.replace(/동$/, "")).join("·") },
       ],
-      takeaway: "신축 준공 시점에 배출안내를 미리 넣으면 위험 물량이 늘기 전에 먼저 대응할 수 있습니다.",
+      takeaway: "신축 준공 시점에 배출안내를 미리 넣으면 위험 물량이 늘기 전에 대응이 시작됩니다.",
     })
   }
 

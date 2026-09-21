@@ -111,7 +111,7 @@ export interface ProposalRow {
   owner: string
   verify: string
   mechanism: string // 가정 요약 칩. 없으면 "미기재"
-  mechanismDetail: string // "가정: … 조치: … 기대: …" 한 줄. 프롬프트·게이트용
+  mechanismDetail: string // "가정: (문장) 조치: (문장) 기대: (문장)" 한 줄. 프롬프트·게이트용
 }
 
 export function costRank(lv: LeverView): number {
@@ -272,7 +272,7 @@ export function reasonSentences(lv: LeverView, stats: FactorStat[]): string[] {
   if (!top) {
     return [
       "특정 요인을 겨냥하기보다, 수거와 단속의 운영 방식 자체를 조정하는 수단입니다.",
-      "추가 예산 없이 지금 있는 인력과 노선만 조정해 시범할 수 있습니다. 효과는 시범 뒤 실측으로 판정합니다.",
+      "추가 예산 없이 지금 있는 인력과 노선만 조정해 시범합니다. 효과는 시범 뒤 실측으로 판정합니다.",
     ]
   }
   const s1 = `${top.easy}${josa(top.easy, "을", "를")} 겨냥하는 제안입니다.`
@@ -325,7 +325,7 @@ export function requestSentence(rows: ProposalRow[]): string {
 // 판정 근거(note)가 비어 있는 기존 수단을 위한 기본 설명
 export const STATUS_FALLBACK: Record<string, string> = {
   "미검증":
-    "아직 효과를 측정하지 않았습니다. 설치 시점과 위치 자료를 갖추면 다른 수단과 같은 방식으로 판정할 수 있습니다.",
+    "아직 효과를 측정하지 않았습니다. 설치 시점과 위치 자료를 갖추면 다른 수단과 같은 방식으로 판정합니다.",
   "효과없음": "설치 위치와 무단투기 발생 사이에서 뚜렷한 관계가 나타나지 않았습니다.",
 }
 
