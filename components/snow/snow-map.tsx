@@ -419,9 +419,10 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       declareLayers(map)
       applyTheme(map, theme)
       if (map.getLayer(HILLSHADE_LAYER)) map.setLayoutProperty(HILLSHADE_LAYER, "visibility", "visible") // 테마 전환은 타일이 캐시에 있으니 바로
+      // 커스텀 레이어는 스타일 교체 뒤 남아 있기도 해서(diff 교체) 다시 붙이는 분기 안에서만 setTheme을 부르면 팔레트가 다크에 묶인다(5라운드 실측: 라이트에서 핀이 밤색 그대로 → "칙칙하다"). 테마는 무조건 갱신
       const icons = iconsRef.current
-      if (icons && !map.getLayer(icons.id)) {
-        map.addLayer(icons, S.posts)
+      if (icons) {
+        if (!map.getLayer(icons.id)) map.addLayer(icons, S.posts)
         icons.setTheme(theme === "dark")
       }
       setReady(true)
@@ -499,8 +500,9 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 번호 배지는 열선 없는 구간만(범례 "진홍 벽·번호 = 열선 없음"과 같게). 기둥 모드에서는 기둥 라벨과 겹쳐 숨긴다. 입체에서는 벽(18px) 위에 앉게 bottom 앵커부터
     vis(S.weakLabel, on("weak") && !colMetric)
     map.setFilter(S.weakLabel, ownerView ? null : ["!=", ["get", "status"], "heat"])
-    map.setLayoutProperty(S.weakLabel, "text-variable-anchor", tilt ? ["bottom", "top", "left", "right"] : ["center", "bottom", "top", "left", "right"])
-    map.setLayoutProperty(S.weakLabel, "text-radial-offset", tilt ? 1.3 : 0.9)
+    // 입체는 벽 위에 앉는 자리표(anchorT·roffT), 평면은 점 가운데 자리표(map-geo FAN)
+    map.setLayoutProperty(S.weakLabel, "text-anchor", ["get", tilt ? "anchorT" : "anchor"])
+    map.setLayoutProperty(S.weakLabel, "text-radial-offset", ["get", tilt ? "roffT" : "roff"])
     // 예산 역산으로 신설되는 구간은 배지도 호박색(잉크 글자)
     map.setPaintProperty(S.weakLabel, "text-halo-color", ownerView ? ownerColorExpr(dark) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), badgeColor(dark)] : badgeColor(dark))
     map.setPaintProperty(S.weakLabel, "text-color", ownerView ? ["case", ["==", ["get", "owner"], "시"], dark ? "#0b1216" : "#ffffff", "#ffffff"] : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], "#0b1216", "#ffffff"] : "#ffffff")
@@ -891,15 +893,15 @@ function declareLayers(map: MlMap) {
   // 드론 비행 경로(점검 후보 순회): 청빙 점선 + 번호 지점
   map.addLayer({ id: S.flyPath, type: "line", source: S.flyPath, layout: round, paint: { "line-color": ACCENT.dark, "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [1.5, 2.5] } })
   map.addLayer({ id: S.flyPts, type: "symbol", source: S.flyPts, layout: { "text-field": ["get", "n"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#0b1216", "text-halo-color": ACCENT.dark, "text-halo-width": 2.6 } })
-  map.addLayer({ id: S.schoolLabel, type: "symbol", source: S.school, minzoom: 14.3, layout: { "text-field": ["get", "name"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-offset": [0, 1.1], "text-anchor": "top" }, paint: { "text-color": "#ece7dc", ...halo } })
-  // 취약구간 번호 배지(평면·입체 공용, 5라운드. 입체 3D 숫자는 진홍 벽 위 진홍이라 광장동 2·4·5가 한 덩어리로 뭉쳤다). dumping 핫스팟 "1위" 알약과 같은 문법: 항상 정면, 후광, 우선순위 순 배치(sort-key = segPriority 순위)
-  // 조망(12.8부터)에서는 겹치면 자리를 비키고 그래도 겹치면 낮은 순위를 숨긴다. 줌 14.5부터는 전부(겹침 허용). 열선 있는 구간은 흐리게(법령 탭에서만 보인다)
+  map.addLayer({ id: S.schoolLabel, type: "symbol", source: S.school, minzoom: 14.3, layout: { "text-field": ["get", "name"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-offset": [0, 1.1], "text-anchor": "top", "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ece7dc", ...halo } })
+  // 취약구간 번호 배지(평면·입체 공용, 5라운드. 입체 3D 숫자는 진홍 벽 위 진홍이라 광장동 2·4·5가 한 덩어리로 뭉쳤다). dumping 핫스팟 "1위" 알약과 같은 문법: 항상 정면, 후광, 우선순위 순(sort-key)
+  // 충돌 회피는 쓰지 않는다(카메라가 움직일 때마다 숨었다 나타나 드론 비행에서 깜박였다): 가까운 구간은 map-geo weakLabelFC가 미리 정한 자리(anchor·roff)로 비킨다. 입체에서는 벽(18px) 위에 앉게 위로 더 띄운다
   map.addLayer({
     id: S.weakLabel,
     type: "symbol",
     source: S.weakLabel,
     minzoom: 12.8,
-    layout: { "text-field": ["get", "n"], "text-size": ["step", ["zoom"], 12.5, 14, 13.5], "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-variable-anchor": ["center", "bottom", "top", "left", "right"], "text-radial-offset": 0.9, "text-justify": "auto", "text-allow-overlap": ["step", ["zoom"], false, 14.5, true], "text-padding": 2, "symbol-sort-key": ["get", "sort"] },
+    layout: { "text-field": ["get", "n"], "text-size": ["step", ["zoom"], 12.5, 14, 13.5], "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-anchor": ["get", "anchor"], "text-radial-offset": ["get", "roff"], "text-justify": "center", "text-allow-overlap": true, "text-ignore-placement": true, "symbol-sort-key": ["get", "sort"] },
     paint: { "text-color": "#ffffff", "text-halo-color": badgeColor(dark), "text-halo-width": 3, "text-opacity": ["case", ["==", ["get", "heat"], 1], 0.55, 1] },
   })
   // 결빙 라벨 "결빙 n"(평면·입체 공용). 선형 미확인은 "결빙 1·2 / 선형 미확인" 두 줄을 기점 하나에만
@@ -910,7 +912,8 @@ function declareLayers(map: MlMap) {
     source: S.dongLabel,
     // 4라운드: 동주민센터가 가까운 쌍(중곡1동·2동 136m)이 조망에서 겹쳐 "중곡1동곡2동"으로 읽혔다 → 자리를 map-geo dongAnchors가 420m까지 벌린다(dumping 규약)
     // 겹치면 자리 후보로 비키고 그래도 겹치면 하나를 숨긴다(모바일 저줌에서 "자양4동자양3동"으로 붙던 냉독). 데스크톱 조망은 dongAnchors 420m로 전부 자리가 난다
-    layout: { "text-field": ["get", "name"], "text-size": 13.5, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-variable-anchor": ["center", "top", "bottom", "left", "right"], "text-radial-offset": 0.6, "text-justify": "auto", "text-allow-overlap": false, "text-ignore-placement": false, "text-padding": 1 },
+    // 5라운드: 줌 13부터는 겹침 허용(dongAnchors 420m면 데스크톱 조망에서 자리가 난다. 충돌 회피는 드론 비행 중 라벨이 숨었다 나타나 깜박였다). 그 아래(모바일 조망)만 회피
+    layout: { "text-field": ["get", "name"], "text-size": 13.5, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-variable-anchor": ["center", "top", "bottom", "left", "right"], "text-radial-offset": 0.6, "text-justify": "auto", "text-allow-overlap": ["step", ["zoom"], false, 13, true], "text-ignore-placement": ["step", ["zoom"], false, 13, true], "text-padding": 1 },
     paint: { "text-color": "#ece7dc", "text-halo-color": "rgba(11,18,22,0.96)", "text-halo-width": 2.2 },
   })
   map.addLayer({

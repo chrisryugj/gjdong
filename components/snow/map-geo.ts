@@ -176,9 +176,36 @@ export function weakFC(data: SnowMapData): FC {
     })),
   )
 }
-// 구간 번호 배지(가운데 점). sort = 배치 우선순위(1이 먼저. 조망에서 겹치면 뒤 순위가 숨는다)
+// 구간 번호 배지(가운데 점). sort = 우선순위(1이 먼저).
+// 5라운드: 충돌 회피(variable-anchor)는 카메라가 움직일 때마다 배지가 숨었다 나타나 드론 비행에서 깜박였다 → 겹침 허용으로 두고, 가까운 구간(CLUSTER_M 안, 열선 없는 것끼리)은 미리 정한 자리(anchor·roff)로 부챗살처럼 비킨다. 정적이라 안 깜박인다
+const CLUSTER_M = 260 // 조망(13m/px)에서 20px: 배지 폭 언저리
+// 자리(앵커·거리 em, 글자 13.5px 기준. 두 자리 배지 24×19px + 후광): 평면은 점 가운데부터, 입체는 첫 자리를 벽(18px) 위로 올리고 나머지도 그에 맞춘다
+const FAN: { flat: [string, number]; tilt: [string, number] }[] = [
+  { flat: ["center", 0], tilt: ["bottom", 1.3] },
+  { flat: ["bottom", 1.5], tilt: ["bottom", 2.9] }, // 점 위(입체는 첫 배지 위에 쌓는다)
+  { flat: ["top", 1.5], tilt: ["top", 1.2] }, // 점 아래
+  { flat: ["left", 1.8], tilt: ["bottom-left", 2.0] }, // 점 오른쪽(입체는 오른쪽 위)
+  { flat: ["right", 1.8], tilt: ["bottom-right", 2.0] }, // 점 왼쪽
+  { flat: ["bottom-left", 2.2], tilt: ["left", 2.2] },
+  { flat: ["top-right", 2.2], tilt: ["right", 2.2] },
+]
 export function weakLabelFC(data: SnowMapData, sort?: Map<number, number>): FC {
-  return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w), heat: w.heatCovered ? 1 : 0, owner: segOwner({ ...w, src: "weak" }), sort: sort?.get(w.i) ?? w.i }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
+  const mids = data.weak.map((w) => ({ w, p: w.path[Math.floor(w.path.length / 2)], rank: sort?.get(w.i) ?? w.i }))
+  const dist = (a: [number, number], b: [number, number]) => Math.hypot((a[1] - b[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180), (a[0] - b[0]) * 111320)
+  // 열선 없는 구간끼리만 묶는다(열선 있는 회색 번호는 법령 탭에서만 보인다). 우선순위 순으로 자리 배정
+  const slot = new Map<number, number>()
+  const order = [...mids].sort((a, b) => a.rank - b.rank)
+  for (const m of order) {
+    if (slot.has(m.w.i) || m.w.heatCovered) continue
+    const group = order.filter((x) => !x.w.heatCovered && !slot.has(x.w.i) && dist(x.p, m.p) < CLUSTER_M)
+    group.forEach((x, k) => slot.set(x.w.i, Math.min(k, FAN.length - 1)))
+  }
+  return fc(
+    mids.map(({ w, p, rank }) => {
+      const f = FAN[slot.get(w.i) ?? 0]
+      return { type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w), heat: w.heatCovered ? 1 : 0, owner: segOwner({ ...w, src: "weak" }), sort: rank, anchor: f.flat[0], roff: f.flat[1], anchorT: f.tilt[0], roffT: f.tilt[1] }, geometry: { type: "Point", coordinates: ll(p) } }
+    }),
+  )
 }
 export const segMid = (path: [number, number][]): [number, number] => path[Math.floor(path.length / 2)]
 

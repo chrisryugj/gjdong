@@ -57,6 +57,8 @@ interface Part {
   geom: THREE.BufferGeometry
   mat: THREE.Material
   local: THREE.Matrix4
+  base?: THREE.Color // 흐림 전 색(setDim이 바탕색 쪽으로 섞는다)
+  shadowOpacity?: number // 접지 그림자 원반(흐림은 투명도로)
 }
 interface KindDef {
   height: number // 모델 높이(m). 화면 크기 계산 기준
@@ -64,20 +66,23 @@ interface KindDef {
   parts: Part[]
   hideAboveZoom?: number // 이 줌보다 확대하면 숨긴다(열선 구슬: 줌 14.2부터 선이 대신한다)
   targetPx?: number // 종류별 목표 화면 높이(기본 TARGET_PX). 열선 구슬은 작게(55개가 구를 덮지 않게)
-  outline?: boolean // 4라운드: 뒷면만 그리는 어두운 겉껍질(12% 크게)로 윤곽선을 두른다. 조망에서 13px 핀이 점이 아니라 입체로 읽히게(사용자: 멀리서 보면 2D)
-}
-const OUTLINE_SCALE = 1.13
-const outlineMat = (dark: boolean) => new THREE.MeshBasicMaterial({ color: dark ? "#07111a" : "#2b2622", side: THREE.BackSide })
-// 부품마다 같은 자리에 겉껍질 부품을 앞에 끼운다(부품 목록이 곧 인스턴스 메시 목록이라 나머지 코드는 그대로)
-function withOutline(def: KindDef, dark: boolean): KindDef {
-  if (!def.outline) return def
-  const mat = outlineMat(dark)
-  const shells: Part[] = def.parts.map((p) => ({ geom: p.geom.clone().scale(OUTLINE_SCALE, OUTLINE_SCALE, OUTLINE_SCALE), mat, local: p.local }))
-  return { ...def, parts: [...shells, ...def.parts] }
 }
 
+// 5라운드 색 체계(사용자: "칙칙하고 낙서 같다, 고급스럽게"): 검은 윤곽선(만화 선)과 반투명 흐림(겹치면 탁해진다)을 버린다.
+// 몸통은 종류색을 종이(라이트) 쪽으로 섞은 옅은 색, 뚜껑·마개·끈만 종류색 원색(다크는 종류색 몸통 + 어두운 뚜껑). 접지 그림자 원반이 입체와 자리를 말한다.
+// 흐림(setDim)은 투명도가 아니라 바탕색(종이·밤) 쪽으로 섞기. 지도 범례 스와치는 종류색 원색 그대로(lib/snow/labels)
+const GROUND = { dark: "#0b1622", light: "#e6e6df" } as const
+const PAPER_TINT = "#f7f4ee"
+const mix = (a: string, b: string, f: number) => `#${new THREE.Color(a).lerp(new THREE.Color(b), f).getHexString()}`
 const lambert = (color: string, extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color, ...extra })
 const at = (x: number, y: number, z: number, rx = 0, rz = 0) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationX(rx)).multiply(new THREE.Matrix4().makeRotationZ(rz))
+const part = (geom: THREE.BufferGeometry, color: string, local: THREE.Matrix4, extra: Partial<THREE.MeshLambertMaterialParameters> = {}): Part => ({ geom, mat: lambert(color, extra), local, base: new THREE.Color(color) })
+const glow = (color: string, k: number): Partial<THREE.MeshLambertMaterialParameters> => ({ emissive: new THREE.Color(color), emissiveIntensity: k })
+// 접지 그림자: 바닥에 누운 검은 원반(depthWrite 없음). 몸통이 위에서 가리고 가장자리만 남아 "서 있다"가 읽힌다
+const shadow = (r: number, dark: boolean): Part => {
+  const opacity = dark ? 0.32 : 0.15
+  return { geom: new THREE.CircleGeometry(r, 20).rotateX(-Math.PI / 2), mat: new THREE.MeshBasicMaterial({ color: "#000000", transparent: true, opacity, depthWrite: false }), local: at(0, 0.06, 0), shadowOpacity: opacity }
+}
 const INK = "#1c2228"
 const PAPER = "#ece7dc"
 const res = (id: (typeof RESOURCES)[number]["id"], dark: boolean) => {
@@ -92,114 +97,84 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
   const sand = res("sand", dark)
   const heat = res("heat", dark)
   const risk = dark ? RISK.weak.color : RISK.weak.colorLight
-  const lidDark = dark ? "#5c6d86" : "#2b3748"
-  const capDark = dark ? "#4d8fb3" : "#1d5f85"
-  const sackDark = dark ? "#a98a4c" : "#7d5a18"
+  // 몸통(옅은 색)·마감(원색). 다크는 종류색이 이미 밝아 몸통 그대로, 마감은 어둡게
+  const body = (c: string) => (dark ? c : mix(c, PAPER_TINT, 0.58))
+  const trim = (c: string, darkVariant: string) => (dark ? darkVariant : c)
+  const lid = trim(salt, "#5c6d86")
+  const cap = trim(cacl, "#4d8fb3")
+  const tie = trim(sand, "#a98a4c")
+  const pole = dark ? PAPER : "#5b6470"
+  const flagNone = dark ? PAPER : "#7b8794"
   return {
-    // 제설함: 각진 상자 + 앞으로 기운 뚜껑(도로변 노란 상자와 같은 실루엣)
+    // 제설함: 각진 상자 + 앞으로 기운 뚜껑(도로변 상자와 같은 실루엣). 몸통 옅은 청회, 뚜껑 원색, 투입구 잉크
     salt: {
       height: 4.6,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
-      outline: true,
-      parts: [
-        { geom: new THREE.BoxGeometry(4.4, 3.2, 3.2), mat: lambert(salt), local: at(0, 1.6, 0) },
-        { geom: new THREE.BoxGeometry(4.7, 0.5, 3.6), mat: lambert(lidDark), local: at(0, 3.4, 0.25, -0.22) },
-        { geom: new THREE.BoxGeometry(3.0, 0.35, 0.3), mat: lambert(INK), local: at(0, 2.3, -1.65) },
-      ],
+      parts: [shadow(3.2, dark), part(new THREE.BoxGeometry(4.4, 3.2, 3.2), body(salt), at(0, 1.6, 0)), part(new THREE.BoxGeometry(4.7, 0.5, 3.6), lid, at(0, 3.4, 0.25, -0.22)), part(new THREE.BoxGeometry(3.0, 0.35, 0.3), dark ? INK : "#3b4450", at(0, 2.3, -1.65))],
     },
-    // 염화칼슘보관함: 원통 + 뚜껑
+    // 염화칼슘보관함: 원통 + 마개
     cacl: {
       height: 4.4,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
-      outline: true,
-      parts: [
-        { geom: new THREE.CylinderGeometry(1.7, 1.6, 3.6, 14), mat: lambert(cacl), local: at(0, 1.8, 0) },
-        { geom: new THREE.CylinderGeometry(1.9, 1.9, 0.6, 14), mat: lambert(capDark), local: at(0, 3.9, 0) },
-      ],
+      parts: [shadow(2.6, dark), part(new THREE.CylinderGeometry(1.7, 1.6, 3.6, 16), body(cacl), at(0, 1.8, 0)), part(new THREE.CylinderGeometry(1.9, 1.9, 0.6, 16), cap, at(0, 3.9, 0))],
     },
-    // 모래주머니: 납작한 포대 2단(위 단은 90도 돌려 쌓는다)
+    // 모래주머니: 납작한 포대 2단(위 단은 90도 돌려 쌓는다). 포대 옅은 모래색, 아래 단 하나만 원색 끈
     sand: {
       height: 3.0,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
-      outline: true,
-      parts: [
-        { geom: new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), mat: lambert(sand), local: at(0, 0.9, 0, 0, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), mat: lambert(sackDark), local: at(0, 0.9, 0, Math.PI / 2, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), mat: lambert(sand), local: at(0, 2.5, 0, 0, Math.PI / 2) },
-      ],
+      parts: [shadow(2.4, dark), part(new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), body(sand), at(0, 0.9, 0, 0, Math.PI / 2)), part(new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), tie, at(0, 0.9, 0, Math.PI / 2, Math.PI / 2)), part(new THREE.CapsuleGeometry(0.9, 2.6, 4, 10), body(sand), at(0, 2.5, 0, 0, Math.PI / 2))],
     },
     // 동주민센터 보관분: 3단, 조금 크게
     sandCenter: {
       height: 4.4,
       maxScale: DENSE_MAX,
       targetPx: DENSE_PX,
-      outline: true,
       parts: [
-        { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sand), local: at(0, 1.0, 0, 0, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sackDark), local: at(0, 1.0, 0, Math.PI / 2, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sand), local: at(0, 2.7, 0, 0, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sackDark), local: at(0, 2.7, 0, Math.PI / 2, Math.PI / 2) },
-        { geom: new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), mat: lambert(sand), local: at(0, 4.4, 0, 0, Math.PI / 2) },
+        shadow(2.8, dark),
+        part(new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), body(sand), at(0, 1.0, 0, 0, Math.PI / 2)),
+        part(new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), tie, at(0, 1.0, 0, Math.PI / 2, Math.PI / 2)),
+        part(new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), body(sand), at(0, 2.7, 0, 0, Math.PI / 2)),
+        part(new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), tie, at(0, 2.7, 0, Math.PI / 2, Math.PI / 2)),
+        part(new THREE.CapsuleGeometry(1.0, 3.2, 4, 10), body(sand), at(0, 4.4, 0, 0, Math.PI / 2)),
       ],
     },
-    // 초등학교: 깃대 + 흰 깃발. 받침 원반이 150m 안 열선 유무(열선색·진홍)
-    // 열선 있는 학교는 깃발도 열선색(받침만으로는 조망에서 15 대 6이 구분되지 않았다)
-    // 5라운드: 상한 24배(조망 22px 깃발이 지도를 덮었다) → 12배(조망 11px, 줌 14부터 18px)
+    // 초등학교: 깃대 + 깃발. 받침 원반이 150m 안 열선 유무(열선색·진홍). 열선 있는 학교는 깃발도 열선색(받침만으로는 조망에서 15 대 6이 구분되지 않았다)
+    // 5라운드: 상한 24배(조망 22px 깃발이 지도를 덮었다) → 12배(조망 11px, 줌 14부터 18px). 깃대는 잉크 대신 슬레이트(라이트), 깃발은 조금 크게
     school: {
       height: 12,
       maxScale: 12,
       targetPx: 18,
-      outline: true,
-      parts: [
-        { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
-        { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(PAPER), local: at(0, 5.5, 0) },
-        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.3 }), local: at(2.1, 9.7, 0) },
-      ],
+      parts: [shadow(3.0, dark), part(new THREE.CylinderGeometry(2.4, 2.4, 0.5, 18), heat, at(0, 0.25, 0), glow(heat, 0.25)), part(new THREE.CylinderGeometry(0.22, 0.28, 11, 8), pole, at(0, 5.5, 0)), part(new THREE.BoxGeometry(4.6, 3.0, 0.18), heat, at(2.3, 9.5, 0), glow(heat, 0.3))],
     },
-    // 열선 없는 학교 깃발은 무채색: 다크 흰 · 라이트 잉크(베이지 바탕에서 흰 깃발이 안 보이던 냉독)
+    // 열선 없는 학교 깃발은 무채색: 다크 종이색 · 라이트 슬레이트(베이지 바탕에서 흰 깃발이 안 보이던 냉독, 잉크는 낙서처럼 보였다)
     schoolGap: {
       height: 12,
       maxScale: 12,
       targetPx: 18,
-      outline: true,
-      parts: [
-        { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
-        { geom: new THREE.CylinderGeometry(0.22, 0.28, 11, 8), mat: lambert(dark ? PAPER : INK), local: at(0, 5.5, 0) },
-        { geom: new THREE.BoxGeometry(4.2, 2.6, 0.18), mat: lambert(dark ? PAPER : "#3a3530", { emissive: new THREE.Color(dark ? PAPER : "#3a3530"), emissiveIntensity: 0.15 }), local: at(2.1, 9.7, 0) },
-      ],
+      parts: [shadow(3.0, dark), part(new THREE.CylinderGeometry(2.4, 2.4, 0.5, 18), risk, at(0, 0.25, 0), glow(risk, 0.25)), part(new THREE.CylinderGeometry(0.22, 0.28, 11, 8), pole, at(0, 5.5, 0)), part(new THREE.BoxGeometry(4.6, 3.0, 0.18), flagNone, at(2.3, 9.5, 0), glow(flagNone, 0.12))],
     },
-    // 열선 위치: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다. 3라운드 발광 구는 멀리서 평면 점으로 읽혔다(사용자 지적) → 4라운드 육각 동전(옆면 어두운 호박 + 발광 윗면 + 윤곽선). 기준 치수는 지름(4.8m)
+    // 열선 위치: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다. 육각 동전(옆면 진한 호박 + 발광 윗면). 기준 치수는 지름(4.8m)
     // 5라운드: 30배·8px는 조망에서 노란 덩어리(장면 2) → 14배·6px(조망 5px)
     heat: {
       height: 4.8,
       maxScale: 14,
       targetPx: 6,
       hideAboveZoom: 14.2,
-      outline: true,
-      parts: [
-        { geom: new THREE.CylinderGeometry(2.4, 2.4, 2.2, 6), mat: lambert(dark ? "#b8860b" : "#8a5f00"), local: at(0, 1.1, 0) },
-        { geom: new THREE.CylinderGeometry(2.45, 2.45, 0.6, 6), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.6 }), local: at(0, 2.5, 0) },
-      ],
+      parts: [shadow(3.0, dark), part(new THREE.CylinderGeometry(2.4, 2.4, 2.2, 6), dark ? "#b8860b" : "#b07a12", at(0, 1.1, 0)), part(new THREE.CylinderGeometry(2.45, 2.45, 0.6, 6), heat, at(0, 2.5, 0), glow(heat, dark ? 0.6 : 0.45))],
     },
-    // 선형 미확인 결빙구간 끝점: 땅에 누운 진홍 고리(평면의 빈 원과 같은 뜻). 4라운드: 고리 관을 굵게·띄워 옆면이 보이게
+    // 선형 미확인 결빙구간 끝점: 땅에 누운 진홍 고리(평면의 빈 원과 같은 뜻). 고리 관을 굵게·띄워 옆면이 보이게
     iceEnd: {
       height: 6,
       maxScale: 18,
       targetPx: 10,
-      outline: true,
-      parts: [{ geom: new THREE.TorusGeometry(2.6, 0.8, 8, 24).rotateX(Math.PI / 2), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.35 }), local: at(0, 0.9, 0) }],
+      parts: [shadow(3.6, dark), part(new THREE.TorusGeometry(2.6, 0.8, 8, 24).rotateX(Math.PI / 2), risk, at(0, 0.9, 0), glow(risk, 0.3))],
     },
     // 입체 숫자만(모델 없음). 5라운드: 구간·결빙 번호는 2D 배지로 돌아갔다(진홍 벽 위 진홍 숫자가 겹쳐 안 읽혔다). 동별 순위만 기둥 위 입체 숫자
     dongRank: { height: 1, maxScale: 1, parts: [] },
   }
-}
-function buildDefsOutlined(dark: boolean): Record<IconKind, KindDef> {
-  const defs = buildDefs(dark)
-  for (const k of Object.keys(defs) as IconKind[]) defs[k] = withOutline(defs[k], dark)
-  return defs
 }
 
 interface KindState {
@@ -347,9 +322,10 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   }
 
   constructor() {
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x8f8a7c, 1.1)
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4)
-    sun.position.set(0.5, 1, 0.7)
+    // 부드러운 조명(5라운드): 하늘빛을 올리고 직사광을 낮춰 그늘이 검게 꺼지지 않게
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xd9d4c7, 1.25)
+    const sun = new THREE.DirectionalLight(0xffffff, 0.95)
+    sun.position.set(0.45, 1, 0.55)
     this.scene.add(hemi, sun)
   }
 
@@ -359,7 +335,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true })
       this.renderer.autoClear = false
     }
-    if (!this.defs) this.defs = buildDefsOutlined(this.dark)
+    if (!this.defs) this.defs = buildDefs(this.dark)
     // 이미 받은 점이 있으면(스타일 교체 뒤 재추가) 다시 세운다
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
     if (this.rampData.length) this.buildRamps()
@@ -376,7 +352,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   setTheme(dark: boolean) {
     if (this.dark === dark && this.defs) return
     this.dark = dark
-    this.defs = buildDefsOutlined(dark)
+    this.defs = buildDefs(dark)
     this.applyDims()
     this.applyEmissive()
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
@@ -402,8 +378,8 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     for (const [k, v] of this.emissive)
       for (const part of defs[k].parts) {
         const m = part.mat as THREE.MeshLambertMaterial
-        if (!(m instanceof THREE.MeshLambertMaterial)) continue
-        m.emissive = new THREE.Color(m.color)
+        if (!(m instanceof THREE.MeshLambertMaterial) || !part.base) continue
+        m.emissive = part.base.clone()
         m.emissiveIntensity = v
         m.needsUpdate = true
       }
@@ -414,7 +390,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     const pos = new Float32Array(pts.length * 2 * 3)
     const col = new Float32Array(pts.length * 2 * 3)
     const base = new THREE.Color(color)
-    const dim = base.clone().multiplyScalar(this.dark ? 0.35 : 0.55)
+    const dim = base.clone().multiplyScalar(this.dark ? 0.55 : 0.78) // 5라운드: 밑동을 너무 어둡게 하면 탁한 띠로 읽혔다
     pts.forEach((p, i) => {
       pos.set([p.x, 0, p.z], i * 6)
       pos.set([p.x, p.h, p.z], i * 6 + 3)
@@ -436,7 +412,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       // 윗선(능선): 1px 밝은 선. 벽의 자식이라 y 배율을 같이 받는다
       const rg = new THREE.BufferGeometry()
       rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts.flatMap((p) => [p.x, p.h, p.z])), 3))
-      const edge = new THREE.Line(rg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: Math.min(1, opacity + 0.45), depthTest: false }))
+      const edge = new THREE.Line(rg, new THREE.LineBasicMaterial({ color: mix(color, "#ffffff", this.dark ? 0.35 : 0.5), transparent: true, opacity: Math.min(1, opacity + 0.3), depthTest: false }))
       edge.renderOrder = 11
       wall.add(edge)
     }
@@ -467,7 +443,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     }
     for (const sw of this.segWallData) {
       const pts = sw.coords.map(([lat, lng]) => ({ ...this.toModel(lng, lat), h: sw.h ?? 1 }))
-      const wall = this.wallMesh(pts, sw.color, 0.62, true)
+      const wall = this.wallMesh(pts, sw.color, 0.8, true)
       this.scene.add(wall)
       this.segWalls.push(wall)
     }
@@ -505,7 +481,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
         pts.push({ x: p.x, z: p.z, h: rd.hs[i] ?? 0, s })
       })
       // 경사면: 고도 단면대로 서는 벽(y 배율 = 과장, 프레임마다 scale.y). 경사면·화살은 깊이 검사를 끈다(데이터 덧그림): 이면도로 양옆 건물이 벽을 가려 확대해도 안 보이던 실측(z16)
-      const wall = this.wallMesh(pts, rd.heat ? muted : color, rd.heat ? 0.18 : 0.5, true)
+      const wall = this.wallMesh(pts, rd.heat ? muted : color, rd.heat ? 0.22 : 0.6, true)
       this.scene.add(wall)
       const slots = Math.max(1, Math.ceil(s / CHEV_GAP_M))
       this.ramps.push({ pts, len: s, rise: Math.max(0.5, rd.rise), heat: rd.heat, wall, first, slots })
@@ -761,7 +737,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
-  /** 단계 문법: 자재 흐림(1=점등). 재질 투명도로 */
+  /** 단계 문법: 자재 흐림(1=점등). 5라운드: 투명도 대신 바탕색(종이·밤) 쪽으로 섞는다(반투명 겹침이 탁했다). 그림자만 투명도 */
   setDim(kinds: IconKind[], opacity: number) {
     for (const k of kinds) this.dims.set(k, opacity)
     this.applyDims()
@@ -770,11 +746,16 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   private applyDims() {
     const defs = this.defs
     if (!defs) return
+    const ground = new THREE.Color(this.dark ? GROUND.dark : GROUND.light)
     for (const [k, o] of this.dims)
       for (const part of defs[k].parts) {
+        if (part.shadowOpacity != null) {
+          ;(part.mat as THREE.MeshBasicMaterial).opacity = part.shadowOpacity * (0.5 + 0.5 * o)
+          continue
+        }
+        if (!part.base) continue
         const m = part.mat as THREE.MeshLambertMaterial
-        m.transparent = o < 1
-        m.opacity = o
+        m.color.copy(part.base).lerp(ground, (1 - o) * 0.7) // 0.4(공백 탭) → 바탕 쪽 42%: 옅어지되 종류색은 남는다
         m.needsUpdate = true
       }
   }

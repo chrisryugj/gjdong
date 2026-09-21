@@ -184,6 +184,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   const arrow = dark ? "#0b1216" : "#fbf9f3"
   const heat = dark ? RESOURCES[0].color : RESOURCES[0].colorLight
   const ink = dark ? "#ece7dc" : "#14201c"
+  const accent = dark ? "#7cc0e8" : "#2a6f97" // 화면 액센트(초점 고리·동별 기둥). snow-map ACCENT와 같은 값
   const gu = dark ? OWNER_STYLE.gu.dark : OWNER_STYLE.gu.light
   const si = dark ? OWNER_STYLE.si.dark : OWNER_STYLE.si.light
   const siName = dark ? "흰색" : "검정"
@@ -193,17 +194,21 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
     { k: "heat", swatch: <Swatch kind="glow" color={heat} on />, name: "도로열선", means: tilt ? "흐르는 선이 발열. 축소하면 노란 육각" : "흐르는 선이 발열. 축소하면 점" },
     ownerView
       ? { k: "weak", swatch: <Swatch kind="line" color={gu} on />, name: "적설취약구간", means: `하늘색이 ${OWNER_STYLE.gu.label}(47곳 전부)` }
-      : { k: "weak", swatch: <Swatch kind="line" color={risk} on />, name: "적설취약구간", means: tilt ? "진홍 벽과 숫자는 열선 없음(번호는 표와 같음), 회색 선은 열선 있음" : "진홍 선과 번호 배지(확대 시)는 열선 없음, 회색은 열선 있음" },
+      : { k: "weak", swatch: <Swatch kind="line" color={risk} on />, name: "적설취약구간", means: tilt ? "진홍 벽과 번호는 열선 없음, 회색 선은 열선 있음" : "진홍 선과 번호는 열선 없음, 회색은 열선 있음" },
     ownerView
       ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName}이 ${OWNER_STYLE.si.label}, 하늘색이 구 관리. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` }
-      : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "과 낮은 벽" : ""}은 열선 없음, 회색은 열선 있음. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` },
-    { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "확대하면 경사면 높이가 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
+      : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "과 낮은 벽" : ""}은 열선 없음, 회색은 있음. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` },
+    { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "경사면 높이가 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
     { k: "salt", swatch: <Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on />, name: "제설함", means: tilt ? "상자 · 도로과" : "도로과", inline: true },
     { k: "cacl", swatch: <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on />, name: "염화칼슘보관함", means: tilt ? "원통 · 동주민센터" : "동주민센터", inline: true },
     { k: "sand", swatch: <Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on />, name: "모래주머니", means: tilt ? "포대 · 2022년 기준" : "2022년 기준", inline: true },
     tilt
-      ? { k: "school", swatch: <Swatch kind="flag" color={ink} color2={heat} on />, name: "초등학교", means: "깃대 핀. 노란 깃발은 열선 있음, 무채색 깃발과 진홍 받침은 열선 없음" }
+      ? { k: "school", swatch: <Swatch kind="flag" color={ink} color2={heat} on />, name: "초등학교", means: "노란 깃발은 열선 있음, 진홍 받침은 열선 없음" }
       : { k: "school", swatch: <Swatch kind="ring" color={ink} on />, name: "초등학교", means: "원 테두리가 노랑이면 열선 있음, 진홍이면 없음" },
+    // 맨 아래 문장("하늘색 고리는 지금 보는 곳, 기둥은 동별 자원")이 236px 열에서 두 줄로 꺾여 "자원"만 남던 것(5라운드) → 같은 행 규격으로
+    { k: "focus", swatch: <Swatch kind="ring" color={ownerView ? ink : accent} on />, name: "지금 보는 곳", means: ownerView ? "고리" : "하늘색 고리", inline: true },
+    ...(tilt ? [{ k: "cols", swatch: <Swatch kind="fill" color={accent} on />, name: "동별 자원", means: "기둥, 자원 탭", inline: true }] : []),
+    ...(budgetOn ? [{ k: "budget", swatch: <Swatch kind="line" color={heat} on />, name: "예산 신설", means: "호박색 벽", inline: true }] : []),
   ]
   return (
     <div className="px-3 py-2 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
@@ -225,7 +230,6 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[12px] leading-[1.35]">{ownerView ? "고리는 지금 보는 곳" : "하늘색 고리는 지금 보는 곳"}{tilt ? ", 기둥은 동별 자원" : ""}{budgetOn ? ". 호박색 벽은 예산 역산으로 신설이 정해진 구간" : ""}</p>
     </div>
   )
 }
