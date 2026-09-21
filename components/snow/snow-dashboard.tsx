@@ -23,6 +23,7 @@ import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "@/components/dumping/use-sidebar-width"
 import SnowMark from "./snow-mark"
 import { LoadCard, LOAD_START, type LoadState } from "./loading"
+import { startSnowData } from "./data-early"
 
 // 광진 제설 상황판(/snow). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
 // 탭: 공백(결론·발견) · 대응 단계(예보·특보 › 단계 › 시한 › 동원) · 자원 현황(4종·동별 기둥·서울 비교) · 근거 그래프 · 법령·책임
@@ -165,7 +166,8 @@ export default function SnowDashboard() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([fetchJson<SnowMapData>("/api/snow/data/map"), fetchJson<OntoGraph>("/api/snow/data/graph")])
+    const early = startSnowData() // client.tsx가 청크와 같이 시작한 요청을 이어받는다
+    Promise.all([early.map, early.graph])
       .then(([m, g]) => {
         if (!alive) return
         setData(m)
