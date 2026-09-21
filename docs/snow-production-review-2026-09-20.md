@@ -329,4 +329,9 @@ d5d1b03 main 푸시 › Vercel 60초 뒤 프로덕션 실측: `/snow` 200 · `/a
 
 ★ 이번 라운드 함정: `npx eslint`를 rtk 훅이 `pnpm dlx`로 바꿔 `pnpm install`이 돌면서 node_modules를 pnpm 배치로 갈아엎고 `pnpm-lock.yaml`을 다시 썼다(package-lock이 정본). 복구 = `git checkout pnpm-lock.yaml`, `rm pnpm-workspace.yaml`, `rm -rf node_modules`, `/opt/homebrew/bin/npm ci`. 도구는 `node node_modules/.bin/<도구>`로 부른다. `pkill -f "next start"`는 `next-server`로 이름이 바뀐 프로세스를 못 잡는다 → `kill $(lsof -tiTCP:3000 -sTCP:LISTEN)`.
 
-남은 일: 프로덕션 사파리 재측정(배포 뒤) · 모바일 조망(z12.5)은 배지 minzoom 12.8 밖 · 광장동 z14~14.5 사이 겹침 숨김은 확대하면 풀린다.
+### 10-7. 후속 2건(0ed2bdd)
+
+- **드론 비행 중 3D 핀 깜박임**(사용자): 비행 10초 동안 `setPoints` 0회(등장 애니메이션 재시작 아님), 렌더 956회. 원인은 3라운드 설계 "깊이 버퍼를 지도와 공유해 건물이 핀을 가린다": 카메라가 매 프레임 움직이면 4~13px 핀이 건물 뒤로 들락거린다. 정지 화면(z15·pitch 57) 실측으로 원통이 건물에 잘려 있었다(아이콘 픽셀 119 → 깊이 비운 뒤 208). `render()`에서 `gl.clear(DEPTH_BUFFER_BIT)` 뒤 그린다: 핀은 마커처럼 늘 위, 핀끼리는 깊이 검사 유지. 이 층 뒤는 라벨뿐이라 부작용 없음(드론 경로 점선만 건물 위로 올라온다). 기둥 모드에서 열선 동전이 기둥 밑동 위에 겹칠 수 있다(5px).
+- **공백 표 머리글 두 줄 꺾임**(사용자 스크린샷 "지도\n번호", "소\n관"): 열 폭이 키커(9.5px·자간 0.12em) 글자 폭보다 좁았다 → 지도 번호 48px·소관 24px, 머리글 `whitespace-nowrap`(ui.tsx Table 공통).
+
+남은 일: 모바일 조망(z12.5)은 배지 minzoom 12.8 밖 · 광장동 z14~14.5 사이 겹침 숨김은 확대하면 풀린다 · /snow에도 dumping의 `lg-moving`(지도 움직일 때 굴절 쉼) 훅이 없다(비행·회전 fps).
