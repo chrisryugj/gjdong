@@ -1,5 +1,5 @@
 import type { DongRow, IceSeg, ResourceId, SnowMapData, WeakSeg } from "./types"
-import { COST, heatCost, heatCostText, man } from "./costs"
+import { COST, eok, heatCost, heatCostText, man } from "./costs"
 
 // 화면 수치의 단일 산출처. 패널·툴팁·시연 캡션·문서가 전부 여기서 계산한 값을 본다(정적 사본 금지)
 
@@ -221,7 +221,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       kicker: "공백 · 구 관리",
       // 분모는 행안부 적설취약구간 47(근거 그래프 판단과 같은 수). 구가 관리하는 결빙구간 3곳은 열선이 있어 13곳은 전부 적설취약구간이다(냉독: 50·47 두 분모가 독자를 세웠다)
       title: `적설취약구간 ${t.weak}곳 중 ${g.weakNoHeat}곳에 ${data.gaps.heatNearM}m 안 열선이 없습니다.`,
-      body: `${data.gaps.materialNearM}m 안에 비치 자재도 없는 곳은 ${g.gu.none}곳${g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 구가 관리하는 결빙구간 ${g.gu.total - t.weak}곳은 열선이 있습니다.`,
+      body: `자재도 없는 곳은 ${g.gu.none}곳${g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}. 구 관리 결빙구간 ${g.gu.total - t.weak}곳은 열선이 있습니다.`,
       n: String(g.weakNoHeat),
       unit: `/${t.weak}곳`,
       kind: "gap",
@@ -271,7 +271,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       id: "f-slope",
       kicker: "추정",
       title: `지형 고도로 추정한 급경사 이면도로 ${t.slopes}구간 ${g.slopeKm}km 중 ${g.slopeNoHeat}구간에 열선이 없습니다.`,
-      body: `행안부 취약구간 ${t.weak}곳 중 ${data.gaps.weakOnSlope}곳이 이 추정 구간과 겹칩니다. 지형 타일 추정치라 실측 경사가 아닙니다.`,
+      body: `행안부 취약구간 ${data.gaps.weakOnSlope}곳이 겹칩니다. 지형 타일 추정치입니다.`,
       n: String(g.slopeNoHeat),
       unit: `/${t.slopes}구간`,
       kind: "limit",
@@ -282,7 +282,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       kicker: "노출",
       // 결과 지표(민원·사고)가 없어 편익을 못 세는 대신, 공백이 결빙 조건에 놓이는 날수를 기상청 결빙일수(서울 108)로 보인다. 4차 냉독: "열선 3곳 신설하면 무엇이 얼마나 줄어드는가"의 최소 근거
       title: `서울은 겨울마다 결빙일이 평균 ${Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))}일입니다.`,
-      body: `기상청 서울(108) ${data.climate.freezeDays[0]?.year}~${data.climate.freezeDays[data.climate.freezeDays.length - 1]?.year}년 결빙일수 평균. 열선 없는 취약구간 ${g.weakNoHeat}곳은 그 날수만큼 결빙 조건에 놓입니다. 민원·사고 결과 지표는 데이터가 없어 편익은 세지 못합니다.`,
+      body: `기상청 서울 ${data.climate.freezeDays[0]?.year}~${data.climate.freezeDays[data.climate.freezeDays.length - 1]?.year}년 평균. 열선 없는 ${g.weakNoHeat}곳이 그 날수만큼 결빙 조건에 놓입니다.`,
       n: String(Math.round(data.climate.freezeDays.reduce((s, y) => s + y.total, 0) / Math.max(1, data.climate.freezeDays.length))),
       unit: "일/년",
       kind: "limit",
@@ -292,7 +292,7 @@ export function buildFindings(data: SnowMapData): Finding[] {
       kicker: "데이터",
       // 3라운드 정정: "2025년 설치 23구간"과 "구 파일에 없는 구간"은 다른 수. 조인 안 된 행이 정답(냉독이 14·23 불일치를 잡았다)
       title: `서울시 집계(2026.5) 열선 ${t.heatSeg}구간 중 ${t.heatSeg - data.meta.heatJoin.guMatched}구간은 구 공개 파일(2025.1)에 없습니다.`,
-      body: `구 파일 ${data.meta.heatJoin.guRows}행 중 ${data.meta.heatJoin.guMatched}행이 서울시 집계와 맞습니다(${t.heatSeg} 빼기 ${data.meta.heatJoin.guMatched}). 2025년 설치 ${t.heat2025}구간이 서울시 집계에 새로 있습니다. 지도는 서울시 집계를 정본으로 씁니다.`,
+      body: `구 파일 ${data.meta.heatJoin.guRows}행 중 ${data.meta.heatJoin.guMatched}행이 서울시 집계와 맞습니다. 지도는 서울시 집계를 씁니다.`,
       n: String(t.heatSeg - data.meta.heatJoin.guMatched),
       unit: `/${t.heatSeg}구간`,
       kind: "limit",
@@ -313,6 +313,7 @@ export interface CheckItem {
   scale: string // 규모(수량)
   done: string // 완료 기준(이 화면의 판정이 바뀌는 조건, 또는 회신·확정)
   cost: string // 개략 비용(lib/snow/costs 출처 단가. 없으면 "미산정"과 이유)
+  costShort: string // 사이드바 한 줄용(요약 한 장에는 cost 전문)
   request: string // 필요한 결정 한 줄(결정이 필요한 것과 부서 지시로 끝나는 것을 가른다. 냉독 4차)
   short: string // 시연 캡션·칩용 짧은 이름
   title: string // 동사로 끝나는 제목
@@ -343,6 +344,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${g.gu.none}곳`,
       done: `${data.gaps.materialNearM}m 안 비치 자재 1개소 이상(재계산 시 구 관리 공백 0)`,
       cost: `제설함 1개소 약 ${man(COST.saltBoxWon)}(소매가) · 충전은 구 비축 제설제`,
+      costShort: `제설함 약 ${man(COST.saltBoxWon)}`,
       request: "부서 지시로 충분(예산 결정 불필요)",
       short: `${g.gu.noneNames.join("·")} 자재 비치`,
       title: `${g.gu.noneNames.join("·")}에 제설 자재 비치`,
@@ -360,6 +362,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${onSlope.length}곳 · ${fmt(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}m`,
       done: "구간별 열선 신설 여부 결정(예산 반영 여부 포함)",
       cost: `전부 신설 시 ${heatCostText(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0)))}(단가 출처 같음)`,
+      costShort: `전부 신설 시 약 ${eok(heatCost(Math.round(onSlope.reduce((s, w) => s + w.pathM, 0))).high)}(2차로 가정)`,
       request: (() => {
         const first = onSlope.map((w) => ({ w, p: segPriority({ ...w, src: "weak" as const }, data).score })).sort((a, b) => b.p - a.p)[0]?.w
         return `열선 신설 검토 착수 여부 결정(예산 반영 시 우선순위 1위 ${first ? `${first.name}(지도 ${first.i})` : ""}부터)`
@@ -387,6 +390,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `구간 ${siNone.length}곳(${agencyCounts.map(([a, n]) => `${a} ${n}`).join(" · ")})`,
       done: "관리청 제설 계획·살포 구간 확인 완료(구 상황실 공유)",
       cost: "구 지출 없음(관리청 소관)",
+      costShort: "구 지출 없음",
       request: "관리청 공문 발송 지시",
       short: `시 관리 결빙 ${siNone.length}곳 관리청 확인 요청`,
       title: `서울시 관리 결빙구간 ${siNone.length}곳의 제설 계획을 관리청에 확인 요청`,
@@ -403,6 +407,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
     scale: `동 ${g.noHeatDongs.length}곳 · 자재 ${fmt(noHeatDongRows.reduce((s, d) => s + d.salt + d.cacl + d.sand, 0))}개소`,
     done: "동별 자재 점검 결과(수량·상태)",
     cost: "추가 구입 없이 점검(보충분은 점검 뒤 산정)",
+    costShort: "추가 구입 없음",
     request: "동주민센터 점검 지시",
     short: `열선 없는 동 ${g.noHeatDongs.length}곳 자재 점검`,
     title: `열선 없는 동 ${g.noHeatDongs.length}곳의 비치 자재 점검`,
@@ -420,6 +425,7 @@ export function buildChecklist(data: SnowMapData): CheckItem[] {
       scale: `학교 ${schoolsGap.length}교`,
       done: "통학로 제설 소관 확정",
       cost: "미산정(소관 확정 뒤)",
+      costShort: "미산정",
       request: "소관 확인 지시(교육지원청 협의)",
       short: `열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,
       title: `${data.gaps.schoolNearM}m 안 열선 없는 초등학교 ${schoolsGap.length}교 통학로 점검`,

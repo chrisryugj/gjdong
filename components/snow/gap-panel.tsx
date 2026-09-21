@@ -1,8 +1,8 @@
 "use client"
 
 import type { SnowMapData } from "@/lib/snow/types"
-import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText, segName, segOwner, segPriority, segType, seoulRank, type Finding, type SegLike } from "@/lib/snow/facts"
-import { COST, eok, heatCost, man } from "@/lib/snow/costs"
+import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText, segName, segOwner, segPriority, segType, type Finding, type SegLike } from "@/lib/snow/facts"
+import { eok, heatCost } from "@/lib/snow/costs"
 import { useState } from "react"
 import { SectionHead } from "@/components/dumping/section-head"
 import { NumRow, StatBand, Table } from "./ui"
@@ -82,9 +82,8 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         적설취약구간 {data.weak.length}곳 중 {g.weakNoHeat}곳에 열선이 없습니다.
       </p>
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
-        비치 자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}입니다. 서울시 관리 결빙구간 {g.si.total}곳 중 {g.si.none}곳은 열선도 자재도 없습니다.
+        자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}, 서울시 관리 결빙구간은 {g.si.total}곳 중 {g.si.none}곳이 둘 다 없습니다.
       </p>
-      <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">구 보도자료의 취약지점 {data.ops.weakPoints}개소 목록은 비공개라 행안부 적설취약구간 {data.weak.length}곳을 씁니다. 광진구 열선 연장은 서울 25개 구 중 {seoulRank(data).rank}위입니다(자원 현황 탭).</p>
       <StatBand
         items={[
           { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
@@ -94,12 +93,22 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         ]}
       />
 
-      <SectionHead n="01" sub={`번호가 우선순위입니다. 구가 바로 할 수 있는 것, 시에 요청할 것, 동 단위, 학교 순. 행마다 부서 · 기한 · 규모 · 개략 비용 · 완료 기준 · 필요한 결정. 부서와 규모는 데이터에 있는 것만 적었고, 비용은 공개 단가(열선은 1차로 100m당 1억과 관리 연 360만원(서울시 관계자, 2024년 보도), 제설함은 소매가 ${man(COST.saltBoxWon)})로 개략 산정한 값이라 조달 단가가 아닙니다. 조치 여부와 순서는 담당 부서가 정합니다. 행을 누르면 지도`}>
+      {/* 후보 5: dumping 제안 행 규격(제목 한 줄 + 흐린 한 줄 + 오른쪽 배지). 근거·완료 기준·필요한 결정은 요약 한 장에 */}
+      <SectionHead n="01" sub="번호가 우선순위입니다. 구가 바로 할 수 있는 것부터, 기한은 대책기간 시작(11월 15일) 전. 누르면 지도, 자세한 것은 요약 한 장">
         눈 오기 전 점검 후보 {checks.length}
       </SectionHead>
       <div>
         {checks.map((c, i) => (
-          <NumRow key={c.id} n={i + 1} big={c.scale.split(" ")[1]?.replace(/\(.*$/, "") ?? String(c.n)} unit={c.owner === "구" ? "구 소관" : c.owner === "시" ? "시 소관" : c.owner === "학교" ? "학교" : "동 단위"} title={c.title} meta={`${c.dept} · ${c.due} · ${c.scale} · 비용 ${c.cost} · 완료 기준: ${c.done} · 필요한 결정: ${c.request}`} body={c.body} accent={c.owner === "구"} onClick={() => onFocus(c.focus ?? null, c.short)} />
+          <button key={c.id} onClick={() => onFocus(c.focus ?? null, c.short)} className="group flex w-full items-start gap-3 border-t border-[var(--cp-border-faint)] py-2.5 text-left first:border-t-0 hover:bg-[var(--cp-hover)]">
+            <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{i + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{c.title}</span>
+              <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
+                {c.dept} · {c.scale} · {c.costShort}
+              </span>
+            </span>
+            <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${/결정/.test(c.request) ? "bg-(--dump-accent)/12 text-(--dump-accent)" : "bg-[var(--cp-track)] text-[var(--cp-text-dim)]"}`}>{/결정/.test(c.request) ? "결정 필요" : c.owner === "시" ? "시 요청" : "부서 지시"}</span>
+          </button>
         ))}
       </div>
       <button onClick={() => setPrint(true)} className="mt-2 rounded-full border border-[var(--cp-border)] px-3.5 py-1.5 text-[13px] font-semibold text-(--dump-accent) hover:bg-[var(--cp-hover)]">
@@ -107,20 +116,20 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
       </button>
       {print && <CheckPrint data={data} onClose={() => setPrint(false)} />}
 
-      <SectionHead n="02" sub={`행안부 적설취약구간 ${data.weak.length}곳(구 관리)과 상습결빙구간 ${data.ice.length}곳(시 관리 ${g.si.total}·구 관리 ${g.gu.total - data.weak.length}, 구 관리분은 열선 있음). ${data.gaps.heatNearM}m 안 열선, ${data.gaps.materialNearM}m 안 자재 기준. 공백은 열선도 자재도 없는 구간. 우선순위 점수 순(공백 3 · 경사 추정 %/10 · 초등학교 1.5 · 급경사 1 · 고갯길 0.5 · 구 소관 0.5), 둘째 줄이 근거`}>
+      <SectionHead n="02" sub="우선순위 순. 둘째 줄이 근거, 기준과 가중치는 데이터·방법에. 누르면 지도">
         열선 없는 구간 {g.noHeat}곳(구 {g.gu.noHeat} · 시 {g.si.noHeat})
       </SectionHead>
-      {/* 열선 예산 역산(의사결정자 관점 wow): 예산을 밀면 우선순위 순으로 신설 구간이 정해지고 지도 벽이 호박색으로 바뀐다 */}
+      {/* 열선 예산 역산: 예산을 밀면 우선순위 순으로 신설 구간이 정해지고 지도 벽이 호박색으로 바뀐다. 산식은 데이터·방법 */}
       <div className="mb-2 rounded-lg bg-[var(--cp-panel2)] px-2.5 py-2">
         <div className="flex items-center gap-3">
           <span className="dump-kicker shrink-0 text-[10px] text-[var(--cp-text-dim)]">열선 예산 역산</span>
-          <input type="range" min={0} max={30e8} step={5e7} value={budget} onChange={(e) => onBudget(Number(e.target.value))} aria-label="열선 신설 예산(원)" className="dump-range min-w-0 flex-1" />
+          <input type="range" min={0} max={30e8} step={5e7} value={budget} onChange={(e) => onBudget(Number(e.target.value))} aria-label="열선 신설 예산(원)" title="구간 길이 × 2차로 × 1차로 100m당 1억. 우선순위 순으로 쌓습니다" className="dump-range min-w-0 flex-1" />
           <span className="w-12 shrink-0 text-right font-mono text-[15px] font-semibold text-[var(--cp-text-strong)]">{budget ? eok(budget) : "0억"}</span>
         </div>
         <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-muted)]">
           {budget
-            ? `${eok(budget)}이면 우선순위 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m를 신설하고(표의 신설 비용을 더해 개략 ${eok(plan.planned.reduce((s, w) => s + Math.round(heatCost(w.pathM).high / 1e7) * 1e7, 0))}, 2차로 가정에 1차로 100m당 1억) 열선 없는 구 관리 취약구간이 ${plan.total}곳에서 ${plan.remaining}곳으로 줍니다.${plan.next ? ` 다음 ${plan.planned.length + 1}위 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)}이 더 듭니다.` : ""}`
-            : `예산을 밀면 우선순위 순으로 열선 신설 구간이 정해지고 표의 "신설 비용" 열에 구간별 개략 비용이 보입니다. 구 관리 ${plan.total}곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정, 1차로 100m당 1억).`}
+            ? `${eok(budget)}이면 1~${plan.planned.length}위 ${plan.meters.toLocaleString("ko-KR")}m 신설(개략 ${eok(plan.planned.reduce((s, w) => s + Math.round(heatCost(w.pathM).high / 1e7) * 1e7, 0))}), 열선 없는 구간 ${plan.total}곳이 ${plan.remaining}곳으로.${plan.next ? ` 다음 ${plan.next.seg.name}(지도 ${plan.next.seg.i})은 ${eok(plan.next.cost)} 더.` : ""}`
+            : `예산을 밀면 우선순위 순으로 신설 구간이 정해집니다. 13곳 전부는 개략 ${eok(planHeatBudget(data, Infinity).cost)}(2차로 가정).`}
         </p>
       </div>
       <Table cols={budget ? COLS_BUDGET : COLS} rows={first} cell={cell} rowH={44} rowKey={(r) => `${r.s.src}-${"i" in r.s ? r.s.i : r.s.id}`} onRow={pick} rowClass={(r) => (activeLabel && segName(r.s) === activeLabel ? "bg-[var(--cp-hover2)]" : "")} />
@@ -132,9 +141,9 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
           </div>
         </details>
       )}
-      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">열선까지 = 가장 가까운 열선까지 거리 · 자재 = {data.gaps.materialNearM}m 안 비치 자재 개소 · 소관 = 관리청(구·시) · 동 "구 밖" = 구 경계선 밖(강 위 램프)</p>
+      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">자재는 {data.gaps.materialNearM}m 안 개소, 동 "구 밖"은 강 위 램프.</p>
 
-      <SectionHead n="03" sub="데이터에서 계산한 사실. 행을 누르면 지도가 그 자리를 표시합니다">
+      <SectionHead n="03" sub="데이터에서 계산한 사실. 누르면 지도">
         발견 {findings.length}
       </SectionHead>
       <div>

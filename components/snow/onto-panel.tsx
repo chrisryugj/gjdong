@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import type { OntoGraph, OntoNode } from "@/lib/snow/types"
 import { propLabel, relLabel, typeLabel } from "@/lib/snow/labels"
-import { CLASSES, RELATIONS, validateGraph } from "@/lib/snow/schema"
+import { validateGraph } from "@/lib/snow/schema"
 import { lineageOf, runCompetencyQuestions } from "@/lib/snow/queries"
 import { SectionHead } from "@/components/dumping/section-head"
 import { SPACE_COLOR } from "./onto-graph"
@@ -37,12 +37,12 @@ export default function OntoPanel({ graph, selectedId, onSelect, onOpenMethods }
     <div className="px-4 pb-4 pt-3">
       <p className="dump-headline text-[21px] leading-[1.42] text-[var(--cp-text-strong)]">{String(lead?.props.gist ?? lead?.label ?? "").split(". ")[0].replace(/\.?$/, ".")}</p>
       <p className="mt-1.5 text-[13.5px] leading-snug text-[var(--cp-text-muted)]">
-        판단 {claims.length}개가 전부 관측과 데이터셋에 연결돼 있습니다(연결이 끊긴 판단 0, 규칙 위반 {issues.filter((i) => i.level === "error").length}건). 질문 {cq.length}개는 코드로 고정돼 데이터가 바뀌면 답이 바뀝니다. 종류 {CLASSES.length}·관계 {RELATIONS.length} 정의는 데이터·방법에 있습니다.
+        판단 {claims.length}개가 전부 관측에 연결돼 있고 규칙 위반은 {issues.filter((i) => i.level === "error").length}건입니다. 질문 {cq.length}개는 데이터가 바뀌면 답이 바뀝니다.
       </p>
 
       {node && <NodeCard node={node} graph={graph} byId={byId} onSelect={onSelect} />}
 
-      <SectionHead n="01" sub="관측이 뒷받침하는 판단. 누르면 그래프가 그 판단을 가운데 둡니다">
+      <SectionHead n="01" sub="누르면 그래프가 그 판단을 가운데 둡니다">
         판단 {claims.length}
       </SectionHead>
       <div>
@@ -53,7 +53,7 @@ export default function OntoPanel({ graph, selectedId, onSelect, onOpenMethods }
         })}
       </div>
 
-      <SectionHead n="02" sub="표로는 계산할 수 없는 질문입니다. 그래프에서 그 자리에서 계산하고 데이터가 바뀌면 답도 바뀝니다">
+      <SectionHead n="02" sub="그래프에서 그 자리에서 계산합니다">
         데이터로 답하는 질문 {cq.length}
       </SectionHead>
       <ul className="space-y-1">

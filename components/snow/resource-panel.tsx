@@ -41,7 +41,7 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
         열선 {t.heatSeg}구간은 {t.heatDongs}개 동에 있고 비치 자재 {fmt(t.materials)}개소는 15개 동 전부에 있습니다.
       </p>
 
-      <SectionHead n="01" sub={`공공데이터포털 광진구 3종과 서울시 열선 집계. 기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`}>
+      <SectionHead n="01" sub={`기준일 ${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지. 누르면 지도 기둥`}>
         자원 4종
       </SectionHead>
       <Table
@@ -72,7 +72,7 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
         }}
       />
 
-      <SectionHead n="02" sub={`지표를 고르면 지도 기둥이 바뀝니다. 기둥은 동주민센터 위치에 섭니다. 동 이름을 누르면 지도가 그 동을 보여 줍니다${data.meta.saltNoDong ? `. 구 경계선 위 제설함 ${data.meta.saltNoDong}개소는 동에 넣지 않았습니다(동별 합 ${fmt(t.materials - data.meta.saltNoDong)}개소)` : ""}`}>
+      <SectionHead n="02" sub={`지표를 고르면 지도 기둥이 바뀝니다(동주민센터 위치). 동을 누르면 그 동으로${data.meta.saltNoDong ? `. 경계선 위 제설함 ${data.meta.saltNoDong}개소는 동별 합에서 뺌` : ""}`}>
         동별 배치
       </SectionHead>
       <div className="mb-2 flex flex-wrap gap-1">
@@ -104,7 +104,7 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
         })}
       </ol>
 
-      <SectionHead n="03" sub={`서울 열린데이터광장 ${data.asof.seoul} 기준 ${seoul.of}개 구 ${fmt(seoul.totalN)}개소 ${fmt(seoul.totalM)}m`}>
+      <SectionHead n="03" sub={`서울시 집계 ${data.asof.seoul.slice(0, 7)} · ${seoul.of}개 구 ${fmt(seoul.totalM)}m`}>
         서울 25개 구 열선 · 광진구 연장 {seoul.rank}위
       </SectionHead>
       <details open>

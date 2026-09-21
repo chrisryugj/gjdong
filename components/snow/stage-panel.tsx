@@ -82,7 +82,7 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       </SectionHead>
       {!inSeason && (
         <p className="mb-2 text-[13.5px] leading-snug text-[var(--cp-text-muted)]">
-          지금은 대책기간(11월 15일부터 3월 15일까지) 밖이라 실제 예보가 아니라 슬라이더 값으로 단계를 봅니다.
+          대책기간(11월 15일부터 3월 15일까지) 밖이라 슬라이더 값으로 단계를 봅니다.
           {fc && fc.now && (
             <span className="text-[var(--cp-text-dim)]">
               {" "}
@@ -114,9 +114,9 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
           )
         })}
       </ol>
-      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">2단계는 대설주의보, 3단계는 대설경보로도 발령합니다. 출처 서울시 2026-02-01.</p>
+      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">대설주의보면 2단계, 대설경보면 3단계. 서울시 기준 2026-02-01.</p>
 
-      <SectionHead n="02" sub={`${stage.label}에서 동원하는 자원 ${mobilized.length}종. 구 보유 ${own.length}종(위치가 공개된 ${rows.filter((r) => r.mapped).length}종은 지도, 나머지는 보도자료 ${data?.ops.source.split(" · ")[0].replace("광진구 보도자료 ", "").replace(/\(.*\)/, "") ?? ""} 규모만)${external.length ? `과 외부 의무·협력 ${external.length}종` : ""}. 지도는 이 단계가 동원하는 자원 층만 켭니다`}>
+      <SectionHead n="02" sub={`구 보유 ${own.length}종${external.length ? `과 외부 의무·협력 ${external.length}종` : ""}. 위치가 공개된 ${rows.filter((r) => r.mapped).length}종만 지도에`}>
         동원 자원
       </SectionHead>
       {rows.length ? (
@@ -155,7 +155,7 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       )}
       {idle.length > 0 && <p className="mt-2 text-[13px] text-[var(--cp-text-faint)]">대기: {idle.map((n) => n.label).join(" · ")}</p>}
 
-      <SectionHead n="03" sub="광진구 건축물관리자의 제설·제빙에 관한 조례 제5조. 주간·야간 시각은 조례에 없어 07시부터 19시까지를 주간으로 가정합니다">
+      <SectionHead n="03" sub="조례 제5조. 주간은 07시부터 19시까지로 가정">
         조례 시한
       </SectionHead>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-[var(--cp-text-muted)]">

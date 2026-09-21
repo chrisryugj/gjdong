@@ -25,10 +25,10 @@ export default function LawPanel({ data, dark = true }: Props) {
   return (
     <div className="px-4 pb-4 pt-3">
       <p className="dump-headline text-[21px] leading-[1.42] text-[var(--cp-text-strong)]">건축물관리자가 보도와 이면도로 대지경계 1m를 치웁니다.</p>
-      <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">보도는 대지에 접한 구간 전부입니다. 근거는 조례 제4조입니다. 차도는 구 제설대책기간 운영으로 구청이 맡습니다(보도자료).</p>
+      <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">보도는 대지에 접한 구간 전부(조례 제4조). 차도는 구청이 맡습니다.</p>
       {data && (
         <p className="mt-1.5 text-[13.5px] leading-snug text-[var(--cp-text-dim)]">
-          지도는 이 탭에서 취약구간을 관리청별 색으로 표시합니다. 구 관리 {data.weak.length + data.ice.filter((s) => /\(광진구\)/.test(s.agency)).length}곳은 하늘색, 서울시 관리 {data.ice.filter((s) => !/\(광진구\)/.test(s.agency)).length}곳(시설공단·동부도로사업소)은 {dark ? "흰색" : "검정"}입니다.
+          지도: 구 관리 {data.weak.length + data.ice.filter((s) => /\(광진구\)/.test(s.agency)).length}곳은 하늘색, 서울시 관리 {data.ice.filter((s) => !/\(광진구\)/.test(s.agency)).length}곳은 {dark ? "흰색" : "검정"}.
         </p>
       )}
 
@@ -65,9 +65,9 @@ export default function LawPanel({ data, dark = true }: Props) {
           ))}
         </ul>
       </details>
-      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">조례에 과태료 조항은 없습니다. 대응 단계 탭의 시한 계산은 제5조 제1항을 그대로 적용합니다.</p>
+      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">과태료 조항은 없습니다. 대응 단계 탭의 시한 계산은 제5조 제1항 그대로.</p>
 
-      <SectionHead n="03" sub="서울시 보도자료 2026-02-01(대설예비특보 2단계 발령). 자치구가 같은 기준을 따릅니다">
+      <SectionHead n="03" sub="서울시 보도자료 2026-02-01. 자치구가 같은 기준">
         서울시 강설 대응 단계
       </SectionHead>
       <table className="w-full text-[13.5px]">
@@ -101,7 +101,7 @@ export default function LawPanel({ data, dark = true }: Props) {
             <li><span className="text-[var(--cp-text-dim)]">취약지점</span> <b>{data.ops.weakPoints}개소</b></li>
             <li><span className="text-[var(--cp-text-dim)]">시즌 제설제</span> <b>{data.ops.saltTons.toLocaleString("ko-KR")}톤</b></li>
           </ul>
-          <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">보도자료 수치라 개소 정의가 공개 데이터와 다릅니다(취약지점 89개소와 행안부 47곳). 위치가 공개된 자원만 지도에 있습니다.</p>
+          <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">보도자료 수치라 개소 정의가 공개 데이터와 다릅니다(취약지점 89개소, 행안부 47곳).</p>
         </>
       )}
     </div>
