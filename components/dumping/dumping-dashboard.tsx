@@ -103,6 +103,7 @@ export default function DumpingDashboard() {
   // 로딩 커튼(19라운드): 지도 영역만 종이로 덮고 4단계(자료·지도 바탕·건물 결합·시설 아이콘)를 실제 이벤트로 체크한다. 첫 로드 한 번
   const [loadStage, setLoadStage] = useState(0) // 0 자료 요청 중 · 1 자료 · 2 지도 바탕 · 3 건물 결합(첫 idle) · 4 시설 아이콘
   const [curtain, setCurtain] = useState<"on" | "out" | "off">("on")
+  const [tiles, setTiles] = useState({ loaded: 0, total: 0 }) // 03 단계 안의 타일 진행(/snow 방식)
   const revealTimers = useRef<number[]>([])
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
@@ -183,7 +184,7 @@ export default function DumpingDashboard() {
     }
   }, [auth, loadSeq])
 
-  // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 12초 상한(회장 네트워크가 느려도 시연을 막지 않게)에서 걷힌다
+  // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 25초 상한(회장 네트워크가 느려도 시연을 막지 않게. 3Mbps 실측 map load 12초 초과)에서 걷힌다
   useEffect(() => {
     if (load === "ready") setLoadStage((v) => Math.max(v, 1))
   }, [load])
@@ -206,7 +207,7 @@ export default function DumpingDashboard() {
   }, [loadStage, load, dismissCurtain])
   useEffect(() => {
     if (auth !== "open") return
-    const t = window.setTimeout(dismissCurtain, 12000)
+    const t = window.setTimeout(dismissCurtain, 25000)
     return () => window.clearTimeout(t)
   }, [auth, dismissCurtain])
   useEffect(() => () => revealTimers.current.forEach((t) => window.clearTimeout(t)), [])
@@ -488,6 +489,7 @@ export default function DumpingDashboard() {
         {rightPane === "map" ? (
           <DumpingMap
             onStage={onMapStage}
+            onTiles={setTiles}
             data={mapData}
             base={view.base}
             circles={view.circles}
@@ -531,10 +533,15 @@ export default function DumpingDashboard() {
             <ol className="mt-5 flex flex-col gap-2">
               {["민원·과태료·격자 자료", "지도 바탕", "건물 24,520동 입체 결합", "시설·청소차 3D"].map((label, i) => {
                 const st = loadStage > i ? "done" : loadStage === i ? "now" : "wait"
+                // 02(map load = 첫 화면 타일까지)·03(첫 idle)이 길다: 타일 도착 수를 같이 보인다
+                const tail = (i === 1 || i === 2) && st === "now" && tiles.total > 0 ? ` · 지도 타일 ${tiles.loaded}/${tiles.total}` : ""
                 return (
                   <li key={label} className={`dump-curtain-step ${st}`}>
                     <span className="dump-curtain-n">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="flex-1">{label}</span>
+                    <span className="flex-1">
+                      {label}
+                      {tail && <span className="font-mono text-[12.5px] font-normal text-[var(--cp-text-dim)]">{tail}</span>}
+                    </span>
                     <span className="dump-curtain-mark" aria-hidden>
                       {st === "done" ? "✓" : st === "now" ? "…" : ""}
                     </span>
@@ -542,9 +549,19 @@ export default function DumpingDashboard() {
                 )
               })}
             </ol>
-            <div className="dump-curtain-bar mt-5" role="progressbar" aria-valuemin={0} aria-valuemax={4} aria-valuenow={loadStage}>
-              <span style={{ width: `${Math.max(6, (loadStage / 4) * 100)}%` }} />
-            </div>
+            {(() => {
+              // 진행률: 단계마다 25%, 02·03 단계 안은 타일 도착 비율로 채운다
+              const frac = (loadStage === 1 || loadStage === 2) && tiles.total > 0 ? Math.min(1, tiles.loaded / tiles.total) : 0
+              const pct = Math.round(Math.max(6, Math.min(100, (loadStage / 4) * 100 + frac * 25)))
+              return (
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="dump-curtain-bar flex-1" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+                    <span style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="dump-kicker w-9 text-right font-mono text-[10.5px] text-[var(--cp-text-dim)]">{pct}%</span>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}

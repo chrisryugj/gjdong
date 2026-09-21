@@ -435,6 +435,10 @@ export class Icons3DLayer implements CustomLayerInterface {
     const model = (map as unknown as { transform: { getMatrixForModel: (l: [number, number], alt?: number) => Float64Array | number[] } }).transform.getMatrixForModel(ANCHOR, 0)
     const proj = new THREE.Matrix4().fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>))
     this.camera.projectionMatrix = proj.multiply(new THREE.Matrix4().fromArray(Array.from(model)))
+    // 건물·기둥 깊이를 지우고 그린다(카메라가 움직일 때 4~13px 핀이 건물 뒤로 들락거리며 깜박이던 것. /snow 0ed2bdd와 같은 수리).
+    // 핀·청소차는 마커처럼 늘 위, 핀끼리는 깊이 검사 유지. 이 층 뒤는 라벨(깊이 없음)뿐
+    _gl.depthMask(true)
+    _gl.clear(_gl.DEPTH_BUFFER_BIT)
     this.renderer.resetState()
     this.renderer.render(this.scene, this.camera)
     if (animating) map.triggerRepaint()

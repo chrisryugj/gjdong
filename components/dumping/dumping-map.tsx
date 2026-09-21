@@ -201,6 +201,7 @@ interface DumpingMapProps {
   fitPadding?: { tl: [number, number]; br: [number, number] } // 지도 위에 뜬 카드·열이 가리는 영역(px). 구 전체 맞춤이 보이는 부분에만 맞춘다(2026-09-18 지도 전면)
   // 19라운드 로딩 커튼: 지도 준비 단계를 대시보드에 알린다. map = 스타일·첫 타일, idle = 타일 렌더·건물 조인 완료(첫 번), icons = 3D 시설 레이어 준비
   onStage?: (stage: MapLoadStage) => void
+  onTiles?: (p: { loaded: number; total: number }) => void // 첫 idle까지 네트워크 타일(벡터·DEM) 요청·도착 수. 커튼의 "지도 타일 n/m"
   padSeq?: number // 증가 시 가려진 영역(fitPadding)을 다시 재서 보이는 영역 가운데로 부드럽게 옮긴다(시연 중 카드 숨김·보임)
 }
 export type MapLoadStage = "map" | "idle" | "icons"
@@ -231,6 +232,7 @@ export default function DumpingMap({
   fitPadding,
   cameraCue,
   onStage,
+  onTiles,
   padSeq = 0,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -244,6 +246,8 @@ export default function DumpingMap({
   onOrbitStopRef.current = onOrbitStop
   const onStageRef = useRef(onStage)
   onStageRef.current = onStage
+  const onTilesRef = useRef(onTiles)
+  onTilesRef.current = onTiles
   const dataRef = useRef(data)
   dataRef.current = data
   const prevDongRef = useRef<string | null>(null)
@@ -364,7 +368,26 @@ export default function DumpingMap({
     map.on("sourcedata", (e) => {
       if (e.sourceId === NSDI_SOURCE && e.isSourceLoaded) joinBuildings()
     })
+    // 첫 idle까지 타일 진행(/snow 5라운드 방식): 네트워크 타일(벡터·DEM)만 센다. geojson 소스 타일은 즉시라 분모만 부풀린다
+    const tiles = { started: 0, done: 0 }
     let idled = false
+    const isTile = (e: { dataType?: string; tile?: unknown; source?: { type?: string } }) => e.dataType === "source" && !!e.tile && (e.source?.type === "vector" || e.source?.type === "raster-dem")
+    const reportTiles = () => onTilesRef.current?.({ loaded: Math.min(tiles.done, tiles.started), total: tiles.started })
+    map.on("dataloading", (e) => {
+      if (idled || !isTile(e)) return
+      tiles.started++
+      reportTiles()
+    })
+    map.on("data", (e) => {
+      if (idled || !isTile(e)) return
+      tiles.done++
+      reportTiles()
+    })
+    map.on("error", (e) => {
+      if (idled || !("tile" in e)) return
+      tiles.done++
+      reportTiles()
+    })
     map.on("idle", () => {
       joinBuildings()
       iconsRef.current?.refreshElevation()
