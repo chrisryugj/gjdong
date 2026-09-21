@@ -89,3 +89,37 @@ export function ttsClean(text: string): string {
 // ASK_ERR로 시작하는 조각은 모델 호출 실패 메시지. 둘 다 화면 본문에는 남기지 않는다. (제로폭 공백·NUL을 코드포인트로 적는다)
 export const ASK_ACCEPT = String.fromCharCode(0x200b)
 export const ASK_ERR = String.fromCharCode(0) + "ERR:"
+// 정상 완료 표식(독립 리뷰 F1). 서버는 상류 스트림이 끝까지 왔을 때만 본문 뒤에 이것을 보내고 닫는다.
+// 표식 없이 닫힌 스트림(연결 단절·타임아웃)은 화면이 "끊긴 답"으로 표시하고 완성 답으로 재사용하지 않는다
+export const ASK_DONE = String.fromCharCode(0) + "DONE"
+
+// 클라이언트 쪽 스트림 해석(qa-chat). 표식은 NUL로 시작하고 본문에는 NUL이 없으므로, 첫 NUL부터는 전부 표식으로 모아 둔다.
+// 표식이 네트워크 청크 경계에서 잘려 와도("\0E" + "RR:…") 놓치지 않는다. 서버는 표식 뒤에 본문을 보내지 않는다
+export interface AskFeed {
+  accepted: boolean // 접수 표식(ASK_ACCEPT)을 받았는지
+  done: boolean // 완료 표식을 받았는지(endAsk에서 확정)
+  err: string | null // 오류 표식의 메시지(endAsk에서 확정)
+  tail: string // NUL 이후 모아 둔 표식 조각
+}
+export const ASK_FEED0: AskFeed = { accepted: false, done: false, err: null, tail: "" }
+
+// 청크 하나를 해석해 화면에 붙일 본문 조각(text)과 다음 상태를 돌려준다
+export function feedAsk(s: AskFeed, chunk: string): { s: AskFeed; text: string } {
+  if (!chunk) return { s, text: "" }
+  let accepted = s.accepted
+  if (!accepted) {
+    accepted = true
+    if (chunk.startsWith(ASK_ACCEPT)) chunk = chunk.slice(ASK_ACCEPT.length)
+  }
+  if (s.tail) return { s: { ...s, accepted, tail: s.tail + chunk }, text: "" }
+  const i = chunk.indexOf("\0")
+  if (i < 0) return { s: { ...s, accepted }, text: chunk }
+  return { s: { ...s, accepted, tail: chunk.slice(i) }, text: chunk.slice(0, i) }
+}
+
+// 스트림이 닫힌 뒤 표식을 확정한다. 완료도 오류도 아니면(표식 없음·잘린 표식) 연결이 끊긴 것: done=false, err=null
+export function endAsk(s: AskFeed): AskFeed {
+  if (s.tail.startsWith(ASK_DONE)) return { ...s, done: true }
+  if (s.tail.startsWith(ASK_ERR)) return { ...s, err: s.tail.slice(ASK_ERR.length).trim() || "답변 생성에 실패했습니다" }
+  return s
+}

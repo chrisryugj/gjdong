@@ -312,13 +312,13 @@ export function useSpeechInput(onFinal: (text: string) => void) {
   return { supported, listening, interim, error, start, stop, cancel }
 }
 
-// ── 호출어 상시 대기 ("광진아, 민원이 왜 늘었어?")
+// ── 호출어 상시 대기 ("지니야, 민원이 왜 늘었어?")
 // 브라우저 인식기 하나를 continuous로 계속 켜 두고, 새로 들어온 결과에서 호출어를 찾는다.
 // 호출어 뒤에 말이 붙어 있으면 그 자리에서 질문으로, 호출어만 불렀으면 알림음 뒤 다음 발화(8초 안)를 질문으로.
 // 크롬은 무음 1분·네트워크 흔들림에 인식을 끊으므로 onend에서 다시 켠다. 답을 읽는 동안(muted)은 결과를 버린다(되받기 방지).
 // 인식기는 한 페이지에 하나만 돌릴 수 있어, 켜 둔 동안 누르고 말하기(useSpeechInput)는 쓰지 않는다.
 
-export { WAKE_WORD } from "@/lib/dumping/wake"
+export { WAKE_CALL, WAKE_WORD } from "@/lib/dumping/wake"
 const AWAKE_MS = 8_000
 
 function chime(ctx: AudioContext) {

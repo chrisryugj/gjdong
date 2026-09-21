@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { completeSentences, splitAnswer, ttsClean } from "../lib/dumping/answer-parts"
+import { ASK_ACCEPT, ASK_DONE, ASK_ERR, ASK_FEED0, completeSentences, endAsk, feedAsk, splitAnswer, ttsClean } from "../lib/dumping/answer-parts"
 
 // 답변 2부 분리·문장 단위 낭독·TTS 정리. 프롬프트 형식과 화면·음성이 같은 규칙을 쓰는지 핀으로 박는다.
 
@@ -40,4 +40,66 @@ test("ttsClean은 괄호 풀이·β·p값·가운뎃점을 말로 바꾼다", ()
   assert.match(t, /9\.0퍼센트/)
   assert.match(t, /10에서 12건/)
   assert.doesNotMatch(t, /^- /m)
+})
+
+// 스트림 규약(독립 리뷰 F1): 완료 표식이 있어야 완성 답. 표식이 청크 경계에서 잘려도 잡는다
+
+function run(chunks: string[]) {
+  let s = ASK_FEED0
+  let text = ""
+  for (const c of chunks) {
+    const r = feedAsk(s, c)
+    s = r.s
+    text += r.text
+  }
+  return { ...endAsk(s), text }
+}
+
+test("접수 표식 뒤 본문과 완료 표식: 본문만 화면에, done=true", () => {
+  const r = run([ASK_ACCEPT, "민원은 ", "두 배가 됐습니다.", ASK_DONE])
+  assert.equal(r.text, "민원은 두 배가 됐습니다.")
+  assert.equal(r.accepted, true)
+  assert.equal(r.done, true)
+  assert.equal(r.err, null)
+})
+
+test("본문 뒤 표식 없이 닫히면 끊긴 답(done=false, err=null). 잘린 표식도 완료가 아니다", () => {
+  const r = run([ASK_ACCEPT + "partial answer"])
+  assert.equal(r.text, "partial answer")
+  assert.equal(r.done, false)
+  assert.equal(r.err, null)
+  const cut = run([ASK_ACCEPT + "partial answer", "\0DO"])
+  assert.equal(cut.text, "partial answer")
+  assert.equal(cut.done, false)
+  assert.equal(cut.err, null)
+})
+
+test("오류 표식은 어느 위치에서 잘려도 잡히고 메시지가 본문에 섞이지 않는다", () => {
+  const frame = ASK_ERR + "retry"
+  for (let i = 1; i < frame.length; i++) {
+    const r = run([ASK_ACCEPT + "결론입니다. ", frame.slice(0, i), frame.slice(i)])
+    assert.equal(r.text, "결론입니다. ", `split at ${i}`)
+    assert.equal(r.err, "retry", `split at ${i}`)
+    assert.equal(r.done, false)
+  }
+  // 본문 없이 오류만
+  const r = run([ASK_ACCEPT, "\0E", "RR:답변 생성에 실패했습니다."])
+  assert.equal(r.text, "")
+  assert.equal(r.err, "답변 생성에 실패했습니다.")
+})
+
+test("완료 표식이 청크 경계에서 잘려도 완료로 본다. 완료 뒤 조각은 본문이 아니다", () => {
+  const r = run([ASK_ACCEPT + "답.", "\0DO", "NE"])
+  assert.equal(r.text, "답.")
+  assert.equal(r.done, true)
+  const r2 = run([ASK_ACCEPT + "답." + ASK_DONE.slice(0, 1), ASK_DONE.slice(1) + "tail"])
+  assert.equal(r2.text, "답.")
+  assert.equal(r2.done, true)
+})
+
+test("빈 청크와 접수 표식만 온 상태는 본문이 없다", () => {
+  const r = run(["", ASK_ACCEPT, ""])
+  assert.equal(r.text, "")
+  assert.equal(r.accepted, true)
+  assert.equal(r.done, false)
 })

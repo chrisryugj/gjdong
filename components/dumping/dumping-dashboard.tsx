@@ -27,7 +27,8 @@ import { useSpeaker } from "./use-voice"
 import { sentencesOf, ttsClean } from "@/lib/dumping/answer-parts"
 import DumpMark from "./dump-mark"
 import { Ico } from "./icons"
-import { fetchBundle, startDumpingData } from "./data-early"
+import { AUTH_EXPIRED, fetchBundle, resetDumpingData, startDumpingData, type Early } from "./data-early"
+import { LOAD_NONE, LOAD_STEPS, loadStageOf } from "@/lib/dumping/load-stage"
 import { liveWeatherKey } from "@/lib/dumping/labels"
 import { weatherLabel } from "@/lib/snow/weather"
 import type { SnowForecast } from "@/lib/snow/types"
@@ -106,10 +107,12 @@ export default function DumpingDashboard() {
   const [cardHidden, setCardHidden] = useState(false)
   const [padSeq, setPadSeq] = useState(0)
   const demoTimers = useRef<number[]>([]) // 장면 안에서 미뤄 둔 단계(카메라 도착 뒤 기둥이 솟는다)
-  // 로딩 커튼(19라운드): 지도 영역만 종이로 덮고 4단계(자료·지도 바탕·건물 결합·시설 아이콘)를 실제 이벤트로 체크한다. 첫 로드 한 번
-  const [loadStage, setLoadStage] = useState(0) // 0 자료 요청 중 · 1 자료 · 2 지도 바탕 · 3 건물 결합(첫 idle) · 4 시설 아이콘
+  // 로딩 커튼(19라운드): 지도 영역만 종이로 덮고 4단계(자료·지도 바탕·건물 결합·시설 아이콘)를 실제 이벤트로 체크한다. 첫 로드 한 번.
+  // 단계는 독립 플래그로 받고 앞에서부터 연속 완료 수가 진행 단계(lib/dumping/load-stage.ts): 아이콘이 첫 idle보다 먼저 와도 건물 결합을 완료로 덮지 않는다(독립 리뷰 F5)
+  const [ready, setReady] = useState(LOAD_NONE)
+  const loadStage = loadStageOf(ready) // 0 자료 요청 중 · 1 자료 · 2 지도 바탕 · 3 건물 결합(첫 idle) · 4 시설 아이콘
   const [curtain, setCurtain] = useState<"on" | "out" | "off">("on")
-  const [tiles, setTiles] = useState({ loaded: 0, total: 0 }) // 03 단계 안의 타일 진행(/snow 방식)
+  const [tiles, setTiles] = useState({ loaded: 0, failed: 0, total: 0 }) // 03 단계 안의 타일 진행(/snow 방식). 실패는 따로 센다
   const revealTimers = useRef<number[]>([])
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
@@ -159,12 +162,16 @@ export default function DumpingDashboard() {
     setLayersOpen(false)
   }
 
-  // 인증 확인은 client.tsx가 청크와 같이 시작했다(data-early). 그 약속을 이어받는다
+  // 인증 확인은 client.tsx가 청크와 같이 시작했다(data-early). 그 약속을 이어받고, 내려갈 때 비운다(독립 리뷰 F3: 재진입은 인증부터 새로)
+  const early = useRef<Early | null>(null)
   useEffect(() => {
     let alive = true
-    startDumpingData().auth.then((ok) => alive && setAuth(ok ? "open" : "locked"))
+    early.current = startDumpingData()
+    early.current.auth.then((ok) => alive && setAuth(ok ? "open" : "locked"))
     return () => {
       alive = false
+      early.current = null
+      resetDumpingData()
     }
   }, [])
 
@@ -172,9 +179,9 @@ export default function DumpingDashboard() {
     if (auth !== "open") return
     let alive = true
     setLoad("loading")
-    // 첫 로드는 인증 통과 직후 미리 받기 시작한 자료 4종(data-early)을 쓴다. 재시도·재로그인은 새로 받는다
-    const early = startDumpingData()
-    const bundle = loadSeq === 0 && early.data ? early.data : fetchBundle()
+    // 첫 로드는 인증 통과 직후 미리 받기 시작한 자료 4종(data-early)을 한 번만 쓴다. 재시도·재로그인은 새로 받는다
+    const bundle = early.current?.data ?? fetchBundle()
+    early.current = null
     bundle
       .then(({ map, graph: g, interventions: iv, binRecos: br }) => {
         if (!alive) return
@@ -185,8 +192,11 @@ export default function DumpingDashboard() {
         setInterventions(iv ? (iv.entries ?? []).filter((e) => e.registeredAt) : null)
         setLoad("ready")
       })
-      .catch(() => {
-        if (alive) setLoad("error")
+      .catch((e: Error) => {
+        if (!alive) return
+        // 자료 API 401은 인증 만료(쿠키 만료·키 회전). 재시도가 아니라 로그인으로 돌아가야 복구된다(독립 리뷰 F4). 다시 로그인하면 새로 받는다
+        if (e?.message === AUTH_EXPIRED) setAuth("locked")
+        else setLoad("error")
       })
     return () => {
       alive = false
@@ -214,10 +224,10 @@ export default function DumpingDashboard() {
 
   // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 25초 상한(회장 네트워크가 느려도 시연을 막지 않게. 3Mbps 실측 map load 12초 초과)에서 걷힌다
   useEffect(() => {
-    if (load === "ready") setLoadStage((v) => Math.max(v, 1))
+    if (load === "ready") setReady((r) => (r.data ? r : { ...r, data: true }))
   }, [load])
   const onMapStage = useCallback((stage: MapLoadStage) => {
-    setLoadStage((v) => Math.max(v, stage === "map" ? 2 : stage === "idle" ? 3 : 4))
+    setReady((r) => (r[stage] ? r : { ...r, [stage]: true }))
   }, [])
   // 걷힘 → 0.65초 페이드 → 결론 등장: 0.8초 뒤 다가구·단독 초록, 1.8초 뒤 과태료 기둥(riseColumns). 그 사이 사용자가 바탕·원을 바꿨으면 건드리지 않는다
   const curtainDone = useRef(false)
@@ -570,9 +580,12 @@ export default function DumpingDashboard() {
             <h2 className="mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-[var(--cp-text-strong)]">광진구 무단투기 100m 격자를 불러옵니다</h2>
             <ol className="mt-5 flex flex-col gap-2">
               {["민원·과태료·격자 자료", "지도 바탕", "건물 24,520동 입체 결합", "시설·청소차 3D"].map((label, i) => {
-                const st = loadStage > i ? "done" : loadStage === i ? "now" : "wait"
-                // 02(map load = 첫 화면 타일까지)·03(첫 idle)이 길다: 타일 도착 수를 같이 보인다
-                const tail = (i === 1 || i === 2) && st === "now" && tiles.total > 0 ? ` · 지도 타일 ${tiles.loaded}/${tiles.total}` : ""
+                const st = ready[LOAD_STEPS[i]] ? "done" : loadStage === i ? "now" : "wait"
+                // 02(map load = 첫 화면 타일까지)·03(첫 idle)이 길다: 타일 도착 수를 같이 보인다. 실패한 타일은 도착에 섞지 않는다
+                const tail =
+                  (i === 1 || i === 2) && st === "now" && tiles.total > 0
+                    ? ` · 지도 타일 ${tiles.loaded}/${tiles.total}${tiles.failed > 0 ? ` · 실패 ${tiles.failed}` : ""}`
+                    : ""
                 return (
                   <li key={label} className={`dump-curtain-step ${st}`}>
                     <span className="dump-curtain-n">{String(i + 1).padStart(2, "0")}</span>
@@ -589,7 +602,7 @@ export default function DumpingDashboard() {
             </ol>
             {(() => {
               // 진행률: 단계마다 25%, 02·03 단계 안은 타일 도착 비율로 채운다
-              const frac = (loadStage === 1 || loadStage === 2) && tiles.total > 0 ? Math.min(1, tiles.loaded / tiles.total) : 0
+              const frac = (loadStage === 1 || loadStage === 2) && tiles.total > 0 ? Math.min(1, (tiles.loaded + tiles.failed) / tiles.total) : 0
               const pct = Math.round(Math.max(6, Math.min(100, (loadStage / 4) * 100 + frac * 25)))
               return (
                 <div className="mt-5 flex items-center gap-3">
@@ -769,7 +782,7 @@ export default function DumpingDashboard() {
               onClick={() => switchTab("qa")}
               className="mb-2 flex w-full items-center gap-3 rounded-full border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-1 pl-4 pr-1 text-left text-[13.5px] font-semibold text-[var(--cp-text-dim)] transition-colors hover:border-[var(--cp-text-strong)] hover:text-[var(--cp-text-strong)]"
             >
-              <span className="min-w-0 flex-1 truncate">김주임에게 물어보기</span>
+              <span className="min-w-0 flex-1 truncate">지니에게 물어보기</span>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--dump-ink)]" aria-hidden>
                 <Ico name="mic" size={14} className="text-[var(--dump-paper)]" />
               </span>

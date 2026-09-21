@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { ASK_ACCEPT, ASK_ERR } from "@/lib/dumping/answer-parts"
+import { ASK_ACCEPT, ASK_DONE, ASK_ERR } from "@/lib/dumping/answer-parts"
 import { createHash } from "crypto"
 import { verifyRequest } from "@/lib/dumping/auth"
 import { buildSystemPrompt } from "@/lib/dumping/context"
@@ -107,12 +107,18 @@ export async function POST(request: NextRequest) {
 
   // 클라이언트가 중단하면 Gemini 호출도 같이 끊는다 — 화면에서 중단해도 토큰 과금이 이어지지 않게
   const upstreamAbort = new AbortController()
-  const timeout = setTimeout(() => upstreamAbort.abort(), UPSTREAM_TIMEOUT_MS)
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    upstreamAbort.abort()
+  }, UPSTREAM_TIMEOUT_MS)
   request.signal.addEventListener("abort", () => upstreamAbort.abort(), { once: true })
 
   // 12라운드: 응답 머리를 모델 연결 뒤에 보내면 화면이 "보내는 중"에서 곧바로 답으로 건너뛴다(사고형 모델은 첫 글자까지 5~12초).
   // 스트림을 먼저 열어 접수 표시(ASK_ACCEPT)를 즉시 보내고 그 뒤에 모델을 부른다. 화면은 접수 표시를 받으면 "모델이 생각하는 중"으로 바꾼다.
-  // 그래서 상태 코드로는 오류를 못 알리므로 모델 호출 실패는 스트림 안 ASK_ERR 표시로 보낸다
+  // 그래서 상태 코드로는 오류를 못 알리므로 모델 호출 실패는 스트림 안 ASK_ERR 표시로 보낸다.
+  // 독립 리뷰 F1: 본문을 보내다 끊기면(상류 단절·55초 타임아웃·finishReason≠STOP) 그것도 ASK_ERR로, 끝까지 왔을 때만 ASK_DONE으로 닫는다.
+  // 표식 없이 닫힌 스트림은 화면이 끊긴 답으로 표시한다. 클라이언트가 중단한 경우엔 아무것도 안 보낸다(이미 닫혀 있다)
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   let buffer = ""
@@ -166,10 +172,15 @@ export async function POST(request: NextRequest) {
         return
       }
       reader = upstream.body.getReader()
+      let completed = false // 상류가 끝까지 왔는지
+      let finish = "" // 모델이 준 종료 사유. STOP이 아니면(MAX_TOKENS·SAFETY) 답이 잘린 것
       try {
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            completed = true
+            break
+          }
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split("\n")
           buffer = lines.pop() ?? ""
@@ -183,6 +194,7 @@ export async function POST(request: NextRequest) {
                 ?.map((p: { text?: string }) => p.text ?? "")
                 .join("")
               if (text) controller.enqueue(encoder.encode(text))
+              if (typeof json?.candidates?.[0]?.finishReason === "string") finish = json.candidates[0].finishReason
             } catch {
               // 불완전 청크 — 무시
             }
@@ -191,13 +203,18 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // 중단·타임아웃은 정상 종료 경로 — 그 외만 기록
         if (!upstreamAbort.signal.aborted) console.error("[dumping/ask] stream failed:", e instanceof Error ? e.message : e)
-      } finally {
-        clearTimeout(timeout)
-        try {
-          controller.close()
-        } catch {
-          // 이미 닫힘·오류 상태
+      }
+      clearTimeout(timeout)
+      try {
+        if (completed && (!finish || finish === "STOP")) controller.enqueue(encoder.encode(ASK_DONE))
+        else if (!request.signal.aborted) {
+          const why = timedOut ? "답변 시간이 초과됐습니다" : completed ? "답이 끝까지 오지 않았습니다" : "답변이 중간에 끊겼습니다"
+          if (completed) console.error("[dumping/ask] finishReason:", finish)
+          controller.enqueue(encoder.encode(`${ASK_ERR}${why}. 다시 시도해 주세요.`))
         }
+        controller.close()
+      } catch {
+        // 이미 닫힘·오류 상태
       }
     },
     cancel() {

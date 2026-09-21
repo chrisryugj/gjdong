@@ -1,12 +1,17 @@
 // /dumping 인증 확인과 데이터 4종을 대시보드 청크(maplibre·three 포함, 사파리에서 수 초)와 같이 받기 시작한다(/snow 5라운드 data-early 이식).
 // 문서 › 청크 › 인증 › 데이터 › 지도 › 타일이 직렬이라 인증 0.3초 + 데이터 1초가 그대로 로딩에 얹혔다.
-// client.tsx가 청크 요청과 같은 시점에 인증을 묻고, 통과하면 곧바로 자료를 받는다. 대시보드는 마운트되면 이 약속을 이어받는다(한 번만 시작. 재시도·재로그인은 fetchBundle을 새로 부른다)
+// client.tsx가 청크 요청과 같은 시점에 인증을 묻고, 통과하면 곧바로 자료를 받는다. 대시보드는 마운트되면 이 약속을 이어받고,
+// 내려갈 때 resetDumpingData로 비운다(독립 리뷰 F3: 같은 문서 안에서 다시 마운트돼도 만료된 판정·이전 자료를 물려받지 않게).
+// 재시도·재로그인은 fetchBundle을 새로 부른다
 import type { DumpingMapData, InterventionEntry, OntoGraph } from "@/lib/dumping/types"
 
 export const DATA_URL = (name: "map" | "graph" | "interventions" | "bin-recos") => `/api/dumping/data/${name}`
+// 자료 API의 401. 대시보드는 이 오류만 인증 만료로 보고 로그인 화면으로 돌아간다(독립 리뷰 F4). 그 밖은 "다시 시도" 띠
+export const AUTH_EXPIRED = "auth-expired"
 
 async function fetchJson<T>(url: string): Promise<T> {
   const r = await fetch(url)
+  if (r.status === 401) throw new Error(AUTH_EXPIRED)
   if (!r.ok) throw new Error(`${url} ${r.status}`)
   return r.json()
 }
@@ -28,7 +33,7 @@ export function fetchBundle(): Promise<Bundle> {
   ]).then(([map, graph, interventions, binRecos]) => ({ map, graph, interventions, binRecos }))
 }
 
-interface Early {
+export interface Early {
   auth: Promise<boolean>
   data: Promise<Bundle> | null
 }
@@ -50,4 +55,9 @@ export function startDumpingData(): Early {
     })
   }
   return started
+}
+
+// 미리 시작한 약속을 버린다. 다음 startDumpingData는 인증부터 새로 묻는다
+export function resetDumpingData(): void {
+  started = null
 }

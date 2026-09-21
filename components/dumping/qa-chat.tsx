@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Ico } from "./icons"
 import type { DumpingMapData, OntoGraph, VizAction } from "@/lib/dumping/types"
-import { ASK_ACCEPT, ASK_ERR, completeSentences, DETAIL_MARK, detailLines, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
+import { ASK_FEED0, completeSentences, DETAIL_MARK, detailLines, endAsk, feedAsk, sentencesOf, splitAnswer, ttsClean } from "@/lib/dumping/answer-parts"
 import { matchSeed } from "@/lib/dumping/seed-match"
 import { DEFAULT_VOICE, VOICES } from "@/lib/dumping/voices"
 import { vizDescription } from "./map-controls"
 import ModalShell from "./modal-shell"
 import QaChart, { chartTitle, type ChartKind } from "./qa-chart"
 import { buildSeeds, type Seed } from "./qa-seeds"
-import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_WORD } from "./use-voice"
+import { useMicLevel, useSpeaker, useSpeechInput, useWakeWord, WAKE_CALL, WAKE_WORD } from "./use-voice"
 import { SectionHead } from "./section-head"
 import { nb } from "@/lib/dumping/nobreak"
 
@@ -78,7 +78,7 @@ interface Exchange {
   q: string
   a: string
   pending?: boolean
-  aborted?: boolean // 중단된 답. 완성 답처럼 재사용하지 않는다
+  aborted?: "user" | "cut" // 완성 답이 아닌 것. user=사용자가 중단, cut=완료 표식 없이 끊김(단절·타임아웃·빈 답). 재사용하지 않는다
   seedQ?: string // 13라운드: 준비된 답으로 즉답한 경우 그 시드 질문. 화면에 밝히고 "모델에게 새로 묻기"를 둔다
 }
 
@@ -110,7 +110,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     setInput(text)
     void askFree(text, true)
   })
-  // 호출어 상시 대기("김주임, 민원이 왜 늘었어?"). 답을 읽는 동안은 마이크 결과를 버린다
+  // 호출어 상시 대기("지니야, 민원이 왜 늘었어?"). 답을 읽는 동안은 마이크 결과를 버린다
   const wake = useWakeWord((text) => {
     setInput(text)
     if (busy) {
@@ -301,33 +301,35 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
       }
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      // 표식(접수·오류·완료)은 청크 경계에서 잘려 올 수 있어 feedAsk가 NUL 이후를 모아 두고 endAsk에서 확정한다(독립 리뷰 F1)
+      let feed = ASK_FEED0
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        let chunk = decoder.decode(value, { stream: true })
-        // 첫 바이트의 접수 표시: 요청이 서버에 닿아 모델을 부르는 중. 여기서부터 "생각하는 중"
-        if (!acc && chunk.startsWith(ASK_ACCEPT)) {
-          chunk = chunk.slice(ASK_ACCEPT.length)
-          setPhase("writing")
-          if (!chunk) continue
-        }
-        const ei = chunk.indexOf(ASK_ERR)
-        if (ei >= 0) throw new Error(chunk.slice(ei + ASK_ERR.length).trim() || "답변 생성에 실패했습니다")
-        acc += chunk
+        const r = feedAsk(feed, decoder.decode(value, { stream: true }))
+        // 접수 표시: 요청이 서버에 닿아 모델을 부르는 중. 여기서부터 "생각하는 중"
+        if (!feed.accepted && r.s.accepted) setPhase("writing")
+        feed = r.s
+        if (!r.text) continue
+        acc += r.text
         speakProgress(false)
         setExchanges((xs) => {
           const next = [...xs]
           const last = next[next.length - 1]
-          next[next.length - 1] = { ...last, a: last.a + chunk }
+          next[next.length - 1] = { ...last, a: last.a + r.text }
           return next
         })
       }
-      speakProgress(true)
+      feed = endAsk(feed)
+      if (feed.err && !acc) throw new Error(feed.err)
+      // 완료 표식이 왔고 본문이 있어야 완성 답. 그 밖(본문 뒤 오류 표식·표식 없이 닫힘·빈 답)은 받은 데까지 보여 주되 재사용하지 않는다
+      const complete = feed.done && !!acc
+      speakProgress(complete)
+      if (!complete) setError(feed.err ?? (feed.done ? "빈 답이 왔습니다. 다시 시도해 주세요" : "답변이 중간에 끊겼습니다. 다시 시도해 주세요"))
       setExchanges((xs) => {
         const next = [...xs]
         const last = next[next.length - 1]
-        // 본문 없이 끝난 스트림(안전 차단·상류 타임아웃)은 완성 답으로 재사용하지 않는다
-        next[next.length - 1] = { ...last, a: last.a || "(빈 응답)", pending: false, aborted: !last.a }
+        next[next.length - 1] = { ...last, a: last.a || "(빈 응답)", pending: false, aborted: complete ? undefined : "cut" }
         return next
       })
     } catch (e) {
@@ -342,7 +344,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
         setExchanges((xs) => {
           const next = [...xs]
           const last = next[next.length - 1]
-          if (last?.pending) next[next.length - 1] = { ...last, a: last.a || "(중단됨)", pending: false, aborted: true }
+          if (last?.pending) next[next.length - 1] = { ...last, a: last.a || "(중단됨)", pending: false, aborted: "user" }
           return next
         })
       }
@@ -401,7 +403,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 : wake.state === "awake"
                   ? "네, 말씀해 주세요"
                   : wakeOn
-                    ? `"${WAKE_WORD}" 하고 부른 뒤 물어보세요`
+                    ? `"${WAKE_CALL}" 하고 부른 뒤 물어보세요`
                     : "이번 분석의 결과와 대책을 물어보세요"
             }
             aria-label="질문"
@@ -415,7 +417,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
               disabled={busy || wakeOn}
               aria-label={mic.listening ? "듣기 멈춤" : "말로 묻기"}
               aria-pressed={mic.listening}
-              title={wakeOn ? `호출어 대기 중에는 "${WAKE_WORD}" 하고 부르세요` : mic.listening ? "듣기 멈춤" : "말로 묻기"}
+              title={wakeOn ? `호출어 대기 중에는 "${WAKE_CALL}" 하고 부르세요` : mic.listening ? "듣기 멈춤" : "말로 묻기"}
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-35 ${
                 mic.listening
                   ? "animate-pulse bg-[#b42318] text-white"
@@ -454,7 +456,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                 onClick={toggleWake}
                 aria-label={wakeOn ? "호출어 대기 끄기" : "호출어 대기 켜기"}
                 aria-pressed={wakeOn}
-                title={wakeOn ? `"${WAKE_WORD}" 호출어 대기 중. 누르면 끕니다` : `"${WAKE_WORD}" 하고 부르면 응답하도록 켭니다`}
+                title={wakeOn ? `"${WAKE_CALL}" 호출어 대기 중. 누르면 끕니다` : `"${WAKE_CALL}" 하고 부르면 응답하도록 켭니다`}
                 className={`flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[13px] font-semibold transition-colors ${
                   wake.state === "awake"
                     ? "bg-[#b42318] text-white"
@@ -504,7 +506,7 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
           {wake.state === "awake"
             ? "듣고 있습니다. 질문을 말씀하시면 바로 답합니다."
             : wakeOn
-              ? `"${WAKE_WORD}" 하고 부르면 알림음 뒤에 질문을 받습니다. 부르면서 바로 이어 물어도 됩니다.`
+              ? `"${WAKE_CALL}" 하고 부르면 알림음 뒤에 질문을 받습니다. 부르면서 바로 이어 물어도 됩니다.`
               : mic.supported
                 ? "마이크를 누르고 말하면 답을 소리로 읽어 드립니다. 답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다."
                 : "답은 이번 분석의 근거 그래프와 수치만 바탕으로 만들어집니다. 아래 핵심 질문은 검증된 수치로 미리 준비된 답입니다."}
@@ -615,9 +617,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
                       <button
                         type="button"
                         onClick={() => void askFree(ex.q)}
+                        title={ex.aborted === "cut" ? "답이 끝까지 오지 않아 완성 답으로 두지 않았습니다" : undefined}
                         className="shrink-0 rounded-full border border-[#8a530e]/50 px-2 py-0.5 text-[13px] text-[#8a530e]"
                       >
-                        중단됨 · 다시 묻기
+                        {ex.aborted === "cut" ? "끊김 · 다시 묻기" : "중단됨 · 다시 묻기"}
                       </button>
                     )}
                     {reading && (

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { AUTH_COOKIE, tokenFor, verifyPassword, verifyRequest } from "@/lib/dumping/auth"
+import { AUTH_COOKIE, AUTH_TTL_S, tokenFor, verifyPassword, verifyRequest } from "@/lib/dumping/auth"
 import { checkRateLimit, getClientIp } from "@/lib/utils/rate-limiter"
 
 export const runtime = "nodejs"
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: AUTH_TTL_S,
   })
   return res
 }
