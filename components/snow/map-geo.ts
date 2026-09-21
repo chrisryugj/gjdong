@@ -149,6 +149,20 @@ export function sandFC(data: SnowMapData): FC {
   )
 }
 
+// 자재 글자 배지(6라운드. 사용자: "제설함·모래함이 지도에서 안 보이고, 뭔지 마우스를 대 보기 전엔 모른다"): 물건(상자·원통·포대) 위에 종류색 배지와 첫 글자를 띄운다.
+// 평면·입체 공용, 줌 14.3부터(snow-map S.matLabel). 4~13px 물건은 실루엣으로 종류를 못 알렸다(라이트 실측: 원통 228개가 회청 물탱크로 읽혔다)
+export const MAT_GLYPH: Record<"salt" | "cacl" | "sand", string> = { salt: "제", cacl: "염", sand: "모" }
+export function matLabelFC(...sources: FC[]): FC {
+  return fc(
+    sources.flatMap((s) =>
+      s.features.map((f) => {
+        const kind = f.properties!.kind as keyof typeof MAT_GLYPH
+        return { type: "Feature", properties: { kind, glyph: MAT_GLYPH[kind], center: f.properties!.center ?? 0 }, geometry: f.geometry }
+      }),
+    ),
+  )
+}
+
 const segRows = (s: WeakSeg | IceSeg, data: SnowMapData): [string, string][] => {
   const g = data.gaps
   return [

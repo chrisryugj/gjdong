@@ -25,7 +25,7 @@ import SnowMark from "./snow-mark"
 import { LoadCard, LOAD_START, type LoadState } from "./loading"
 import { startSnowData } from "./data-early"
 
-// 광진 제설 상황판(/snow). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
+// 광진 제설 상황실(/snow. 6라운드: 상황판 → 상황실, /dumping "클린광진 상황실"과 이름 규격 통일). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
 // 탭: 공백(결론·발견) · 대응 단계(예보·특보 › 단계 › 시한 › 동원) · 자원 현황(4종·동별 기둥·서울 비교) · 근거 그래프 · 법령·책임
 // 다크(겨울 밤 상황실)가 기본. 라이트는 인쇄용 보조. 왼쪽 카드는 거의 불투명(.snow-page .lg-inner)
 // 3라운드(2026-09-20): 테마 저장 키 snow-theme(/dumping의 dump-theme와 분리. 그쪽을 라이트로 쓰면 여기까지 라이트로 뜨던 실사고), 자동 회전·초점 고리·시연 중 카드 접기·격상 진행바, 급경사 칩
@@ -618,7 +618,7 @@ export default function SnowDashboard() {
           <button onClick={resetAll} title="첫 화면으로" className="dump-fl lg-shell pointer-events-auto relative flex min-w-0 items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-4 text-left">
             <SnowMark size={30} />
             <span className="min-w-0">
-              <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
+              <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황실" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
                 {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""}` : data ? `대책기간 시작 11월 15일 D-${daysToSeason}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""} · 취약구간 ${data.weak.length}+${data.ice.length}곳` : "겨울철 제설대책"}

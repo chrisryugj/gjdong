@@ -10,7 +10,7 @@ const plex = IBM_Plex_Sans_KR({ subsets: ["latin"], weight: ["400", "600", "700"
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b1622" }
 
 export const metadata: Metadata = {
-  title: "광진 제설 상황판 | 눈 오기 전에 어디가 비었는지",
+  title: "광진 제설 상황실 | 눈 오기 전에 어디가 비었는지",
   description: "행안부 적설취약구간·상습결빙구간과 광진구 도로열선·제설함·염화칼슘보관함·모래주머니 공공데이터를 한 지도에 올려 열선도 자재도 없는 구간을 보입니다. 기상청 예보·특보로 서울시 대응 단계를 판정하고 근거는 그래프로 연결합니다.",
 }
 

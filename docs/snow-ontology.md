@@ -1,4 +1,4 @@
-# 광진 제설 상황판 근거 그래프 설계 노트
+# 광진 제설 상황실 근거 그래프 설계 노트
 
 `/snow`가 쓰는 지식그래프(`data/snow/graph.json`)가 무엇을 뜻하는지, 왜 그렇게 만들었는지, 어디까지가 검증되는 것인지 적음. 2라운드(2026-09-20) 기준.
 정의의 정본은 코드임: 종류·관계·검증은 [lib/snow/schema.ts](../lib/snow/schema.ts), 역량 질문은 [lib/snow/queries.ts](../lib/snow/queries.ts), 한글 표시명은 [lib/snow/labels.ts](../lib/snow/labels.ts), 단계·시한 규칙은 [lib/snow/stage.ts](../lib/snow/stage.ts). 그래프는 [scripts/snow-data.mjs](../scripts/snow-data.mjs) `buildGraph`가 map.json 수치로 생성함(관측·판단 문장 하드코딩 0). 데이터 조사·선형 검증은 [docs/snow-data-survey.md](snow-data-survey.md).

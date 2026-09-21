@@ -4,6 +4,7 @@ import type { LayerId } from "@/lib/snow/types"
 import { OWNER_STYLE, RESOURCES, RISK } from "@/lib/snow/labels"
 import type { WeatherMode } from "@/lib/snow/weather"
 import { Ico } from "@/components/dumping/icons"
+import { MAT_GLYPH } from "./map-geo"
 
 // 오른쪽 열: 레이어 토글(취약 층 · 자원 층) · 입체 보기 · 범례(스와치). 동별 기둥 지표 선택은 자원 현황 탭 한 곳에만 둔다(중복 제거)
 // 4라운드: 행 안에서 줄이 꺾이지 않게(라벨 truncate·수치 nowrap). 범례는 한 줄에 기호 하나, 이름(진한 글자) + 뜻(흐린 글자). 236px 열에서 "·"만 홀로 떨어지던 줄바꿈을 없앴다
@@ -70,7 +71,7 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
           return (
             <li key={r.id}>
               <button onClick={() => toggle(r.id)} aria-pressed={on} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-[3px] text-left text-[13.5px] hover:bg-[var(--cp-hover)] ${on ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-faint)] line-through decoration-[var(--cp-border-strong)]"}`}>
-                <Swatch kind={r.id === "heat" ? "glow" : r.id === "sand" ? "ring" : "fill"} color={color} on={on} />
+                <Swatch kind={r.id === "heat" ? "glow" : "badge"} color={color} color2={dark ? "#0b1216" : "#ffffff"} glyph={r.id === "heat" ? undefined : MAT_GLYPH[r.id]} on={on} />
                 <span className="min-w-0 flex-1 truncate">{r.id === "sand" ? "모래주머니(2022)" : r.label}</span>
                 <span className="shrink-0 whitespace-nowrap text-[12px] text-[var(--cp-text-faint)]">{counts?.[r.id] ?? ""}</span>
               </button>
@@ -151,9 +152,19 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
   )
 }
 
-type SwatchKind = "line" | "dash" | "arrow" | "ring" | "fill" | "glow" | "flag"
-function Swatch({ kind, color, on, color2 }: { kind: SwatchKind; color: string; on: boolean; color2?: string }) {
+type SwatchKind = "line" | "dash" | "arrow" | "ring" | "fill" | "glow" | "flag" | "badge"
+function Swatch({ kind, color, on, color2, glyph }: { kind: SwatchKind; color: string; on: boolean; color2?: string; glyph?: string }) {
   const o = on ? 1 : 0.35
+  // 자재 글자 배지(6라운드): 지도 S.matLabel과 같은 모양(종류색 바탕 + 첫 글자). 범례가 배지를 그대로 보여 "제·염·모"를 가르친다
+  if (kind === "badge")
+    return (
+      <svg width={16} height={16} aria-hidden style={{ opacity: o }} className="shrink-0">
+        <rect x={0.5} y={0.5} width={15} height={15} rx={4} fill={color} />
+        <text x={8} y={11.6} textAnchor="middle" fontSize={9.5} fontWeight={600} fill={color2 ?? "#ffffff"}>
+          {glyph}
+        </text>
+      </svg>
+    )
   if (kind === "fill") return <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color, opacity: o }} />
   if (kind === "ring") return <i className="h-2.5 w-2.5 shrink-0 rounded-full border-2 bg-transparent" style={{ borderColor: color, opacity: o }} />
   if (kind === "glow") return <i className="h-1 w-4 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}`, opacity: o }} />
@@ -185,6 +196,7 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
   const heat = dark ? RESOURCES[0].color : RESOURCES[0].colorLight
   const ink = dark ? "#ece7dc" : "#14201c"
   const accent = dark ? "#7cc0e8" : "#2a6f97" // 화면 액센트(초점 고리·동별 기둥). snow-map ACCENT와 같은 값
+  const badgeInk = dark ? "#0b1216" : "#ffffff" // 자재 배지 글자: 다크 파스텔 바탕은 잉크, 라이트 진한 바탕은 흰색(snow-map S.matLabel과 같다)
   const gu = dark ? OWNER_STYLE.gu.dark : OWNER_STYLE.gu.light
   const si = dark ? OWNER_STYLE.si.dark : OWNER_STYLE.si.light
   const siName = dark ? "흰색" : "검정"
@@ -199,9 +211,10 @@ export function Legend({ dark, tilt = true, stageLabel, stageNote, ownerView = f
       ? { k: "ice", swatch: <Swatch kind="dash" color={si} on />, name: "상습결빙구간", means: `${siName}이 ${OWNER_STYLE.si.label}, 하늘색이 구 관리. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` }
       : { k: "ice", swatch: <Swatch kind="dash" color={risk} on />, name: "상습결빙구간", means: `진홍 점선${tilt ? "과 낮은 벽" : ""}은 열선 없음, 회색은 있음. 빈 ${tilt ? "고리" : "원"}은 선형 미확인` },
     { k: "slope", swatch: <Swatch kind="arrow" color={slope} color2={arrow} on />, name: RISK.slope.label, means: tilt ? "경사면 높이가 높이차, 화살이 오르막. 흐리면 열선 있음" : "화살이 오르막. 흐리면 열선 있음" },
-    { k: "salt", swatch: <Swatch kind="fill" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} on />, name: "제설함", means: tilt ? "상자 · 도로과" : "도로과", inline: true },
-    { k: "cacl", swatch: <Swatch kind="fill" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} on />, name: "염화칼슘보관함", means: tilt ? "원통 · 동주민센터" : "동주민센터", inline: true },
-    { k: "sand", swatch: <Swatch kind="ring" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} on />, name: "모래주머니", means: tilt ? "포대 · 2022년 기준" : "2022년 기준", inline: true },
+    // 자재 3종은 글자 배지(줌 14.3부터 물건 위에 선다)가 종류를 알린다. 스와치가 배지 그대로
+    { k: "salt", swatch: <Swatch kind="badge" color={dark ? RESOURCES[1].color : RESOURCES[1].colorLight} color2={badgeInk} glyph={MAT_GLYPH.salt} on />, name: "제설함", means: tilt ? "상자 · 도로과" : "도로과", inline: true },
+    { k: "cacl", swatch: <Swatch kind="badge" color={dark ? RESOURCES[2].color : RESOURCES[2].colorLight} color2={badgeInk} glyph={MAT_GLYPH.cacl} on />, name: "염화칼슘보관함", means: tilt ? "원통 · 동주민센터" : "동주민센터", inline: true },
+    { k: "sand", swatch: <Swatch kind="badge" color={dark ? RESOURCES[3].color : RESOURCES[3].colorLight} color2={badgeInk} glyph={MAT_GLYPH.sand} on />, name: "모래주머니", means: tilt ? "포대 · 2022년 기준" : "2022년 기준", inline: true },
     tilt
       ? { k: "school", swatch: <Swatch kind="flag" color={ink} color2={heat} on />, name: "초등학교", means: "노란 깃발은 열선 있음, 진홍 받침은 열선 없음" }
       : { k: "school", swatch: <Swatch kind="ring" color={ink} on />, name: "초등학교", means: "원 테두리가 노랑이면 열선 있음, 진홍이면 없음" },

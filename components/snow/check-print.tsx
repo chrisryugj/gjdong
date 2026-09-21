@@ -12,7 +12,7 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
   const checks = buildChecklist(data)
   const asof = `${data.asof.sand.slice(0, 7)}부터 ${data.asof.cacl.slice(0, 7)}까지`
   return (
-    <ModalShell id="snow-check" onClose={onClose} title="눈 오기 전 점검 후보 · 보고 요약 한 장" sub={`광진 제설 상황판 · 자원 기준일 ${asof} · 빌드 ${data.meta.built}`} size="xl" zIndex={2400}>
+    <ModalShell id="snow-check" onClose={onClose} title="눈 오기 전 점검 후보 · 보고 요약 한 장" sub={`광진 제설 상황실 · 자원 기준일 ${asof} · 빌드 ${data.meta.built}`} size="xl" zIndex={2400}>
       {/* 결정이 필요한 것(냉독 4차: "무엇을 정해 달라"는 한 줄이 없었다). 돈이 걸린 항목만 결정, 나머지는 부서 지시 */}
       <div className="mb-3 rounded-lg bg-[var(--cp-panel2)] px-3 py-2 text-[13.5px] leading-snug text-[var(--cp-text)]">
         <span className="dump-kicker mr-2 text-[10px] text-[var(--cp-text-dim)]">결정이 필요한 것</span>

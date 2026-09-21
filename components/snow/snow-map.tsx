@@ -34,6 +34,7 @@ import {
   iceEndsFC,
   iceFC,
   iceLabelFC,
+  matLabelFC,
   ownerColor,
   ownerColorExpr,
   postsFC,
@@ -65,6 +66,7 @@ import type { IconPoint, SnowIcons3DLayer } from "./icons3d"
 // 3라운드(2026-09-20): 입체 보기에서 정보 핀은 전부 3D(icons3d.ts). 평면 원·열선 위치 점·번호 배지는 FLAT_ONLY, 투명 말뚝·3D 아이콘은 TILT_ONLY(dumping 18라운드 규약).
 // 4라운드(2026-09-21): 경사 추정 = 실선 + 오르막 화살 글리프(평면) / 고도 단면 경사면 + 흐르는 화살(입체, icons3d setSlopes) · 법령 탭 ownerView(관리청별 색) · 2단계부터 제설차(상습결빙구간 왕복) · 점검 후보 드론 비행(fly) · 동별 순위 입체 숫자는 시연 장면 2에서만(rankDigits)
 // 5라운드(2026-09-21): 구간 번호는 입체에서도 2D 배지(S.weakLabel, 우선순위 sort-key·자리 비킴·줌 14.5부터 겹침 허용. 3D 숫자는 진홍 벽 위에서 겹쳐 안 읽혔다) · 결빙 라벨 "결빙 n" 한 가지 · 음영 DEM은 512 타일·첫 idle 뒤(사파리 직렬 다운로드 13초 실측) · 로딩 진행(onLoad)
+// 6라운드(2026-09-21): 자재 글자 배지(S.matLabel 제·염·모, 줌 14.3부터, 평면·입체 공용). 사용자: "제설함·모래함이 안 보이고 뭔지 마우스 대 보기 전엔 모른다". 물건은 자리표, 배지가 종류를 말한다
 
 const S = {
   mask: "snow-mask",
@@ -91,6 +93,7 @@ const S = {
   salt: "snow-salt",
   cacl: "snow-cacl",
   sand: "snow-sand",
+  matLabel: "snow-mat-label",
   school: "snow-school",
   schoolLabel: "snow-school-label",
   focusRing: "snow-focus-ring",
@@ -116,6 +119,12 @@ function ensureProtocol() {
   protocolReady = true
 }
 const empty = (): GeoJSON.FeatureCollection => ({ type: "FeatureCollection", features: [] })
+// 자재 글자 배지 색·크기(S.matLabel). 종류색은 범례 스와치와 같은 값(lib/snow/labels). 2단계부터 제설함 배지도 물건과 같이 커진다
+const matBadgeColor = (dark: boolean): unknown[] => ["match", ["get", "kind"], "salt", resColor("salt", dark), "cacl", resColor("cacl", dark), resColor("sand", dark)]
+const matBadgeSize = (saltBoost: number): maplibregl.ExpressionSpecification => {
+  const at = (px: number) => (saltBoost === 1 ? px : ["match", ["get", "kind"], "salt", px * 1.25, px])
+  return ["interpolate", ["linear"], ["zoom"], 14.3, at(9.5), 15.5, at(11)] as maplibregl.ExpressionSpecification
+}
 function setFC(map: MlMap, id: string, fc: GeoJSON.FeatureCollection) {
   const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined
   src?.setData(fc)
@@ -335,7 +344,9 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.on("mousemove", (e) => {
       const m = mapRef.current
       if (!m) return
-      const feats = m.queryRenderedFeatures(e.point, { layers: HOVER.filter((id) => m.getLayer(id)) })
+      // 6라운드: 커서 주변 12px 상자로 조회(점 조회는 줌 15에서 말뚝 8px·평면 원 6px를 정확히 짚어야 했다)
+      const { x, y } = e.point
+      const feats = m.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers: HOVER.filter((id) => m.getLayer(id)) })
       const hit = feats.find((f) => typeof f.properties?.tip === "string")
       if (!hit) {
         popup.remove()
@@ -457,6 +468,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     setFC(map, S.salt, salt)
     setFC(map, S.cacl, cacl)
     setFC(map, S.sand, sand)
+    setFC(map, S.matLabel, matLabelFC(salt, cacl, sand))
     setFC(map, S.school, school)
     setFC(map, S.weak, weakFC(data))
     // 번호 배지 배치 우선순위 = segPriority 순위(조망에서 겹치면 낮은 순위부터 숨는다)
@@ -490,7 +502,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const st = stageView
     // 평시(calm)·보강: 자재는 대기(흐림). 1단계부터 점등. 2단계: 제설함(간선) 확대. 3단계: 열선 없는 동 외곽 진홍
     const materialsLit = st == null || st === "stage-1" || st === "stage-2" || st === "stage-3"
-    const dimMat = (materialsLit ? 1 : 0.28) * (dimMaterials ? 0.55 : 1)
+    const dimMat = (materialsLit ? 1 : 0.28) * (dimMaterials ? 0.75 : 1) // 공백 탭 흐림 0.55 → 0.75(6라운드. 사용자 "자재가 안 보인다". 벽 18px가 9px 물건보다 먼저 읽혀 흐림이 덜 필요하다)
     for (const id of [S.heat, S.heatGlow, S.heatFlow]) vis(id, on("heat"))
     vis(S.heatEnds, on("heat") && !tilt)
     vis(S.salt, on("salt") && !tilt)
@@ -526,6 +538,14 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const saltBoost = st === "stage-2" || st === "stage-3" ? 2.2 : 1 // 2단계 간선 제설함 확대(평면 원. 조망에서도 보이게 2.2배)
     const saltBoost3D = st === "stage-2" || st === "stage-3" ? 2 : 1 // 3D 상자는 5라운드부터 조망 4px라 2배(조망 7px·줌 15 26px)가 "커진다"로 읽힌다
     map.setPaintProperty(S.salt, "circle-radius", ["interpolate", ["linear"], ["zoom"], 12, 2 * saltBoost, 13.5, 3.2 * saltBoost, 15, 7 * saltBoost])
+    // 자재 글자 배지(6라운드, 평면 전용. 입체는 3D 표지판): 켜진 종류만. 기둥 모드는 기둥 라벨과 겹쳐 숨긴다. 흐림은 물건과 같은 값
+    const matKinds = (["salt", "cacl", "sand"] as LayerId[]).filter(on)
+    const matDim = ownerView ? 0.22 : dimMat
+    const badgeDim = ownerView ? 0.22 : materialsLit ? 1 : 0.28 // 표지판·평면 배지는 공백 탭에서 흐리지 않는다(흐린 글자는 종류를 못 읽는다). 단계 대기(평시·보강)·법령 탭만
+    vis(S.matLabel, !tilt && matKinds.length > 0 && !colMetric)
+    map.setFilter(S.matLabel, ["in", ["get", "kind"], ["literal", matKinds]])
+    map.setLayoutProperty(S.matLabel, "text-size", matBadgeSize(saltBoost3D))
+    map.setPaintProperty(S.matLabel, "text-opacity", badgeDim)
     // 3단계 열선 없는 동 외곽은 종이/잉크색 굵은 선(진홍은 취약구간 색이라 겹치면 안 읽힌다. 냉독 지적)
     const emph = st === "stage-3" || noHeatDongs
     const noHeatStroke = emph ? (dark ? "#ece7dc" : "#14201c") : dark ? "#6b7f8e" : "#64748b"
@@ -556,7 +576,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       icons.setSnow(Math.max(st == null ? 0 : Math.min(1, snowCm / 10), weather.kind === "snow" ? weather.level : 0))
       icons.setRain(weather.kind === "rain" ? weather.level : 0)
       // 법령 탭은 구간 색이 주인공: 자재·학교·열선 핀은 흐리게(청빙 선이 원통 228개 속에 묻히던 냉독)
-      icons.setDim(["salt", "cacl", "sand", "sandCenter"], ownerView ? 0.22 : dimMaterials ? Math.min(dimMat, 0.4) : dimMat)
+      icons.setDim(["salt", "cacl", "sand", "sandCenter"], matDim, badgeDim)
       icons.setDim(["school", "schoolGap", "heat"], ownerView ? 0.3 : 1)
       icons.setBoost("salt", saltBoost3D)
       icons.setEmissive("salt", saltBoost3D > 1 ? 0.6 : 0)
@@ -887,12 +907,22 @@ function declareLayers(map: MlMap) {
     paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true },
   })
   // 입체 툴팁 말뚝(보이지 않는 조회용, opacity 0). 모양은 3D 아이콘(icons3d)이 같은 자리에 그린다. queryRenderedFeatures는 그려진 픽셀이 아니라 도형으로 찾는다
-  map.addLayer({ id: S.posts, type: "fill-extrusion", source: S.posts, layout: { visibility: "none" }, paint: { "fill-extrusion-color": "#000000", "fill-extrusion-height": ["get", "h"], "fill-extrusion-opacity": 0 } })
+  // 높이는 핀 꼭대기(물건 + 글자 표지판)를 따라간다: 핀은 화면 기준 크기라 세계 높이가 줌마다 반으로 준다(icons3d DENSE_PX·BADGE_PX 규칙. 줌 13.78까지 배율 상한 10, 줌 17.1부터 실물). 표지판 위에서도 툴팁이 뜬다
+  map.addLayer({ id: S.posts, type: "fill-extrusion", source: S.posts, layout: { visibility: "none" }, paint: { "fill-extrusion-color": "#000000", "fill-extrusion-height": ["interpolate", ["exponential", 0.5], ["zoom"], 13.78, 120, 17.1, 12], "fill-extrusion-opacity": 0 } })
   // 경사 화살(평면 전용): 선을 따라 ">" 글리프가 오르막 방향을 가리킨다(좌표가 오르막 순). 입체에서는 icons3d 화살이 대신한다
   map.addLayer({ id: S.slopeArrow, type: "symbol", source: S.slope, layout: { "symbol-placement": "line", "symbol-spacing": 26, "text-field": ">", "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11, 15, 15], "text-font": ["Noto Sans Medium"], "text-rotation-alignment": "map", "text-pitch-alignment": "map", "text-keep-upright": false, "text-allow-overlap": true, "text-ignore-placement": true, "text-padding": 0 }, paint: { "text-color": slopeArrowColor(dark), "text-opacity": ["case", ["==", ["get", "heat"], 1], 0.45, 1] } })
   // 드론 비행 경로(점검 후보 순회): 청빙 점선 + 번호 지점
   map.addLayer({ id: S.flyPath, type: "line", source: S.flyPath, layout: round, paint: { "line-color": ACCENT.dark, "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [1.5, 2.5] } })
   map.addLayer({ id: S.flyPts, type: "symbol", source: S.flyPts, layout: { "text-field": ["get", "n"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#0b1216", "text-halo-color": ACCENT.dark, "text-halo-width": 2.6 } })
+  // 자재 글자 배지(6라운드, 평면 전용): 종류색 후광에 첫 글자(제·염·모)가 원 자리에 선다. 줌 14.3부터(조망은 383개가 구를 덮는다), 겹침 허용(충돌 회피는 카메라가 움직일 때 깜박인다). 입체는 icons3d의 표지판(원근대로 작아진다)
+  map.addLayer({
+    id: S.matLabel,
+    type: "symbol",
+    source: S.matLabel,
+    minzoom: 14.3,
+    layout: { "text-field": ["get", "glyph"], "text-size": matBadgeSize(1), "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-ignore-placement": true, "text-padding": 0 },
+    paint: { "text-color": "#0b1216", "text-halo-color": matBadgeColor(dark) as maplibregl.ExpressionSpecification, "text-halo-width": 3.4 },
+  })
   map.addLayer({ id: S.schoolLabel, type: "symbol", source: S.school, minzoom: 14.3, layout: { "text-field": ["get", "name"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-offset": [0, 1.1], "text-anchor": "top", "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ece7dc", ...halo } })
   // 취약구간 번호 배지(평면·입체 공용, 5라운드. 입체 3D 숫자는 진홍 벽 위 진홍이라 광장동 2·4·5가 한 덩어리로 뭉쳤다). dumping 핫스팟 "1위" 알약과 같은 문법: 항상 정면, 후광, 우선순위 순(sort-key)
   // 충돌 회피는 쓰지 않는다(카메라가 움직일 때마다 숨었다 나타나 드론 비행에서 깜박였다): 가까운 구간은 map-geo weakLabelFC가 미리 정한 자리(anchor·roff)로 비킨다. 입체에서는 벽(18px) 위에 앉게 위로 더 띄운다
@@ -966,6 +996,8 @@ function applyTheme(map: MlMap, theme: BasemapTheme) {
   map.setPaintProperty(S.cacl, "circle-stroke-color", ground)
   map.setPaintProperty(S.sand, "circle-color", ground)
   map.setPaintProperty(S.sand, "circle-stroke-color", resColor("sand", dark))
+  map.setPaintProperty(S.matLabel, "text-halo-color", matBadgeColor(dark) as maplibregl.ExpressionSpecification)
+  map.setPaintProperty(S.matLabel, "text-color", dark ? "#0b1216" : "#ffffff") // 다크 종류색은 파스텔이라 잉크 글자, 라이트는 진한 색이라 흰 글자
   map.setPaintProperty(S.school, "circle-color", dark ? "#ece7dc" : "#14201c")
   map.setPaintProperty(S.school, "circle-stroke-color", ["case", ["==", ["get", "heat"], 1], heat, risk])
   map.setPaintProperty(S.focusRing, "fill-extrusion-color", dark ? ACCENT.dark : ACCENT.light)
