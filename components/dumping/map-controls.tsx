@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, type CandidateFocus } from "./map-geo"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, type CandidateFocus, type FlyKind } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
@@ -26,7 +26,7 @@ export interface MapView {
   weather: WeatherKey | null // 날씨별 원. 켜면 보통 원 대신 그 조건의 민원(하루당 환산)
   tilt: boolean // 16라운드: 입체 보기(기울기·건물 3D·지형). 끄면 위에서 본 평면
   orbit: boolean // 자동 회전(시연용). 지도를 만지면 꺼진다
-  fly: boolean // 17라운드: 드론 비행(시연용). 구 전체 → 핫스팟 5곳 → 구 전체를 천천히. 지도를 만지면 꺼진다
+  fly: false | FlyKind // 17라운드: 드론 비행(시연용). 구 전체 → 목표 5곳(패널은 예측 핫스팟, 시연은 장면마다 다름) → 구 전체를 천천히. 지도를 만지면 꺼진다
 }
 
 // 10라운드: 기본 원은 과태료. 회귀 판정의 결과지표가 과태료라 민원 원을 겹치면 화면의 겹침이 회귀 증거처럼 읽혔다(검토서 6절)
@@ -227,9 +227,9 @@ export function MapLayerPanel({ data, view, onChange, active, liveWeather = null
         )}
         {view.tilt && (
           <button
-            aria-pressed={view.fly}
+            aria-pressed={!!view.fly}
             title="구 전체를 내려다보다 예측 핫스팟 상위 5곳을 낮게 천천히 돌아봅니다(시연용). 지도를 만지면 멈춥니다"
-            onClick={() => patch({ fly: !view.fly, orbit: false })}
+            onClick={() => patch({ fly: view.fly ? false : "hotspots", orbit: false })}
             className={`${ROW} ${view.fly ? ROW_ON : ROW_OFF}`}
           >
             <Ico name="drone" size={15} />

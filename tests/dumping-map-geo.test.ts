@@ -14,6 +14,7 @@ import {
   flySegmentMs,
   flyCameraAt,
   flyRouteFC,
+  flyStops,
   cellLookup,
   circleColumnsFC,
   discPolygon,
@@ -86,11 +87,17 @@ test("격자 기둥은 5건 이상 칸만, 지표 둘이면 칸마다 좌우 두
   assert.ok(only.features.length < one.features.length)
 })
 
-test("핫스팟 20은 기둥·순위 라벨 각 20, 상위 3만 top", withMap, () => {
+test("핫스팟 20은 기둥·순위 라벨·입체 숫자 각 20, 상위 3만 top. 숫자는 기둥 높이·색을 그대로 든다(21라운드)", withMap, () => {
   const hot = hotspotsFC(map!)
   assert.equal(hot.cols.features.length, map!.decision.hotspots.top.length)
   assert.equal(hot.labels.features.filter((f) => f.properties.top === 1).length, 3)
-  assert.equal(hot.labels.features[0].properties.label, "1위")
+  assert.equal(hot.labels.features[0].properties.label, "1") // 평면 배지는 숫자만(흰 글자+벽돌 후광)
+  assert.equal(hot.ranks.length, hot.cols.features.length)
+  hot.ranks.forEach((r, i) => {
+    assert.equal(r.rank, i + 1)
+    assert.equal(r.h, hot.cols.features[i].properties.h)
+    assert.equal(r.color, hot.cols.features[i].properties.color)
+  })
 })
 
 test("구 경계는 닫힌 링, 마스크는 세계 사각형에 구를 뚫은 폴리곤, 경계 상자는 [lng, lat]", withMap, () => {
@@ -147,8 +154,30 @@ test("드론 비행: 조망 → 핫스팟 5곳 → 조망. 핫스팟 경유지�
     assert.ok(ms >= 5000 && ms <= 11000, `구간 ${i} ${ms}ms`)
   }
   const route = flyRouteFC(map!)
-  assert.equal(route.points.features.length, 5)
   assert.equal((route.path.features[0].geometry as GeoJSON.LineString).coordinates.length, 5)
+})
+
+// 21라운드 시연: 장면마다 다른 목표를 1위부터(상습격자 3장면·예측 핫스팟 4장면·재배치 후보 5장면). 같은 비행 규약에 목표만 바뀐다
+test("드론 목표 묶음: 상습격자는 12개월 건수 내림차순 1위부터, 재배치 후보는 후보 순서, 경로·경유지가 그 순서를 따른다", withMap, () => {
+  const crit = flyStops(map!, "critical")
+  assert.equal(crit.length, 5)
+  const counts = [...map!.decision.kpi.criticalCells].map((c) => c[4]).sort((a, b) => b - a)
+  crit.forEach((s, i) => {
+    assert.equal(s.rank, i + 1)
+    assert.ok(s.label.startsWith(`상습격자 ${i + 1}위`) && s.label.endsWith(`12개월 ${counts[i]}건`), s.label)
+  })
+  const cand = flyStops(map!, "candidates")
+  assert.equal(cand.length, Math.min(5, map!.cctvCandidates.length))
+  cand.forEach((s, i) => {
+    assert.ok(s.label.startsWith(`재배치 후보 ${i + 1}위`), s.label)
+    assert.deepEqual(s.lnglat, [map!.cctvCandidates[i][1], map!.cctvCandidates[i][0]])
+  })
+  assert.deepEqual(flyStops(map!), flyStops(map!, "hotspots"))
+  const wps = flyWaypoints(map!, { center: [127.085, 37.546], zoom: 13.2 }, "candidates")
+  assert.deepEqual(wps.slice(1, -1).map((w) => w.target?.label), cand.map((s) => s.label))
+  // 경로 점선은 1위→5위 순서. 번호 지점은 없다(기둥·핀 숫자와 겹친다)
+  const route = flyRouteFC(map!, "critical")
+  assert.deepEqual((route.path.features[0].geometry as GeoJSON.LineString).coordinates, crit.map((s) => s.lnglat))
 })
 
 // ─── 18라운드: 입체 전용 도형 ───

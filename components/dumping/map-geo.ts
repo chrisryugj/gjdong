@@ -367,37 +367,54 @@ export function gridColumnsFC(data: DumpingMapData, ids: CircleId[], selectedDon
 }
 
 // 집중관리 상습격자(12개월 10건 이상). 칸 외곽선 + 기둥(높이=12개월 건수)
-export function criticalFC(data: DumpingMapData): { cells: FC; cols: FC; labels: FC } {
+// 건수(12개월)는 입체에서 기둥 꼭대기 입체 숫자(counts → icons3d), 평면에서 바닥 라벨(labels). 예측 핫스팟 순위와 같은 문법
+export function criticalFC(data: DumpingMapData): { cells: FC; cols: FC; labels: FC; counts: ColumnDigit[] } {
   const rows = data.decision.kpi.criticalCells
   const maxCrit = Math.max(1, ...rows.map((c) => c[4]))
   const cells: Feature[] = []
   const cols: Feature[] = []
   const labels: Feature[] = []
+  const counts: ColumnDigit[] = []
   for (const c of rows) {
     const tip = criticalTooltip(c, maxCrit)
+    const height = colHeight(c[4], maxCrit)
+    const center: [number, number] = [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2]
     cells.push({ type: "Feature", properties: { tip }, geometry: cellPolygon(c[0], c[1], c[2], c[3]) })
-    cols.push({ type: "Feature", properties: { h: colHeight(c[4], maxCrit), tip }, geometry: cellPolygon(c[0], c[1], c[2], c[3], 0.22) })
-    labels.push({ type: "Feature", properties: { label: String(c[4]) }, geometry: { type: "Point", coordinates: [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2] } })
+    cols.push({ type: "Feature", properties: { h: height, tip }, geometry: cellPolygon(c[0], c[1], c[2], c[3], 0.22) })
+    labels.push({ type: "Feature", properties: { label: String(c[4]) }, geometry: { type: "Point", coordinates: center } })
+    counts.push({ lng: center[0], lat: center[1], rank: c[4], h: height, color: CRIT_COLOR })
   }
-  return { cells: fc(cells), cols: fc(cols), labels: fc(labels) }
+  return { cells: fc(cells), cols: fc(cols), labels: fc(labels), counts }
 }
 
 // 예측 핫스팟 20(운영·전망 탭). 기둥(높이=점수) + 순위 꼬리표. 상위 3은 색으로 구분
-export function hotspotsFC(data: DumpingMapData): { cols: FC; labels: FC } {
+// 21라운드: 기둥 꼭대기 입체 숫자(icons3d, 재배치 후보 핀과 같은 문법). 바닥 라벨은 기둥 밑에 깔려 안 읽혔다 → 입체에서는 숫자, 평면에서는 바닥 배지(labels)
+export interface ColumnDigit {
+  lng: number
+  lat: number
+  rank: number // 숫자로 쓸 값(순위 또는 건수)
+  h: number // 기둥 높이(m). 숫자는 이 위에 선다
+  color: string
+}
+export function hotspotsFC(data: DumpingMapData): { cols: FC; labels: FC; ranks: ColumnDigit[] } {
   const rows = data.decision.hotspots.top
   const maxScore = Math.max(1, ...rows.map((h) => h[2]))
   const cols: Feature[] = []
   const labels: Feature[] = []
+  const ranks: ColumnDigit[] = []
   rows.forEach((h, i) => {
     const tip = hotspotTooltip(i + 1, h)
+    const height = colHeight(h[2], maxScore)
+    const color = i < 3 ? CRIT_COLOR : HOT_COLOR
     cols.push({
       type: "Feature",
-      properties: { h: colHeight(h[2], maxScore), color: i < 3 ? CRIT_COLOR : HOT_COLOR, tip },
+      properties: { h: height, color, tip },
       geometry: squareAround(h[0], h[1], 72),
     })
-    labels.push({ type: "Feature", properties: { label: `${i + 1}위`, top: i < 3 ? 1 : 0, tip }, geometry: { type: "Point", coordinates: [h[1], h[0]] } })
+    labels.push({ type: "Feature", properties: { label: String(i + 1), top: i < 3 ? 1 : 0, tip }, geometry: { type: "Point", coordinates: [h[1], h[0]] } })
+    ranks.push({ lng: h[1], lat: h[0], rank: i + 1, h: height, color })
   })
-  return { cols: fc(cols), labels: fc(labels) }
+  return { cols: fc(cols), labels: fc(labels), ranks }
 }
 
 // 시설 점. 완전히 같은 행을 두 번 그리지 않는다. 같은 좌표에 겹친 서로 다른 곳은 점 하나에 모아 툴팁으로 편다
@@ -687,18 +704,26 @@ export interface FlyWaypoint {
 export const FLY_BEARING_DEG_PER_S = 2.6 // 방위 회전 속도(도/초). 한 바퀴 약 2분 20초
 export const FLY_HOT_ZOOM = 15.6
 export const FLY_HOT_PITCH = 62
-export function flyWaypoints(data: DumpingMapData, overview: { center: [number, number]; zoom: number }): FlyWaypoint[] {
-  const top = data.decision.hotspots.top.slice(0, 5)
+// 비행 목표 묶음(21라운드 시연: 장면마다 다른 목록을 1위부터). 레이어 패널의 "드론 비행"은 hotspots
+export type FlyKind = "hotspots" | "candidates" | "critical"
+export const FLY_KIND_LABEL: Record<FlyKind, string> = { hotspots: "예측 핫스팟", candidates: "재배치 후보", critical: "집중관리 상습격자" }
+export interface FlyStop {
+  rank: number
+  label: string
+  lnglat: [number, number]
+}
+export function flyStops(data: DumpingMapData, kind: FlyKind = "hotspots", n = 5): FlyStop[] {
+  if (kind === "candidates")
+    return data.cctvCandidates.slice(0, n).map((c, i) => ({ rank: i + 1, label: `재배치 후보 ${i + 1}위 · ${c[4] || "광진구"} · ${c[5] || "대표 주소 없음"}`, lnglat: [c[1], c[0]] }))
+  if (kind === "critical") {
+    const rows = [...data.decision.kpi.criticalCells].sort((a, b) => b[4] - a[4])
+    return rows.slice(0, n).map((c, i) => ({ rank: i + 1, label: `상습격자 ${i + 1}위 · ${c[5] || "광진구"} · 12개월 ${c[4]}건`, lnglat: [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2] }))
+  }
+  return data.decision.hotspots.top.slice(0, n).map((h, i) => ({ rank: i + 1, label: `예측 핫스팟 ${i + 1}위 · ${h[5] || "광진구"} · ${h[6] || "대표 주소 없음"}`, lnglat: [h[1], h[0]] }))
+}
+export function flyWaypoints(data: DumpingMapData, overview: { center: [number, number]; zoom: number }, kind: FlyKind = "hotspots"): FlyWaypoint[] {
   const out: FlyWaypoint[] = [{ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1200 }]
-  top.forEach((h, i) => {
-    out.push({
-      center: [h[1], h[0]],
-      zoom: FLY_HOT_ZOOM,
-      pitch: FLY_HOT_PITCH,
-      dwell: 2600,
-      target: { rank: i + 1, label: `예측 핫스팟 ${i + 1}위 · ${h[5] || "광진구"} · ${h[6] || "대표 주소 없음"}`, lnglat: [h[1], h[0]] },
-    })
-  })
+  for (const st of flyStops(data, kind)) out.push({ center: st.lnglat, zoom: FLY_HOT_ZOOM, pitch: FLY_HOT_PITCH, dwell: 2600, target: st })
   out.push({ center: overview.center, zoom: overview.zoom, pitch: 50, dwell: 1500 })
   return out
 }
@@ -724,14 +749,10 @@ export function flyCameraAt(wps: FlyWaypoint[], i: number, f: number): { center:
   const pitch = b.pitch + (c.pitch - b.pitch) * t - lift * 6
   return { center: [lng, lat], zoom, pitch }
 }
-// 드론 비행 경로 그림: 핫스팟 상위 5곳을 잇는 점선 + 번호 지점
-export function flyRouteFC(data: DumpingMapData): { path: FC; points: FC } {
-  const top = data.decision.hotspots.top.slice(0, 5)
-  const coords = top.map((h) => [h[1], h[0]] as [number, number])
-  return {
-    path: coords.length > 1 ? fc([{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }]) : emptyFC(),
-    points: fc(top.map((h, i) => ({ type: "Feature", properties: { n: String(i + 1), tip: hotspotTooltip(i + 1, h) }, geometry: { type: "Point", coordinates: [h[1], h[0]] } }))),
-  }
+// 드론 비행 경로 그림: 목표 상위 5곳을 잇는 점선. 번호 지점은 없다(순위는 기둥·핀 숫자와 안내 띠가 말한다. 바닥 번호까지 있으면 숫자가 둘씩 겹친다)
+export function flyRouteFC(data: DumpingMapData, kind: FlyKind = "hotspots"): { path: FC } {
+  const coords = flyStops(data, kind).map((s) => s.lnglat)
+  return { path: coords.length > 1 ? fc([{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }]) : emptyFC() }
 }
 
 // ─── 18라운드(2026-09-19): 입체 보기 전용 도형. 평면의 원·점은 지형 위에 드레이핑되어 건물 아래 깔린다(maplibre는 fill·line·circle을 지형 텍스처로 굽고

@@ -11,11 +11,11 @@ import digitFont from "./digit-font.json"
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
 import { INFRA_STYLE, BIN_RECO_COLOR, CRIT_COLOR, type RouteChain } from "./map-geo"
 
-export type IconKind = "clothBins" | "cctvFixed" | "cctvMobile" | "recycling" | "bins" | "cand" | "binReco" | "dongRank"
+export type IconKind = "clothBins" | "cctvFixed" | "cctvMobile" | "recycling" | "bins" | "cand" | "binReco" | "dongRank" | "hotRank" | "critCount"
 export interface IconPoint {
   lng: number
   lat: number
-  rank?: number // 순위(배지). 후보는 핀 머리 위, 동별 기둥은 기둥 꼭대기
+  rank?: number // 숫자로 쓸 값(순위. 상습격자는 12개월 건수). 후보는 핀 머리 위, 기둥은 기둥 꼭대기
   h?: number // 배지를 띄울 높이(m, 지형 위). 없으면 핀 머리 위
   color?: string // 배지 색. 없으면 액센트(후보)
   side?: -1 | 1 // 같은 자리에 배지가 둘일 때(동별 민원·과태료) 좌우로 비킨다
@@ -115,6 +115,10 @@ function buildDefs(): Record<IconKind, KindDef> {
     },
     // 동별 기둥 1~3위 배지: 모델 없이 스프라이트만(기둥은 fill-extrusion이 그린다)
     dongRank: { height: 1, maxScale: 1, parts: [] },
+    // 예측 핫스팟 1~20위(21라운드): 기둥 꼭대기 입체 숫자. 색은 기둥과 같게(상위 3 벽돌·나머지 옅은 벽돌), 크기는 후보처럼 상위 3이 크다
+    hotRank: { height: 1, maxScale: 1, parts: [] },
+    // 집중관리 상습격자 32곳의 12개월 건수(21라운드): 기둥 꼭대기 입체 숫자, 벽돌색
+    critCount: { height: 1, maxScale: 1, parts: [] },
     binReco: {
       height: 8,
       maxScale: DENSE_MAX,
@@ -242,7 +246,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       pin.emissive.set(dark ? "#3a2a12" : "#2a1c08")
     }
     this.lastZoom = -1 // 인스턴스 색을 다시 쓴다
-    for (const kind of ["cand", "dongRank"] as const) {
+    for (const kind of ["cand", "dongRank", "hotRank", "critCount"] as const) {
       const st = this.kinds.get(kind)
       if (!st) continue
       st.coins.forEach((c, i) => {
@@ -258,7 +262,7 @@ export class Icons3DLayer implements CustomLayerInterface {
 
   // 숫자 채움색. 동별: 제 기둥 색. 후보: 상위 3 벽돌색(핀·고리와 같이), 나머지 앰버
   private digitColor(kind: IconKind, p: IconPoint, rank = p.rank ?? 99): string {
-    if (kind === "dongRank") return p.color ?? this.accent
+    if (kind === "dongRank" || kind === "hotRank" || kind === "critCount") return p.color ?? this.accent
     return rank <= 3 ? CRIT_COLOR : this.accent
   }
 
@@ -332,7 +336,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     })
     const coins: THREE.Group[] = []
     const rings: THREE.Mesh[] = []
-    if (kind === "cand" || kind === "dongRank") {
+    if (kind === "cand" || kind === "dongRank" || kind === "hotRank" || kind === "critCount") {
       points.forEach((p, i) => {
         const rank = p.rank ?? i + 1
         const coin = makeDigit(String(rank), this.digitColor(kind, p, rank), this.dark ? DIGIT_PAPER.dark : DIGIT_PAPER.light)
@@ -404,9 +408,9 @@ export class Icons3DLayer implements CustomLayerInterface {
         const coin = st.coins[i]
         if (!coin) return
         const pt = st.points[i]
-        // 높이: 동별은 기둥 폭 기준(78m), 후보는 핀 크기 기준. 조망에서 13px 아래로는 안 내려간다
-        // 후보 숫자: 상위 3은 1.15배, 4위 아래 0.78배(20개가 뭉쳐도 상위 3이 먼저 읽힌다)
-        const small = pt.h == null ? ((pt.rank ?? i + 1) <= 3 ? 1.15 : 0.78) : 1
+        // 높이: 동별·핫스팟은 기둥 폭 기준(78m), 후보는 핀 크기 기준. 조망에서 13px 아래로는 안 내려간다
+        // 후보·핫스팟 순위: 상위 3은 1.15배, 4위 아래 0.78배(20개가 뭉쳐도 상위 3이 먼저 읽힌다). 상습격자 건수는 32개라 조금 작게
+        const small = kind === "dongRank" ? 1 : kind === "critCount" ? 0.85 : (pt.rank ?? i + 1) <= 3 ? 1.15 : 0.78
         const hgt = Math.max(DIGIT_MIN_PX * mpp, pt.h != null ? DONG_DIGIT_M : 11 * k) * a * small
         // 동별 기둥은 제 기둥 위에 선다(민원 왼쪽·과태료 오른쪽 기둥 중심 = 이미 pos에 반영). 숫자가 기둥 폭보다 크면 폭만큼 바깥으로 비킨다
         const dx = pt.side && hgt > DONG_DIGIT_M ? pt.side * (hgt - DONG_DIGIT_M) * 0.5 : 0

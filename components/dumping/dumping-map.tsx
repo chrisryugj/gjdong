@@ -27,6 +27,7 @@ import {
   CAND_POST_H_M,
   CAND_POST_R_M,
   CRIT_COLOR,
+  HOT_COLOR,
   FOCUS_RING_R_M,
   NEUTRAL_BUILDING,
   greyRamp,
@@ -46,9 +47,11 @@ import {
   emptyFC,
   fc,
   flyCameraAt,
+  FLY_KIND_LABEL,
   flyRouteFC,
   flySegmentMs,
   flyWaypoints,
+  type FlyKind,
   FLY_BEARING_DEG_PER_S,
   gridColumnsFC,
   gridFC,
@@ -124,11 +127,10 @@ const S = {
   recoRings: "dump-reco-rings",
   focusRing: "dump-focus-ring",
   flyPath: "dump-fly-path",
-  flyPts: "dump-fly-pts",
 } as const
 // 평면(원·점)과 입체(원기둥·말뚝·고리)는 같은 데이터의 두 그림. 기울기에 따라 한쪽만 보인다
 const L_CAND_LABEL = "dump-cand-label"
-const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco, L_CAND_LABEL] as string[]
+const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco, L_CAND_LABEL, S.hotLabels, S.critLabels] as string[]
 const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings] as string[]
 const ACCENT = { light: "#c0741a", dark: "#e39a3f" } as const
 const L_BUILDINGS = "dump-buildings"
@@ -141,7 +143,7 @@ const L_CRIT_FILL = "dump-crit-fill"
 const L_CRIT_LINE = "dump-crit-line"
 // 호버 툴팁을 읽는 레이어. 위에 그린 것부터(queryRenderedFeatures가 위→아래 순으로 준다)
 const HOVER_LAYERS = [
-  L_CAND_LABEL, S.cand, S.candPosts, S.binReco, S.recoRings, S.infra, S.infraPosts, S.flyPts, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols,
+  L_CAND_LABEL, S.cand, S.candPosts, S.binReco, S.recoRings, S.infra, S.infraPosts, S.hotLabels, S.hotCols, S.critCols, S.dongCols, L_CRIT_FILL, S.cols,
   L_ROUTES_FOCUS, L_ROUTES_GENERAL, S.weather, S.weatherCols, S.circles, S.circleCols, S.grid,
 ]
 const BIN_RECO_ICON = "dump-binreco-icon"
@@ -194,7 +196,7 @@ interface DumpingMapProps {
   tilt: boolean // 입체 보기(기울기·건물·지형). 평면이면 위에서 내려다본 격자
   theme: BasemapTheme // 17라운드: 라이트(도면지)·다크(밤 지도). 바탕 스타일을 통째로 바꾼다
   orbit: boolean // 자동 회전(시연용). 사용자가 지도를 만지면 onOrbitStop
-  fly: boolean // 드론 비행(시연용). 구 전체 → 핫스팟 상위 5곳을 천천히 돌고 돌아온다. 만지면 onOrbitStop
+  fly: false | FlyKind // 드론 비행(시연용). 구 전체 → 목표 상위 5곳(예측 핫스팟·재배치 후보·상습격자)을 1위부터 천천히 돌고 돌아온다. 만지면 onOrbitStop
   onOrbitStop?: () => void
   resetSeq: number // 증가 시 구 전체 뷰로 복귀 (헤더 배너 리셋)
   // 카메라 큐(18라운드 시연): seq가 바뀌면 그 구도로 천천히 간다. bounds 없으면 구 전체. 도착 뒤 orbit이 켜져 있으면 회전이 이어진다
@@ -623,26 +625,43 @@ export default function DumpingMap({
     }
   }, [ready, showRoutes, iconsReady])
 
-  // 예측 핫스팟 20 기둥+순위(운영·전망 탭)
+  // 예측 핫스팟 20 기둥+순위(운영·전망 탭). 순위는 입체에서 기둥 꼭대기 입체 숫자(재배치 후보와 같은 문법, 21라운드: 바닥 라벨은 기둥에 깔려 안 읽혔다), 평면에서 바닥 배지
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
-    const hot = showHotspots ? hotspotsFC(data) : { cols: emptyFC(), labels: emptyFC() }
+    const hot = showHotspots ? hotspotsFC(data) : { cols: emptyFC(), labels: emptyFC(), ranks: [] }
     setFC(map, S.hotCols, hot.cols)
     setFC(map, S.hotLabels, hot.labels)
     if (showHotspots) riseColumns(map, S.hotCols)
-  }, [data, ready, showHotspots])
+    const icons = iconsRef.current
+    if (!icons) return
+    if (!showHotspots) {
+      icons.setPoints("hotRank", [])
+      return
+    }
+    // 기둥이 다 솟은 뒤 숫자가 선다
+    const t = window.setTimeout(() => iconsRef.current?.setPoints("hotRank", hot.ranks), 900)
+    return () => window.clearTimeout(t)
+  }, [data, ready, showHotspots, iconsReady])
 
-  // 집중관리 상습격자 (12개월 10건 이상). 칸 외곽선 + 기둥(높이=12개월 건수)
+  // 집중관리 상습격자 (12개월 10건 이상). 칸 외곽선 + 기둥(높이=12개월 건수). 건수는 입체에서 기둥 꼭대기 입체 숫자, 평면에서 바닥 라벨(21라운드)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
-    const crit = showCritical ? criticalFC(data) : { cells: emptyFC(), cols: emptyFC(), labels: emptyFC() }
+    const crit = showCritical ? criticalFC(data) : { cells: emptyFC(), cols: emptyFC(), labels: emptyFC(), counts: [] }
     setFC(map, S.critCells, crit.cells)
     setFC(map, S.critCols, crit.cols)
     setFC(map, S.critLabels, crit.labels)
     if (showCritical) riseColumns(map, S.critCols)
-  }, [data, ready, showCritical])
+    const icons = iconsRef.current
+    if (!icons) return
+    if (!showCritical) {
+      icons.setPoints("critCount", [])
+      return
+    }
+    const t = window.setTimeout(() => iconsRef.current?.setPoints("critCount", crit.counts), 900)
+    return () => window.clearTimeout(t)
+  }, [data, ready, showCritical, iconsReady])
 
   // 격자 기둥. 원 지표(민원·과태료, 없으면 과태료) 건수를 칸 가운데 기둥으로. 5건 이상 칸만
   useEffect(() => {
@@ -728,12 +747,11 @@ export default function DumpingMap({
     const cam = map.cameraForBounds(ringBoundsRef.current, { bearing: TILT_BEARING })
     if (!cam) return
     const c = maplibregl.LngLat.convert(cam.center as maplibregl.LngLatLike)
-    const wps = flyWaypoints(data, { center: [c.lng, c.lat], zoom: (cam.zoom ?? 13.4) - TILT_ZOOM_BACK })
+    const wps = flyWaypoints(data, { center: [c.lng, c.lat], zoom: (cam.zoom ?? 13.4) - TILT_ZOOM_BACK }, fly)
     const segs = wps.slice(0, -1).map((w, i) => flySegmentMs(w, wps[i + 1]))
     const stops = wps.filter((w) => w.target).length
-    const route = flyRouteFC(data)
-    setFC(map, S.flyPath, route.path)
-    setFC(map, S.flyPts, route.points)
+    // 경로 점선만. 번호 지점은 뺐다(21라운드: 기둥·핀의 순위 숫자, 상습격자의 건수 라벨과 같은 자리에 숫자가 둘씩 겹쳤다). 몇 번째인지는 안내 띠·초점 고리가 말한다
+    setFC(map, S.flyPath, flyRouteFC(data, fly).path)
     // 현재 위치에서 첫 경유지(조망)까지는 짧게 이어 붙인다(갑자기 순간이동하지 않게)
     const start = { center: [map.getCenter().lng, map.getCenter().lat] as [number, number], zoom: map.getZoom(), pitch: map.getPitch(), dwell: 0 }
     const lead = flySegmentMs(start, wps[0]) * 0.5
@@ -748,7 +766,7 @@ export default function DumpingMap({
         setFlyInfo({ i: w.target.rank, total: stops, label: w.target.label })
       } else {
         setFC(map, S.focusRing, emptyFC())
-        setFlyInfo({ i: 0, total: stops, label: k === 0 ? "구 전체 조망 · 예측 핫스팟 상위 5곳으로" : "구 전체 조망으로 복귀" })
+        setFlyInfo({ i: 0, total: stops, label: k === 0 ? `구 전체 조망 · ${FLY_KIND_LABEL[fly]} 상위 ${stops}곳으로` : "구 전체 조망으로 복귀" })
       }
     }
     let raf = 0
@@ -796,7 +814,6 @@ export default function DumpingMap({
       const m = mapRef.current
       if (m) {
         setFC(m, S.flyPath, emptyFC())
-        setFC(m, S.flyPts, emptyFC())
         setFC(m, S.focusRing, emptyFC())
       }
       setFlyInfo(null)
@@ -1114,6 +1131,7 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     layout: { "text-field": ["get", "label"], "text-size": 11.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-pitch-alignment": "viewport" },
     paint: { "text-color": CRIT_COLOR, ...halo },
   })
+  // 평면 전용(입체는 icons3d 입체 숫자). 흰 숫자 + 굵은 벽돌 후광 = 배지(/snow 구간 번호 문법). 상위 3은 진한 벽돌
   map.addLayer({
     id: S.hotLabels,
     type: "symbol",
@@ -1121,13 +1139,13 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     layout: {
       "text-field": ["get", "label"],
       // 구 전체 보기(13.5 미만)에서는 작게. 20개가 서로 덮지 않는다(12라운드 실측)
-      "text-size": ["step", ["zoom"], 11.5, 13.5, 13],
+      "text-size": ["step", ["zoom"], 12.5, 13.5, 14],
       "text-font": ["Noto Sans Medium"],
       "text-allow-overlap": true,
-      "text-offset": [0, -1],
+      "text-ignore-placement": true,
       "text-pitch-alignment": "viewport",
     },
-    paint: { "text-color": ["case", ["==", ["get", "top"], 1], CRIT_COLOR, "#7a3b33"], ...halo },
+    paint: { "text-color": "#ffffff", "text-halo-color": ["case", ["==", ["get", "top"], 1], CRIT_COLOR, HOT_COLOR], "text-halo-width": 3 },
   })
   // 동별 기둥 값·동 이름. 두 기둥 사이 바닥에
   map.addLayer({
@@ -1138,13 +1156,6 @@ function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     // 겹치면 옆자리(왼·오른쪽)로 옮겨 본다. 그래도 겹치면 하나는 숨김(확대하면 나온다). 중곡1동·2동 주민센터가 136m라 생긴 규칙
     layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-variable-anchor": ["top", "left", "right", "bottom"], "text-radial-offset": 0.6, "text-justify": "auto", "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
     paint: { "text-color": "#1c1a15", "text-halo-color": "rgba(251,249,243,0.96)", "text-halo-width": 2.6 },
-  })
-  map.addLayer({
-    id: S.flyPts,
-    type: "symbol",
-    source: S.flyPts,
-    layout: { "text-field": ["get", "n"], "text-size": 14, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-offset": [0, -1.2], "text-pitch-alignment": "viewport" },
-    paint: { "text-color": ACCENT.light, "text-halo-color": "rgba(255,255,255,0.95)", "text-halo-width": 2 },
   })
   map.addLayer({
     id: L_CAND_LABEL,
@@ -1166,15 +1177,14 @@ function applyThemePaint(map: MlMap, theme: BasemapTheme) {
   const accent = dark ? ACCENT.dark : ACCENT.light
   map.setPaintProperty(S.focusRing, "fill-extrusion-color", accent)
   map.setPaintProperty(S.flyPath, "line-color", accent)
-  map.setPaintProperty(S.flyPts, "text-color", accent)
-  map.setPaintProperty(S.flyPts, "text-halo-color", halo)
   map.setPaintProperty(S.cand, "circle-color", accent)
   map.setPaintProperty(S.cand, "circle-stroke-color", dark ? "#14181b" : "#ffffff")
   const icons = map.getLayer("dump-icons3d") as unknown as { implementation?: { setTheme: (d: boolean) => void } } | undefined
   icons?.implementation?.setTheme(dark)
   map.setPaintProperty(S.dongColLabels, "text-halo-width", 2.6)
   if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
-  for (const id of [S.dongLabel, S.critLabels, S.hotLabels, L_COL_LABEL, S.dongColLabels]) {
+  // 핫스팟 바닥 배지(S.hotLabels)는 흰 글자+벽돌 후광이라 테마와 무관
+  for (const id of [S.dongLabel, S.critLabels, L_COL_LABEL, S.dongColLabels]) {
     if (!map.getLayer(id)) continue
     map.setPaintProperty(id, "text-halo-color", halo)
     if (id === S.dongLabel || id === S.dongColLabels) map.setPaintProperty(id, "text-color", ink)

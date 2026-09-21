@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
 import DumpingMap, { type CameraCue, type CandidateFocus, type MapLoadStage } from "./dumping-map"
 import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, type MapView } from "./map-controls"
+import { dongAnchors } from "./map-geo"
 import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
 import FindingsPanel from "./findings-panel"
@@ -305,27 +306,37 @@ export default function DumpingDashboard() {
     [mapData, applyViz],
   )
 
-  // ─── 시연 모드(18라운드, WoW): 결론 → 동별 기둥 → 상습격자 → 드론 → 정책 제안. 장면마다 지도 상태를 바꾸고 데이터 한 줄을 캡션으로.
+  // ─── 시연 모드(18라운드, WoW): 결론 → 동별 기둥 → 상습격자 → 다음 분기 예측 → 정책 제안. 장면마다 지도 상태를 바꾸고 데이터 한 줄을 캡션으로.
   // 장면 문장은 전부 데이터에서(수치는 map.json·graph.json), 원고 따로 없음 ───
   const levers = useMemo(() => (graph ? deriveLevers(graph) : []), [graph])
-  // 장면 규칙: 카메라가 먼저 움직이고(2.4초), 도착 즈음 데이터가 솟는다(1.6초 뒤). 도착 뒤엔 천천히 돈다(orbit). 정지 화면에서 레이어만 바뀌지 않게
-  const bboxOf = (pts: [number, number][], pad = 0.0025): [[number, number], [number, number]] => {
-    const lngs = pts.map((p) => p[0])
-    const lats = pts.map((p) => p[1])
-    return [
-      [Math.min(...lngs) - pad, Math.min(...lats) - pad],
-      [Math.max(...lngs) + pad, Math.max(...lats) + pad],
-    ]
+  // 장면 규칙: 카메라가 먼저 움직이고(2.4초), 도착 즈음 데이터가 솟는다(1.6초 뒤). 도착 뒤엔 천천히 돈다(orbit). 정지 화면에서 레이어만 바뀌지 않게.
+  // 21라운드(사용자: "너무 멀리서만 돈다"): 조망에서 데이터가 선 뒤 한 곳으로 내려가고(줌인), 다음 장면이 다시 조망으로 빠진다(줌아웃).
+  // 순위가 있는 장면(상습격자·예측 핫스팟·재배치 후보)은 드론이 1위부터 5위까지 찾아간다(MapView.fly 종류)
+  interface DemoScene {
+    title: string
+    caption: string
+    note: string
+    hotspots?: boolean // false면 이 장면에서는 예측 핫스팟 기둥·순위를 숨긴다(운영 탭 상시 표시의 예외)
+    apply: () => void
   }
-  const scenes = useMemo(() => {
+  const around = (pt: [number, number], pad = 0.0022): [[number, number], [number, number]] => [
+    [pt[0] - pad, pt[1] - pad],
+    [pt[0] + pad, pt[1] + pad],
+  ]
+  const scenes = useMemo((): DemoScene[] => {
     if (!mapData) return []
     const topDong = [...mapData.dong].sort((a, b) => b.comp - a.comp)[0]
     const kpi = mapData.decision.kpi
     const bt = mapData.decision.hotspots.backtest
     const cctv = levers.find((lv) => vizForLever(lv)?.candidates) ?? levers.find((lv) => vizForLever(lv)) ?? null
-    const critBox = kpi.criticalCells.length ? bboxOf(kpi.criticalCells.map((c) => [(c[1] + c[3]) / 2, (c[0] + c[2]) / 2])) : undefined
-    // 후보 1·2위 주변으로 내려간다(상위 5곳은 구 전체에 흩어져 조망과 같아진다)
-    const candBox = mapData.cctvCandidates.length ? bboxOf(mapData.cctvCandidates.slice(0, 2).map((c) => [c[1], c[0]]), 0.003) : undefined
+    // 결론 장면이 내려가는 골목: 다가구·단독 밀집 상위 10% 칸 가운데 과태료가 가장 많은 칸(건물 색과 앰버 기둥이 한 화면에).
+    // 1위 동(화양동)은 다음 장면이 내려가므로 뺀다(두 장면이 같은 곳으로 가던 것, 사용자 지적) → 자양4동
+    const unmSorted = mapData.grid.map((c) => c[6]).sort((a, b) => a - b)
+    const unmHigh = unmSorted[Math.floor(unmSorted.length * 0.9)] ?? 0
+    const alley = mapData.grid.filter((c) => c[6] >= unmHigh && c[7] !== topDong?.d).sort((a, b) => b[5] - a[5])[0]
+    const alleyPt: [number, number] | null = alley ? [(alley[1] + alley[3]) / 2, (alley[0] + alley[2]) / 2] : null
+    // 동별 비교가 내려가는 곳: 1위 동의 기둥(동주민센터 기준점)
+    const topDongPt = topDong ? (dongAnchors(mapData).get(topDong.d) ?? null) : null
     const later = (ms: number, fn: () => void) => demoTimers.current.push(window.setTimeout(fn, ms))
     const cue = (c: Omit<CameraCue, "seq">) => setCameraCue({ seq: Date.now(), ...c })
     return [
@@ -335,12 +346,17 @@ export default function DumpingDashboard() {
         note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥은 과태료 건수 · 지도가 천천히 돕니다`,
         apply: () => {
           setTab("policy")
-          setView({ ...DEFAULT_VIEW, orbit: true })
+          setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
           setSelectedDong(null)
           setShowCritical(false)
           setFocusCandidate(null)
           clearActive()
-          cue({ pitch: 55, bearingDelta: 30, duration: 2600 })
+          // 첫 장면은 골목에서 연다: 조망에서 곧장 다가구·단독 골목(자양4동)으로 내려가 초록 건물(밀집)을 눈높이에서 보고,
+          // 캡션을 읽을 즈음 구 전체로 물러나면서 앰버 과태료 기둥이 솟는다 = 초록 위에 과태료가 얹히는 순서가 결론 문장 그대로(줌인 → 줌아웃 리빌). 그 뒤 천천히 돈다
+          if (alleyPt) cue({ bounds: around(alleyPt), maxZoom: 16.1, pitch: 64, bearingDelta: 35, duration: 4200 })
+          else cue({ pitch: 55, bearingDelta: 30, duration: 2600 })
+          later(9500, () => cue({ pitch: 55, bearingDelta: 40, duration: 5200 }))
+          later(12000, () => setView((v) => ({ ...v, circles: DEFAULT_VIEW.circles })))
         },
       },
       {
@@ -357,31 +373,34 @@ export default function DumpingDashboard() {
           // 낮게 내려가 기둥이 서는 걸 올려다본다. 도착 즈음 기둥이 솟는다
           cue({ pitch: 63, bearingDelta: 40, duration: 2600 })
           later(1600, () => setView((v) => ({ ...v, dongBars: true, dongMode: "total" })))
+          // 기둥이 선 뒤 1위 동(화양동)의 기둥으로 내려간다(줌인). 두 기둥 높이와 꼭대기 배지가 읽힌다
+          if (topDongPt) later(5200, () => cue({ bounds: around(topDongPt, 0.004), maxZoom: 14.5, pitch: 60, bearingDelta: 35, duration: 4500 }))
         },
       },
       {
         title: "집중관리 상습격자",
         caption: `최근 12개월 10건 이상 상습격자는 ${kpi.criticalCellsNow}곳, 앱 신고를 빼도 ${kpi.criticalCellsNowNoApp}곳입니다.`,
-        note: "벽돌색 기둥 = 12개월 민원+과태료 건수 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
+        note: "벽돌색 기둥 = 12개월 민원+과태료 건수 · 드론이 1위부터 5위까지 찾아갑니다 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
+        // 예측 핫스팟 기둥·순위는 다음 장면에서 솟는다. 20곳 중 15곳이 상습격자와 같은 칸이라 여기서 같이 보이면 3·4장면이 같은 그림으로 읽힌다(사용자 지적)
+        hotspots: false,
         apply: () => {
           setTab("ops")
-          setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
+          setView({ ...DEFAULT_VIEW, circles: [], fly: "critical" })
           setSelectedDong(null)
           setShowCritical(false)
           setFocusCandidate(null)
           clearActive()
-          // 상습격자가 모인 범위로 가까이. 도착 즈음 빨간 기둥이 솟는다
-          cue({ bounds: critBox, maxZoom: 14.6, pitch: 60, bearingDelta: -35, duration: 2600 })
-          later(1600, () => setShowCritical(true))
+          // 드론이 조망으로 물러나는 동안 벽돌 기둥이 솟고, 이어 1위(중곡1동)부터 찾아간다
+          later(1200, () => setShowCritical(true))
         },
       },
       {
         title: "다음 분기 예측",
         caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 ${bt.avgPrecision20 ?? "-"}%였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
-        note: `지난 ${bt.windows.length}개 분기 되돌려 검증 · 무작위 포착 ${bt.avgRandomCapture ?? "-"}% 대비 ${bt.avgCapture20 ?? "-"}%`,
+        note: `지난 ${bt.windows.length}개 분기 되돌려 검증 · 무작위 포착 ${bt.avgRandomCapture ?? "-"}% 대비 ${bt.avgCapture20 ?? "-"}% · 기둥 높이는 예측 점수, 꼭대기 숫자는 순위(상위 3곳 진한 벽돌)`,
         apply: () => {
           setTab("ops")
-          setView({ ...DEFAULT_VIEW, fly: true })
+          setView({ ...DEFAULT_VIEW, fly: "hotspots" })
           setSelectedDong(null)
           setShowCritical(false)
           setFocusCandidate(null)
@@ -390,16 +409,15 @@ export default function DumpingDashboard() {
       },
       {
         title: "정책 제안",
-        caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
-        note: "핀·순위 숫자는 재배치 후보(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라는 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
+        caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 현 위치와 발생이력으로 뽑은 재배치 후보 ${mapData.cctvCandidates.length}곳을 1위부터 찾아갑니다.` : "정책 제안 6건",
+        note: "핀 숫자는 후보 순위(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라는 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
           setShowCritical(false)
           setFocusCandidate(null)
           if (cctv) applyLeverViz(cctv)
-          setView((v) => ({ ...v, fly: false, orbit: true }))
-          // 후보 상위 5곳이 든 범위로. 말뚝은 카메라 도착 즈음
-          cue({ bounds: candBox, maxZoom: 15.4, pitch: 60, bearingDelta: 45, duration: 3200 })
+          // 후보 핀이 서면 드론이 1위(중곡1동 천호대로)부터 찾아간다
+          setView((v) => ({ ...v, fly: "candidates", orbit: false }))
         },
       },
     ]
@@ -545,7 +563,7 @@ export default function DumpingDashboard() {
             layers={view.layers}
             showCandidates={view.candidates}
             showBinRecos={view.binRecos}
-            showHotspots={tab === "ops"}
+            showHotspots={tab === "ops" && (demo === null || scenes[demo]?.hotspots !== false)}
             showCritical={showCritical && (tab === "ops" || tab === "policy")}
             focusCandidate={focusCandidate}
             showRoutes={view.routes}
