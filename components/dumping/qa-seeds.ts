@@ -239,13 +239,13 @@ export function buildSeeds(data: DumpingMapData, graph: OntoGraph): Seed[] {
       answer: `늘려서 줄인다는 근거는 확인되지 않았습니다. 초기에 보였던 감소 효과는 비교 방법 오류로 철회됐습니다. 다만 적발 기록이 없는 자리의 카메라를 잦은 자리로 옮기는 재배치 후보 ${candidates}곳은 추가 예산 없이 검토할 수 있습니다.`,
       detail: lines(
         `수치: 대칭 DID ${signed(didSym)}(p${didP}), 이벤트 스터디 전 시점 비유의`,
-        `수치: 재배치 후보 ${candidates}곳(지도 앰버 핀·순위 배지), 이동식 CCTV 장부 ${n(cctvRows)}대`,
+        `수치: 재배치 후보 ${candidates}곳(지도 핀·순위 숫자, 상위 3 벽돌색), 이동식 CCTV 장부 ${n(cctvRows)}대`,
         `근거: CCTV 현황·과태료 부과 내역, 카드 "효과 철회"`,
         `한계: 재배치도 조치 대장 등록 뒤 평가. 이전·설치 인력 별도`,
       ),
       chart: "did",
       viz: { mode: "enf", layers: ["cctvMobile"], candidates: true },
-      vizNote: `지도에 이동식 CCTV 현 위치(보라 카메라)와 재배치 후보 ${candidates}곳(앰버 핀·순위 배지)을 표시했습니다. 지도 오른쪽 목록에서 후보지 주소를 볼 수 있습니다.`,
+      vizNote: `지도에 이동식 CCTV 현 위치(보라 카메라)와 재배치 후보 ${candidates}곳(핀·순위 숫자, 상위 3 벽돌색)을 표시했습니다. 바탕은 회색 단계로, 진할수록 기록이 많은 칸입니다. 지도 오른쪽 목록에서 후보지 주소를 볼 수 있습니다.`,
     },
     {
       q: "빠뜨린 대책은 없나?",

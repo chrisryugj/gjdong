@@ -746,6 +746,12 @@ export const RECO_RING_R_M = 17 // 배치추천 고리(아직 없는 것이라 �
 export const RECO_RING_H_M = 12
 export const FOCUS_RING_R_M = 46 // 초점 고리(목록 클릭·드론 목표)
 export const NEUTRAL_BUILDING = { light: "#d7d5cd", dark: "#2a343b" } as const
+// 재배치 후보를 표시하는 동안의 바탕 램프: 색 대신 회색 단계(진할수록 기록 많음). 앰버 핀·보라 카메라만 색을 갖는다(2026-09-21)
+export const GREY_RAMP = { light: ["#e2e0d9", "#cfccc3", "#b7b3a9", "#9a968c", "#7a766d", "#57544d"], dark: ["#2a343b", "#3a454d", "#4b5761", "#5f6c77", "#76848f", "#93a0aa"] } as const
+export function greyRamp(theme: "light" | "dark", n: number): string[] {
+  const src = GREY_RAMP[theme]
+  return Array.from({ length: n }, (_, i) => src[Math.round((i * (src.length - 1)) / Math.max(1, n - 1))])
+}
 
 // 실사풍 건물 색(바탕 "없음"·기본): 층수로 건물 유형을 짐작해 칠한다. 1~2층 단독(따뜻한 베이지) · 3~4층 다가구(벽돌 톤) · 5~9층 근생·빌라(콘크리트)
 // · 10~19층 아파트(회백) · 20층+ 고층(유리 청회). 같은 층수라도 UFID 끝자리로 ±1층 흔들어 이웃 건물이 똑같은 색으로 붙지 않게 한다

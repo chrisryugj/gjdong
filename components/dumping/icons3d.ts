@@ -1,6 +1,6 @@
 // /dumping 입체 시설 아이콘(18라운드 후속, 2026-09-19). maplibre 커스텀 레이어(renderingMode 3d) 위의 Three.js 장면.
 // 시설 종류마다 작은 모델(이동식 CCTV=기둥+머리, 고정 CCTV=기둥+돔, 의류수거함=상자+뚜껑+투입구, 재활용정거장=받침+통 3개, 가로쓰레기통=통+뚜껑),
-// 재배치 후보=앰버 핀(바늘+구슬) + 머리 위 입체 순위 숫자(회전, 상위 3은 액센트), 배치추천=반투명 분홍 통.
+// 재배치 후보=앰버 핀(바늘+구슬, 상위 3은 크게) + 머리 위 앰버 입체 순위 숫자(종이색 후광, 회전), 배치추천=반투명 분홍 통. 후보가 켜지면 건물은 중립 회색(dumping-map)
 // 크기는 화면 기준 최소 높이를 지킨다(마커처럼): 조망에서도 점이 아니라 모양이 보이고, 확대하면 실제 크기에 가까워진다.
 // 깊이 버퍼를 지도와 공유해 건물·기둥이 아이콘을 자연스럽게 가린다. 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약).
 // 툴팁은 같은 자리의 투명 fill-extrusion(dumping-map S.infraPosts 등)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
@@ -9,7 +9,7 @@ import { Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
 import digitFont from "./digit-font.json"
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
-import { INFRA_STYLE, BIN_RECO_COLOR, type RouteChain } from "./map-geo"
+import { INFRA_STYLE, BIN_RECO_COLOR, CRIT_COLOR, type RouteChain } from "./map-geo"
 
 export type IconKind = "clothBins" | "cctvFixed" | "cctvMobile" | "recycling" | "bins" | "cand" | "binReco" | "dongRank"
 export interface IconPoint {
@@ -56,8 +56,10 @@ function buildDefs(): Record<IconKind, KindDef> {
   const recy = INFRA_STYLE.recycling.color
   const bin = INFRA_STYLE.bins.color
   const dark = "#262626"
-  // 핀은 앰버 램버트 + 약한 자체발광(물리 재질은 환경맵이 없어 검게 나왔다, 실측). 테마 액센트(setTheme에서 색 갱신)
-  const pin = lambert("#c0741a", { emissive: new THREE.Color("#c0741a"), emissiveIntensity: 0.22 })
+  // 핀은 앰버(액센트) 램버트 + 약한 자체발광(물리 재질은 환경맵이 없어 검게 나왔다, 실측). setTheme에서 색 갱신.
+  // 2026-09-21: 잉크 핀(검은 덩어리)·흰 핀(회백 건물과 겹침)을 거쳐 앰버로 복귀. 겹침의 원인은 핀이 아니라 과태료 바탕(앰버·벽돌)이라
+  // 후보가 켜지면 건물을 중립 회색으로 눌러(dumping-map) 앰버 핀·보라 카메라만 색을 갖게 했다
+  const pin = lambert("#ffffff", { emissive: new THREE.Color("#2a1c08"), emissiveIntensity: 0.22 }) // 색은 인스턴스마다(상위 3 벽돌·나머지 앰버, updateMatrices)
   return {
     cctvMobile: {
       height: 12.6,
@@ -102,7 +104,7 @@ function buildDefs(): Record<IconKind, KindDef> {
         { geom: new THREE.CylinderGeometry(2.4, 2.4, 0.9, 14), mat: lambert("#1f2937"), local: at(0, 6.85, 0) },
       ],
     },
-    // 재배치 후보: 앰버 핀(액센트). 바늘(끝이 땅) + 구슬. 순위 배지(흰 원+앰버 숫자, 상위 3은 앰버 채움)는 스프라이트로 따로
+    // 재배치 후보: 앰버 핀. 바늘(끝이 땅) + 구슬(상위 3은 1.25배). 순위 숫자는 머리 위 앰버 입체 숫자 + 종이색 후광(지도 라벨 후광과 같은 문법)
     cand: {
       height: 14,
       maxScale: 60,
@@ -129,6 +131,7 @@ interface KindState {
   pos: { x: number; z: number; y: number }[] // 원점 기준 미터. y는 지형 고도
   meshes: THREE.InstancedMesh[]
   coins: THREE.Group[] // 순위 입체 숫자(기둥·핀 꼭대기, 카메라 방위를 따라 선다)
+  rings: THREE.Mesh[] // 후보 상위 3의 바닥 고리(앰버, 땅 위). 순위 강조
   appearAt: number
   elevated: boolean // 지형 고도를 한 번이라도 받았나
 }
@@ -164,10 +167,22 @@ function digitGeometry(text: string): THREE.BufferGeometry {
   digitCache.set(text, g)
   return g
 }
-// 입체 숫자 한 장. 세로축은 카메라 방위를 따라 돌려 항상 정면이 보인다(두 장 교차는 비스듬히 보면 덩어리로 뭉쳤고, 자유 회전은 옆면만 보이는 순간이 있었다)
-function makeDigit(text: string, color: string): THREE.Group {
+// 입체 숫자 한 장. 세로축은 카메라 방위를 따라 돌려 항상 정면이 보인다(두 장 교차는 비스듬히 보면 덩어리로 뭉쳤고, 자유 회전은 옆면만 보이는 순간이 있었다).
+// children[0] = 후광(뒷면만 그리는 살짝 큰 껍질, 종이색), children[1] = 채움. renderOrder로 채움이 항상 뒤에 그려진다
+// (둘 다 transparent라 거리순 정렬이 같은 자리에서 뒤집혀 껍질이 채움을 덮었다 = 검은 덩어리, 2026-09-21 실측)
+const DIGIT_PAPER = { light: "#f1ecdf", dark: "#ece7dc" } as const
+// 상위 3 바닥 고리: 핀 모델 단위(핀 높이 14)로 안 4.2·밖 6. 핀과 같은 배율로 커진다
+const RING_GEOM = new THREE.RingGeometry(4.2, 6, 40)
+// 후보 상위 3 = 벽돌색(CRIT_COLOR, ops 탭 핫스팟 1~3과 같은 색). 앰버 4~20 사이에서 바로 읽힌다(2026-09-21 "강조색 바꿔")
+const TOP_COLOR = new THREE.Color(CRIT_COLOR)
+const ACCENT_COLOR = new THREE.Color("#c0741a")
+function makeDigit(text: string, color: string, halo: string): THREE.Group {
   const g = new THREE.Group()
-  g.add(new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3 })))
+  const shell = new THREE.Mesh(digitGeometry(text).clone().scale(1.1, 1.1, 1.5), new THREE.MeshBasicMaterial({ color: halo, side: THREE.BackSide, transparent: true, depthTest: false }))
+  shell.renderOrder = 10
+  const fill = new THREE.Mesh(digitGeometry(text), new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color), emissiveIntensity: 0.3, transparent: true, depthTest: false }))
+  fill.renderOrder = 11
+  g.add(shell, fill)
   return g
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 96m 안에 든다
@@ -189,6 +204,7 @@ export class Icons3DLayer implements CustomLayerInterface {
   private trucks: Truck[] = []
   private truckMeshes: THREE.InstancedMesh[] = []
   private accent = "#c0741a"
+  private dark = false
   private anchor = maplibregl.MercatorCoordinate.fromLngLat(ANCHOR, 0)
   private scale = this.anchor.meterInMercatorCoordinateUnits()
 
@@ -216,22 +232,34 @@ export class Icons3DLayer implements CustomLayerInterface {
   }
 
   setTheme(dark: boolean) {
+    this.dark = dark
     this.accent = dark ? "#e39a3f" : "#c0741a"
+    const paper = dark ? DIGIT_PAPER.dark : DIGIT_PAPER.light
+    // 핀 재질은 흰색(인스턴스 색 × 재질색이라 재질은 흰색이어야 인스턴스 색이 그대로 난다). 자체발광은 약하게 중립
     const pin = this.defs?.cand.parts[0].mat as THREE.MeshLambertMaterial | undefined
     if (pin) {
-      pin.color.set(this.accent)
-      pin.emissive.set(this.accent)
+      pin.color.set("#ffffff")
+      pin.emissive.set(dark ? "#3a2a12" : "#2a1c08")
     }
-    const st = this.kinds.get("cand")
-    if (st)
+    this.lastZoom = -1 // 인스턴스 색을 다시 쓴다
+    for (const kind of ["cand", "dongRank"] as const) {
+      const st = this.kinds.get(kind)
+      if (!st) continue
       st.coins.forEach((c, i) => {
-        if ((st.points[i].rank ?? i + 1) <= 3) {
-          const m = (c.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial
-          m.color.set(this.accent)
-          m.emissive.set(this.accent)
-        }
+        const fill = this.digitColor(kind, st.points[i], st.points[i].rank ?? i + 1)
+        ;((c.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(paper)
+        const m = (c.children[1] as THREE.Mesh).material as THREE.MeshLambertMaterial
+        m.color.set(fill)
+        m.emissive.set(fill)
       })
+    }
     this.map?.triggerRepaint()
+  }
+
+  // 숫자 채움색. 동별: 제 기둥 색. 후보: 상위 3 벽돌색(핀·고리와 같이), 나머지 앰버
+  private digitColor(kind: IconKind, p: IconPoint, rank = p.rank ?? 99): string {
+    if (kind === "dongRank") return p.color ?? this.accent
+    return rank <= 3 ? CRIT_COLOR : this.accent
   }
 
   setVisible(v: boolean) {
@@ -274,7 +302,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     if (!defs || !map) {
       // 아직 지도에 안 붙었으면 점만 기억해 둔다
       const prev = this.kinds.get(kind)
-      this.kinds.set(kind, { points, pos: [], meshes: prev?.meshes ?? [], coins: prev?.coins ?? [], appearAt: 0, elevated: false })
+      this.kinds.set(kind, { points, pos: [], meshes: prev?.meshes ?? [], coins: prev?.coins ?? [], rings: prev?.rings ?? [], appearAt: 0, elevated: false })
       return
     }
     const prev = this.kinds.get(kind)
@@ -284,9 +312,10 @@ export class Icons3DLayer implements CustomLayerInterface {
         this.scene.remove(c)
         ;((c.children[0] as THREE.Mesh).material as THREE.Material).dispose()
       }
+      for (const r of prev.rings) this.scene.remove(r)
     }
     if (!points.length) {
-      this.kinds.set(kind, { points: [], pos: [], meshes: [], coins: [], appearAt: 0, elevated: true })
+      this.kinds.set(kind, { points: [], pos: [], meshes: [], coins: [], rings: [], appearAt: 0, elevated: true })
       map.triggerRepaint()
       return
     }
@@ -302,17 +331,24 @@ export class Icons3DLayer implements CustomLayerInterface {
       return mesh
     })
     const coins: THREE.Group[] = []
+    const rings: THREE.Mesh[] = []
     if (kind === "cand" || kind === "dongRank") {
       points.forEach((p, i) => {
         const rank = p.rank ?? i + 1
-        // 동별: 제 기둥 색(숫자는 기둥 위에 서서 하늘·종이를 배경으로 보인다). 후보: 상위 3 앰버, 나머지 잉크
-        const color = kind === "dongRank" ? (p.color ?? this.accent) : rank <= 3 ? this.accent : "#1c1a15"
-        const coin = makeDigit(String(rank), color)
+        const coin = makeDigit(String(rank), this.digitColor(kind, p, rank), this.dark ? DIGIT_PAPER.dark : DIGIT_PAPER.light)
         coins.push(coin)
         this.scene.add(coin)
+        // 후보 상위 3: 바닥에 앰버 고리(초점 고리와 같은 문법). 오른쪽 목록의 채운 배지 1·2·3과 짝
+        if (kind === "cand" && rank <= 3) {
+          const ring = new THREE.Mesh(RING_GEOM, new THREE.MeshBasicMaterial({ color: CRIT_COLOR, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }))
+          ring.rotation.x = -Math.PI / 2
+          ring.renderOrder = 5
+          rings.push(ring)
+          this.scene.add(ring)
+        }
       })
     }
-    this.kinds.set(kind, { points, pos, meshes, coins, appearAt: animate ? performance.now() : 0, elevated: false })
+    this.kinds.set(kind, { points, pos, meshes, coins, rings, appearAt: animate ? performance.now() : 0, elevated: false })
     this.lastZoom = -1
     map.triggerRepaint()
   }
@@ -339,20 +375,39 @@ export class Icons3DLayer implements CustomLayerInterface {
       const a = appearing ? easeOutBack(Math.min(1, (now - st.appearAt) / APPEAR_MS)) : 1
       if (st.meshes.length && (appearing || zoomChanged)) {
         st.pos.forEach((p, i) => {
-          sc.makeScale(k * a, k * a, k * a)
+          // 후보 상위 3 핀은 1.4배·벽돌색(ops 탭 핫스팟 1~3과 같은 문법), 나머지 0.9배·앰버
+          const top = kind === "cand" && (st.points[i].rank ?? i + 1) <= 3
+          const big = kind === "cand" ? (top ? 1.4 : 0.9) : 1
+          sc.makeScale(k * a * big, k * a * big, k * a * big)
+          if (kind === "cand") for (const mesh of st.meshes) mesh.setColorAt(i, top ? TOP_COLOR : ACCENT_COLOR.set(this.accent))
           st.meshes.forEach((mesh, j) => {
             tmp.makeTranslation(p.x, p.y, p.z).multiply(sc).multiply(def.parts[j].local)
             mesh.setMatrixAt(i, tmp)
           })
         })
-        for (const mesh of st.meshes) mesh.instanceMatrix.needsUpdate = true
+        for (const mesh of st.meshes) {
+          mesh.instanceMatrix.needsUpdate = true
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+        }
+        // 상위 3 바닥 고리: 핀과 같은 자리·배율(고리는 rank 순으로 rings[0..2])
+        let ri = 0
+        st.pos.forEach((p, i) => {
+          if (kind !== "cand" || (st.points[i].rank ?? i + 1) > 3) return
+          const ring = st.rings[ri++]
+          if (!ring) return
+          const rs = k * a * 1.4
+          ring.position.set(p.x, p.y + 0.3, p.z)
+          ring.scale.set(rs, rs, rs)
+        })
       }
       st.pos.forEach((p, i) => {
         const coin = st.coins[i]
         if (!coin) return
         const pt = st.points[i]
         // 높이: 동별은 기둥 폭 기준(78m), 후보는 핀 크기 기준. 조망에서 13px 아래로는 안 내려간다
-        const hgt = Math.max(DIGIT_MIN_PX * mpp, pt.h != null ? DONG_DIGIT_M : 11 * k) * a
+        // 후보 숫자: 상위 3은 1.15배, 4위 아래 0.78배(20개가 뭉쳐도 상위 3이 먼저 읽힌다)
+        const small = pt.h == null ? ((pt.rank ?? i + 1) <= 3 ? 1.15 : 0.78) : 1
+        const hgt = Math.max(DIGIT_MIN_PX * mpp, pt.h != null ? DONG_DIGIT_M : 11 * k) * a * small
         // 동별 기둥은 제 기둥 위에 선다(민원 왼쪽·과태료 오른쪽 기둥 중심 = 이미 pos에 반영). 숫자가 기둥 폭보다 크면 폭만큼 바깥으로 비킨다
         const dx = pt.side && hgt > DONG_DIGIT_M ? pt.side * (hgt - DONG_DIGIT_M) * 0.5 : 0
         coin.position.set(p.x + dx, p.y + (pt.h ?? 12.4 * k * a), p.z)

@@ -29,6 +29,7 @@ import {
   CRIT_COLOR,
   FOCUS_RING_R_M,
   NEUTRAL_BUILDING,
+  greyRamp,
   POST_H_M,
   POST_R_M,
   RECO_RING_H_M,
@@ -491,6 +492,8 @@ export default function DumpingMap({
     const muted = layers.length > 0 || showCandidates || showBinRecos || showHotspots || showCritical
     // 동을 골랐으면 그 동 안은 항상 또렷하게. 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
     const dimmed: unknown[] = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted]
+    // 재배치 후보를 표시하는 동안은 바탕 램프를 회색 단계로: 근거(기록이 많은 칸)는 남기되 색은 앰버 핀·보라 카메라만 갖는다(2026-09-21 "색이 겹친다")
+    const greyMode = showCandidates && !selectedDong && base !== "none"
     if (base === "none") {
       // 바탕 없음: 격자를 안 칠한다. 동 선택 시 그 동만 옅은 격자선으로 범위를 알린다
       map.setPaintProperty(S.grid, "fill-opacity", 0)
@@ -501,7 +504,7 @@ export default function DumpingMap({
       const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
       const positive: unknown[] = [">", ["get", prop], 0]
       // 값 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다(흐림 상태에선 숨김)
-      map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, def.pal), ZERO_CELL])
+      map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, greyMode ? greyRamp(themeRef.current, def.pal.length) : def.pal), ZERO_CELL])
       map.setPaintProperty(S.grid, "fill-opacity", ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]])
       map.setPaintProperty(L_GRID_LINE, "line-color", ["case", positive, "#ffffff", ZERO_CELL])
       map.setPaintProperty(L_GRID_LINE, "line-opacity", ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
@@ -525,15 +528,17 @@ export default function DumpingMap({
     // 시설·후보·배치추천 말뚝이 서면 히트맵을 중립색 쪽으로 55% 눌러 말뚝이 앞에 선다(빨간 후보가 주황 건물에 묻혔던 실측). 동별 기둥은 기둥이 주인공이라 건물은 중립
     // 바탕 없음이면 층수 실사 색(map-geo realBuildingExpr). 동 선택·동별 기둥 때도 실사 색 유지(중립 회색보다 지도가 살아 있다)
     const neutral = NEUTRAL_BUILDING[themeRef.current]
+    // 재배치 후보가 서면 건물도 회색 단계(greyMode): 과태료 바탕(앰버·벽돌) 위에서 앰버 핀·숫자가 묻혔다(2026-09-21 사용자 지적 "색이 겹친다").
+    // 근거(진할수록 기록 많음)는 남고 색은 앰버 핀·보라 카메라만. 바탕 없음이면 실사 대신 중립 회색
     const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", showDongBars]
     if (map.getLayer(L_BUILDINGS_NSDI)) {
-      if (base === "none") map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", realBuildingExpr(themeRef.current))
+      if (base === "none") map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", showCandidates && !selectedDong ? neutral : realBuildingExpr(themeRef.current))
       else {
         const def = BASE_DEF[base]
         const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
         const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
-        const pointsOn = layers.length > 0 || showCandidates || showBinRecos
-        const pal = pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
+        const pointsOn = layers.length > 0 || showBinRecos
+        const pal = greyMode ? greyRamp(themeRef.current, def.pal.length) : pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
         map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val), neutral])
       }
     }

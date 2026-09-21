@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, type CandidateFocus } from "./map-geo"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, type CandidateFocus } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
@@ -384,6 +384,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
   // 바탕 없음이면 데이터 램프 대신 건물 층수 색 띠(테마별). 표는 다가구·단독 기준으로 남긴다
   const none = view.base === "none"
   const def = BASE_DEF[view.base === "none" ? "unm" : view.base]
+  const grey = view.candidates && !selectedDong && !none // 후보 표시 중: 바탕 램프가 회색 단계(dumping-map greyMode)
 
   return (
     <div className="text-[12.5px] leading-snug text-[var(--cp-text)]">
@@ -393,7 +394,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
         </div>
         <div className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-[3px]">
-            {(none ? [...REAL_BUILDING[theme]] : def.pal).map((c: string) => (
+            {(none ? [...REAL_BUILDING[theme]] : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
@@ -403,7 +404,8 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
         </div>
         <p className="text-[var(--cp-text-muted)]">
           {BASE_MEANING[view.base]}
-          {view.tilt && !none && " 입체에서는 건물도 제 칸 색으로 칠함"}
+          {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
+          {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀 = 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라 = 현 이동식 CCTV"}
         </p>
         {(showHelp || view.weather || view.grid3d) && (
           <>
@@ -518,12 +520,13 @@ export function CandidateList({ data, onFocusCandidate, onClose }: { data: Dumpi
             key={i}
             onClick={() => onFocusCandidate({ seq: Date.now(), latlng: [c[0], c[1]], label: `재배치 후보 ${i + 1}위 · ${c[5] || c[4]}` })}
             className={`flex w-full items-start gap-2 border-b border-[var(--cp-border-faint)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cp-hover)] ${
-              i < 3 ? "bg-(--dump-accent)/8" : ""
+              i < 3 ? "bg-[#a8322a]/8" : ""
             }`}
           >
+            {/* 상위 3 = 벽돌색(지도의 핀·고리·숫자와 같은 색, ops 핫스팟 1~3 문법), 나머지 = 앰버 테두리 */}
             <span
               className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold ${
-                i < 3 ? "bg-(--dump-accent) text-white ring-2 ring-white" : "border-[1.5px] border-(--dump-accent) bg-white text-(--dump-accent)"
+                i < 3 ? "bg-[#a8322a] text-white ring-2 ring-white" : "border-[1.5px] border-(--dump-accent) bg-white text-(--dump-accent)"
               }`}
             >
               {i + 1}

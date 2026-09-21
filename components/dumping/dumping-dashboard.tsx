@@ -353,7 +353,7 @@ export default function DumpingDashboard() {
       {
         title: "정책 제안",
         caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 이동식 CCTV 현 위치와 발생이력 기준 재배치 후보 ${mapData.cctvCandidates.length}곳` : "정책 제안 6건",
-        note: "앰버 핀·순위 배지 = 재배치 후보(발생이력 순, 자원배분 논리) · 보라 카메라 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
+        note: "핀·순위 숫자 = 재배치 후보(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라 = 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
           setShowCritical(false)
