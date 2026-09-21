@@ -296,11 +296,27 @@ async function main() {
   const heatSamples = heat.map((h) => samplePath(h.path))
 
   // ─── 제설함 110 (도로과, 좌표 있음) → 동은 경계로 판정 ───
-  const salt = csv(FILES.salt).map((r) => {
-    const lat = +r["위도"]
-    const lng = +r["경도"]
-    return { id: r["관리번호"], addr: r["도로명주소"].replace("서울특별시 광진구 ", ""), detail: r["상세위치"], lat, lng, d: dongOf(lat, lng) }
+  const saltRaw = csv(FILES.salt).map((r) => ({ id: r["관리번호"], addr: r["도로명주소"].replace("서울특별시 광진구 ", ""), detail: r["상세위치"], lat: +r["위도"], lng: +r["경도"] }))
+  // 원자료 좌표 오기 보정(6라운드 실측): 광진-92 "용마산로 127(왼쪽)" 위도 37.46549는 같은 주소 광진-91(오른쪽) 37.56547보다 정확히 0.1도(11km) 남쪽 = 자릿수 오기.
+  // 구 경계에서 2km 넘게 벗어난 점은 같은 도로명주소의 다른 행이 구 안에 있으면 그 좌표로 옮기고 saltFixed에 남긴다(지도가 강남에 제설함을 찍던 것)
+  // 경계선 위 제설함(광진-58 군자 지하보도, 경계 53m 밖)은 그대로 둔다: 구 경계에서 2km 넘게 떨어진 점만 오기로 본다
+  const kmTo = (a, b) => Math.hypot((a[0] - b[0]) * 111.32, (a[1] - b[1]) * 111.32 * Math.cos((a[0] * Math.PI) / 180))
+  const kmToRing = (lat, lng) => Math.min(...geo.ring.map((p) => kmTo([lat, lng], p)))
+  const saltFixed = []
+  const salt = saltRaw.map((r) => {
+    let { lat, lng } = r
+    if (!dongOf(lat, lng) && !inGu(lat, lng) && kmToRing(lat, lng) > 2) {
+      const twin = saltRaw.find((o) => o !== r && o.addr === r.addr && dongOf(o.lat, o.lng))
+      const km = twin ? kmTo([twin.lat, twin.lng], [lat, lng]) : 0
+      if (twin && km > 2) {
+        saltFixed.push({ id: r.id, addr: r.addr, from: [lat, lng], to: [twin.lat, twin.lng], km: Math.round(km * 10) / 10 })
+        lat = twin.lat
+        lng = twin.lng
+      }
+    }
+    return { ...r, lat, lng, d: dongOf(lat, lng) }
   })
+  if (saltFixed.length) console.log(`제설함 좌표 오기 보정 ${saltFixed.length}건:`, saltFixed.map((f) => `${f.id} ${f.addr} ${f.km}km`).join(", "))
   // ─── 염화칼슘보관함 228. 열 이름은 X(GRS80TM)·Y(GRS80TM)지만 값은 WGS84 위경도 ───
   const cacl = csv(FILES.cacl).map((r) => ({
     id: r["관리번호"],
@@ -567,6 +583,7 @@ async function main() {
       heatJoin: { seoulRows: heat.length, guMatched: heat.filter((h) => h.guNo != null).length, guRows: gu.length, guUnmatched: gu.filter((g) => !heat.some((h) => h.guNo === g.i)).map((g) => g.i) },
       slope: { ...SLOPE, count: slopes.length, km: gaps.slopeKm, weakOnSlope, dropped: slopesAll.length - slopes.length, rule: "terrarium z14(약 7.6m/px) 고도를 이름 있는 이면도로를 따라 20m 간격 표본, 100m 창 고도차 8% 이상 20% 이하. 교량·터널·간선(primary 이상)과 고가 120m 안 구간 제외. 추정치" },
       saltNoDong: salt.filter((s) => !s.d).length,
+      saltFixed,
       thresholds: { heatNearM: HEAT_NEAR_M, materialNearM: MATERIAL_NEAR_M, schoolNearM: SCHOOL_NEAR_M },
     },
   }

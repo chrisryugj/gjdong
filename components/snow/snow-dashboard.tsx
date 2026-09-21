@@ -17,12 +17,16 @@ import { boundsOf, type ColMetric, dongBounds, type FlyStop, heatPaths, segMid }
 import { ALL_LAYERS, DEFAULT_VIEW, LayerPanel, Legend, type MapView } from "./map-controls"
 import { Ico } from "@/components/dumping/icons"
 import ThemeSwitch, { useTheme } from "@/components/dumping/theme"
+import GlassDial from "@/components/dumping/glass-dial"
 import LiquidGlass from "@/components/dumping/liquid-glass"
 import LiquidTabs from "@/components/dumping/liquid-tabs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "@/components/dumping/use-sidebar-width"
 import SnowMark from "./snow-mark"
-import { LoadCard, LOAD_START, type LoadState } from "./loading"
+import { LoadCurtain, LOAD_START, type LoadState } from "./loading"
+import ForecastStrip from "./forecast-strip"
+import DongBrief from "./dong-brief"
+import AskPanel from "./ask-panel"
 import { startSnowData } from "./data-early"
 
 // 광진 제설 상황실(/snow. 6라운드: 상황판 → 상황실, /dumping "클린광진 상황실"과 이름 규격 통일). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
@@ -31,9 +35,10 @@ import { startSnowData } from "./data-early"
 // 3라운드(2026-09-20): 테마 저장 키 snow-theme(/dumping의 dump-theme와 분리. 그쪽을 라이트로 쓰면 여기까지 라이트로 뜨던 실사고), 자동 회전·초점 고리·시연 중 카드 접기·격상 진행바, 급경사 칩
 // 4라운드(2026-09-21): 시연 6장면(경사 추정·점검 후보 드론 비행 추가), 대응 단계 탭은 단계 동원 목록(MOBILIZED)대로 자원 층을 켜고 2단계부터 제설차, 법령 탭은 관리청별 색(ownerView), 모바일(768 미만)은 평면 기본, 동별 순위 입체 숫자는 장면 2에서만
 
-type Tab = "gap" | "stage" | "resources" | "onto" | "law"
+type Tab = "gap" | "ask" | "stage" | "resources" | "onto" | "law"
 const TABS: { id: Tab; label: string }[] = [
   { id: "gap", label: "공백" },
+  { id: "ask", label: "물어보기" },
   { id: "stage", label: "대응 단계" },
   { id: "resources", label: "자원 현황" },
   { id: "onto", label: "근거 그래프" },
@@ -42,6 +47,7 @@ const TABS: { id: Tab; label: string }[] = [
 // 390px 폭에서 다섯 탭이 한 줄에 들어가게 짧은 이름
 const TABS_SHORT: { id: Tab; label: string }[] = [
   { id: "gap", label: "공백" },
+  { id: "ask", label: "묻기" },
   { id: "stage", label: "단계" },
   { id: "resources", label: "자원" },
   { id: "onto", label: "근거" },
@@ -76,6 +82,9 @@ interface Scene {
   apply: () => void
 }
 const RESOURCE_LAYERS: LayerId[] = ["heat", "salt", "cacl", "sand"]
+// 첫 화면 결론 등장(6라운드, dumping 19라운드 규약): 커튼이 걷힌 뒤 열선 없는 취약구간(진홍 벽·번호)이 0.8초, 결빙구간이 1.8초 뒤 솟는다 = 헤드라인 "47곳 중 13곳에 열선이 없습니다"를 지도가 말한다.
+// 그 전까지는 자원·학교만(REVEAL_START). 사용자가 사이에 층을 바꿨으면 건드리지 않는다
+const REVEAL_START: LayerId[] = DEFAULT_VIEW.layers.filter((l) => l !== "weak" && l !== "ice")
 
 export default function SnowDashboard() {
   const [tab, setTab] = useState<Tab>("gap")
@@ -83,14 +92,32 @@ export default function SnowDashboard() {
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [forecast, setForecast] = useState<SnowForecast | null | "error">(null)
   const [loadErr, setLoadErr] = useState(false)
-  const [load, setLoad] = useState<LoadState>(LOAD_START) // 첫 로딩 진행(데이터 › 지도 바탕 › 타일 › 끝). 끝나면 카드가 0.5초 흐려지며 사라진다
-  const [loadHiding, setLoadHiding] = useState(false)
+  const [load, setLoad] = useState<LoadState>(LOAD_START) // 첫 로딩 진행(데이터, 지도 바탕, 타일, 끝). 로딩 커튼이 읽는다
+  const [iconsReady, setIconsReady] = useState(false)
+  // 로딩 커튼(6라운드): 타일과 3D 핀이 다 오면(또는 25초 상한·오류) 0.65초 페이드로 걷히고 결론이 단계로 등장한다
+  const [curtain, setCurtain] = useState<"on" | "out" | "off">("on")
+  const curtainDone = useRef(false)
+  const revealTimers = useRef<number[]>([])
+  const dismissCurtain = () => {
+    if (curtainDone.current) return
+    curtainDone.current = true
+    setCurtain("out")
+    const same = (a: LayerId[], b: LayerId[]) => a.length === b.length && a.every((l) => b.includes(l))
+    const t = revealTimers.current
+    t.push(window.setTimeout(() => setCurtain("off"), 650))
+    t.push(window.setTimeout(() => setView((v) => (same(v.layers, REVEAL_START) ? { ...v, layers: [...v.layers, "weak"] } : v)), 800))
+    t.push(window.setTimeout(() => setView((v) => (same(v.layers, [...REVEAL_START, "weak"]) ? { ...v, layers: [...v.layers, "ice"] } : v)), 1800))
+  }
   useEffect(() => {
-    if (load.phase !== "ready") return
-    setLoadHiding(true)
-    const t = window.setTimeout(() => setLoadHiding(false), 600)
-    return () => window.clearTimeout(t)
-  }, [load.phase])
+    if ((load.phase === "ready" && iconsReady) || loadErr) dismissCurtain()
+  }, [load.phase, iconsReady, loadErr])
+  useEffect(() => {
+    const t = window.setTimeout(dismissCurtain, 25000)
+    return () => {
+      window.clearTimeout(t)
+      revealTimers.current.forEach((x) => window.clearTimeout(x))
+    }
+  }, [])
   const inSeason = useMemo(() => inSnowSeason(new Date()), [])
   // 대책기간 시작(11월 15일, inSnowSeason과 같은 날)까지 남은 날. 보고받는 사람이 첫 줄에서 보는 시계
   const daysToSeason = useMemo(() => {
@@ -101,7 +128,7 @@ export default function SnowDashboard() {
   }, [])
   const [simCm, setSimCm] = useState(5)
   const [useForecast, setUseForecast] = useState(inSeason)
-  const [view, setView] = useState<MapView>(DEFAULT_VIEW)
+  const [view, setView] = useState<MapView>({ ...DEFAULT_VIEW, layers: REVEAL_START })
   const [colMetric, setColMetric] = useState<ColMetric | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
@@ -123,9 +150,17 @@ export default function SnowDashboard() {
   const [mapCollapsed, setMapCollapsed] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   const [methods, setMethods] = useState(false)
+  const [briefDong, setBriefDong] = useState<string | null>(null) // 동별 브리핑 한 장(자원 탭 행의 브리핑 버튼)
   const [demo, setDemo] = useState<number | null>(null)
   const [demoStage, setDemoStage] = useState<StageId | null>(null)
   const [demoCaption, setDemoCaption] = useState<string | null>(null) // 장면 안에서 단계가 격상될 때 캡션도 같이 바뀐다
+  // 시연 중 왼쪽 카드 숨김(dumping 19라운드 이식): 지도만 크게. H 키·캡션 바 버튼으로 켜고 끈다. 카메라는 padSeq로 가려진 영역을 다시 재서 가운데를 옮긴다
+  const [cardHidden, setCardHidden] = useState(false)
+  const [padSeq, setPadSeq] = useState(0)
+  const toggleCard = () => {
+    setCardHidden((h) => !h)
+    setPadSeq((n) => n + 1)
+  }
   const demoTimers = useRef<number[]>([])
   const split = useSplitPane()
   const side = useSidebarWidth()
@@ -495,6 +530,7 @@ export default function SnowDashboard() {
   }, [demo])
   const endDemo = () => {
     setDemo(null)
+    if (cardHidden) toggleCard() // 카드는 다시 보인다(지도 padding도 카드 폭만큼 되돌린다)
     setDemoStage(null)
     setDemoDongs(false)
     setDemoCaption(null)
@@ -520,11 +556,18 @@ export default function SnowDashboard() {
   useEffect(() => {
     if (demo === null) return
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      if (document.querySelector('[role="dialog"]')) return
       if (e.key === "Escape") endDemo()
       else if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault()
         setDemo((d) => (d === null ? d : Math.min(scenes.length - 1, d + 1)))
       } else if (e.key === "ArrowLeft") setDemo((d) => (d === null ? d : Math.max(0, d - 1)))
+      else if (e.key === "h" || e.key === "H" || e.key === "ㅎ") {
+        e.preventDefault()
+        toggleCard()
+      }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
@@ -535,10 +578,13 @@ export default function SnowDashboard() {
   const sheetTop = mapCollapsed ? "104px" : split.mapH != null ? `${split.mapH}px` : SHEET_TOP_MOBILE
   // 시연 중에는 왼쪽 카드를 제목만 남기고 접는다(냉독 S2-10). 지도가 그 자리를 쓴다
   const demoOn = demo !== null && isXl
+  const hideCard = demoOn && cardHidden // 시연 중에만. xl 미만에선 시연 자체가 없다
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
-    ? demoOn
-      ? { tl: [24, 76 + 8 + 64], br: [16 + RIGHT_W + 24, 140] }
-      : { tl: [16 + sideW + 56, 76 + 8], br: [16 + RIGHT_W + 24, 24] }
+    ? hideCard
+      ? { tl: [24, 76 + 8], br: [16 + RIGHT_W + 24, 140] }
+      : demoOn
+        ? { tl: [24, 76 + 8 + 64], br: [16 + RIGHT_W + 24, 140] }
+        : { tl: [16 + sideW + 56, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.48 + 8) : 8] }
   const counts: Partial<Record<LayerId, string>> = data
     ? { weak: `${data.weak.length}곳`, ice: `${data.ice.length}곳`, slope: `${data.slopes.length}구간`, school: `${data.schools.length}교`, heat: `${data.heat.length}구간`, salt: `${data.salt.length}`, cacl: `${data.cacl.length}`, sand: `${data.sand.length}` }
@@ -597,12 +643,14 @@ export default function SnowDashboard() {
             resetSeq={resetSeq}
             cameraCue={cameraCue}
             fitPadding={fitPadding}
+            padSeq={padSeq}
             onSelectDong={(d) => setSelectedDong(d)}
             onOrbitStop={() => {
               setOrbit(false)
               setFly(null)
             }}
             onLoad={setLoad}
+            onIconsReady={() => setIconsReady(true)}
           />
         ) : (
           <div className="absolute inset-x-0 bottom-[calc(100%-var(--dump-sheet-top))] top-[104px] md:bottom-0 md:left-[calc(32px+var(--dump-side-w,440px))] md:right-0 md:top-[76px]">
@@ -649,6 +697,8 @@ export default function SnowDashboard() {
                 <Ico name="arrow" size={13} className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" />
               </button>
             )}
+            {/* 유리 강도 다이얼(dumping 이식). 왼쪽 카드는 .snow-page .lg-inner가 0.96으로 고정이라 알약·오른쪽 열·범례·캡션 바만 따른다 */}
+            {isMd && <GlassDial compact={!isXl} />}
             <ThemeSwitch compact={!isXl} />
           </div>
         </div>
@@ -660,15 +710,11 @@ export default function SnowDashboard() {
           데이터를 불러오지 못했습니다. 새로고침해 주세요.
         </div>
       )}
-      {/* 로딩 카드(5라운드): 지도 영역 한가운데. 타일이 다 오고 idle이면 흐려지며 사라진다. 사파리는 타일이 13초 넘게 직렬로 와서 빈 지도가 "멈춤"으로 보였다 */}
-      {!loadErr && rightPane === "map" && demo === null && (load.phase !== "ready" || loadHiding) && (
-        <div className="pointer-events-none absolute z-[1047] flex items-center justify-center" style={isMd ? { left: `calc(16px + ${sideW}px + 16px)`, right: RIGHT_W + 32, top: 76, bottom: 0 } : { left: 0, right: 0, top: 104, height: `calc(${sheetTop} - 104px)` }}>
-          <LoadCard state={load} hiding={loadHiding} />
-        </div>
-      )}
+      {/* 로딩 커튼(6라운드, dumping 이식): 지도 영역만 종이로 덮고 준비 단계를 보인다. 사파리는 타일이 13초 넘게 직렬로 와서 빈 지도가 "멈춤"으로 보였다(5라운드 실측). 걷힌 뒤 진홍 벽이 솟는다 */}
+      {curtain !== "off" && rightPane === "map" && <LoadCurtain state={load} iconsReady={iconsReady} out={curtain === "out"} />}
 
       {/* 왼쪽 카드 = 모바일 하단 시트 */}
-      <aside className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl ${demoOn ? "md:bottom-auto" : "md:bottom-4"}`}>
+      <aside className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl ${demoOn ? "md:bottom-auto" : "md:bottom-4"}`} style={hideCard ? { display: "none" } : undefined}>
         <div className="lg-inner flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
           {demoOn && scenes[demo] && (
             <div className="px-4 py-3">
@@ -699,7 +745,11 @@ export default function SnowDashboard() {
               </button>
             )}
           </div>
-          <div key={tab} className={`min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] ${demoOn ? "hidden" : ""}`}>
+          {/* 물어보기는 항상 마운트(dumping 규약). 탭을 오가도 대화가 남는다 */}
+          <div className={tab === "ask" && !demoOn ? "min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]" : "hidden"}>
+            <AskPanel data={data} onFocus={onFinding} />
+          </div>
+          <div key={tab} className={`min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] ${demoOn || tab === "ask" ? "hidden" : ""}`}>
             {tab === "gap" && <GapPanel data={data} activeLabel={focusLabel} budget={budget} onBudget={setBudget} onFocus={onFinding} onSelectSegment={onSegment} onOpenMethods={() => setMethods(true)} />}
             {tab === "stage" && <StagePanel data={data} graph={graph} forecast={forecast} simCm={simCm} onSimCm={setSimCm} stage={stage} useForecast={useForecast} onUseForecast={setUseForecast} inSeason={inSeason} />}
             {tab === "resources" && (
@@ -713,11 +763,30 @@ export default function SnowDashboard() {
                   setSelectedDong(d)
                   setMapCollapsed(false)
                 }}
+                onBrief={setBriefDong}
               />
             )}
             {tab === "onto" && <OntoPanel graph={graph} selectedId={selectedNode} onSelect={setSelectedNode} onOpenMethods={() => setMethods(true)} />}
             {tab === "law" && <LawPanel data={data} dark={dark} />}
           </div>
+          {/* 카드 바닥 한계 고지(dumping 규약): 결재를 유보하는 문장이 아니라 수치의 성격과 이 화면의 가정을 말한다. 시연 중엔 숨김 */}
+          {!demoOn && data && (
+            <div className="shrink-0 border-t border-[var(--cp-border)] px-3 py-2">
+              {tab !== "ask" && (
+                <button onClick={() => switchTab("ask")} className="mb-2 flex w-full items-center gap-3 rounded-full border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] py-1 pl-4 pr-1 text-left text-[13.5px] font-semibold text-[var(--cp-text-dim)] transition-colors hover:border-[var(--cp-text-strong)] hover:text-[var(--cp-text-strong)]">
+                  <span className="min-w-0 flex-1 truncate">이 화면에 물어보기</span>
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--dump-ink)]" aria-hidden>
+                    <Ico name="mic" size={14} className="text-[var(--dump-paper)]" />
+                  </span>
+                </button>
+              )}
+              <p className="text-[12px] leading-snug text-[var(--cp-text-faint)]">
+                <span className="dump-kicker mr-1.5 text-[9.5px]">한계 고지</span>
+                자원은 {data.asof.sand.slice(0, 7)}부터 {data.asof.cacl.slice(0, 7)}까지 공개 자료의 위치이며 현장 수량과 다를 여지가 있습니다.
+                <span className="hidden md:inline"> 거리 기준({data.gaps.heatNearM}m 열선 · {data.gaps.materialNearM}m 자재 · {data.gaps.schoolNearM}m 학교)과 우선순위 가중치는 이 화면의 가정입니다.</span>
+              </p>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -778,7 +847,7 @@ export default function SnowDashboard() {
 
       {/* 시연 캡션(xl 이상) */}
       {rightPane === "map" && demo !== null && scenes[demo] && (
-        <div className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block" style={{ left: 16, right: RIGHT_W + 32, bottom: 20 }} aria-live="polite">
+        <div className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block" style={{ left: 16, right: RIGHT_W + 32, bottom: 16 + 96 + 14 }} aria-live="polite">
           {demoProgress && (
             <div className="absolute inset-x-5 top-0 h-[2px] overflow-hidden rounded-full bg-[var(--cp-track)]" aria-hidden>
               <i key={demoProgress.key} className="snow-progress block h-full rounded-full bg-(--dump-accent)" style={{ animationDuration: `${demoProgress.ms}ms` }} />
@@ -807,6 +876,9 @@ export default function SnowDashboard() {
               <button onClick={() => setDemo(Math.min(scenes.length - 1, demo + 1))} disabled={demo === scenes.length - 1} aria-label="다음 장면" className="h-8 w-8 rounded-full border border-[var(--cp-border)] text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)] disabled:opacity-35">
                 ›
               </button>
+              <button onClick={toggleCard} aria-pressed={cardHidden} title="왼쪽 카드 숨기기·보이기 (H)" className={`ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${cardHidden ? "text-(--dump-accent)" : "text-[var(--cp-text-muted)]"}`}>
+                {cardHidden ? "카드 보기" : "카드 숨김"}
+              </button>
               <button onClick={() => setVoice((v) => !v)} aria-pressed={voice} title="장면 캡션을 브라우저 한국어 목소리로 읽습니다" className={`ml-1 flex h-8 items-center gap-1 rounded-full border px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${voice ? "border-(--dump-accent) text-(--dump-accent)" : "border-[var(--cp-border)] text-[var(--cp-text-muted)]"}`}>
                 <Ico name="speaker" size={13} />
                 음성
@@ -816,6 +888,13 @@ export default function SnowDashboard() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 아래 띠(xl 이상, dumping 월별 띠 규약): 기상청 48시간 예보. 카드와 오른쪽 열 사이, 시연 중 카드가 숨으면 왼쪽 끝까지 */}
+      {rightPane === "map" && data && (
+        <div className="dump-fl lg-shell lg-dense absolute bottom-4 z-[1040] hidden rounded-2xl xl:block" style={{ left: hideCard ? 16 : "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32 }}>
+          <ForecastStrip forecast={forecast} dark={dark} />
         </div>
       )}
 
@@ -832,6 +911,7 @@ export default function SnowDashboard() {
         </div>
       )}
       {methods && data && <MethodsModal data={data} graph={graph} onClose={() => setMethods(false)} />}
+      <DongBrief dong={briefDong} data={data} onClose={() => setBriefDong(null)} />
       <LiquidGlass />
     </div>
   )

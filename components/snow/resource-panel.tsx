@@ -18,9 +18,10 @@ interface Props {
   onColMetric: (m: ColMetric | null) => void
   selectedDong: string | null
   onSelectDong: (d: string | null) => void
+  onBrief?: (d: string) => void // 동별 브리핑 한 장(dong-brief)
 }
 
-export default function ResourcePanel({ data, dark, colMetric, onColMetric, selectedDong, onSelectDong }: Props) {
+export default function ResourcePanel({ data, dark, colMetric, onColMetric, selectedDong, onSelectDong, onBrief }: Props) {
   if (!data) return <div className="p-4"><div className="dump-skel h-24 rounded-xl" /></div>
   const t = totals(data)
   const metric: ColMetric = colMetric ?? "materials"
@@ -72,7 +73,7 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
         }}
       />
 
-      <SectionHead n="02" sub={`지표를 고르면 지도 기둥이 바뀝니다(동주민센터 위치). 동을 누르면 그 동으로${data.meta.saltNoDong ? `. 경계선 위 제설함 ${data.meta.saltNoDong}개소는 동별 합에서 뺌` : ""}`}>
+      <SectionHead n="02" sub={`지표를 고르면 지도 기둥이 바뀝니다(동주민센터 위치). 동을 누르면 그 동으로, 브리핑은 동주민센터용 한 장${data.meta.saltNoDong ? `. 경계선 위 제설함 ${data.meta.saltNoDong}개소는 동별 합에서 뺌` : ""}`}>
         동별 배치
       </SectionHead>
       <div className="mb-2 flex flex-wrap gap-1">
@@ -90,8 +91,8 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
           const v = colValue(d, metric)
           const sel = selectedDong === d.d
           return (
-            <li key={d.d}>
-              <button onClick={() => onSelectDong(sel ? null : d.d)} aria-pressed={sel} className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-[var(--cp-hover)] ${sel ? "bg-[var(--cp-hover2)]" : ""}`}>
+            <li key={d.d} className="flex items-center gap-1">
+              <button onClick={() => onSelectDong(sel ? null : d.d)} aria-pressed={sel} className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-[var(--cp-hover)] ${sel ? "bg-[var(--cp-hover2)]" : ""}`}>
                 <span className="dump-idx w-5 text-[12px] text-[var(--cp-text-faint)]">{String(i + 1).padStart(2, "0")}</span>
                 <span className={`w-16 shrink-0 text-[14px] ${sel ? "font-bold text-(--dump-accent)" : "font-semibold text-[var(--cp-text-strong)]"}`}>{d.d}</span>
                 <span className="dump-bars relative h-2 flex-1 overflow-hidden rounded-full bg-[var(--cp-track)]">
@@ -99,6 +100,12 @@ export default function ResourcePanel({ data, dark, colMetric, onColMetric, sele
                 </span>
                 <span className="w-[72px] shrink-0 text-right font-mono text-[13.5px] text-[var(--cp-text)]">{v ? `${fmt(v)}${def.unit}` : <span className="text-[var(--cp-text-faint)]">없음</span>}</span>
               </button>
+              {/* 동별 브리핑 한 장(6라운드, dumping 동 브리핑 이식). 행 선택과 별개의 작은 버튼 */}
+              {onBrief && (
+                <button onClick={() => onBrief(d.d)} title={`${d.d} 브리핑 한 장(동주민센터용, 인쇄)`} className="shrink-0 rounded-full border border-[var(--cp-border)] px-2 py-0.5 text-[12px] text-[var(--cp-text-dim)] hover:border-(--dump-accent) hover:text-(--dump-accent)">
+                  브리핑
+                </button>
+              )}
             </li>
           )
         })}

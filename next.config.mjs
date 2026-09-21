@@ -29,6 +29,11 @@ const nextConfig = {
         source: "/api/dumping/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
+      // /snow 물어보기 마이크(6라운드). /dumping과 같은 이유로 전역 microphone=()를 self로 덮는다
+      {
+        source: "/snow/:path*",
+        headers: [{ key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self)" }],
+      },
     ]
   },
 }

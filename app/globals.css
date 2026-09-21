@@ -1399,6 +1399,11 @@
   body:has(#snow-check) #snow-check, body:has(#snow-check) #snow-check * { visibility: visible; }
   #snow-check { display: block; position: absolute; top: 0; left: 0; right: 0; max-width: none; max-height: none; overflow: visible; border: none; box-shadow: none; }
   #snow-check > div { max-height: none; overflow: visible; }
+  /* 동별 브리핑 한 장(6라운드)도 같은 규칙 */
+  body:has(#snow-dong-brief) * { visibility: hidden; }
+  body:has(#snow-dong-brief) #snow-dong-brief, body:has(#snow-dong-brief) #snow-dong-brief * { visibility: visible; }
+  #snow-dong-brief { display: block; position: absolute; top: 0; left: 0; right: 0; max-width: none; max-height: none; overflow: visible; border: none; box-shadow: none; }
+  #snow-dong-brief > div { max-height: none; overflow: visible; }
 }
 @keyframes snow-progress { from { width: 0; } to { width: 100%; } }
 .snow-progress { width: 0; animation: snow-progress linear forwards; }

@@ -154,6 +154,7 @@ export default function MethodsModal({ data, graph, onClose, initial = "data" }:
           </Block>
           <Block t="지오코딩과 동 기준점">
             {data.meta.geocode.rule}. 열선 기점·종점 지오코딩 실패 {data.meta.geocode.heatGeoFail}건, 모래주머니 동주민센터 대체 {data.meta.geocode.sandApprox}지점, 제설함 구 경계선 위 동 미판정 {data.meta.saltNoDong}개소. 동별 기둥·라벨은 동주민센터 위치입니다.
+            {data.meta.saltFixed?.length ? ` 제설함 원자료 좌표 오기 ${data.meta.saltFixed.length}건은 같은 도로명주소의 다른 행 좌표로 옮겼습니다(${data.meta.saltFixed.map((f) => `${f.id} ${f.addr}, 구 경계 밖 ${f.km}km`).join("; ")}).` : ""}
           </Block>
           <Block t="우선순위와 예산 역산">
             열선 없는 취약구간의 순서는 점수입니다: {data.gaps.materialNearM}m 안 자재도 없음 3점, 지형 추정 최대 경사(%)의 10분의 1, {data.gaps.schoolNearM}m 안 초등학교 1교당 1.5점, 행안부 유형 급경사 1점·고갯길 0.5점, 구 소관 0.5점. 가중치는 이 화면의 가정이고 근거 항목은 표 둘째 줄에 그대로 적습니다. 열선 예산 역산은 구 관리 열선 없는 구간을 이 순서로 신설한다고 보고 구간 물리 길이 × 2차로 × 1차로 100m당 1억원으로 셉니다.

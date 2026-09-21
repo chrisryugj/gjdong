@@ -4,6 +4,7 @@ import type { SnowMapData } from "@/lib/snow/types"
 import { buildChecklist } from "@/lib/snow/facts"
 import { COST } from "@/lib/snow/costs"
 import ModalShell from "@/components/dumping/modal-shell"
+import { linkSnowLawRefs } from "./law-ref"
 
 // 보고 요약 한 장(승인 문서가 아니다. 사용자: "그냥 보고용 서머리"). 점검 후보 5를 번호(우선순위)·행동·부서·기한·규모·개략 비용·완료 기준·필요한 결정 표로. 인쇄는 globals.css #snow-check 규칙(모달만 출력)
 // 서명란·부서 확인란은 두지 않는다. 조치 여부와 순서는 담당 부서가 정한다
@@ -53,7 +54,7 @@ export default function CheckPrint({ data, onClose }: { data: SnowMapData; onClo
         </tbody>
       </table>
       <p className="mt-3 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">
-        단가: 도로열선 1차로 100m당 1억원·관리 연 360만원({COST.heatSource.split("(")[0].trim()}), 제설함 {COST.saltBoxWon.toLocaleString("ko-KR")}원(소매가). 조달 단가가 아닙니다. 다음 해 본예산 반영은 의회 제출(지방자치법 제142조, 회계연도 시작 40일 전) 전에 정하고, 지나면 추경입니다. 거리 기준({data.gaps.heatNearM}m 열선·{data.gaps.materialNearM}m 자재·{data.gaps.schoolNearM}m 학교)과 우선순위 가중치는 이 화면의 가정입니다.
+        단가: 도로열선 1차로 100m당 1억원·관리 연 360만원({COST.heatSource.split("(")[0].trim()}), 제설함 {COST.saltBoxWon.toLocaleString("ko-KR")}원(소매가). 조달 단가가 아닙니다. 다음 해 본예산 반영은 의회 제출({linkSnowLawRefs("지방자치법 제142조")}, 회계연도 시작 40일 전) 전에 정하고, 지나면 추경입니다. 거리 기준({data.gaps.heatNearM}m 열선·{data.gaps.materialNearM}m 자재·{data.gaps.schoolNearM}m 학교)과 우선순위 가중치는 이 화면의 가정입니다.
       </p>
       <div className="mt-3 flex justify-end gap-2 print:hidden">
         <button onClick={() => window.print()} className="rounded-full border border-[var(--cp-border)] px-3.5 py-1.5 text-[13px] font-semibold text-(--dump-accent) hover:bg-[var(--cp-hover)]">

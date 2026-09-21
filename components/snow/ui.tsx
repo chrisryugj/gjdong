@@ -19,6 +19,24 @@ export function StatBand({ items }: { items: { k: string; v: string; u?: string;
   )
 }
 
+// 메타 한 줄(부서 · 규모 · 비용 · 지도 번호 같은 조각들). 조각 안에서는 줄이 안 꺾이고(nowrap) 조각 사이 " · "에서만 꺾인다.
+// 6라운드: "제설함 약 18만원 · 지도 8"에서 "8"이 홀로 다음 줄로 떨어졌다(사용자 지적 "슬롭"). 숫자·단위·라벨 한 덩어리는 한 줄에
+export function Meta({ parts, className = "" }: { parts: (string | number | null | false | undefined)[]; className?: string }) {
+  const ps = parts.filter((p): p is string | number => p !== null && p !== false && p !== undefined && p !== "")
+  return (
+    <span className={className}>
+      {ps.map((p, i) => (
+        <span key={i}>
+          {i > 0 && " · "}
+          <span className="whitespace-nowrap">{p}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+// " · "로 이어 둔 문자열을 조각으로(meta 문자열을 넘기는 호출부용)
+export const metaParts = (s: string) => s.split(" · ")
+
 // 번호 · 큰 숫자 · 문장 한 줄(+메타 한 줄 + 보충 한 줄). 발견·판단·점검 후보 목록. 누르면 지도. meta = "부서 · 기한 · 규모"(4라운드 보고 문서화)
 export function NumRow({ n, big, unit, title, meta, body, accent = false, active = false, onClick }: { n: number; big?: string; unit?: string; title: string; meta?: string; body?: string; accent?: boolean; active?: boolean; onClick?: () => void }) {
   const inner = (
@@ -32,7 +50,7 @@ export function NumRow({ n, big, unit, title, meta, body, accent = false, active
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-[14.5px] font-semibold leading-snug text-[var(--cp-text-strong)]">{title}</span>
-        {meta && <span className="mt-0.5 block text-[12.5px] leading-snug text-(--dump-accent)">{meta}</span>}
+        {meta && <Meta parts={metaParts(meta)} className="mt-0.5 block text-[12.5px] leading-snug text-(--dump-accent)" />}
         {body && <span className="mt-0.5 block text-[13px] leading-snug text-[var(--cp-text-muted)]">{body}</span>}
       </span>
     </>

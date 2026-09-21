@@ -687,7 +687,7 @@
    "props": {
     "heatSeg": 11,
     "heatM": 1746,
-    "salt": 9,
+    "salt": 10,
     "cacl": 74,
     "sand": 5,
     "sandBags": 800,
@@ -706,7 +706,7 @@
     "basis": "동주민센터 담당 구간표 확보 시 교체",
     "center_name": "중곡4동주민센터",
     "heatSeg": 11,
-    "salt": 9,
+    "salt": 10,
     "cacl": 74,
     "sand": 5,
     "weak": 9,
@@ -3155,7 +3155,7 @@
    "rel": "covers",
    "t": "zone-중곡4동",
    "props": {
-    "count": 9
+    "count": 10
    }
   },
   {

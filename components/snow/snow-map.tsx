@@ -182,9 +182,11 @@ interface SnowMapProps {
   resetSeq: number
   cameraCue?: CameraCue | null
   fitPadding?: { tl: [number, number]; br: [number, number] }
+  padSeq?: number // 증가 시 가려진 영역(fitPadding)을 다시 재서 보이는 영역 가운데로 부드럽게 옮긴다(시연 중 카드 숨김·보임. dumping 19라운드)
   onSelectDong?: (d: string | null) => void
   onOrbitStop?: () => void
-  onLoad?: (s: LoadState) => void // 첫 로딩 진행(바탕 › 타일 n/m › idle). 로딩 카드가 읽는다
+  onLoad?: (s: LoadState) => void // 첫 로딩 진행(바탕 › 타일 n/m › idle). 로딩 커튼이 읽는다
+  onIconsReady?: () => void // 3D 핀 층(three.js 동적 import)이 붙었다. 로딩 커튼 04 단계
 }
 
 // 바탕 스타일은 /dumping 것(수정 0)을 받아 /snow만 손본다(5라운드, 사파리 실측 13.6초):
@@ -200,7 +202,7 @@ function snowStyle(ring: [number, number][], theme: BasemapTheme) {
   return { ...style, sources, layers: style.layers.map((l) => (l.id === HILLSHADE_LAYER ? { ...l, layout: { ...l.layout, visibility: "none" as const } } : l)) }
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, weather = { kind: "none", level: 0 }, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop, onLoad }: SnowMapProps) {
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, weather = { kind: "none", level: 0 }, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, padSeq = 0, onSelectDong, onOrbitStop, onLoad, onIconsReady }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -221,6 +223,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
   onOrbitStopRef.current = onOrbitStop
   const onLoadRef = useRef(onLoad)
   onLoadRef.current = onLoad
+  const onIconsReadyRef = useRef(onIconsReady)
+  onIconsReadyRef.current = onIconsReady
   const firstFitRef = useRef(false)
   const loadFitRef = useRef(false) // 첫 구 전체 맞춤 뒤 한 프레임 그렸나(그 전엔 옛 타일이 "다 왔다"로 보여 로딩 끝을 오판한다)
   const ringBoundsRef = useRef<LngLatBoundsLike | null>(null)
@@ -339,6 +343,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
         map.addLayer(icons, S.posts) // 투명 말뚝(툴팁 조회용) 바로 아래. 라벨은 그 위
         iconsRef.current = icons
         setIconsReady(true)
+        onIconsReadyRef.current?.()
       })
     })
     map.on("mousemove", (e) => {
@@ -363,6 +368,19 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.on("dragstart", stopOrbit)
     map.on("wheel", stopOrbit)
     map.on("touchstart", stopOrbit)
+    // 지도가 움직이는 동안(회전·드론·카메라 큐·드래그) html.lg-moving을 붙여 유리 굴절 필터를 쉬게 한다(globals.css, dumping 19라운드 이식).
+    // 굴절(backdrop-filter: url)은 지도가 바뀔 때마다 다시 그려져 회전 fps를 반으로 깎았다(dumping 실측 25→56). 멈추면 240ms 뒤 굴절 복귀
+    const root = document.documentElement
+    let movingTimer = 0
+    const onMove = () => {
+      if (!movingTimer) root.classList.add("lg-moving")
+      else window.clearTimeout(movingTimer)
+      movingTimer = window.setTimeout(() => {
+        movingTimer = 0
+        root.classList.remove("lg-moving")
+      }, 240)
+    }
+    map.on("move", onMove)
     map.on("click", (e) => {
       const m = mapRef.current
       if (!m) return
@@ -408,6 +426,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       observer.disconnect()
       window.clearInterval(checkTimer)
       window.clearTimeout(finishTimer)
+      window.clearTimeout(movingTimer)
+      root.classList.remove("lg-moving")
       popup.remove()
       map.remove()
       mapRef.current = null
@@ -799,6 +819,17 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     if (!b) return
     fitTo(b, { duration: cameraCue.duration ?? 1800, maxZoom: cameraCue.maxZoom, pitch: cameraCue.pitch, bearing: cameraCue.bearing })
   }, [cameraCue?.seq])
+
+  // 카드 숨김·보임(padSeq): 지도 padding만 새로 주고 같은 중심을 보이는 영역 가운데로. 줌·기울기·방위는 그대로(회전·비행 중이면 그 위에 얹힌다)
+  const padSeqRef = useRef(padSeq)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || padSeqRef.current === padSeq) return
+    padSeqRef.current = padSeq
+    // 드론 비행은 프레임마다 jumpTo라 easeTo가 첫 프레임에 끊긴다 → 즉시 적용. 회전(orbit)은 isEasing 중 쉬므로 부드럽게
+    if (fly) map.setPadding(padding())
+    else map.easeTo({ padding: padding(), duration: 700, essential: true })
+  }, [ready, padSeq, fly])
 
   return (
     <div className="relative h-full w-full">

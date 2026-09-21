@@ -29,6 +29,12 @@ const FILES = [
   "components/snow/ui.tsx",
   "components/snow/onto-graph.tsx",
   "components/snow/onto-layouts.ts",
+  "components/snow/law-ref.tsx",
+  "components/snow/forecast-strip.tsx",
+  "components/snow/dong-brief.tsx",
+  "components/snow/ask-panel.tsx",
+  "components/snow/ask-seeds.ts",
+  "lib/snow/law.ts",
   "lib/snow/queries.ts",
   "lib/snow/facts.ts",
   "lib/snow/costs.ts",
@@ -102,7 +108,7 @@ test("화면·그래프·질문 문자열에 금지어 0", () => {
 test("화면 문장은 합니다체(반말 종결 0). 법률 원문 인용만 예외", () => {
   const hits: string[] = []
   for (const f of FILES) {
-    if (f.endsWith("schema.ts")) continue // 스키마 정의문은 개발자용
+    if (f.endsWith("schema.ts") || f.endsWith("law.ts")) continue // 스키마 정의문은 개발자용, law.ts는 법령 원문 인용
     const strs = koreanStrings(stripComments(read(f)))
     for (const s of strs) if (BANMAL.test(s) && !BANMAL_ALLOW.some((a) => a.test(s))) hits.push(`${f} · ${s.slice(0, 70)}`)
   }

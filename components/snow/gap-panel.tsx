@@ -5,7 +5,7 @@ import { buildChecklist, buildFindings, gapSummary, planHeatBudget, priorityText
 import { eok, heatCost } from "@/lib/snow/costs"
 import { useState } from "react"
 import { SectionHead } from "@/components/dumping/section-head"
-import { NumRow, StatBand, Table } from "./ui"
+import { Meta, NumRow, StatBand, Table } from "./ui"
 import CheckPrint from "./check-print"
 
 // 공백 탭(첫 화면). 주장은 자원 목록이 아니라 "눈 오기 전에 어디가 비었는가": 취약구간 중 열선·자재 없는 곳, 열선 없는 동
@@ -105,11 +105,8 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
             <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{i + 1}</span>
             <span className="min-w-0 flex-1">
               <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{c.title}</span>
-              <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
-                {c.dept} · {c.scale} · {c.costShort}
-                {c.mapIds.length > 0 && c.mapIds.length <= 3 && ` · 지도 ${c.mapIds.join("·")}`}
-                {c.mapIds.length > 3 && ` · 지도 번호는 02 표`}
-              </span>
+              {/* 조각(부서·규모·비용·지도 번호) 안에서는 줄이 안 꺾인다(ui Meta). "지도 8"의 8이 홀로 떨어지던 것 */}
+              <Meta parts={[c.dept, c.scale, c.costShort, c.mapIds.length > 0 && c.mapIds.length <= 3 ? `지도 ${c.mapIds.join("·")}` : c.mapIds.length > 3 ? "지도 번호는 02 표" : null]} className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]" />
             </span>
             <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${c.needsDecision ? "bg-(--dump-accent)/12 text-(--dump-accent)" : "bg-[var(--cp-track)] text-[var(--cp-text-dim)]"}`}>{c.needsDecision ? "결정 필요" : c.owner === "시" ? "시 요청" : "부서 지시"}</span>
           </button>

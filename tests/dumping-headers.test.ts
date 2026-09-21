@@ -19,3 +19,12 @@ test("/dumping 경로는 마이크를 허용하고 나머지 경로는 막는다
   const di = rules.findIndex((r) => r.source === "/dumping/:path*")
   assert.ok(gi >= 0 && di > gi)
 })
+
+// 6라운드: /snow 물어보기 마이크도 같은 규칙
+test("/snow 경로도 마이크를 허용한다(전역 항목 뒤)", async () => {
+  const rules = (await (nextConfig as { headers: () => Promise<HeaderRule[]> }).headers()) as HeaderRule[]
+  const snow = rules.find((r) => r.source === "/snow/:path*")?.headers.find((h) => h.key === "Permissions-Policy")?.value
+  assert.ok(snow, "/snow/:path* 항목에 Permissions-Policy가 있어야 한다")
+  assert.match(snow, /microphone=\(self\)/)
+  assert.ok(rules.findIndex((r) => r.source === "/snow/:path*") > rules.findIndex((r) => r.source === "/(.*)"))
+})

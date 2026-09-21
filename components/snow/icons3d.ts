@@ -51,6 +51,7 @@ const TARGET_PX = 44 // 아이콘 목표 화면 높이
 const DENSE_MAX = 10
 const DENSE_PX = 10 // 자재 목표 화면 높이. 6라운드: 26(상수 13이 공식 2배 오류로 26px) → 10. 종류는 글자 표지판이 알리고 물건은 자리표(줌 15 물탱크만 한 원통 228개가 "아직 크다")
 const APPEAR_MS = 650
+const WALL_RISE_MS = 900
 const LAT0 = 37.546
 // 줌당 m/px. ★maplibre 줌은 512px 타일 기준이라 256px 타일 공식(156543/2^z)의 절반. 6라운드까지 2배로 잡혀 있어 "목표 px" 상수가 전부 화면에서 2배로 나왔다(실측 z15.1 중심 1.77m/px). 공식을 고치고 기존 상수는 2배로 바꿔 화면은 그대로
 const metersPerPixel = (z: number) => (78271.51696 * Math.cos((LAT0 * Math.PI) / 180)) / Math.pow(2, z)
@@ -238,10 +239,14 @@ interface KindState {
 
 // ─── 경사면·화살(4라운드). 라이트 지도에서 보라 점선이 안 읽히던 것(사용자 지적)을 입체로: 구간마다 고도 단면대로 솟는 반투명 벽 + 벽 윗선을 따라 오르막으로 흐르는 화살 ───
 const CHEV_M = 6.4 // 화살 한 개 폭(m). 이면도로 폭 언저리
-const CHEV_PX = 32 // 화살 목표 화면 폭. 조망에서도 모양이 보이게
-const CHEV_MAX_SCALE = 14
-const CHEV_GAP_M = 20 // 화살 간격(m, 실물 크기일 때). 확대 상한에서는 간격도 같이 늘린다
-const CHEV_SPEED = 7 // 오르막으로 흐르는 속도(m/s)
+// 7라운드(사용자: "경사도 애니메이션 크기 줄여"): 목표 32px·상한 14배(z16에서 61m 화살 하나가 구간을 덮었다) → 14px·6배(z16 27m·14px, z15 38m·10px)
+const CHEV_PX = 14 // 화살 목표 화면 폭
+const CHEV_MAX_SCALE = 6
+const CHEV_GAP_M = 20 // 화살 간격 하한(m). 실제 간격은 화살 폭의 CHEV_GAP_UNITS배(겹치지 않게)
+const CHEV_GAP_UNITS = 2.6
+// 흐름 속도는 화면 기준(px/s)이라 줌마다 같은 빠르기로 보인다. 위상은 간격 단위 누적값(flowU)이라 줌이 바뀌어도 이어진다:
+// 이전엔 위상 = (t × 속도) % 간격이었는데 줌 중에 간격이 연속으로 바뀌면 나머지가 널뛰어 화살이 앞뒤로 튀며 빨라져 보였다(사용자: "줌 할 때 다다다다 빨라지고 끊긴다")
+const CHEV_FLOW_PX_PER_S = 20
 const RAMP_MIN_PX = 28 // 경사면 최소 화면 높이(조망에서 납작해지지 않게 고도 단면을 늘린다)
 const RAMP_MAX_EXAGGERATION = 5
 // 화살: 오른쪽(+x)을 가리키는 ">" 띠. 밑면이 y=0
@@ -352,6 +357,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
   private rampData: SlopeRamp[] = []
   private segWalls: THREE.Mesh[] = []
   private segWallData: SegWall[] = []
+  private wallRiseAt = 0 // 구간 벽 등장(땅에서 솟음) 시작 시각. 첫 화면 결론 등장(dumping 19라운드 riseColumns 규약)·층을 켤 때
   // 눈(4라운드 후속 wow): 시나리오 적설(cm)에 비례한 눈송이가 화면 중심 주변에 내린다. 화면 기준 크기·속도(mpp 배율)라 어느 줌에서든 같은 밀도
   private snow: THREE.Points | null = null
   private snowPos: Float32Array | null = null
@@ -502,6 +508,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       this.segWalls.push(wall)
     }
     this.lastZoom = -1
+    this.wallRiseAt = performance.now()
     map.triggerRepaint()
   }
 
@@ -553,12 +560,18 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     map.triggerRepaint()
   }
   // 화살은 벽 윗선(고도 단면) 위를 오르막으로 흐른다. 조망에서는 화살을 키우고 간격도 같이 늘려 겹치지 않게, 경사면은 최소 화면 높이까지 과장한다
+  private flowU = 0 // 화살 위상(간격 단위 누적). 줌이 바뀌어도 소수부가 이어져 화살이 튀지 않는다
+  private flowAt = 0
   private updateRamps(now: number, mpp: number) {
     const chev = this.chev
     if (!chev || !this.ramps.length) return
     const k = Math.min(CHEV_MAX_SCALE, Math.max(1, (CHEV_PX * mpp) / CHEV_M))
-    const gap = CHEV_GAP_M * k
-    const phase = ((now / 1000) * CHEV_SPEED * Math.sqrt(k)) % gap
+    const gap = Math.max(CHEV_GAP_M, CHEV_GAP_UNITS * k * CHEV_M)
+    // 프레임 간격(탭 복귀·긴 정지 뒤 큰 dt는 100ms로 자른다: 한 번에 여러 칸 건너뛰지 않게)
+    const dt = this.flowAt ? Math.min(0.1, (now - this.flowAt) / 1000) : 0
+    this.flowAt = now
+    this.flowU += (dt * CHEV_FLOW_PX_PER_S * mpp) / gap
+    const phase = (this.flowU % 1) * gap
     const tmp = new THREE.Matrix4()
     const rot = new THREE.Matrix4()
     const sc = new THREE.Matrix4().makeScale(k, k, k)
@@ -931,8 +944,14 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       })
       if (!appearing) st.appearAt = 0
     }
-    // 구간 벽은 화면 기준 높이(줌이 바뀔 때만)
-    if (this.segWalls.length && (zoomChanged0 || this.lastZoom < 0)) for (const w of this.segWalls) w.scale.y = SEG_WALL_PX * mpp
+    // 구간 벽은 화면 기준 높이(줌이 바뀔 때만). 새로 세운 벽은 0.9초 동안 땅에서 솟는다(첫 화면 결론 등장)
+    const wallRising = this.wallRiseAt > 0 && now - this.wallRiseAt < WALL_RISE_MS
+    if (this.segWalls.length && (zoomChanged0 || this.lastZoom < 0 || wallRising)) {
+      const k = wallRising ? 1 - Math.pow(1 - (now - this.wallRiseAt) / WALL_RISE_MS, 3) : 1
+      for (const w of this.segWalls) w.scale.y = SEG_WALL_PX * mpp * k
+      if (wallRising) animating = true
+      else this.wallRiseAt = 0
+    }
     // 경사 화살·제설차는 매 프레임 움직인다(있을 때만 다시 그린다)
     if (this.ramps.length) {
       this.updateRamps(now, mpp)

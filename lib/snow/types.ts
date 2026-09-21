@@ -213,6 +213,7 @@ export interface SnowMapData {
     heatJoin: { seoulRows: number; guMatched: number; guRows: number; guUnmatched: number[] }
     slope: { window: number; step: number; minGrade: number; minLen: number; maxGrade: number; awayFromTrunkM: number; count: number; km: number; weakOnSlope: number; dropped: number; rule: string }
     saltNoDong: number
+    saltFixed?: { id: string; addr: string; from: [number, number]; to: [number, number]; km: number }[] // 원자료 좌표 오기 보정(같은 주소 다른 행으로 옮김). 6라운드
     thresholds: { heatNearM: number; materialNearM: number; schoolNearM: number }
   }
 }

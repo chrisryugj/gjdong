@@ -3,6 +3,7 @@
 import type { SnowMapData } from "@/lib/snow/types"
 import { SectionHead } from "@/components/dumping/section-head"
 import { Table } from "./ui"
+import { linkSnowLawRefs } from "./law-ref"
 
 // 법령·책임 탭. 01 자연재해대책법 제27조 02 광진구 조례(제3~9조 요지) 03 서울시 대응 단계 기준 04 대책기간·동원 규모(보도자료). 원문은 법제처에서 2026-09-20 조회
 // 헤드라인은 조문에 있는 사실만: 보도는 접한 구간 전부, 이면도로는 대지경계 1m. 차도는 조례에 없다(구 제설대책기간 운영, 보도자료)
@@ -25,7 +26,7 @@ export default function LawPanel({ data, dark = true }: Props) {
   return (
     <div className="px-4 pb-4 pt-3">
       <p className="dump-headline text-[21px] leading-[1.42] text-[var(--cp-text-strong)]">건축물관리자가 보도와 이면도로 대지경계 1m를 치웁니다.</p>
-      <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">보도는 대지에 접한 구간 전부(조례 제4조). 차도는 구청이 맡습니다.</p>
+      <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">{linkSnowLawRefs("보도는 대지에 접한 구간 전부(조례 제4조). 차도는 구청이 맡습니다.")}</p>
       {data && (
         <p className="mt-1.5 text-[13.5px] leading-snug text-[var(--cp-text-dim)]">
           지도: 구 관리 {data.weak.length + data.ice.filter((s) => /\(광진구\)/.test(s.agency)).length}곳은 하늘색, 서울시 관리 {data.ice.filter((s) => !/\(광진구\)/.test(s.agency)).length}곳은 {dark ? "흰색" : "검정"}.
@@ -52,7 +53,7 @@ export default function LawPanel({ data, dark = true }: Props) {
         rowH={62}
         rows={ORD}
         rowKey={(o) => o.a}
-        cell={(o, k) => (k === "조" ? <span className="font-mono text-[12.5px] text-(--dump-accent)">{o.a}</span> : k === "항목" ? <span className="font-semibold text-[var(--cp-text-strong)]">{o.t}</span> : <span title={o.g}>{o.g}</span>)}
+        cell={(o, k) => (k === "조" ? <span className="font-mono text-[12.5px] text-(--dump-accent)">{linkSnowLawRefs(`조례 ${o.a}`)}</span> : k === "항목" ? <span className="font-semibold text-[var(--cp-text-strong)]">{o.t}</span> : <span title={o.g}>{o.g}</span>)}
       />
       <details className="mt-1.5">
         <summary className="cursor-pointer text-[13px] text-(--dump-accent)">요지 전문</summary>
@@ -65,7 +66,7 @@ export default function LawPanel({ data, dark = true }: Props) {
           ))}
         </ul>
       </details>
-      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">과태료 조항은 없습니다. 대응 단계 탭의 시한 계산은 제5조 제1항 그대로.</p>
+      <p className="mt-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">{linkSnowLawRefs("과태료 조항은 없습니다. 대응 단계 탭의 시한 계산은 조례 제5조 제1항 그대로. 조 번호를 누르면 원문이 뜹니다.")}</p>
 
       <SectionHead n="03" sub="서울시 보도자료 2026-02-01. 자치구가 같은 기준">
         서울시 강설 대응 단계

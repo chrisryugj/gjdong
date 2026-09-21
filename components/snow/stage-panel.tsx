@@ -7,6 +7,7 @@ import { fmt } from "@/lib/snow/facts"
 import { WMO_KO as WMO } from "@/lib/snow/weather"
 import { SectionHead } from "@/components/dumping/section-head"
 import { StatBand, Table } from "./ui"
+import { linkSnowLawRefs } from "./law-ref"
 
 // 대응 단계 탭. 01 예보·특보로 서울시 단계 판정(대책기간 밖이면 시나리오 기본) 02 이 단계가 동원하는 자원(표) 03 조례 제5조 시한
 // 3라운드(보고받는 사람 관점): 단계 다음에 바로 "무엇을 동원하나"가 오게 순서를 바꿨다(시한은 건축물관리자 몫이라 셋째). 단계 5칸은 상자 대신 밑줄 탭
@@ -181,7 +182,8 @@ export default function StagePanel({ data, graph, forecast, simCm, onSimCm, stag
       <p className="mt-2 text-[15px] leading-relaxed text-[var(--cp-text-strong)]">
         눈이 {fmtHM(endAt)}에 그치면 건축물관리자는 <b className="text-(--dump-accent)">{fmtHM(deadline.due)}</b>까지 보도와 이면도로를 치워야 합니다.
       </p>
-      <p className="text-[13px] text-[var(--cp-text-dim)]">{deadline.text}. 조례 제5조 제1항.</p>
+      {/* 인용 문구를 호버하면 조문 원문(law-ref, dumping 규약). 링크를 타지 않고 그 자리에서 읽는다 */}
+      <p className="text-[13px] text-[var(--cp-text-dim)]">{linkSnowLawRefs(`${deadline.text}. 조례 제5조 제1항.`)}</p>
     </div>
   )
 }

@@ -2,25 +2,26 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { LAW_ASOF, LAW_TEXTS, lawRefsIn } from "@/lib/dumping/law"
+import { LAW_ASOF, LAW_TEXTS, lawRefsIn, type LawText } from "@/lib/dumping/law"
 
 // 법령 인용 문구에 호버·포커스·탭으로 조문 원문을 띄운다. 원문은 lib/dumping/law.ts(법제처 실측)가 정본.
 // 결재선이 "조례 9조"가 무슨 말인지 링크를 타지 않고 그 자리에서 읽게(12라운드)
 // 18라운드: 팝오버를 페이지 루트로 포털해 화면 기준(fixed)으로 띄운다. 모달 본문(overflow-y: auto) 안의 absolute는 아래가 잘렸고,
 // 모달 패널의 등장 애니메이션(transform)이 fixed의 기준 상자가 되어 패널 안에서 fixed도 어긋났다(실측: left가 패널 폭만큼 밀림).
 // 호버는 살짝 늦게 닫혀 팝오버로 손을 옮길 수 있고, 클릭하면 고정되어 링크를 누를 수 있다(바깥 클릭·ESC·다시 클릭으로 해제)
+// 2026-09-21: 조문 사전(texts)·기준일(asof)을 인자로 받는다. 기본은 /dumping 것, /snow는 lib/snow/law.ts를 넘긴다(components/snow/law-ref.tsx)
 
 const GAP = 6
 const CLOSE_DELAY = 220
 
-export function LawRef({ keys, up = false, children }: { keys: string[]; up?: boolean; children: React.ReactNode }) {
+export function LawRef({ keys, up = false, texts = LAW_TEXTS, asof = LAW_ASOF, children }: { keys: string[]; up?: boolean; texts?: Record<string, LawText>; asof?: string; children: React.ReactNode }) {
   const [hover, setHover] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number; maxH: number; above: boolean } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLSpanElement>(null)
   const closeTimer = useRef<number | null>(null)
-  const items = keys.map((k) => LAW_TEXTS[k]).filter(Boolean)
+  const items = keys.map((k) => texts[k]).filter(Boolean)
   const open = hover || pinned
 
   const enter = useCallback(() => {
@@ -115,8 +116,8 @@ export function LawRef({ keys, up = false, children }: { keys: string[]; up?: bo
               </span>
             ))}
           </span>
-          <span className="mt-2 block shrink-0 border-t border-[var(--cp-border)] pt-1.5 text-[11.5px] text-[var(--cp-text-faint)]">
-            {LAW_ASOF} 법제처 API로 받은 현행 본문. 이후 개정 여부는 링크에서 확인{pinned ? " · 고정됨(바깥 클릭·ESC로 닫기)" : " · 누르면 고정"}
+          <span className="mt-2 block shrink-0 border-t border-[var(--cp-border)] pt-1.5 text-[12px] text-[var(--cp-text-faint)]">
+            {asof} 법제처 API로 받은 현행 본문. 이후 개정 여부는 링크에서 확인{pinned ? " · 고정됨(바깥 클릭·ESC로 닫기)" : " · 누르면 고정"}
           </span>
         </span>,
         document.querySelector(".dump-page") ?? document.body,
