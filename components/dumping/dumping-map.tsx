@@ -199,7 +199,11 @@ interface DumpingMapProps {
   // 카메라 큐(18라운드 시연): seq가 바뀌면 그 구도로 천천히 간다. bounds 없으면 구 전체. 도착 뒤 orbit이 켜져 있으면 회전이 이어진다
   cameraCue?: CameraCue | null
   fitPadding?: { tl: [number, number]; br: [number, number] } // 지도 위에 뜬 카드·열이 가리는 영역(px). 구 전체 맞춤이 보이는 부분에만 맞춘다(2026-09-18 지도 전면)
+  // 19라운드 로딩 커튼: 지도 준비 단계를 대시보드에 알린다. map = 스타일·첫 타일, idle = 타일 렌더·건물 조인 완료(첫 번), icons = 3D 시설 레이어 준비
+  onStage?: (stage: MapLoadStage) => void
+  padSeq?: number // 증가 시 가려진 영역(fitPadding)을 다시 재서 보이는 영역 가운데로 부드럽게 옮긴다(시연 중 카드 숨김·보임)
 }
+export type MapLoadStage = "map" | "idle" | "icons"
 
 export default function DumpingMap({
   data,
@@ -226,6 +230,8 @@ export default function DumpingMap({
   resetSeq,
   fitPadding,
   cameraCue,
+  onStage,
+  padSeq = 0,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
@@ -236,6 +242,8 @@ export default function DumpingMap({
   tiltRef.current = tilt
   const onOrbitStopRef = useRef(onOrbitStop)
   onOrbitStopRef.current = onOrbitStop
+  const onStageRef = useRef(onStage)
+  onStageRef.current = onStage
   const dataRef = useRef(data)
   dataRef.current = data
   const prevDongRef = useRef<string | null>(null)
@@ -310,6 +318,7 @@ export default function DumpingMap({
       declareLayers(map, { type: "Polygon", coordinates: [data.ring.map((p) => [p[1], p[0]])] })
       applyThemePaint(map, themeRef.current)
       setReady(true)
+      onStageRef.current?.("map")
       void import("./icons3d").then(({ Icons3DLayer }) => {
         if (mapRef.current !== map) return
         const icons = new Icons3DLayer()
@@ -318,6 +327,7 @@ export default function DumpingMap({
         map.addLayer(icons, S.infraPosts) // 투명 말뚝(툴팁 조회용) 바로 아래. 라벨은 그 위
         iconsRef.current = icons
         setIconsReady(true)
+        onStageRef.current?.("icons")
       })
     })
     // 스타일을 바꾸면(테마) 등록한 이미지가 사라진다. 없다고 할 때 다시 그린다
@@ -354,9 +364,14 @@ export default function DumpingMap({
     map.on("sourcedata", (e) => {
       if (e.sourceId === NSDI_SOURCE && e.isSourceLoaded) joinBuildings()
     })
+    let idled = false
     map.on("idle", () => {
       joinBuildings()
       iconsRef.current?.refreshElevation()
+      if (!idled) {
+        idled = true
+        onStageRef.current?.("idle")
+      }
     })
     // 호버 툴팁: 맨 위 레이어의 피처 하나. 격자→원→시설 순으로 위가 이긴다
     map.on("mousemove", (e) => {
@@ -834,6 +849,17 @@ export default function DumpingMap({
     const zoom = Math.min(cameraCue.maxZoom ?? 99, (cam.zoom ?? map.getZoom()) - (pitch > 0 ? TILT_ZOOM_BACK : 0))
     map.easeTo({ center: cam.center, zoom, bearing, pitch, duration: cameraCue.duration ?? 2400, easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), essential: true })
   }, [ready, cameraCue?.seq])
+
+  // 카드 숨김·보임(padSeq): 지도 padding만 새로 주고 같은 중심을 보이는 영역 가운데로. 줌·기울기·방위는 그대로(회전·비행 중이면 그 위에 얹힌다)
+  const padSeqRef = useRef(padSeq)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || padSeqRef.current === padSeq) return
+    padSeqRef.current = padSeq
+    // 드론 비행은 프레임마다 jumpTo라 easeTo가 첫 프레임에 끊긴다 → 즉시 적용. 회전(orbit)은 isEasing 중 쉬므로 부드럽게
+    if (fly) map.setPadding(padding())
+    else map.easeTo({ padding: padding(), duration: 700, essential: true })
+  }, [ready, padSeq, fly])
 
   // 헤더 배너 리셋 → 구 전체 뷰(기본 방위로)
   useEffect(() => {

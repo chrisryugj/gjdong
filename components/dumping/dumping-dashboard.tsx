@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
-import DumpingMap, { type CameraCue, type CandidateFocus } from "./dumping-map"
+import DumpingMap, { type CameraCue, type CandidateFocus, type MapLoadStage } from "./dumping-map"
 import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, type MapView } from "./map-controls"
 import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
@@ -80,7 +80,8 @@ export default function DumpingDashboard() {
   const [showCritical, setShowCritical] = useState(false) // 집중관리 상습격자 지도 강조
   const [showMethods, setShowMethods] = useState(false) // 분석 방법 안내 모달
   const [methodsSection, setMethodsSection] = useState<MethodsSection>("data") // 정책 탭 근거 경로가 지정한 섹션
-  const [view, setView] = useState<MapView>(DEFAULT_VIEW)
+  // 첫 화면은 실사 건물만(base none·원 없음). 로딩 커튼이 걷힌 뒤 결론이 단계로 등장한다: 다가구·단독 초록 물듦 → 과태료 기둥 솟음(19라운드)
+  const [view, setView] = useState<MapView>({ ...DEFAULT_VIEW, base: "none", circles: [] })
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [openFinding, setOpenFinding] = useState<Finding | null>(null)
@@ -95,7 +96,14 @@ export default function DumpingDashboard() {
   const [layersOpen, setLayersOpen] = useState(false) // 모바일 레이어 덮개
   const [demo, setDemo] = useState<number | null>(null) // 시연 모드(18라운드): 장면 번호. ←→ 키로 이동, Esc로 나감
   const [cameraCue, setCameraCue] = useState<CameraCue | null>(null) // 시연 장면의 카메라 이동
+  // 시연 중 왼쪽 카드 숨김(19라운드): 지도만 크게. H 키·캡션 바 버튼으로 켜고 끈다. 카메라는 padSeq로 가려진 영역을 다시 재서 가운데를 옮긴다
+  const [cardHidden, setCardHidden] = useState(false)
+  const [padSeq, setPadSeq] = useState(0)
   const demoTimers = useRef<number[]>([]) // 장면 안에서 미뤄 둔 단계(카메라 도착 뒤 기둥이 솟는다)
+  // 로딩 커튼(19라운드): 지도 영역만 종이로 덮고 4단계(자료·지도 바탕·건물 결합·시설 아이콘)를 실제 이벤트로 체크한다. 첫 로드 한 번
+  const [loadStage, setLoadStage] = useState(0) // 0 자료 요청 중 · 1 자료 · 2 지도 바탕 · 3 건물 결합(첫 idle) · 4 시설 아이콘
+  const [curtain, setCurtain] = useState<"on" | "out" | "off">("on")
+  const revealTimers = useRef<number[]>([])
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
@@ -174,6 +182,34 @@ export default function DumpingDashboard() {
       alive = false
     }
   }, [auth, loadSeq])
+
+  // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 12초 상한(회장 네트워크가 느려도 시연을 막지 않게)에서 걷힌다
+  useEffect(() => {
+    if (load === "ready") setLoadStage((v) => Math.max(v, 1))
+  }, [load])
+  const onMapStage = useCallback((stage: MapLoadStage) => {
+    setLoadStage((v) => Math.max(v, stage === "map" ? 2 : stage === "idle" ? 3 : 4))
+  }, [])
+  // 걷힘 → 0.65초 페이드 → 결론 등장: 0.8초 뒤 다가구·단독 초록, 1.8초 뒤 과태료 기둥(riseColumns). 그 사이 사용자가 바탕·원을 바꿨으면 건드리지 않는다
+  const curtainDone = useRef(false)
+  const dismissCurtain = useCallback(() => {
+    if (curtainDone.current) return
+    curtainDone.current = true
+    setCurtain("out")
+    const t = revealTimers.current
+    t.push(window.setTimeout(() => setCurtain("off"), 650))
+    t.push(window.setTimeout(() => setView((v) => (v.base === "none" && v.circles.length === 0 ? { ...v, base: DEFAULT_VIEW.base } : v)), 800))
+    t.push(window.setTimeout(() => setView((v) => (v.base === DEFAULT_VIEW.base && v.circles.length === 0 ? { ...v, circles: DEFAULT_VIEW.circles } : v)), 1800))
+  }, [])
+  useEffect(() => {
+    if (loadStage >= 4 || load === "error") dismissCurtain()
+  }, [loadStage, load, dismissCurtain])
+  useEffect(() => {
+    if (auth !== "open") return
+    const t = window.setTimeout(dismissCurtain, 12000)
+    return () => window.clearTimeout(t)
+  }, [auth, dismissCurtain])
+  useEffect(() => () => revealTimers.current.forEach((t) => window.clearTimeout(t)), [])
 
   // 자동 회전 중 지도를 만지면 회전을 끈다(지도가 부른다). 다른 상태는 건드리지 않는다. 로그인 게이트 분기보다 위(훅 순서)
   const stopOrbit = useCallback(() => setView((v) => (v.orbit || v.fly ? { ...v, orbit: false, fly: false } : v)), [])
@@ -342,6 +378,11 @@ export default function DumpingDashboard() {
     }
   }, [demo])
 
+  const toggleCard = useCallback(() => {
+    setCardHidden((h) => !h)
+    setPadSeq((n) => n + 1)
+  }, [])
+
   useEffect(() => {
     if (demo === null) return
     const onKey = (e: KeyboardEvent) => {
@@ -357,11 +398,21 @@ export default function DumpingDashboard() {
       } else if (e.key === "Escape") {
         setDemo(null)
         setView((v) => ({ ...v, fly: false, orbit: false }))
+      } else if (e.key === "h" || e.key === "H" || e.key === "ㅎ") {
+        e.preventDefault()
+        toggleCard()
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [demo, scenes.length])
+  }, [demo, scenes.length, toggleCard])
+
+  // 시연을 나가면 카드는 다시 보인다(지도 padding도 카드 폭만큼 되돌린다)
+  useEffect(() => {
+    if (demo !== null || !cardHidden) return
+    setCardHidden(false)
+    setPadSeq((n) => n + 1)
+  }, [demo, cardHidden])
 
   const endDemo = () => {
     setDemo(null)
@@ -395,8 +446,10 @@ export default function DumpingDashboard() {
   const sheetTop = mapCollapsed ? "104px" : split.mapH != null ? `${split.mapH}px` : SHEET_TOP_MOBILE
   // 구 전체 맞춤 여백. 데스크톱은 왼쪽 카드·오른쪽 열·(xl) 아래 띠가 가리는 만큼, 모바일은 상단 띠와 시트가 가리는 만큼
   const sideW = side.width ?? 440
+  const hideCard = demo !== null && cardHidden // 시연 중에만. xl 미만에선 시연 자체가 없다
+  const leftEdge = hideCard ? "16px" : "calc(16px + var(--dump-side-w, 440px) + 16px)" // 캡션 바·월별 띠의 왼쪽 끝
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
-    ? { tl: [16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 : 24] }
+    ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
   const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} /> : null
@@ -434,6 +487,7 @@ export default function DumpingDashboard() {
       <div className={`absolute inset-0 ${side.dragging ? "pointer-events-none" : ""}`}>
         {rightPane === "map" ? (
           <DumpingMap
+            onStage={onMapStage}
             data={mapData}
             base={view.base}
             circles={view.circles}
@@ -457,6 +511,7 @@ export default function DumpingDashboard() {
             onOrbitStop={stopOrbit}
             resetSeq={resetSeq}
             fitPadding={fitPadding}
+            padSeq={padSeq}
             cameraCue={cameraCue}
           />
         ) : (
@@ -466,6 +521,33 @@ export default function DumpingDashboard() {
           </div>
         )}
       </div>
+      {/* 로딩 커튼(19라운드): 지도 영역만 종이로 덮고 준비 단계를 보인다. 유리 패널 아래(z 1030)라 결론 카드·탭은 그대로 읽힌다. 걷힌 뒤 결론이 단계로 등장 */}
+      {curtain !== "off" && rightPane === "map" && (
+        <div className={`dump-curtain absolute inset-0 z-[1030] ${curtain === "out" ? "out" : ""}`} aria-live="polite" aria-busy={curtain === "on"}>
+          <div className="dump-curtain-box">
+            <DumpMark size={44} />
+            <p className="dump-kicker mt-4 text-[10.5px] text-[var(--cp-text-dim)]">클린광진 상황실 · 준비 중</p>
+            <h2 className="mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-[var(--cp-text-strong)]">광진구 무단투기 100m 격자를 불러옵니다</h2>
+            <ol className="mt-5 flex flex-col gap-2">
+              {["민원·과태료·격자 자료", "지도 바탕", "건물 24,520동 입체 결합", "시설·청소차 3D"].map((label, i) => {
+                const st = loadStage > i ? "done" : loadStage === i ? "now" : "wait"
+                return (
+                  <li key={label} className={`dump-curtain-step ${st}`}>
+                    <span className="dump-curtain-n">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="flex-1">{label}</span>
+                    <span className="dump-curtain-mark" aria-hidden>
+                      {st === "done" ? "✓" : st === "now" ? "…" : ""}
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
+            <div className="dump-curtain-bar mt-5" role="progressbar" aria-valuemin={0} aria-valuemax={4} aria-valuenow={loadStage}>
+              <span style={{ width: `${Math.max(6, (loadStage / 4) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
       {/* 모바일 손잡이 드래그의 기준 높이(보이는 지도 높이). 그리지 않는 측정용 상자 */}
       <div ref={split.mapBoxRef} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 md:hidden" style={{ height: "var(--dump-sheet-top)" }} />
 
@@ -500,7 +582,7 @@ export default function DumpingDashboard() {
                 type="button"
                 onClick={() => (demo === null ? setDemo(0) : endDemo())}
                 aria-pressed={demo !== null}
-                title="시연 모드: 5장면, ←→ 키로 이동, Esc로 나가기"
+                title="시연 모드: 5장면, ←→ 키로 이동, H 카드 숨김, Esc로 나가기"
                 className={`dump-fl lg-shell relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors hover:text-(--dump-accent) ${
                   demo !== null ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"
                 }`}
@@ -542,6 +624,7 @@ export default function DumpingDashboard() {
       {/* 왼쪽 카드(데스크톱) = 하단 시트(모바일). 탭 내용이 여기 산다. 폭은 CSS 변수(드래그) */}
       <aside
         className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:bottom-4 md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl`}
+        style={hideCard ? { display: "none" } : undefined}
       >
        <div className="lg-inner flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
         {/* 모바일 손잡이. 드래그로 지도/시트 비율, 더블탭 = 기본 복귀. 오른쪽에 지도 접기 */}
@@ -655,7 +738,7 @@ export default function DumpingDashboard() {
         onPointerCancel={side.onUp}
         onDoubleClick={side.reset}
         className={`group absolute bottom-4 ${TOP} z-[1060] hidden w-3 cursor-col-resize touch-none md:block`}
-        style={{ left: "calc(16px + var(--dump-side-w, 440px) - 6px)" }}
+        style={{ left: "calc(16px + var(--dump-side-w, 440px) - 6px)", display: hideCard ? "none" : undefined }}
       >
         <span
           className={`absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${
@@ -680,7 +763,7 @@ export default function DumpingDashboard() {
       {rightPane === "map" && demo !== null && scenes[demo] && (
         <div
           className="dump-fl lg-shell lg-dense absolute z-[1045] hidden rounded-2xl xl:block"
-          style={{ left: "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32, bottom: 16 + 96 + 14 }}
+          style={{ left: leftEdge, right: RIGHT_W + 32, bottom: 16 + 96 + 14 }}
           aria-live="polite"
         >
           <div className="flex items-start gap-4 px-5 py-3.5">
@@ -705,6 +788,14 @@ export default function DumpingDashboard() {
               <button onClick={() => setDemo(Math.min(scenes.length - 1, demo + 1))} disabled={demo === scenes.length - 1} aria-label="다음 장면" className="h-8 w-8 rounded-full border border-[var(--cp-border)] text-[15px] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)] disabled:opacity-35">
                 →
               </button>
+              <button
+                onClick={toggleCard}
+                aria-pressed={cardHidden}
+                title="왼쪽 카드 숨기기·보이기 (H)"
+                className={`ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold hover:bg-[var(--cp-hover)] ${cardHidden ? "text-(--dump-accent)" : "text-[var(--cp-text-muted)]"}`}
+              >
+                {cardHidden ? "카드 보기" : "카드 숨김"}
+              </button>
               <button onClick={endDemo} className="ml-1 h-8 rounded-full border border-[var(--cp-border)] px-3 text-[12.5px] font-semibold text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]">
                 끝
               </button>
@@ -717,7 +808,7 @@ export default function DumpingDashboard() {
       {rightPane === "map" && mapData && (
         <div
           className="dump-fl lg-shell lg-dense absolute bottom-4 z-[1040] hidden rounded-2xl xl:block"
-          style={{ left: "calc(16px + var(--dump-side-w, 440px) + 16px)", right: RIGHT_W + 32 }}
+          style={{ left: leftEdge, right: RIGHT_W + 32 }}
         >
           <TimelineStrip data={mapData} />
         </div>

@@ -1258,6 +1258,38 @@
   .dump-page .lg-inner, .lg-on .dump-page .lg-inner { background: rgba(251, 249, 243, 0.94); }
   :root[data-theme="dark"] .dump-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, 0.94); }
 }
+/* 로딩 커튼(19라운드): 지도 영역만 종이로 덮는 준비 화면. 단계 4개 + 헤어라인 진행선. 걷힐 때 0.6초 페이드 */
+.dump-page .dump-curtain {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--dump-paper);
+  transition: opacity .6s ease;
+}
+.dump-page .dump-curtain.out { opacity: 0; pointer-events: none; }
+@media (min-width: 768px) {
+  .dump-page .dump-curtain { padding-left: calc(32px + var(--dump-side-w, 440px)); padding-right: 32px; }
+}
+@media (min-width: 1280px) {
+  .dump-page .dump-curtain { padding-right: 268px; } /* 오른쪽 열(236px) + 여백 */
+}
+.dump-page .dump-curtain-box { width: min(360px, calc(100% - 32px)); padding: 8px 0; }
+.dump-page .dump-curtain-step {
+  display: flex; align-items: baseline; gap: 12px;
+  font-size: 15px; line-height: 1.35; color: var(--cp-text-faint);
+  transition: color .3s;
+}
+.dump-page .dump-curtain-step.done, .dump-page .dump-curtain-step.now { color: var(--cp-text-strong); }
+.dump-page .dump-curtain-step.now { font-weight: 600; }
+.dump-page .dump-curtain-n { width: 22px; flex: none; font-family: var(--dump-display); font-size: 11px; letter-spacing: .12em; color: var(--dump-accent); }
+.dump-page .dump-curtain-step.wait .dump-curtain-n { color: var(--cp-text-faint); }
+.dump-page .dump-curtain-mark { width: 18px; flex: none; text-align: right; color: var(--dump-accent); }
+.dump-page .dump-curtain-step.now .dump-curtain-mark { animation: dump-curtain-blink 1s steps(1) infinite; }
+@keyframes dump-curtain-blink { 50% { opacity: 0; } }
+.dump-page .dump-curtain-bar { height: 2px; background: color-mix(in srgb, var(--dump-ink) 12%, transparent); }
+.dump-page .dump-curtain-bar > span { display: block; height: 100%; background: var(--dump-accent); transition: width .5s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .dump-page .dump-curtain, .dump-page .dump-curtain-bar > span { transition: none; }
+  .dump-page .dump-curtain-step.now .dump-curtain-mark { animation: none; }
+}
 /* 유리 끔(--lg≈0): 굴절·흐림 없이 불투명 종이 패널 */
 .lg-flat .dump-page .lg-shell, .lg-flat .dump-page .dump-fl { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--dump-paper) !important; }
 /* 지도가 움직이는 동안(html.lg-moving, dumping-map이 move 이벤트로 붙였다 240ms 뒤 뗀다): 굴절 url() 필터 대신 .dump-fl과 같은 흐림 유리.
