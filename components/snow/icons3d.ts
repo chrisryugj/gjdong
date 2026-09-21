@@ -3,7 +3,8 @@
 //   제설함=각진 상자(경사 뚜껑) 청회 · 염화칼슘보관함=원통(뚜껑) 청빙 · 모래주머니=납작한 포대 2단(주민센터는 3단) 모래색 · 초등학교=깃대+흰 깃발(받침은 150m 안 열선 유무 색)
 //   열선 위치=발광 구슬(줌 14.2 아래에서만, 구 전체에서 55곳이 보이게) · 선형 미확인 결빙구간 끝점=땅에 누운 진홍 고리 · 열선 없는 취약구간·결빙구간 번호=입체 숫자(진홍) · 동별 기둥 1~3위=입체 숫자(기둥 색)
 // 크기는 화면 기준 최소 높이를 지킨다(마커처럼): 조망에서도 점이 아니라 모양이 보이고, 확대하면 실제 크기에 가까워진다. 빽빽한 자재는 확대 상한을 둔다(383개가 구를 덮지 않게).
-// 깊이 버퍼를 지도와 공유해 건물·기둥이 아이콘을 가린다. 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약). 지형은 안 켜므로 y=0.
+// 모델 공간: x=동, y=위(m), z=남(getMatrixForModel 규약). 지형은 안 켜므로 y=0.
+// 5라운드: 그리기 전에 깊이 버퍼를 비운다(render). 3라운드까지는 지도 깊이를 공유해 건물이 핀을 가렸는데, 드론 비행·회전처럼 카메라가 계속 움직이면 4~13px 핀이 건물 뒤로 들락거려 깜박였다(사용자 지적). 핀은 마커처럼 늘 위에, 핀끼리는 깊이 검사
 // 툴팁은 같은 자리의 투명 fill-extrusion(snow-map S.posts)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
 // ★MeshPhysicalMaterial은 환경맵 없이 검게 나온다(dumping 실측) → Lambert+emissive
 // 4라운드(2026-09-21): 경사 추정 구간 = 고도 단면대로 솟는 반투명 보라 경사면 + 윗선을 오르막으로 흐르는 화살(setSlopes) · 제설차가 상습결빙구간 선형을 왕복(setTrucks, 2단계부터) · 종류별 발광(setEmissive)
@@ -911,6 +912,9 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
     const model = (map as unknown as { transform: { getMatrixForModel: (l: [number, number], alt?: number) => Float64Array | number[] } }).transform.getMatrixForModel(ANCHOR, 0)
     const proj = new THREE.Matrix4().fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>))
     this.camera.projectionMatrix = proj.multiply(new THREE.Matrix4().fromArray(Array.from(model)))
+    // 건물·기둥 깊이를 지우고 그린다(핀이 건물 뒤로 들락거리며 깜박이던 것). 이 층 뒤는 라벨(깊이 없음)뿐
+    _gl.depthMask(true)
+    _gl.clear(_gl.DEPTH_BUFFER_BIT)
     this.renderer.resetState()
     this.renderer.render(this.scene, this.camera)
     if (animating) map.triggerRepaint()

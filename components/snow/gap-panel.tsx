@@ -24,13 +24,14 @@ interface Props {
 }
 
 // 번호 = 지도 배지와 같은 번호(적설취약구간 i · 결빙 n). 표 행번호와 지도 번호가 따로 놀던 것(냉독 지적)
+// 열 폭은 머리글(키커 9.5px·자간 0.12em)이 한 줄에 들어가는 값(5라운드: "지도 번호"가 40px, "소관"이 20px에서 두 줄로 꺾였다)
 const COLS = [
-  { k: "지도 번호", w: "40px", dim: true },
+  { k: "지도 번호", w: "48px", dim: true },
   { k: "구간", w: "minmax(0,1fr)" },
   { k: "동", w: "44px", dim: true },
   { k: "열선까지", w: "54px", align: "right" as const },
   { k: "자재", w: "32px", align: "right" as const },
-  { k: "소관", w: "20px", dim: true },
+  { k: "소관", w: "24px", dim: true },
 ]
 // 예산 역산이 켜지면 "열선까지" 자리에 구간별 신설 개략 비용(길이 × 2차로 × 1억/100m)을 보여 준다(냉독 4차: 10억 계산을 행에서 검증 못 했다)
 const COLS_BUDGET = COLS.map((c) => (c.k === "열선까지" ? { ...c, k: "신설 비용", w: "54px" } : c))

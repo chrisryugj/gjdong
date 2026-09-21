@@ -55,7 +55,7 @@ export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass, rowH = 30 
     <div className="text-[13.5px]">
       <div className="grid items-baseline gap-x-2 border-b border-[var(--cp-border)] pb-1" style={{ gridTemplateColumns: grid }}>
         {cols.map((c) => (
-          <span key={c.k} className={`dump-kicker text-[9.5px] text-[var(--cp-text-dim)] ${c.align === "right" ? "text-right" : ""}`}>
+          <span key={c.k} className={`dump-kicker whitespace-nowrap text-[9.5px] text-[var(--cp-text-dim)] ${c.align === "right" ? "text-right" : ""}`}>
             {c.k}
           </span>
         ))}
