@@ -8,7 +8,8 @@ import type { LayerId, SnowMapData } from "@/lib/snow/types"
 import type { WeatherFx } from "@/lib/snow/weather"
 import { segPriority } from "@/lib/snow/facts"
 import type { StageId } from "@/lib/snow/stage"
-import { BASEMAP_BOUNDS, BASEMAP_SOURCE, buildBasemapStyle, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapTheme } from "@/lib/dumping/basemap-style"
+import { BASEMAP_BOUNDS, BASEMAP_SOURCE, buildBasemapStyle, DEM_SOURCE, HAS_NSDI_BUILDINGS, HILLSHADE_LAYER, NSDI_SOURCE, type BasemapTheme } from "@/lib/dumping/basemap-style"
+import type { LoadState } from "./loading"
 import {
   badgeColor,
   caclFC,
@@ -63,6 +64,7 @@ import type { IconPoint, SnowIcons3DLayer } from "./icons3d"
 // 지형(DEM)은 켜지 않는다(선·원이 텍스처로 구워져 뭉개진다. /dumping 18라운드 실측). 경사는 빌드 스크립트가 계산해 slopes로 준다.
 // 3라운드(2026-09-20): 입체 보기에서 정보 핀은 전부 3D(icons3d.ts). 평면 원·열선 위치 점·번호 배지는 FLAT_ONLY, 투명 말뚝·3D 아이콘은 TILT_ONLY(dumping 18라운드 규약).
 // 4라운드(2026-09-21): 경사 추정 = 실선 + 오르막 화살 글리프(평면) / 고도 단면 경사면 + 흐르는 화살(입체, icons3d setSlopes) · 법령 탭 ownerView(관리청별 색) · 2단계부터 제설차(상습결빙구간 왕복) · 점검 후보 드론 비행(fly) · 동별 순위 입체 숫자는 시연 장면 2에서만(rankDigits)
+// 5라운드(2026-09-21): 구간 번호는 입체에서도 2D 배지(S.weakLabel, 우선순위 sort-key·자리 비킴·줌 14.5부터 겹침 허용. 3D 숫자는 진홍 벽 위에서 겹쳐 안 읽혔다) · 결빙 라벨 "결빙 n" 한 가지 · 음영 DEM은 512 타일·첫 idle 뒤(사파리 직렬 다운로드 13초 실측) · 로딩 진행(onLoad)
 
 const S = {
   mask: "snow-mask",
@@ -173,9 +175,23 @@ interface SnowMapProps {
   fitPadding?: { tl: [number, number]; br: [number, number] }
   onSelectDong?: (d: string | null) => void
   onOrbitStop?: () => void
+  onLoad?: (s: LoadState) => void // 첫 로딩 진행(바탕 › 타일 n/m › idle). 로딩 카드가 읽는다
 }
 
-export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, weather = { kind: "none", level: 0 }, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop }: SnowMapProps) {
+// 바탕 스타일은 /dumping 것(수정 0)을 받아 /snow만 손본다(5라운드, 사파리 실측 13.6초):
+// 음영 DEM을 512 타일로(256 타일 47장 3.7MB › 12장 1MB. 음영은 배경이라 해상도 반이 안 보인다), 음영 층은 숨긴 채 시작해 첫 idle 뒤 켠다(도로·건물·데이터가 먼저),
+// 지형(terrain)용 DEM 소스는 /snow가 안 쓰니 뺀다(메타데이터 요청 하나라도 사파리 직렬 큐에서는 비용)
+function snowStyle(ring: [number, number][], theme: BasemapTheme) {
+  const style = buildBasemapStyle(ring, theme)
+  const sources: typeof style.sources = {}
+  for (const [id, src] of Object.entries(style.sources)) {
+    if (id === DEM_SOURCE) continue
+    sources[id] = src.type === "raster-dem" ? { ...src, tileSize: 512 } : src
+  }
+  return { ...style, sources, layers: style.layers.map((l) => (l.id === HILLSHADE_LAYER ? { ...l, layout: { ...l.layout, visibility: "none" as const } } : l)) }
+}
+
+export default function SnowMap({ data, layers, stageView, colMetric, selectedDong, focusHeat, focusPoint, tilt, orbit, ownerView = false, rankDigits = false, trucks = false, fly = null, planned = [], snowCm = 0, weather = { kind: "none", level: 0 }, dimMaterials = false, noHeatDongs = false, focusRadius = FOCUS_RING_R_M, theme, resetSeq, cameraCue, fitPadding, onSelectDong, onOrbitStop, onLoad }: SnowMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const popupRef = useRef<MlPopup | null>(null)
@@ -194,6 +210,10 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
   onSelectRef.current = onSelectDong
   const onOrbitStopRef = useRef(onOrbitStop)
   onOrbitStopRef.current = onOrbitStop
+  const onLoadRef = useRef(onLoad)
+  onLoadRef.current = onLoad
+  const firstFitRef = useRef(false)
+  const loadFitRef = useRef(false) // 첫 구 전체 맞춤 뒤 한 프레임 그렸나(그 전엔 옛 타일이 "다 왔다"로 보여 로딩 끝을 오판한다)
   const ringBoundsRef = useRef<LngLatBoundsLike | null>(null)
   const pendingFitRef = useRef<(() => void) | null>(null)
   // 입체 정보 핀(Three.js 커스텀 레이어, icons3d.ts). three는 무거워 지도가 뜬 뒤 동적으로 싣는다
@@ -237,7 +257,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const suit = getComputedStyle(document.documentElement).getPropertyValue("--font-suit").trim()
     const map = new maplibregl.Map({
       container: boxRef.current,
-      style: buildBasemapStyle(data.ring, themeRef.current),
+      style: snowStyle(data.ring, themeRef.current),
       center: [127.085, 37.546],
       zoom: 13.2,
       pitch: tiltRef.current ? TILT_PITCH : 0,
@@ -263,6 +283,43 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       setReady(true)
       setStyleSeq((v) => v + 1)
     }
+    // 첫 로딩 진행: 타일 요청·도착 수(dataType source + tile)를 세어 로딩 카드에 준다. 구 전체 맞춤(fitRing) 뒤 타일이 다 오면(areTilesLoaded) 끝나고 그때 음영을 켠다.
+    // idle 이벤트는 못 쓴다: 열선 흐름 RAF·3D 층이 매 프레임 다시 그려 이 지도는 idle이 안 온다(실측). 25초 안전판
+    const tiles = { started: 0, done: 0, over: false }
+    const report = (phase: LoadState["phase"]) => onLoadRef.current?.({ phase, loaded: tiles.done, total: tiles.started })
+    // 네트워크 타일만 센다(벡터·DEM·건물). geojson 소스도 타일 이벤트를 내지만 즉시라 세면 분모만 부풀린다(766장 실측)
+    const isTile = (e: { dataType?: string; tile?: unknown; source?: { type?: string } }) => e.dataType === "source" && !!e.tile && (e.source?.type === "vector" || e.source?.type === "raster-dem")
+    const finish = () => {
+      if (tiles.over) return
+      tiles.over = true
+      report("ready")
+      if (map.getLayer(HILLSHADE_LAYER)) map.setLayoutProperty(HILLSHADE_LAYER, "visibility", "visible")
+    }
+    const check = () => {
+      if (!tiles.over && loadFitRef.current && map.areTilesLoaded()) finish()
+    }
+    report("style")
+    map.on("dataloading", (e) => {
+      if (tiles.over || !isTile(e)) return
+      tiles.started++
+      report("tiles")
+    })
+    map.on("data", (e) => {
+      if (tiles.over) return
+      if (isTile(e)) {
+        tiles.done++
+        report("tiles")
+      }
+      check()
+    })
+    map.on("error", (e) => {
+      if (tiles.over || !("tile" in e)) return
+      tiles.done++
+      report("tiles")
+      check()
+    })
+    const checkTimer = window.setInterval(check, 400)
+    const finishTimer = window.setTimeout(finish, 25000)
     map.on("load", () => {
       onStyleReady()
       void import("./icons3d").then(({ SnowIcons3DLayer }) => {
@@ -338,6 +395,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     return () => {
       cancelAnimationFrame(raf)
       observer.disconnect()
+      window.clearInterval(checkTimer)
+      window.clearTimeout(finishTimer)
       popup.remove()
       map.remove()
       mapRef.current = null
@@ -359,6 +418,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       if (mapRef.current !== map) return
       declareLayers(map)
       applyTheme(map, theme)
+      if (map.getLayer(HILLSHADE_LAYER)) map.setLayoutProperty(HILLSHADE_LAYER, "visibility", "visible") // 테마 전환은 타일이 캐시에 있으니 바로
       const icons = iconsRef.current
       if (icons && !map.getLayer(icons.id)) {
         map.addLayer(icons, S.posts)
@@ -367,11 +427,10 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       setReady(true)
       setStyleSeq((v) => v + 1)
     })
-    map.setStyle(buildBasemapStyle(d.ring, theme))
+    map.setStyle(snowStyle(d.ring, theme))
   }, [theme])
 
   // 불변 데이터(경계·동·시설·취약구간). ready마다(테마 재선언 포함) 다시 넣고 첫 회는 구 전체 맞춤
-  const firstFitRef = useRef(false)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !data) return
@@ -399,7 +458,12 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     setFC(map, S.sand, sand)
     setFC(map, S.school, school)
     setFC(map, S.weak, weakFC(data))
-    setFC(map, S.weakLabel, weakLabelFC(data))
+    // 번호 배지 배치 우선순위 = segPriority 순위(조망에서 겹치면 낮은 순위부터 숨는다)
+    const order = data.weak
+      .map((w) => ({ i: w.i, p: segPriority({ ...w, src: "weak" as const }, data).score }))
+      .sort((a, b) => b.p - a.p)
+      .map((x) => x.i)
+    setFC(map, S.weakLabel, weakLabelFC(data, new Map(order.map((i, k) => [i, k + 1]))))
     setFC(map, S.ice, iceFC(data))
     setFC(map, S.iceEnds, iceEndsFC(data))
     setFC(map, S.iceLabel, iceLabelFC(data))
@@ -409,6 +473,9 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     if (!firstFitRef.current) {
       firstFitRef.current = true
       fitRing(0)
+      map.once("render", () => {
+        loadFitRef.current = true
+      })
     }
   }, [ready, styleSeq, data])
 
@@ -429,12 +496,16 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     vis(S.cacl, on("cacl") && !tilt)
     vis(S.sand, on("sand") && !tilt)
     for (const id of [S.weak, S.weakCase]) vis(id, on("weak"))
-    vis(S.weakLabel, on("weak") && !tilt)
-    map.setFilter(S.weakLabel, ownerView ? null : ["!=", ["get", "status"], "heat"]) // 평면 번호 배지는 열선 없는 구간만(범례 "진홍 선·번호 배지 = 열선 없음"과 같게. 냉독)
-    for (const id of [S.ice, S.iceCase, S.iceLabel]) vis(id, on("ice"))
+    // 번호 배지는 열선 없는 구간만(범례 "진홍 벽·번호 = 열선 없음"과 같게). 기둥 모드에서는 기둥 라벨과 겹쳐 숨긴다. 입체에서는 벽(18px) 위에 앉게 bottom 앵커부터
+    vis(S.weakLabel, on("weak") && !colMetric)
+    map.setFilter(S.weakLabel, ownerView ? null : ["!=", ["get", "status"], "heat"])
+    map.setLayoutProperty(S.weakLabel, "text-variable-anchor", tilt ? ["bottom", "top", "left", "right"] : ["center", "bottom", "top", "left", "right"])
+    map.setLayoutProperty(S.weakLabel, "text-radial-offset", tilt ? 1.3 : 0.9)
+    // 예산 역산으로 신설되는 구간은 배지도 호박색(잉크 글자)
+    map.setPaintProperty(S.weakLabel, "text-halo-color", ownerView ? ownerColorExpr(dark) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), badgeColor(dark)] : badgeColor(dark))
+    map.setPaintProperty(S.weakLabel, "text-color", ownerView ? ["case", ["==", ["get", "owner"], "시"], dark ? "#0b1216" : "#ffffff", "#ffffff"] : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], "#0b1216", "#ffffff"] : "#ffffff")
+    for (const id of [S.ice, S.iceCase]) vis(id, on("ice"))
     vis(S.iceEnds, on("ice") && !tilt)
-    // 입체에서는 선이 있는 결빙구간 번호가 3D 숫자라 "결빙 n" 글 라벨은 선형 미확인 묶음만 남긴다
-    map.setFilter(S.iceLabel, null)
     map.setLayoutProperty(S.iceLabel, "visibility", on("ice") && !colMetric ? "visible" : "none") // 기둥 모드에서는 기둥 라벨과 겹친다(자양4동)
     for (const id of [S.slope, S.slopeCase]) vis(id, on("slope"))
     vis(S.slopeArrow, on("slope") && !tilt) // 입체에서는 3D 화살이 대신한다
@@ -451,7 +522,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setPaintProperty(S.sand, "circle-opacity", 0.92 * dimMat)
     map.setPaintProperty(S.sand, "circle-stroke-opacity", dimMat)
     const saltBoost = st === "stage-2" || st === "stage-3" ? 2.2 : 1 // 2단계 간선 제설함 확대(평면 원. 조망에서도 보이게 2.2배)
-    const saltBoost3D = st === "stage-2" || st === "stage-3" ? 1.6 : 1 // 3D 상자는 4라운드부터 조망 7px라 1.6배면 읽힌다(2.2배는 110개 상자가 지도를 덮었다)
+    const saltBoost3D = st === "stage-2" || st === "stage-3" ? 2 : 1 // 3D 상자는 5라운드부터 조망 4px라 2배(조망 7px·줌 15 26px)가 "커진다"로 읽힌다
     map.setPaintProperty(S.salt, "circle-radius", ["interpolate", ["linear"], ["zoom"], 12, 2 * saltBoost, 13.5, 3.2 * saltBoost, 15, 7 * saltBoost])
     // 3단계 열선 없는 동 외곽은 종이/잉크색 굵은 선(진홍은 취약구간 색이라 겹치면 안 읽힌다. 냉독 지적)
     const emph = st === "stage-3" || noHeatDongs
@@ -475,10 +546,8 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       if (minorRoadColorRef.current == null) minorRoadColorRef.current = map.getPaintProperty("roads_minor", "line-color") as unknown
       map.setPaintProperty("roads_minor", "line-color", st === "stage-3" ? (dark ? "#8fa3b5" : "#8593a4") : (minorRoadColorRef.current as string))
     }
-    // 결빙구간 번호(입체 숫자)에 "결빙" 접두: 입체에서는 선 있는 행 위에 "결빙" 글자만, 평면은 "결빙 n"(냉독: 숫자만 있으면 취약 번호와 구분이 안 됐다)
-    map.setLayoutProperty(S.iceLabel, "text-field", tilt ? ["case", ["==", ["get", "points"], 1], ["get", "text"], "결빙"] : ["get", "text"])
-    map.setLayoutProperty(S.iceLabel, "text-anchor", tilt ? ["case", ["==", ["get", "points"], 1], "top-left", "bottom"] : ["case", ["==", ["get", "points"], 1], "top-left", "center"])
-    map.setLayoutProperty(S.iceLabel, "text-offset", tilt ? ["case", ["==", ["get", "points"], 1], ["literal", [0.6, 1.5]], ["literal", [0, -1.3]]] : ["case", ["==", ["get", "points"], 1], ["literal", [0.6, 1.5]], ["literal", [0, 0]]])
+    // 결빙 라벨 "결빙 n"은 입체에서 벽 위에 앉게 위로 띄운다(선형 미확인 묶음은 기점 옆 그대로)
+    map.setLayoutProperty(S.iceLabel, "text-offset", tilt ? ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, -1.4]]] : ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, 0]]])
     // 3D 아이콘도 같은 단계 문법: 흐림·제설함 확대·2단계부터 제설함 발광·눈
     const icons = iconsRef.current
     if (icons) {
@@ -508,32 +577,10 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 열선 위치 동전은 기둥 모드에서도 둔다(55개뿐이고 없으면 조망에서 열선이 2D 선으로만 남는다)
     icons.setPoints("heat", layers.includes("heat") ? data.heat.map((h) => P(...segMid(h.path))) : [])
     icons.setPoints("iceEnd", on("ice") ? iceEndsFC(data).features.map((f) => P((f.geometry as GeoJSON.Point).coordinates[1], (f.geometry as GeoJSON.Point).coordinates[0])) : [])
-    // 번호: 열선 없는 구간만. 조망(z14 미만)에서는 우선순위 상위 5곳만(광장동 번호 더미. 냉독 7차), 예산 역산 신설 구간은 호박색. 기둥 모드에서는 숨김(기둥 라벨과 겹침)
-    const top5 = new Set(
-      data.weak
-        .filter((w) => !w.heatCovered)
-        .map((w) => ({ i: w.i, p: segPriority({ ...w, src: "weak" as const }, data).score }))
-        .sort((a, b) => b.p - a.p)
-        .slice(0, 5)
-        .map((x) => x.i),
-    )
-    icons.setPoints("weakBadge", layers.includes("weak") && !ownerView && !colMetric ? data.weak.filter((w) => !w.heatCovered).map((w) => P(...segMid(w.path), { rank: w.i, color: planned.includes(w.i) ? resColor("heat", themeRef.current === "dark") : undefined, showFromZoom: top5.has(w.i) ? undefined : 14 })) : [])
     // 경사 추정: 고도 단면 경사면 + 오르막 화살(입체 전용. 평면은 글리프 화살 레이어)
     icons.setSlopes(layers.includes("slope") ? slopeRamps(data) : [])
     // 구간 벽: 열선 없는 취약·결빙구간 19곳(조망에서 선이 2D로 읽히던 냉독). 법령 탭은 56곳 관리청 색
     icons.setSegWalls(segWalls(data, themeRef.current === "dark", ownerView, { weak: layers.includes("weak"), ice: layers.includes("ice") }, planned)) // 기둥 모드에서도 같은 기호(탭마다 기호가 바뀌던 냉독)
-    // 결빙: 선이 있는 행은 가운데, 선형 미확인 행은 제 끝점(앞 행과 공유하지 않는 쪽)
-    icons.setPoints(
-      "iceBadge",
-      layers.includes("ice") && !ownerView && !colMetric
-        ? data.ice.map((s, i) => {
-            // 열선 있는 결빙구간(구 관리 3)은 번호도 회색(진홍 = 열선 없음 규칙)
-            const color = s.heatCovered ? (themeRef.current === "dark" ? "#8a9096" : "#8d939b") : undefined
-            if (s.method !== "points") return P(...segMid(s.path), { rank: i + 1, color })
-            return null // 선형 미확인 행은 "결빙 1·2 선형 미확인" 글 라벨이 번호를 말한다(끝점 숫자가 강 위에 홀로 떠 있던 냉독)
-          }).filter((p): p is IconPoint => !!p)
-        : [],
-    )
   }, [ready, styleSeq, data, layers, iconsReady, colMetric, ownerView, theme, plannedKey])
 
   // 제설차(2단계부터): 보도자료 장비 수(유니목·15톤 덤프)만큼 상습결빙구간 선형(긴 순)을 왕복한다. 위치 데이터가 없는 장비를 "간선 살포 구간"에 놓는 시각화
@@ -845,10 +892,18 @@ function declareLayers(map: MlMap) {
   map.addLayer({ id: S.flyPath, type: "line", source: S.flyPath, layout: round, paint: { "line-color": ACCENT.dark, "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [1.5, 2.5] } })
   map.addLayer({ id: S.flyPts, type: "symbol", source: S.flyPts, layout: { "text-field": ["get", "n"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#0b1216", "text-halo-color": ACCENT.dark, "text-halo-width": 2.6 } })
   map.addLayer({ id: S.schoolLabel, type: "symbol", source: S.school, minzoom: 14.3, layout: { "text-field": ["get", "name"], "text-size": 12.5, "text-font": ["Noto Sans Medium"], "text-offset": [0, 1.1], "text-anchor": "top" }, paint: { "text-color": "#ece7dc", ...halo } })
-  // 취약구간 번호 배지(평면 전용. 입체는 3D 숫자). 열선 있는 구간은 흐리게
-  map.addLayer({ id: S.weakLabel, type: "symbol", source: S.weakLabel, minzoom: 13.8, layout: { "text-field": ["get", "n"], "text-size": 11.5, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true }, paint: { "text-color": "#ffffff", "text-halo-color": badgeColor(dark), "text-halo-width": 2.4, "text-opacity": ["case", ["==", ["get", "heat"], 1], 0.55, 1] } })
-  // 결빙 라벨. 선형 미확인은 "결빙 1·2 / 선형 미확인" 두 줄을 기점 하나에만
-  map.addLayer({ id: S.iceLabel, type: "symbol", source: S.iceLabel, minzoom: 12, layout: { "text-field": ["get", "text"], "text-size": 12, "text-font": ["Noto Sans Medium"], "text-allow-overlap": true, "text-anchor": ["case", ["==", ["get", "points"], 1], "top-left", "center"], "text-offset": ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, 0]]], "text-justify": ["case", ["==", ["get", "points"], 1], "left", "center"], "text-line-height": 1.15 }, paint: { "text-color": "#ffffff", "text-halo-color": badgeColor(dark), "text-halo-width": 2.4 } })
+  // 취약구간 번호 배지(평면·입체 공용, 5라운드. 입체 3D 숫자는 진홍 벽 위 진홍이라 광장동 2·4·5가 한 덩어리로 뭉쳤다). dumping 핫스팟 "1위" 알약과 같은 문법: 항상 정면, 후광, 우선순위 순 배치(sort-key = segPriority 순위)
+  // 조망(12.8부터)에서는 겹치면 자리를 비키고 그래도 겹치면 낮은 순위를 숨긴다. 줌 14.5부터는 전부(겹침 허용). 열선 있는 구간은 흐리게(법령 탭에서만 보인다)
+  map.addLayer({
+    id: S.weakLabel,
+    type: "symbol",
+    source: S.weakLabel,
+    minzoom: 12.8,
+    layout: { "text-field": ["get", "n"], "text-size": ["step", ["zoom"], 12.5, 14, 13.5], "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-variable-anchor": ["center", "bottom", "top", "left", "right"], "text-radial-offset": 0.9, "text-justify": "auto", "text-allow-overlap": ["step", ["zoom"], false, 14.5, true], "text-padding": 2, "symbol-sort-key": ["get", "sort"] },
+    paint: { "text-color": "#ffffff", "text-halo-color": badgeColor(dark), "text-halo-width": 3, "text-opacity": ["case", ["==", ["get", "heat"], 1], 0.55, 1] },
+  })
+  // 결빙 라벨 "결빙 n"(평면·입체 공용). 선형 미확인은 "결빙 1·2 / 선형 미확인" 두 줄을 기점 하나에만
+  map.addLayer({ id: S.iceLabel, type: "symbol", source: S.iceLabel, minzoom: 12, layout: { "text-field": ["get", "text"], "text-size": 12, "text-font": ["Noto Sans Medium"], "text-pitch-alignment": "viewport", "text-allow-overlap": true, "text-anchor": ["case", ["==", ["get", "points"], 1], "top-left", "center"], "text-offset": ["case", ["==", ["get", "points"], 1], ["literal", [0.5, 0.7]], ["literal", [0, 0]]], "text-justify": ["case", ["==", ["get", "points"], 1], "left", "center"], "text-line-height": 1.15 }, paint: { "text-color": "#ffffff", "text-halo-color": badgeColor(dark), "text-halo-width": 2.6 } })
   map.addLayer({
     id: S.dongLabel,
     type: "symbol",

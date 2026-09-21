@@ -25,6 +25,7 @@ const FILES = [
   "components/snow/map-controls.tsx",
   "components/snow/map-geo.ts",
   "components/snow/snow-dashboard.tsx",
+  "components/snow/loading.tsx",
   "components/snow/ui.tsx",
   "components/snow/onto-graph.tsx",
   "components/snow/onto-layouts.ts",

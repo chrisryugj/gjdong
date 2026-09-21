@@ -21,6 +21,8 @@ import LiquidGlass from "@/components/dumping/liquid-glass"
 import LiquidTabs from "@/components/dumping/liquid-tabs"
 import { useSplitPane } from "@/components/crowd/hooks/use-split-pane"
 import { useSidebarWidth } from "@/components/dumping/use-sidebar-width"
+import SnowMark from "./snow-mark"
+import { LoadCard, LOAD_START, type LoadState } from "./loading"
 
 // 광진 제설 상황판(/snow). 첫 화면의 주장은 자원 목록이 아니라 공백: 취약구간 중 열선·자재 없는 곳, 열선 없는 동.
 // 탭: 공백(결론·발견) · 대응 단계(예보·특보 › 단계 › 시한 › 동원) · 자원 현황(4종·동별 기둥·서울 비교) · 근거 그래프 · 법령·책임
@@ -80,6 +82,14 @@ export default function SnowDashboard() {
   const [graph, setGraph] = useState<OntoGraph | null>(null)
   const [forecast, setForecast] = useState<SnowForecast | null | "error">(null)
   const [loadErr, setLoadErr] = useState(false)
+  const [load, setLoad] = useState<LoadState>(LOAD_START) // 첫 로딩 진행(데이터 › 지도 바탕 › 타일 › 끝). 끝나면 카드가 0.5초 흐려지며 사라진다
+  const [loadHiding, setLoadHiding] = useState(false)
+  useEffect(() => {
+    if (load.phase !== "ready") return
+    setLoadHiding(true)
+    const t = window.setTimeout(() => setLoadHiding(false), 600)
+    return () => window.clearTimeout(t)
+  }, [load.phase])
   const inSeason = useMemo(() => inSnowSeason(new Date()), [])
   // 대책기간 시작(11월 15일, inSnowSeason과 같은 날)까지 남은 날. 보고받는 사람이 첫 줄에서 보는 시계
   const daysToSeason = useMemo(() => {
@@ -160,6 +170,7 @@ export default function SnowDashboard() {
         if (!alive) return
         setData(m)
         setGraph(g)
+        setLoad((l) => (l.phase === "data" ? { ...l, phase: "style" } : l))
       })
       .catch(() => alive && setLoadErr(true))
     fetchJson<SnowForecast>("/api/snow/forecast")
@@ -589,6 +600,7 @@ export default function SnowDashboard() {
               setOrbit(false)
               setFly(null)
             }}
+            onLoad={setLoad}
           />
         ) : (
           <div className="absolute inset-x-0 bottom-[calc(100%-var(--dump-sheet-top))] top-[104px] md:bottom-0 md:left-[calc(32px+var(--dump-side-w,440px))] md:right-0 md:top-[76px]">
@@ -644,6 +656,12 @@ export default function SnowDashboard() {
       {loadErr && (
         <div role="alert" className="absolute left-1/2 top-[68px] z-[1200] -translate-x-1/2 rounded-full bg-red-50 px-4 py-2 text-[13px] text-red-700 shadow md:top-[80px]">
           데이터를 불러오지 못했습니다. 새로고침해 주세요.
+        </div>
+      )}
+      {/* 로딩 카드(5라운드): 지도 영역 한가운데. 타일이 다 오고 idle이면 흐려지며 사라진다. 사파리는 타일이 13초 넘게 직렬로 와서 빈 지도가 "멈춤"으로 보였다 */}
+      {!loadErr && rightPane === "map" && demo === null && (load.phase !== "ready" || loadHiding) && (
+        <div className="pointer-events-none absolute z-[1047] flex items-center justify-center" style={isMd ? { left: `calc(16px + ${sideW}px + 16px)`, right: RIGHT_W + 32, top: 76, bottom: 0 } : { left: 0, right: 0, top: 104, height: `calc(${sheetTop} - 104px)` }}>
+          <LoadCard state={load} hiding={loadHiding} />
         </div>
       )}
 
@@ -814,20 +832,5 @@ export default function SnowDashboard() {
       {methods && data && <MethodsModal data={data} graph={graph} onClose={() => setMethods(false)} />}
       <LiquidGlass />
     </div>
-  )
-}
-
-// 마크: 눈 결정 여섯 가지(획 하나짜리 기하). 액센트 색
-function SnowMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className="shrink-0 rounded-full bg-[var(--dump-ink)] text-[var(--dump-paper)]">
-      <g stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" fill="none">
-        {[0, 60, 120].map((a) => (
-          <g key={a} transform={`rotate(${a} 16 16)`}>
-            <path d="M16 6v20M13 9.5 16 12l3-2.5M13 22.5 16 20l3 2.5" />
-          </g>
-        ))}
-      </g>
-    </svg>
   )
 }

@@ -7,6 +7,7 @@
 // 툴팁은 같은 자리의 투명 fill-extrusion(snow-map S.posts)이 queryRenderedFeatures로 받는다(커스텀 레이어는 조회 불가).
 // ★MeshPhysicalMaterial은 환경맵 없이 검게 나온다(dumping 실측) → Lambert+emissive
 // 4라운드(2026-09-21): 경사 추정 구간 = 고도 단면대로 솟는 반투명 보라 경사면 + 윗선을 오르막으로 흐르는 화살(setSlopes) · 제설차가 상습결빙구간 선형을 왕복(setTrucks, 2단계부터) · 종류별 발광(setEmissive)
+// 5라운드(2026-09-21 사용자 지적 "3D 아이콘 너무 커, dumping처럼 깔끔하게"): 핀 확대 상한을 dumping과 같은 세계 크기(44~46m)로. 조망 4~5px 점, 줌 15부터 제 크기. 구간 번호는 3D 숫자를 버리고 2D 배지(snow-map S.weakLabel)로
 import * as THREE from "three"
 import { Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
@@ -14,14 +15,13 @@ import digitFont from "@/components/dumping/digit-font.json"
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
 import { RESOURCES, RISK, RISK_STYLE } from "@/lib/snow/labels"
 
-export type IconKind = "salt" | "cacl" | "sand" | "sandCenter" | "school" | "schoolGap" | "heat" | "iceEnd" | "weakBadge" | "iceBadge" | "dongRank"
+export type IconKind = "salt" | "cacl" | "sand" | "sandCenter" | "school" | "schoolGap" | "heat" | "iceEnd" | "dongRank"
 export interface IconPoint {
   lng: number
   lat: number
-  rank?: number // 배지 숫자(취약구간 번호·결빙 번호·동별 순위)
+  rank?: number // 배지 숫자(동별 순위)
   h?: number // 배지를 띄울 높이(m). 동별 기둥 꼭대기
   color?: string // 배지 색. 없으면 종류 기본색
-  showFromZoom?: number // 이 줌부터 보인다(점 단위. 조망에서는 우선순위 상위만)
 }
 // 경사 추정 구간(4라운드): 좌표는 오르막 방향([lat,lng]), hs는 낮은 끝 기준 고도(m). 지도 위에 보라 경사면(고도 단면 벽)을 세우고 그 위를 화살(chevron)이 오르막으로 흐른다
 export interface SlopeRamp {
@@ -44,8 +44,8 @@ export interface SegWall {
 
 const ANCHOR: [number, number] = [127.085, 37.546] // 모델 원점(구 중심). 모든 인스턴스는 여기서의 미터 오프셋
 const TARGET_PX = 22 // 아이콘 목표 화면 높이
-// 빽빽한 자재의 확대 상한(배). 3라운드 6배는 조망(줌 13.2, 13m/px)에서 2px 점이라 "멀리서 보면 2D"(사용자 지적) → 4라운드 20배: 조망 7px 입체(윤곽선 포함), 줌 14.1부터 목표 13px. 줌 16에서는 상한에 안 걸린다(13px)
-const DENSE_MAX = 20
+// 빽빽한 자재의 확대 상한(배). 3라운드 6배(조망 2px) › 4라운드 20배(조망 7px)는 383개 상자·원통·포대가 구를 덮어 "너무 크다"(사용자 지적, 5라운드) → 10배: 세계 크기 46m = dumping 시설 핀(11m×4배)과 같다. 조망 3.5px 점(윤곽선 포함 4px), 줌 14 7px, 줌 15부터 목표 13px
+const DENSE_MAX = 10
 const DENSE_PX = 13 // 자재 목표 화면 높이
 const APPEAR_MS = 650
 const LAT0 = 37.546
@@ -62,7 +62,6 @@ interface KindDef {
   maxScale: number // 화면 크기 유지를 위한 확대 상한(배)
   parts: Part[]
   hideAboveZoom?: number // 이 줌보다 확대하면 숨긴다(열선 구슬: 줌 14.2부터 선이 대신한다)
-  showFromZoom?: number // 이 줌부터 보인다(취약구간 번호: 구 전체에서는 선만)
   targetPx?: number // 종류별 목표 화면 높이(기본 TARGET_PX). 열선 구슬은 작게(55개가 구를 덮지 않게)
   outline?: boolean // 4라운드: 뒷면만 그리는 어두운 겉껍질(12% 크게)로 윤곽선을 두른다. 조망에서 13px 핀이 점이 아니라 입체로 읽히게(사용자: 멀리서 보면 2D)
 }
@@ -147,9 +146,11 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
     },
     // 초등학교: 깃대 + 흰 깃발. 받침 원반이 150m 안 열선 유무(열선색·진홍)
     // 열선 있는 학교는 깃발도 열선색(받침만으로는 조망에서 15 대 6이 구분되지 않았다)
+    // 5라운드: 상한 24배(조망 22px 깃발이 지도를 덮었다) → 12배(조망 11px, 줌 14부터 18px)
     school: {
       height: 12,
-      maxScale: 24,
+      maxScale: 12,
+      targetPx: 18,
       outline: true,
       parts: [
         { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(heat, { emissive: new THREE.Color(heat), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
@@ -160,7 +161,8 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
     // 열선 없는 학교 깃발은 무채색: 다크 흰 · 라이트 잉크(베이지 바탕에서 흰 깃발이 안 보이던 냉독)
     schoolGap: {
       height: 12,
-      maxScale: 24,
+      maxScale: 12,
+      targetPx: 18,
       outline: true,
       parts: [
         { geom: new THREE.CylinderGeometry(2.2, 2.2, 0.5, 16), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.25 }), local: at(0, 0.25, 0) },
@@ -169,10 +171,11 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
       ],
     },
     // 열선 위치: 조망에서 55곳이 보이게. 줌 14.2부터는 선이 대신한다. 3라운드 발광 구는 멀리서 평면 점으로 읽혔다(사용자 지적) → 4라운드 육각 동전(옆면 어두운 호박 + 발광 윗면 + 윤곽선). 기준 치수는 지름(4.8m)
+    // 5라운드: 30배·8px는 조망에서 노란 덩어리(장면 2) → 14배·6px(조망 5px)
     heat: {
       height: 4.8,
-      maxScale: 30,
-      targetPx: 8,
+      maxScale: 14,
+      targetPx: 6,
       hideAboveZoom: 14.2,
       outline: true,
       parts: [
@@ -183,14 +186,12 @@ function buildDefs(dark: boolean): Record<IconKind, KindDef> {
     // 선형 미확인 결빙구간 끝점: 땅에 누운 진홍 고리(평면의 빈 원과 같은 뜻). 4라운드: 고리 관을 굵게·띄워 옆면이 보이게
     iceEnd: {
       height: 6,
-      maxScale: 30,
-      targetPx: 12,
+      maxScale: 18,
+      targetPx: 10,
       outline: true,
       parts: [{ geom: new THREE.TorusGeometry(2.6, 0.8, 8, 24).rotateX(Math.PI / 2), mat: lambert(risk, { emissive: new THREE.Color(risk), emissiveIntensity: 0.35 }), local: at(0, 0.9, 0) }],
     },
-    // 입체 숫자만(모델 없음)
-    weakBadge: { height: 1, maxScale: 1, parts: [], showFromZoom: 12.8 }, // 조망(13.2)에서도 번호가 보이게(표↔지도 번호가 첫 화면에서 끊기던 냉독)
-    iceBadge: { height: 1, maxScale: 1, parts: [] },
+    // 입체 숫자만(모델 없음). 5라운드: 구간·결빙 번호는 2D 배지로 돌아갔다(진홍 벽 위 진홍 숫자가 겹쳐 안 읽혔다). 동별 순위만 기둥 위 입체 숫자
     dongRank: { height: 1, maxScale: 1, parts: [] },
   }
 }
@@ -297,9 +298,7 @@ function makeDigit(text: string, color: string, dark: boolean): THREE.Group {
   return g
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 120m 안
-const SEG_DIGIT_M = 14 // 구간 번호 숫자 높이(m). 확대하면 이면도로 폭 언저리
-const DIGIT_MIN_PX = 16 // 조망에서 읽히는 최소 높이(px). 동별 순위는 더 크게
-const DONG_DIGIT_MIN_PX = 20
+const DONG_DIGIT_MIN_PX = 20 // 조망에서 읽히는 최소 높이(px)
 
 export class SnowIcons3DLayer implements CustomLayerInterface {
   id = "snow-icons3d"
@@ -824,8 +823,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       return mesh
     })
     const digits: THREE.Group[] = []
-    if (kind === "weakBadge" || kind === "iceBadge" || kind === "dongRank") {
-      // 숫자는 벽(진홍) 위에 서므로 벽보다 밝게(다크)·진하게(라이트) 둔다
+    if (kind === "dongRank") {
       const risk = this.dark ? "#ff8a8e" : RISK_STYLE.badge.light
       points.forEach((p, i) => {
         const d = makeDigit(String(p.rank ?? i + 1), p.color ?? risk, this.dark)
@@ -857,7 +855,7 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
       const appearing = st.appearAt > 0 && now - st.appearAt < APPEAR_MS
       const zoomChanged = Math.abs(zoom - this.lastZoom) >= 0.01
       animating ||= appearing
-      const hidden = (def.hideAboveZoom != null && zoom > def.hideAboveZoom) || (def.showFromZoom != null && zoom < def.showFromZoom)
+      const hidden = def.hideAboveZoom != null && zoom > def.hideAboveZoom
       const k = hidden ? 0 : Math.min(def.maxScale, Math.max(1, ((def.targetPx ?? TARGET_PX) * mpp) / def.height)) * (this.boost.get(kind) ?? 1)
       const a = appearing ? easeOutBack(Math.min(1, (now - st.appearAt) / APPEAR_MS)) : 1
       if (st.meshes.length && (appearing || zoomChanged)) {
@@ -874,9 +872,8 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
         const digit = st.digits[i]
         if (!digit) return
         const pt = st.points[i]
-        // 높이: 동별은 기둥 폭 기준(78m), 구간 번호는 14m. 조망에서 최소 px 아래로는 안 내려간다. 줌 범위 밖이면 0
-        const hiddenPt = hidden || (pt.showFromZoom != null && zoom < pt.showFromZoom)
-        const hgt = hiddenPt ? 0 : Math.max((pt.h != null ? DONG_DIGIT_MIN_PX : DIGIT_MIN_PX) * mpp, pt.h != null ? DONG_DIGIT_M : SEG_DIGIT_M) * a
+        // 높이: 기둥 폭 기준(78m). 조망에서 최소 px 아래로는 안 내려간다. 줌 범위 밖이면 0
+        const hgt = hidden ? 0 : Math.max(DONG_DIGIT_MIN_PX * mpp, DONG_DIGIT_M) * a
         digit.position.set(p.x, pt.h ?? 4, p.z)
         digit.scale.set(hgt, hgt, hgt)
         digit.rotation.y = face

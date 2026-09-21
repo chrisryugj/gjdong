@@ -176,9 +176,9 @@ export function weakFC(data: SnowMapData): FC {
     })),
   )
 }
-// 구간 번호 배지(가운데 점)
-export function weakLabelFC(data: SnowMapData): FC {
-  return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w), heat: w.heatCovered ? 1 : 0 }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
+// 구간 번호 배지(가운데 점). sort = 배치 우선순위(1이 먼저. 조망에서 겹치면 뒤 순위가 숨는다)
+export function weakLabelFC(data: SnowMapData, sort?: Map<number, number>): FC {
+  return fc(data.weak.map((w) => ({ type: "Feature", properties: { id: w.i, n: String(w.i), status: segStatus(w), heat: w.heatCovered ? 1 : 0, owner: segOwner({ ...w, src: "weak" }), sort: sort?.get(w.i) ?? w.i }, geometry: { type: "Point", coordinates: ll(w.path[Math.floor(w.path.length / 2)]) } })))
 }
 export const segMid = (path: [number, number][]): [number, number] => path[Math.floor(path.length / 2)]
 
