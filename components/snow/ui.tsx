@@ -62,7 +62,7 @@ export function Table<T>({ cols, rows, cell, rowKey, onRow, rowClass, rowH = 30 
       </div>
       {rows.map((r) => {
         const inner = cols.map((c) => (
-          <span key={c.k} className={`min-w-0 ${c.wrap ? "line-clamp-2 whitespace-normal leading-snug" : "truncate"} ${c.align === "right" ? "text-right font-mono" : ""} ${c.dim ? "text-[var(--cp-text-dim)]" : "text-[var(--cp-text)]"}`}>
+          <span key={c.k} className={`min-w-0 ${c.wrap ? "line-clamp-3 whitespace-normal leading-snug" : "truncate"} ${c.align === "right" ? "text-right font-mono" : ""} ${c.dim ? "text-[var(--cp-text-dim)]" : "text-[var(--cp-text)]"}`}>
             {cell(r, c.k)}
           </span>
         ))

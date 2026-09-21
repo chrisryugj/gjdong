@@ -132,7 +132,7 @@ export function LayerPanel({ view, onChange, dark, counts, controls }: { view: M
             className={`${ROW} ${controls.weatherMode !== "live" ? "font-semibold text-[var(--cp-text-strong)]" : "text-[var(--cp-text-muted)]"}`}
           >
             <Ico name={controls.weatherMode === "snow" ? "drop" : controls.weatherMode === "rain" ? "drop" : controls.weatherMode === "fog" ? "layers" : "sun"} size={14} />
-            <span className="min-w-0 flex-1 truncate">{controls.weatherMode === "live" ? "날씨 실황" : `날씨 ${WEATHER_LABEL[controls.weatherMode]}(미리보기)`}</span>
+            <span className="min-w-0 flex-1 truncate">{controls.weatherMode === "live" ? "날씨 실황" : `날씨: ${WEATHER_LABEL[controls.weatherMode]}`}</span>
           </button>
         )}
         {controls?.demoAvailable && (

@@ -33,8 +33,9 @@ export function segWalls(data: SnowMapData, dark: boolean, ownerView: boolean, l
   if (layers.weak)
     for (const w of data.weak) {
       if (ownerView) out.push({ coords: w.path, color: ownerColor("구", dark) })
-      else if (planned.includes(w.i)) out.push({ coords: w.path, color: resColor("heat", dark) }) // 예산 역산으로 신설이 정해진 구간은 열선 색
+      else if (planned.includes(w.i)) out.push({ coords: w.path, color: resColor("heat", dark), h: 1.5 }) // 예산 역산으로 신설이 정해진 구간은 열선 색·더 높게
       else if (!w.heatCovered) out.push({ coords: w.path, color: riskColor(dark) })
+      else out.push({ coords: w.path, color: weakMuted(dark), h: 0.35 }) // 열선 있는 34곳도 낮은 회색 벽(조망에서 47곳이 다 보이게. 냉독 7차)
     }
   if (layers.ice)
     data.ice.forEach((s, i) => {

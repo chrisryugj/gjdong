@@ -21,6 +21,7 @@ export interface IconPoint {
   rank?: number // 배지 숫자(취약구간 번호·결빙 번호·동별 순위)
   h?: number // 배지를 띄울 높이(m). 동별 기둥 꼭대기
   color?: string // 배지 색. 없으면 종류 기본색
+  showFromZoom?: number // 이 줌부터 보인다(점 단위. 조망에서는 우선순위 상위만)
 }
 // 경사 추정 구간(4라운드): 좌표는 오르막 방향([lat,lng]), hs는 낮은 끝 기준 고도(m). 지도 위에 보라 경사면(고도 단면 벽)을 세우고 그 위를 화살(chevron)이 오르막으로 흐른다
 export interface SlopeRamp {
@@ -247,7 +248,7 @@ const SNOW_DRIFT_PX = 14 // 바람(px/s)
 const RAIN_MAX = 1600
 const RAIN_LEN_PX = 11 // 빗줄기 길이(px)
 const RAMP_WALL_FROM_ZOOM = 14.3 // 경사면은 이 줌부터(조망에서는 보라 얼룩으로 읽혔다)
-const RAMP_CHEV_FROM_ZOOM = 13.8 // 화살도 조망에서는 낙서처럼 보여 이 줌부터. 조망은 굵은 보라 선만
+const RAMP_CHEV_FROM_ZOOM = 14.3 // 화살도 경사면과 같은 줌부터(중간 줌에서 파편으로 보였다). 조망은 굵은 보라 선만
 interface Truck {
   cum: number[]
   pts: { x: number; z: number }[]
@@ -874,7 +875,8 @@ export class SnowIcons3DLayer implements CustomLayerInterface {
         if (!digit) return
         const pt = st.points[i]
         // 높이: 동별은 기둥 폭 기준(78m), 구간 번호는 14m. 조망에서 최소 px 아래로는 안 내려간다. 줌 범위 밖이면 0
-        const hgt = hidden ? 0 : Math.max((pt.h != null ? DONG_DIGIT_MIN_PX : DIGIT_MIN_PX) * mpp, pt.h != null ? DONG_DIGIT_M : SEG_DIGIT_M) * a
+        const hiddenPt = hidden || (pt.showFromZoom != null && zoom < pt.showFromZoom)
+        const hgt = hiddenPt ? 0 : Math.max((pt.h != null ? DONG_DIGIT_MIN_PX : DIGIT_MIN_PX) * mpp, pt.h != null ? DONG_DIGIT_M : SEG_DIGIT_M) * a
         digit.position.set(p.x, pt.h ?? 4, p.z)
         digit.scale.set(hgt, hgt, hgt)
         digit.rotation.y = face

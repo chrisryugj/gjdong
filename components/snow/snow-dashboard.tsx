@@ -449,8 +449,8 @@ export default function SnowDashboard() {
       },
       {
         title: "점검 후보",
-        caption: `눈 오기 전 점검 후보 ${checks.length}건을 대표 지점 하나씩 차례로 봅니다: ${checks.map((c) => c.short).join(" · ")}.`,
-        note: `부서·기한·규모·완료 기준은 공백 탭 01에 · 눈이 14시에 그치면 건축물관리자는 18시까지 보도와 이면도로를 치웁니다(조례 제5조) · 근거 그래프 판단 ${graph?.nodes.filter((n) => n.type === "Claim").length ?? 0}개가 관측에 연결돼 있습니다`,
+        caption: `눈 오기 전 점검 후보 ${checks.length}건을 대표 지점 하나씩 봅니다. 번호는 후보 순서입니다.`,
+        note: `${checks.map((c, i) => `${i + 1} ${c.short}`).join(" · ")} · 부서·비용·완료 기준은 공백 탭 01과 요약 한 장에`,
         apply: () => {
           setTab("gap")
           setDemoStage(null)
@@ -607,7 +607,7 @@ export default function SnowDashboard() {
               <h1 className="whitespace-nowrap text-[15px] font-extrabold leading-none tracking-[-0.015em] text-[var(--cp-text-strong)]">{isMd ? "광진 제설 상황판" : "광진 제설"}</h1>
               {/* 상태 한 줄(보고받는 사람이 먼저 묻는 것): 대책기간 안이면 단계·적설·특보, 밖이면 데이터 규모 */}
               <span className="dump-kicker mt-1 hidden truncate text-[10px] text-[var(--cp-text-dim)] md:block">
-                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""}` : data ? `대책기간 시작(11월 15일) D-${daysToSeason}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""} · 열선 ${data.heat.length}구간 · 자재 ${(data.salt.length + data.cacl.length + data.sand.length).toLocaleString("ko-KR")}개소 · 적설취약 ${data.weak.length}곳 · 결빙 ${data.ice.length}곳` : "겨울철 제설대책"}
+                {inSeason && fc ? `${stage.label} · 24시간 적설 ${fc.snow24}cm · ${fc.warning?.level === "warning" ? "대설경보" : fc.warning?.level === "advisory" ? "대설주의보" : "특보 없음"}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""}` : data ? `대책기간 시작 11월 15일 D-${daysToSeason}${nowWx ? ` · 지금 ${nowWx.temp}° ${weatherLabel(nowWx.code)}` : ""} · 취약구간 ${data.weak.length}+${data.ice.length}곳` : "겨울철 제설대책"}
               </span>
             </span>
           </button>

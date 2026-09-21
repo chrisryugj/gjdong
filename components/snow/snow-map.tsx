@@ -6,6 +6,7 @@ import { Protocol } from "pmtiles"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { LayerId, SnowMapData } from "@/lib/snow/types"
 import type { WeatherFx } from "@/lib/snow/weather"
+import { segPriority } from "@/lib/snow/facts"
 import type { StageId } from "@/lib/snow/stage"
 import { BASEMAP_BOUNDS, BASEMAP_SOURCE, buildBasemapStyle, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapTheme } from "@/lib/dumping/basemap-style"
 import {
@@ -472,7 +473,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 3단계: 이면도로(protomaps roads_minor)를 종이색으로 점등. 전 직원·민관협력·건축물관리자가 맡는 구간이 이면도로(그래프 con-alley)라 그 망을 보인다
     if (map.getLayer("roads_minor")) {
       if (minorRoadColorRef.current == null) minorRoadColorRef.current = map.getPaintProperty("roads_minor", "line-color") as unknown
-      map.setPaintProperty("roads_minor", "line-color", st === "stage-3" ? (dark ? "#dfe7ee" : "#5b6b80") : (minorRoadColorRef.current as string))
+      map.setPaintProperty("roads_minor", "line-color", st === "stage-3" ? (dark ? "#8fa3b5" : "#8593a4") : (minorRoadColorRef.current as string))
     }
     // 결빙구간 번호(입체 숫자)에 "결빙" 접두: 입체에서는 선 있는 행 위에 "결빙" 글자만, 평면은 "결빙 n"(냉독: 숫자만 있으면 취약 번호와 구분이 안 됐다)
     map.setLayoutProperty(S.iceLabel, "text-field", tilt ? ["case", ["==", ["get", "points"], 1], ["get", "text"], "결빙"] : ["get", "text"])
@@ -507,7 +508,16 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 열선 위치 동전은 기둥 모드에서도 둔다(55개뿐이고 없으면 조망에서 열선이 2D 선으로만 남는다)
     icons.setPoints("heat", layers.includes("heat") ? data.heat.map((h) => P(...segMid(h.path))) : [])
     icons.setPoints("iceEnd", on("ice") ? iceEndsFC(data).features.map((f) => P((f.geometry as GeoJSON.Point).coordinates[1], (f.geometry as GeoJSON.Point).coordinates[0])) : [])
-    icons.setPoints("weakBadge", layers.includes("weak") && !ownerView ? data.weak.filter((w) => !w.heatCovered).map((w) => P(...segMid(w.path), { rank: w.i })) : [])
+    // 번호: 열선 없는 구간만. 조망(z14 미만)에서는 우선순위 상위 5곳만(광장동 번호 더미. 냉독 7차), 예산 역산 신설 구간은 호박색. 기둥 모드에서는 숨김(기둥 라벨과 겹침)
+    const top5 = new Set(
+      data.weak
+        .filter((w) => !w.heatCovered)
+        .map((w) => ({ i: w.i, p: segPriority({ ...w, src: "weak" as const }, data).score }))
+        .sort((a, b) => b.p - a.p)
+        .slice(0, 5)
+        .map((x) => x.i),
+    )
+    icons.setPoints("weakBadge", layers.includes("weak") && !ownerView && !colMetric ? data.weak.filter((w) => !w.heatCovered).map((w) => P(...segMid(w.path), { rank: w.i, color: planned.includes(w.i) ? resColor("heat", themeRef.current === "dark") : undefined, showFromZoom: top5.has(w.i) ? undefined : 14 })) : [])
     // 경사 추정: 고도 단면 경사면 + 오르막 화살(입체 전용. 평면은 글리프 화살 레이어)
     icons.setSlopes(layers.includes("slope") ? slopeRamps(data) : [])
     // 구간 벽: 열선 없는 취약·결빙구간 19곳(조망에서 선이 2D로 읽히던 냉독). 법령 탭은 56곳 관리청 색
@@ -515,7 +525,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     // 결빙: 선이 있는 행은 가운데, 선형 미확인 행은 제 끝점(앞 행과 공유하지 않는 쪽)
     icons.setPoints(
       "iceBadge",
-      layers.includes("ice") && !ownerView
+      layers.includes("ice") && !ownerView && !colMetric
         ? data.ice.map((s, i) => {
             // 열선 있는 결빙구간(구 관리 3)은 번호도 회색(진홍 = 열선 없음 규칙)
             const color = s.heatCovered ? (themeRef.current === "dark" ? "#8a9096" : "#8d939b") : undefined
@@ -726,7 +736,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
       <div ref={boxRef} className="h-full w-full" style={{ background: "var(--dump-ground)" }} />
       {/* 안개: 지도 위 흐린 덮개(가운데는 덜, 가장자리는 더). 지도 조작은 그대로 통과 */}
       {weather.kind === "fog" && weather.level > 0 && (
-        <div aria-hidden className="pointer-events-none absolute inset-0 transition-opacity duration-700" style={{ opacity: weather.level, background: theme === "dark" ? "radial-gradient(ellipse at center, rgba(160,176,190,0.22) 0%, rgba(160,176,190,0.5) 70%, rgba(160,176,190,0.62) 100%)" : "radial-gradient(ellipse at center, rgba(236,240,244,0.35) 0%, rgba(236,240,244,0.7) 70%, rgba(236,240,244,0.82) 100%)" }} />
+        <div aria-hidden className="pointer-events-none absolute inset-0 transition-opacity duration-700" style={{ opacity: Math.min(1, weather.level + 0.3), background: theme === "dark" ? "radial-gradient(ellipse at center, rgba(168,182,196,0.35) 0%, rgba(168,182,196,0.7) 65%, rgba(168,182,196,0.85) 100%)" : "radial-gradient(ellipse at center, rgba(236,240,244,0.5) 0%, rgba(236,240,244,0.85) 65%, rgba(236,240,244,0.95) 100%)" }} />
       )}
       {flyInfo && (
         <div className="dump-fl lg-shell lg-dense pointer-events-none absolute z-[1046] flex items-center gap-3 rounded-full px-4 py-2" style={{ left: (fitPadding?.tl[0] ?? 16) + 0, top: (fitPadding?.tl[1] ?? 16) + 8, maxWidth: 420 }} aria-live="polite">

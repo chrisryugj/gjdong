@@ -82,8 +82,9 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
         적설취약구간 {data.weak.length}곳 중 {g.weakNoHeat}곳에 열선이 없습니다.
       </p>
       <p className="mt-1.5 text-[14px] leading-snug text-[var(--cp-text-muted)]">
-        자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}, 서울시 관리 결빙구간은 {g.si.total}곳 중 {g.si.none}곳이 둘 다 없습니다.
+        자재도 없는 곳은 {g.gu.none}곳{g.gu.noneNames.length ? `(${g.gu.noneNames.join("·")})` : ""}, 서울시 관리 결빙구간 {g.si.total}곳 중 {g.si.none}곳은 열선도 자재도 없습니다.
       </p>
+      <p className="mt-1 text-[12.5px] leading-snug text-[var(--cp-text-dim)]">분모 {data.weak.length}은 행안부 목록. 구 보도자료의 취약지점 {data.ops.weakPoints}개소 목록은 비공개.</p>
       <StatBand
         items={[
           { k: "열선 없음", v: String(g.weakNoHeat), u: `/${data.weak.length}` },
@@ -105,9 +106,11 @@ export default function GapPanel({ data, activeLabel, budget, onBudget, onFocus,
               <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{c.title}</span>
               <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
                 {c.dept} · {c.scale} · {c.costShort}
+                {c.mapIds.length > 0 && c.mapIds.length <= 3 && ` · 지도 ${c.mapIds.join("·")}`}
+                {c.mapIds.length > 3 && ` · 지도 번호는 02 표`}
               </span>
             </span>
-            <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${/결정/.test(c.request) ? "bg-(--dump-accent)/12 text-(--dump-accent)" : "bg-[var(--cp-track)] text-[var(--cp-text-dim)]"}`}>{/결정/.test(c.request) ? "결정 필요" : c.owner === "시" ? "시 요청" : "부서 지시"}</span>
+            <span className={`mt-[2px] shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold ${c.needsDecision ? "bg-(--dump-accent)/12 text-(--dump-accent)" : "bg-[var(--cp-track)] text-[var(--cp-text-dim)]"}`}>{c.needsDecision ? "결정 필요" : c.owner === "시" ? "시 요청" : "부서 지시"}</span>
           </button>
         ))}
       </div>
