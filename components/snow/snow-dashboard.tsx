@@ -805,9 +805,10 @@ export default function SnowDashboard() {
         <span className={`absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${side.dragging ? "bg-(--dump-accent)" : "bg-[var(--cp-border-strong)] opacity-0 group-hover:opacity-100"}`} />
       </div>
 
-      {/* 지도 위 칩: 지금 보는 곳(구간·발견 카드 클릭 뒤. 누르면 구 전체로) · 급경사 추정 수치(레이어를 켜면). 카드 오른쪽 위 한 줄 */}
+      {/* 지도 위 칩: 지금 보는 곳(구간·발견 카드 클릭 뒤. 누르면 구 전체로) · 급경사 추정 수치(레이어를 켜면). 카드 오른쪽 위 한 줄.
+          드론 비행 중엔 같은 자리에 안내 띠(snow-map flyInfo, 두 줄 약 50px)가 서므로 그 아래로 내린다(사용자 스크린샷: 띠와 칩이 겹쳤다) */}
       {rightPane === "map" && demo === null && (focusLabel || selectedDong || slopeOn) && (
-        <div className="pointer-events-none absolute z-[1046] flex flex-wrap items-center gap-2 md:top-[76px]" style={{ left: isMd ? "calc(16px + var(--dump-side-w, 440px) + 16px)" : 12, top: isMd ? undefined : 108, right: isMd ? RIGHT_W + 32 : 12 }}>
+        <div className="pointer-events-none absolute z-[1046] flex flex-wrap items-center gap-2" style={{ left: isMd ? "calc(16px + var(--dump-side-w, 440px) + 16px)" : 12, top: (isMd ? 76 : 108) + (fly ? 80 : 0), right: isMd ? RIGHT_W + 32 : 12 }}>
           {(focusLabel || selectedDong) && (
             <button
               onClick={() => {
