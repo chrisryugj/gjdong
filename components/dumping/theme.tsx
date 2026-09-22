@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from "react"
 import { flushSync } from "react-dom"
 import { Ico } from "./icons"
+import { THEME_KEY } from "@/lib/dumping/init-scripts"
 
 // 17라운드(2026-09-19): 햇빛소득 시뮬레이터(sunlight-fund components/sun/theme.tsx)의 라이트·다크 스위치를 가져왔다.
 // html[data-theme]가 진실, localStorage("dump-theme")에 기억. 기본은 라이트(종이). 시스템 설정은 따르지 않는다(시연은 종이 기본).
@@ -10,10 +11,7 @@ import { Ico } from "./icons"
 // 지도 바탕은 dumping-map이 useTheme()를 보고 스타일을 바꾼다(lib/dumping/basemap-style.ts dark 플레이버)
 
 export type Theme = "light" | "dark"
-const KEY = "dump-theme"
-
-/** 첫 페인트 전에 실행되는 인라인 스크립트(app/dumping/page.tsx) — 깜빡임 방지 */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${KEY}");document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light")}catch(e){document.documentElement.setAttribute("data-theme","light")}})();`
+const KEY = THEME_KEY // 첫 페인트 전 인라인 스크립트는 lib/dumping/init-scripts.ts(서버가 읽는다)
 
 function current(): Theme {
   if (typeof document === "undefined") return "light"

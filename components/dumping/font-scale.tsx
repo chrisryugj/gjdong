@@ -1,16 +1,14 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
+import { FONT_SCALE_KEY } from "@/lib/dumping/init-scripts"
 
 // 글자 크기 단계(2026-09-22, "범례·레이어 글자가 너무 작다" 의견). 카드·레이어·범례·모달 안 UI를 통째로 확대한다.
 // 화면 문구가 전부 px라 font-size로는 못 키우고, 콘텐츠 상자에 CSS zoom(--dump-ui-zoom)을 준다(.dump-zoom, globals.css).
-// 지도·상단 띠는 그대로. html[data-fontscale]가 진실, localStorage("dump-font-scale")에 기억. 첫 페인트 전 FONT_SCALE_INIT_SCRIPT가 붙인다.
-export const FONT_SCALE_KEY = "dump-font-scale"
+// 지도·상단 띠는 그대로. html[data-fontscale]가 진실, localStorage(FONT_SCALE_KEY)에 기억. 첫 페인트 전 lib/dumping/init-scripts.ts가 붙인다.
 export const FONT_SCALES = ["1", "1.15", "1.3"] as const
 export type FontScale = (typeof FONT_SCALES)[number]
 const LABEL: Record<FontScale, string> = { "1": "보통", "1.15": "크게", "1.3": "더 크게" }
-
-export const FONT_SCALE_INIT_SCRIPT = `(function(){try{var s=localStorage.getItem("${FONT_SCALE_KEY}");if(s==="1.15"||s==="1.3")document.documentElement.setAttribute("data-fontscale",s)}catch(e){}})();`
 
 function current(): FontScale {
   if (typeof document === "undefined") return "1"

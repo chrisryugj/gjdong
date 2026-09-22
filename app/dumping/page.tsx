@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Gowun_Batang } from "next/font/google"
 import "./plex-kr.css"
 import DumpingClient from "@/components/dumping/client"
-import { THEME_INIT_SCRIPT } from "@/components/dumping/theme"
-import { FONT_SCALE_INIT_SCRIPT } from "@/components/dumping/font-scale"
+import { FONT_SCALE_INIT_SCRIPT, THEME_INIT_SCRIPT } from "@/lib/dumping/init-scripts"
 
 // 17라운드(2026-09-19) sunlight-fund 테마: 결론 문장은 고운바탕, 나머지 글과 숫자는 IBM Plex Sans KR.
 // 고운바탕은 next/font가 빌드 때 받아 셀프호스팅. preload: false. next/font가 한글 슬라이스에 subset 주석이 없어
@@ -30,7 +29,7 @@ export const metadata: Metadata = {
 export default function DumpingPage() {
   return (
     <div className={`${batang.variable} plex-kr contents`}>
-      {/* 첫 페인트 전에 html[data-theme]를 정한다(깜빡임 방지). 라이트·다크는 localStorage dump-theme */}
+      {/* 첫 페인트 전에 html[data-theme]·[data-fontscale]를 정한다(깜빡임 방지). localStorage dump-theme·dump-font-scale */}
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT + FONT_SCALE_INIT_SCRIPT }} />
       <DumpingClient />
     </div>
