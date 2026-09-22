@@ -55,7 +55,8 @@ function ProposalRow({ lv, stats, onOpen, i = 0, n }: RowProps) {
     >
       <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{n}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(title)}</span>
+        {/* 제안 이름은 항목 제목("제안 6건")과 같은 크기·굵기(20px bold). 사용자 지시 2026-09-22 */}
+        <span className="block text-[20px] font-bold leading-tight text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(title)}</span>
         {/* 담당 조각은 한 줄에(nowrap). "청소과·동주민센터"가 낱말 사이에서 꺾여 한 글자가 홀로 떨어지지 않게(/snow 6라운드 Meta 규약) */}
         <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
           {nb(expect)}
