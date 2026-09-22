@@ -71,7 +71,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       id: "regression",
       name: "다중회귀 (표준화 β)",
       question: "여러 조건이 섞여 있을 때, 적발 기록과 가장 강하게 같이 움직이는 조건은?",
-      easy: "가게가 많아서인지, 다가구가 많아서인지, 골목이 많아서인지를 한꺼번에 넣고 각각의 몫을 따로 잽니다. β는 그 몫의 크기이고, 0보다 크면 그 조건이 클수록 적발 기록도 많다는 뜻입니다.",
+      easy: "가게가 많아서인지, 다가구가 많아서인지, 골목이 많아서인지를 한꺼번에 넣고 각각의 몫을 따로 계산합니다. β는 그 몫의 크기이고, 0보다 크면 그 조건이 클수록 적발 기록도 많다는 뜻입니다.",
       figure: "regression",
       results: [
         { k: "다가구·단독 밀집 β", v: unm ? signed(unm.beta) : "+0.312", note: "가장 큼 · p<0.001" },
@@ -104,7 +104,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
         { k: "비교 대상에 같은 조건 적용", v: "비교 대상도 똑같이 줄었음", note: "감소분은 평균회귀" },
         { k: "이벤트 스터디", v: "유의한 시점 없음", note: "관측 22,247행" },
       ],
-      checks: ["처치·대조에 같은 선택 규칙을 쓰는 대칭 설계로 다시 재도 효과 미확인(발견 탭 효과 철회 카드)"],
+      checks: ["처치·대조에 같은 선택 규칙을 쓰는 대칭 설계로 다시 계산해도 효과 미확인(발견 탭 효과 철회 카드)"],
       cautions: ["이 철회가 조치 대장(개입 사전등록) 원칙의 근거입니다. 효과 평가는 실행 전에 설계부터 등록합니다"],
       explainer: "#9-이중차분did과-평균회귀-그리고-철회",
     },
@@ -132,8 +132,8 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
     {
       id: "backtest",
       name: "핫스팟 점수와 백테스트",
-      question: "다음 분기에 관리할 20곳을 어떻게 뽑고, 믿을 만한가?",
-      easy: `최근 기록일수록 크게(90일마다 절반) 더해 칸마다 점수를 매기고 상위 20곳을 뽑습니다. 믿을 만한지는 과거로 돌아가 "그때 이 방법으로 뽑았다면 맞았을까"를 ${bt.windows.length}개 분기에서 채점합니다.`,
+      question: "다음 분기에 관리할 20곳을 어떻게 고르고, 믿을 만한가?",
+      easy: `최근 기록일수록 크게(90일마다 절반) 더해 칸마다 점수를 매기고 상위 20곳을 고릅니다. 믿을 만한지는 과거로 돌아가 "그때 이 방법으로 골랐다면 맞았을까"를 ${bt.windows.length}개 분기에서 채점합니다.`,
       figure: "backtest",
       results: [
         { k: "적중률", v: pct(bt.avgPrecision20), note: "20곳 중 다음 분기 기록 있는 비율" },
@@ -143,7 +143,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       ],
       checks: bt.baselines ? ["실무 기준모형 3종과 같은 창·같은 20곳으로 비교했습니다"] : [],
       cautions: [
-        ...(bt.baselines ? ["기준모형과 동급이며 우열 미확정. 점수식이 낫다는 주장은 하지 않고, 매 분기 같은 규칙으로 뽑아 사후 채점한다는 점만 말합니다"] : []),
+        ...(bt.baselines ? ["기준모형과 동급이며 우열 미확정. 점수식이 낫다는 주장은 하지 않고, 매 분기 같은 규칙으로 골라 사후 채점한다는 점만 말합니다"] : []),
         "행정수요 예측이지 발생의 인과를 예측하는 것은 아닙니다",
       ],
       explainer: "#12-핫스팟-백테스트-적중률포착률",
@@ -170,13 +170,13 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       id: "graph",
       name: "근거 그래프 (온톨로지)",
       question: "이 결론은 어느 자료에서 왔고, 대책이 빠진 요인은 없나?",
-      easy: "데이터·증거·주장·지표·대책을 점으로 놓고 관계(뒷받침한다, 겨냥한다)를 선으로 이은 지식 지도입니다. 연결을 따라가야 답이 나오는 질문을 같은 규칙으로 검사합니다.",
+      easy: `데이터·증거·주장·지표·대책을 점으로 놓고 관계(뒷받침한다, 겨냥한다)를 선으로 연결한 지식 지도입니다. "겨냥하는 수단이 없는 요인은?"처럼 연결을 거쳐야 답이 나오는 질문을 코드에 정해 두고 화면에서 바로 계산합니다.`,
       figure: "graph",
       results: [
         { k: "지식 · 연결", v: g ? `${g.nodes}개 · ${g.edges}개` : "미산출" },
         { k: "찾아낸 공백", v: "청년·외국인·1인세대 요인에 연결된 수단 없음", note: "→ 검토 대책 3건" },
       ],
-      checks: ["주장이 철회되거나 범위가 좁혀지면 이력이 남습니다(정오표 배지)"],
+      checks: ["주장이 철회되거나 범위가 좁혀지면 이력을 기록하고 정오표 배지로 표시합니다"],
       cautions: ["사람이 정리한 관계 목록이라 빠진 연결은 공백으로 표시될 뿐, 실제 행정에 그 대책이 없다는 뜻은 아닙니다"],
       explainer: "#17-온톨로지-역량-질문",
     },
@@ -187,7 +187,7 @@ export function statMethods(data: DumpingMapData, graph: OntoGraph | null): Stat
       easy: "결론을 내기 전에 통계의 전제 조건이 성립하는지 따로 검사하고, 어긋난 것은 숨기지 않고 적었습니다.",
       results: [],
       checks: [
-        "잔차가 정규분포가 아니라 음이항·wild bootstrap 보정 모형을 같이 돌렸고 판정 유지",
+        "잔차가 정규분포가 아니라 음이항·wild bootstrap 보정 모형도 같이 적합했고 판정 유지",
         "오차 크기가 칸마다 달라(이분산) 이분산 보정 표준오차(HC3)로 다시 봤고 판정 유지",
         "이웃 칸끼리 닮아(공간 자기상관) 공간 시차·공간 오차 모형으로도 봤고 다가구·단독 β 유지",
       ],
@@ -230,7 +230,7 @@ function FigRegression({ rows }: { rows: { label: string; beta: number }[] }) {
   const max = Math.max(0.05, ...rows.map((r) => Math.abs(r.beta)))
   return (
     <svg viewBox="0 0 360 96" className="h-24 w-full">
-      <text x="4" y="12" {...T}>한꺼번에 넣고 각 조건의 몫(β)을 따로 잰다</text>
+      <text x="4" y="12" {...T}>한꺼번에 넣고 각 조건의 몫(β)을 따로 계산한다</text>
       {/* 라벨은 왼쪽 칸(x≤112)에 고정, 0축은 x=200. 음수 막대는 왼쪽으로 뻗되 라벨 칸을 넘지 않는 배율(2026-09-18: 막대가 라벨을 덮던 것 수정) */}
       <line x1="200" y1="20" x2="200" y2="94" stroke={INK} strokeWidth="0.6" />
       {rows.slice(0, 4).map((r, i) => {
@@ -296,7 +296,7 @@ function FigBacktest({ windows, avg }: { windows: { cutoff: string; precision20:
   const bw = Math.min(34, 300 / Math.max(1, w.length))
   return (
     <svg viewBox="0 0 360 96" className="h-24 w-full">
-      <text x="4" y="12" {...T}>분기마다 과거 시점으로 돌아가 뽑은 20곳의 적중률</text>
+      <text x="4" y="12" {...T}>분기마다 과거 시점으로 돌아가 고른 20곳의 적중률</text>
       <line x1="30" y1="86" x2="340" y2="86" stroke={INK} strokeWidth="0.6" />
       {/* 평균선은 막대·숫자보다 먼저 그려 숫자의 흰 테두리가 선을 덮게 */}
       {avg != null && <line x1="30" y1={86 - (avg / 100) * 60} x2="340" y2={86 - (avg / 100) * 60} stroke={WARN} strokeWidth="1" strokeDasharray="4 3" />}
@@ -350,7 +350,7 @@ function FigGraph() {
           <text y="26" textAnchor="middle" {...T}>{c.t}</text>
         </g>
       ))}
-      <text x="36" y="88" {...T}>연결을 따라가며 "겨냥하는 수단이 없는 요인은?" 같은 질문을 같은 규칙으로 검사</text>
+      <text x="36" y="88" {...T}>요인마다 겨냥하는 수단이 연결돼 있는지 확인해 빠진 요인을 찾는다</text>
     </svg>
   )
 }
