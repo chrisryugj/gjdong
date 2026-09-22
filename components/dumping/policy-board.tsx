@@ -22,7 +22,7 @@ import {
 } from "./lever-view"
 import LeverModal from "./lever-modal"
 import { Folded, SectionHead } from "./section-head"
-import { nb } from "@/lib/dumping/nobreak"
+import { nb, nbParen } from "@/lib/dumping/nobreak"
 
 // 정책 제안 탭. 지식그래프를 결재권자 관점("무엇을 결정하면 되나")으로 재구성한 첫 화면.
 // 별도 데이터 없이 graph.json의 Lever·KPI 노드와 관계에서 전부 파생한다.
@@ -56,7 +56,7 @@ function ProposalRow({ lv, stats, onOpen, i = 0, n }: RowProps) {
       <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{n}</span>
       <span className="min-w-0 flex-1">
         {/* 제안 이름은 항목 제목("제안 6건")과 같은 크기·굵기(20px bold). 사용자 지시 2026-09-22 */}
-        <span className="block text-[20px] font-bold leading-tight text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(title)}</span>
+        <span className="block text-[20px] font-bold leading-tight text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nbParen(title)}</span>
         {/* 담당 조각은 한 줄에(nowrap). "청소과·동주민센터"가 낱말 사이에서 꺾여 한 글자가 홀로 떨어지지 않게(/snow 6라운드 Meta 규약) */}
         <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
           {nb(expect)}
@@ -91,7 +91,7 @@ function ExistingRow({ lv, graph, onOpen, i = 0 }: RowProps) {
           <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[12px] text-[var(--cp-text-dim)]">사전등록 후 평가</span>
         )}
       </span>
-      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nb(lv.node.label)}</span>
+      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nbParen(lv.node.label)}</span>
       {lv.targets.length > 0 && (
         <span className="flex flex-wrap items-center gap-1 text-[12.5px] text-[var(--cp-text-dim)]">
           겨냥

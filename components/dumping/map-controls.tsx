@@ -110,10 +110,10 @@ export function vizDescription(viz: VizAction): string {
 }
 
 // ─── 공용 스타일. 떠 있는 패널 안의 줄(row) 단위 토글 ───
-const ROW = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13.5px] transition-colors hover:bg-[var(--cp-hover)] disabled:opacity-35"
+const ROW = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[14px] transition-colors hover:bg-[var(--cp-hover)] disabled:opacity-35"
 const ROW_ON = "bg-[var(--cp-hover)] font-semibold text-[var(--cp-text-strong)]"
 const ROW_OFF = "text-[var(--cp-text-muted)]"
-const GROUP = "dump-kicker px-2.5 pb-1 pt-3 text-[10.5px] text-[var(--cp-text-faint)] first:pt-1"
+const GROUP = "dump-kicker px-2.5 pb-1 pt-3 text-[11px] text-[var(--cp-text-faint)] first:pt-1"
 const CHIP_SM = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[12.5px] transition-colors"
 const CHIP_OFF = "border-[var(--cp-border)] bg-[var(--cp-panel)] text-[var(--cp-text-muted)] hover:bg-[var(--cp-hover)]"
 const CHIP_ON = "border-(--dump-accent) bg-(--dump-accent)/10 font-semibold text-(--dump-accent)"
@@ -392,10 +392,10 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
   const grey = view.candidates && !selectedDong && !none // 후보 표시 중: 바탕 램프가 회색 단계(dumping-map greyMode)
 
   return (
-    <div className="text-[12.5px] leading-snug text-[var(--cp-text)]">
+    <div className="text-[13.5px] leading-snug text-[var(--cp-text)]">
       <div className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="dump-kicker text-[10.5px] text-[var(--cp-text-faint)]">{none ? "바탕 없음 · 건물 층수" : `${def.legend} · 100m`}</span>
+          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? "바탕 없음 · 건물 층수" : `${def.legend} · 100m`}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-[3px]">
@@ -403,7 +403,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
-          <span className="font-mono text-[12px] leading-none text-[var(--cp-text-dim)]">
+          <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
             {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ … ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
           </span>
         </div>
@@ -451,7 +451,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
         </p>
           </>
         )}
-        <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[var(--cp-text-dim)]">
+        <div className="mt-0.5 flex items-center gap-3 text-[13px] text-[var(--cp-text-dim)]">
           <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-(--dump-accent) hover:underline">
             {showHelp ? "설명 접기" : "자세한 설명"}
           </button>
@@ -462,7 +462,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
           )}
         </div>
         {showHelp && (
-          <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[12.5px] leading-relaxed text-[var(--cp-text-muted)]">
+          <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
             {baseDesc(view.base, data)}
             {view.circles.length > 0 &&
               ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
@@ -471,7 +471,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
       </div>
       {/* 격자 대체 표. 캔버스 격자는 키보드·스크린리더가 읽지 못한다. 현재 바탕 상위 20칸 */}
       {showTable && data && (
-        <div className="max-h-[32dvh] overflow-y-auto border-t border-[var(--cp-border)] px-1 pb-1 text-[12.5px]">
+        <div className="max-h-[32dvh] overflow-y-auto border-t border-[var(--cp-border)] px-1 pb-1 text-[13.5px]">
           <table className="w-full">
             <caption className="sr-only">{def.legend} 상위 20개 100m 격자. 행정동, 값, 민원, 과태료 순</caption>
             <thead>

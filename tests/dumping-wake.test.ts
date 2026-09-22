@@ -36,3 +36,10 @@ test("서술어 끝의 \"-지니\"(많아지니까·빠지니)는 호출어가 �
   // 깨어 있는 동안 질문 속 "-지니"도 지우지 않는다
   assert.deepStrictEqual(wakeStep("awake", "민원이 많아지니까 어떻게 해", true), { kind: "submit", text: "민원이 많아지니까 어떻게 해" })
 })
+
+test("2026-09-22 감도 보강 변형(지니여·지니예·진희야·지니이)도 호출어다. \"사진이야\"는 여전히 아니다", () => {
+  assert.deepStrictEqual(wakeStep("idle", "지니여 상습격자 몇 곳이야", true), { kind: "submit", text: "상습격자 몇 곳이야" })
+  assert.deepStrictEqual(wakeStep("idle", "진희야", false), { kind: "wake", heard: "" })
+  assert.deepStrictEqual(wakeStep("idle", "지니이 민원 왜 늘었어", true), { kind: "submit", text: "민원 왜 늘었어" })
+  assert.deepStrictEqual(wakeStep("idle", "사진이야", true), { kind: "ignore" })
+})

@@ -18,6 +18,7 @@ import MethodsModal, { type MethodsSection } from "./methods-modal"
 import QaChat from "./qa-chat"
 import TimelineStrip from "./timeline-strip"
 import ThemeSwitch, { useTheme } from "./theme"
+import FontScaleButton from "./font-scale"
 import GlassDial from "./glass-dial"
 import LiquidGlass from "./liquid-glass"
 import LiquidTabs from "./liquid-tabs"
@@ -686,6 +687,8 @@ export default function DumpingDashboard() {
               데이터·방법
               <Ico name="arrow" size={13} className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" />
             </button>
+            {/* 글자 크기(보통·크게·더 크게). 카드·레이어·범례·모달 콘텐츠를 zoom */}
+            <FontScaleButton compact={!isXl} />
             {/* 유리 강도 다이얼 + 라이트·다크(sunlight-fund 유리 스위치·다이얼). 지도 바탕도 같이 바뀐다 */}
             {isMd && <GlassDial compact={!isXl} />}
             <ThemeSwitch compact={!isXl} />
@@ -714,7 +717,7 @@ export default function DumpingDashboard() {
         className={`dump-fl lg-shell absolute inset-x-0 bottom-0 top-[var(--dump-sheet-top)] z-[1050] flex flex-col rounded-t-2xl p-[6px] md:inset-x-auto md:bottom-4 md:left-4 ${TOP} md:w-[var(--dump-side-w,440px)] md:rounded-2xl`}
         style={hideCard ? { display: "none" } : undefined}
       >
-       <div className="lg-inner flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
+       <div className="lg-inner dump-zoom flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[11px] md:rounded-[11px]">
         {/* 모바일 손잡이. 드래그로 지도/시트 비율, 더블탭 = 기본 복귀. 오른쪽에 지도 접기 */}
         <div className="flex h-8 shrink-0 items-center md:hidden">
           <div
@@ -841,9 +844,9 @@ export default function DumpingDashboard() {
           className={`pointer-events-none absolute bottom-[140px] right-4 ${TOP} z-[1050] hidden flex-col gap-2.5 md:flex`}
           style={{ width: RIGHT_W }}
         >
-          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>
-          {candidates && <div className="dump-fl lg-shell lg-dense pointer-events-auto relative flex max-h-[38%] min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
-          <div className="dump-fl lg-shell lg-dense pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
+          <div className="dump-fl lg-shell lg-dense dump-zoom pointer-events-auto relative flex min-h-0 shrink flex-col rounded-2xl p-1.5">{layerPanel}</div>
+          {candidates && <div className="dump-fl lg-shell lg-dense dump-zoom pointer-events-auto relative flex max-h-[38%] min-h-0 shrink flex-col overflow-hidden rounded-2xl">{candidates}</div>}
+          <div className="dump-fl lg-shell lg-dense dump-zoom pointer-events-auto relative mt-auto shrink-0 rounded-2xl">{legend}</div>
         </div>
       )}
 
@@ -923,7 +926,7 @@ export default function DumpingDashboard() {
               ✕
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto p-1.5">
+          <div className="dump-zoom min-h-0 overflow-y-auto p-1.5">
             {layerPanel}
             {candidates && <div className="mt-2 rounded-xl border border-[var(--cp-border)]">{candidates}</div>}
             <div className="mt-2 rounded-xl border border-[var(--cp-border)]">{legend}</div>

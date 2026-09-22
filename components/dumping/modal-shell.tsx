@@ -127,7 +127,7 @@ export default function ModalShell({
             ✕
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="dump-zoom min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
         {footer && <div className="border-t border-[var(--cp-border)] px-6 py-3 print:hidden">{footer}</div>}
       </div>
     </div>,

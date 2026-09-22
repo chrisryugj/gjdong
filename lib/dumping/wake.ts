@@ -7,7 +7,8 @@ export const WAKE_WORD = "지니" // 버튼·라벨
 export const WAKE_CALL = "지니야" // 안내 문구("지니야 하고 부르면")
 // ASR이 받아쓰는 변형("지니 야", "지니님", "진이야", "찌니야"). 띄어쓰기는 매칭 때 무시한다. 긴 것부터.
 // "지니"는 "많아지니까"·"빠지니"처럼 서술어 끝에도 흔히 나오므로 앞뒤가 문장 처음·끝이나 띄어쓰기·문장부호일 때만 호출어로 본다
-const WAKE_VARIANTS = ["지니야", "지니님", "지니아", "진이야", "찌니야", "찌니", "지니"]
+// 2026-09-22 감도 보강: 실사용에서 "지니여"·"지니예"·"진희야"·"지니이"로 받아쓴 경우가 있어 추가. 인식기 대안(maxAlternatives)도 전부 본다(use-voice)
+const WAKE_VARIANTS = ["지니야", "지니여", "지니예", "지니님", "지니아", "지니이", "진이야", "진희야", "찌니야", "찌니아", "찌니", "지니", "진이"]
 const EDGE = "[\\s,.!?]"
 export const WAKE_RE = new RegExp(`(?:^|${EDGE})(?:${WAKE_VARIANTS.map((w) => w.split("").join("\\s*")).join("|")})(?=$|${EDGE})`)
 export const MIN_QUESTION = 2

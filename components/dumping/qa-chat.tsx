@@ -110,16 +110,20 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     setInput(text)
     void askFree(text, true)
   })
-  // 호출어 상시 대기("지니야, 민원이 왜 늘었어?"). 답을 읽는 동안은 마이크 결과를 버린다
-  const wake = useWakeWord((text) => {
-    setInput(text)
-    if (busy) {
-      // 답을 만드는 중이면 askFree가 조용히 버린다. 입력창에 남기고 이유를 말해 준다
-      setError("앞 질문의 답을 만드는 중입니다. 끝나면 다시 불러 주세요. 질문은 입력창에 남겨 두었습니다.")
-      return
-    }
-    void askFree(text, true)
-  }, speaker.speaking)
+  // 호출어 상시 대기("지니야, 민원이 왜 늘었어?"). 답을 읽는 동안은 마이크 결과를 버리되, 호출어가 들리면 읽기를 멈추고 듣는다(끼어들기)
+  const wake = useWakeWord(
+    (text) => {
+      setInput(text)
+      if (busy) {
+        // 답을 만드는 중이면 askFree가 조용히 버린다. 입력창에 남기고 이유를 말해 준다
+        setError("앞 질문의 답을 만드는 중입니다. 끝나면 다시 불러 주세요. 질문은 입력창에 남겨 두었습니다.")
+        return
+      }
+      void askFree(text, true)
+    },
+    speaker.speaking,
+    speaker.stop,
+  )
   const wakeOn = wake.state !== "off"
   const listening = mic.listening || wake.state === "awake"
   const level = useMicLevel(listening) // 청취 중 소리 크기 막대

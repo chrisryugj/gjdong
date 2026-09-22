@@ -340,7 +340,9 @@ function chime(ctx: AudioContext) {
   }
 }
 
-export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) {
+// muted(답을 읽는 중)에는 받아쓴 말을 버리되 호출어는 듣는다. 호출어가 들리면 onWake(읽기 중단)를 부르고 깨어난다(2026-09-22 끼어들기).
+// 이전엔 읽는 동안 전부 버려 "부르면 어쩔 땐 안 듣는다"의 한 원인이었다.
+export function useWakeWord(onQuestion: (text: string) => void, muted: boolean, onWake?: () => void) {
   const [supported, setSupported] = useState(false)
   const [state, setState] = useState<WakeState>("off")
   const [heard, setHeard] = useState("") // 호출 뒤 받아쓰는 중인 말
@@ -352,8 +354,12 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
   mutedRef.current = muted
   const onQuestionRef = useRef(onQuestion)
   onQuestionRef.current = onQuestion
+  const onWakeRef = useRef(onWake)
+  onWakeRef.current = onWake
   const awakeTimer = useRef<number | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
+  const lastResultAt = useRef(0)
+  const watchdog = useRef<number | null>(null)
 
   const setSt = (s: WakeState) => {
     stateRef.current = s
@@ -366,8 +372,18 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
       enabledRef.current = false
       recRef.current?.abort()
       if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
+      if (watchdog.current != null) window.clearInterval(watchdog.current)
     }
   }, [])
+
+  // 인식기를 새 구간으로 갈아탄다. abort → onend → startRec. 크롬 continuous 세션은 첫 최종 결과 뒤로 갈수록 다음 발화를
+  // 늦게·드물게 올려 "처음 한 번은 되고 켜 둔 채 다시 부르면 무응답"이 됐다(2026-09-22 실사용). 질문을 보낸 뒤와 오래 조용할 때 갈아탄다
+  const refresh = () => {
+    const rec = recRef.current
+    if (!rec) return
+    lastResultAt.current = Date.now()
+    rec.abort()
+  }
 
   const armAwake = () => {
     if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
@@ -385,6 +401,7 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
     setSt("idle")
     setHeard("")
     if (q.length >= MIN_QUESTION) onQuestionRef.current(q)
+    refresh()
   }
 
   const startRec = () => {
@@ -394,14 +411,22 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
     rec.lang = "ko-KR"
     rec.interimResults = true
     rec.continuous = true
-    rec.maxAlternatives = 1
+    rec.maxAlternatives = 3 // 1순위 받아쓰기에 호출어가 없어도 2·3순위에 있으면 깨운다(감도)
     rec.onresult = (e) => {
-      if (mutedRef.current) return
+      lastResultAt.current = Date.now()
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i]
         // 판단은 순수 함수(lib/dumping/wake.ts)가 한다. 여기서는 알림음·상태·타이머만
-        const step = wakeStep(stateRef.current, r[0].transcript, r.isFinal)
+        let step = wakeStep(stateRef.current, r[0].transcript, r.isFinal)
+        if (step.kind === "ignore") {
+          for (let k = 1; k < r.length && step.kind === "ignore"; k++) step = wakeStep(stateRef.current, r[k].transcript, r.isFinal)
+        }
         if (step.kind === "ignore") continue
+        if (mutedRef.current) {
+          // 읽는 동안: 스피커 소리를 되받은 말은 버리고, 호출어(대기 상태에서 wake·submit)만 끼어들기로 받는다
+          if (stateRef.current === "awake" || (step.kind !== "wake" && step.kind !== "submit")) continue
+          onWakeRef.current?.()
+        }
         if (step.kind === "wake") {
           if (ctxRef.current) chime(ctxRef.current)
           setSt("awake")
@@ -444,7 +469,14 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
     enabledRef.current = true
     setError(null)
     setSt("idle")
+    lastResultAt.current = Date.now()
     startRec()
+    // 대기 중 60초 넘게 아무 결과가 없으면 세션을 갈아탄다(크롬이 onend 없이 조용히 멎는 경우 대비)
+    if (watchdog.current == null) {
+      watchdog.current = window.setInterval(() => {
+        if (enabledRef.current && stateRef.current === "idle" && Date.now() - lastResultAt.current > 60_000) refresh()
+      }, 15_000)
+    }
   }, [])
 
   // 깨어 있는 상태만 접는다(Esc). 대기(idle)는 유지되어 다시 부를 수 있다
@@ -458,6 +490,10 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean) 
   const disable = useCallback(() => {
     enabledRef.current = false
     if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
+    if (watchdog.current != null) {
+      window.clearInterval(watchdog.current)
+      watchdog.current = null
+    }
     recRef.current?.abort()
     recRef.current = null
     setSt("off")
