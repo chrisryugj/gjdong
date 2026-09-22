@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next"
-import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google"
+import { Gowun_Batang } from "next/font/google"
+import "./plex-kr.css"
 import DumpingClient from "@/components/dumping/client"
 import { THEME_INIT_SCRIPT } from "@/components/dumping/theme"
 
 // 17라운드(2026-09-19) sunlight-fund 테마: 결론 문장은 고운바탕, 나머지 글과 숫자는 IBM Plex Sans KR.
-// next/font가 빌드 때 받아 셀프호스팅하므로 런타임 외부 요청 없음.
-// preload: false. next/font가 한글 슬라이스에 subset 주석이 없어 굵은 슬라이스를 전량 preload하고 본문 400 한글은 빠뜨린다(sunlight 실측)
+// 고운바탕은 next/font가 빌드 때 받아 셀프호스팅. preload: false. next/font가 한글 슬라이스에 subset 주석이 없어
+// 굵은 슬라이스를 전량 preload하고 본문 400 한글은 빠뜨린다(sunlight 실측)
+// Plex는 next/font를 쓰지 않는다(2026-09-22). 구글 슬라이스의 gasp 표가 9~16px 안티에일리어싱을 꺼 윈도에서 글자가 깨져,
+// scripts/patch-plex-kr-gasp.py로 gasp를 고친 파일을 public/fonts/plex-kr에 두고 ./plex-kr.css(.plex-kr가 --font-plex)로 싣는다
 const batang = Gowun_Batang({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-batang", display: "swap", preload: false })
-const plex = IBM_Plex_Sans_KR({ subsets: ["latin"], weight: ["400", "600", "700"], variable: "--font-plex", display: "swap", preload: false })
 
 // searchParams를 읽지 않는다. 라우트를 정적으로 유지해 CDN 캐시를 살린다 (crowd/page.tsx 규약)
 export const viewport: Viewport = {
@@ -26,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function DumpingPage() {
   return (
-    <div className={`${batang.variable} ${plex.variable} contents`}>
+    <div className={`${batang.variable} plex-kr contents`}>
       {/* 첫 페인트 전에 html[data-theme]를 정한다(깜빡임 방지). 라이트·다크는 localStorage dump-theme */}
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       <DumpingClient />
