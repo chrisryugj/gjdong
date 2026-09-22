@@ -186,6 +186,10 @@ export default function PolicyBoard({ graph, data, onShowMap, activeLeverId, cri
         <p className="dump-rise mt-2.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]" style={{ "--i": 2 } as React.CSSProperties}>
           {deck}
         </p>
+        {/* 현장 피드백(2026-09-22): 신고 민원 1위 지역은 한 사람의 같은 내용 반복 신고가 급증해 실제 관리 지역과 어긋난다. 살짝만 */}
+        <p className="dump-rise mt-2 text-[13px] leading-relaxed text-[var(--cp-text-dim)]" style={{ "--i": 3 } as React.CSSProperties}>
+          신고 민원 1위 지역은 한 사람의 같은 내용 반복 신고가 급증한 영향이 커, 실제 관리가 필요한 지역과 다를 수 있다는 현장 의견이 있습니다. 순위는 참고로 읽어 주세요.
+        </p>
       </section>
 
       {/* 지도 연동 상태. 어떤 제안을 지도에 띄워 두었는지 */}
