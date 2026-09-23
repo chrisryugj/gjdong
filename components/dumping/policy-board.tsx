@@ -30,6 +30,19 @@ import { nb, nbParen } from "@/lib/dumping/nobreak"
 // 제안 6건은 번호·이름·기대 한 줄·예산 등급의 목록. 가정·조치·검증은 모달(카드를 누르면)에 있다.
 // 기존 수단 판정·성과지표는 접어 둔다(7라운드: 여섯 섹션을 한 번에 펼치면 어느 것도 읽히지 않았다).
 
+// 제목 끝 괄호는 한 덩어리(inline-block). 줄에 들어가면 "(" 앞에서 통째로 다음 줄로 가고, 줄보다 길 때만 괄호 안 띄어쓰기에서 꺾인다.
+// NBSP로 묶으면 좁은 폭·큰 글자에서 글자 중간이 쪼개졌고, 안 묶으면 "(화양동 외국인 / 19.4%)"처럼 끝 조각만 떨어졌다(22라운드)
+function ParenTitle({ text }: { text: string }) {
+  const m = /^(.*?)(\([^()]*\))$/.exec(text)
+  if (!m) return <>{nbParen(text)}</>
+  return (
+    <>
+      {m[1]}
+      <span className="inline-block">{nb(m[2])}</span>
+    </>
+  )
+}
+
 interface RowProps {
   lv: LeverView
   graph: OntoGraph
@@ -56,7 +69,9 @@ function ProposalRow({ lv, stats, onOpen, i = 0, n }: RowProps) {
       <span className="dump-idx mt-[2px] w-5 shrink-0 text-[15px] text-(--dump-accent)">{n}</span>
       <span className="min-w-0 flex-1">
         {/* 제안 이름은 항목 제목("제안 6건")과 같은 크기·굵기(20px bold). 사용자 지시 2026-09-22 */}
-        <span className="block text-[20px] font-bold leading-tight text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nbParen(title)}</span>
+        <span className="block text-[20px] font-bold leading-tight text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">
+          <ParenTitle text={title} />
+        </span>
         {/* 담당 조각은 한 줄에(nowrap). "청소과·동주민센터"가 낱말 사이에서 꺾여 한 글자가 홀로 떨어지지 않게(/snow 6라운드 Meta 규약) */}
         <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--cp-text-dim)]">
           {nb(expect)}
@@ -91,7 +106,9 @@ function ExistingRow({ lv, graph, onOpen, i = 0 }: RowProps) {
           <span className="rounded border border-dashed border-[var(--cp-border-strong)] px-1.5 py-0.5 text-[12px] text-[var(--cp-text-dim)]">사전등록 후 평가</span>
         )}
       </span>
-      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">{nbParen(lv.node.label)}</span>
+      <span className="text-[15px] font-semibold leading-snug text-[var(--cp-text-strong)] group-hover:text-(--dump-accent)">
+        <ParenTitle text={lv.node.label} />
+      </span>
       {lv.targets.length > 0 && (
         <span className="flex flex-wrap items-center gap-1 text-[12.5px] text-[var(--cp-text-dim)]">
           겨냥

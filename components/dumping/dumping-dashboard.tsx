@@ -551,7 +551,11 @@ export default function DumpingDashboard() {
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
   const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} /> : null
-  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} />
+  const hotspotsOn = tab === "ops" && (demo === null || scenes[demo]?.hotspots !== false)
+  const criticalOn = showCritical && (tab === "ops" || tab === "policy")
+  // 지도는 다른 층(시설·후보·배치추천·핫스팟·상습격자)이 켜지면 원·원기둥을 숨긴다(dumping-map muted). 범례도 같은 조건으로 그 줄을 뺀다
+  const circlesMuted = view.layers.length > 0 || view.candidates || view.binRecos || hotspotsOn || criticalOn
+  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} circlesMuted={circlesMuted} />
   const candidates =
     view.candidates && mapData ? (
       <CandidateList
@@ -594,8 +598,8 @@ export default function DumpingDashboard() {
             layers={view.layers}
             showCandidates={view.candidates}
             showBinRecos={view.binRecos}
-            showHotspots={tab === "ops" && (demo === null || scenes[demo]?.hotspots !== false)}
-            showCritical={showCritical && (tab === "ops" || tab === "policy")}
+            showHotspots={hotspotsOn}
+            showCritical={criticalOn}
             focusCandidate={focusCandidate}
             showRoutes={view.routes}
             showDongBars={view.dongBars}

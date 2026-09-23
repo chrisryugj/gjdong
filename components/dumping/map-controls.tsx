@@ -381,9 +381,10 @@ interface LegendProps {
   data: DumpingMapData | null
   view: MapView
   selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
+  circlesMuted?: boolean // 다른 층이 켜져 지도가 원·원기둥을 숨긴 상태(대시보드가 dumping-map muted와 같은 조건으로 계산)
 }
 
-export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
+export function MapLegend({ data, view, selectedDong = null, circlesMuted = false }: LegendProps) {
   const [showHelp, setShowHelp] = useState(false)
   const [showTable, setShowTable] = useState(false)
   const theme = useTheme()
@@ -415,7 +416,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>
         {/* 22라운드(심사 냉독): 켜진 원·원기둥은 지도에서 가장 큰 요소라 설명 한 줄은 늘 보인다. 빈 칸 설명만 "자세한 설명" 안에 */}
-        {view.weather ? (
+        {circlesMuted && !selectedDong && !showHelp ? null : view.weather ? (
           <p className="flex items-center gap-1.5">
             <i
               className="h-3 w-3 shrink-0 rounded-full border"
