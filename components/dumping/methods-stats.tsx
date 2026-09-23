@@ -325,7 +325,7 @@ function FigForecast() {
       <path d="M236 42 L340 26 L340 62 L236 60 Z" fill={ACC} opacity="0.15" />
       <path d="M236 51 L340 44" stroke={ACC} strokeWidth="1.8" fill="none" />
       <text x="24" y="14" {...T}>지난 접수는 수준, 추세, 계절 반복의 합</text>
-      <text x="240" y="20" {...T} fill={ACC}>전망 · 옅은 띠 = 80% 구간</text>
+      <text x="240" y="20" {...T} fill={ACC}>전망 · 옅은 띠는 80% 구간</text>
       <text x="238" y="86" {...T}>기준일</text>
     </svg>
   )

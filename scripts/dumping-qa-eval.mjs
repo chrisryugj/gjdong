@@ -171,7 +171,9 @@ async function ask(cookie, question) {
   const raw = await r.text()
   const errAt = raw.indexOf(String.fromCharCode(0) + "ERR:")
   if (errAt >= 0) throw new Error(`ask stream error: ${raw.slice(errAt + 5).trim()}`)
-  return raw.replace(/^\u200b/, "").trim()
+  // 21\ub77c\uc6b4\ub4dc\ubd80\ud130 \ub05d\uc5d0 \uc644\ub8cc \ud45c\uc2dd(NUL+DONE)\uc774 \uc628\ub2e4. \uccab NUL\ubd80\ud130\ub294 \ubcf8\ubb38\uc774 \uc544\ub2c8\ub2e4(22\ub77c\uc6b4\ub4dc: \ubb38\uc11c \ub2f5 \ub05d\uc5d0 "DONE"\uc774 \ubd99\uc5b4 \ud615\uc2dd \uac80\uc0ac\uc5d0 \uc11e\uc600\ub2e4)
+  const nul = raw.indexOf(String.fromCharCode(0))
+  return (nul >= 0 ? raw.slice(0, nul) : raw).replace(/^\u200b/, "").trim()
 }
 
 const cookie = await login()

@@ -258,6 +258,17 @@ export default function MethodsModal({
 
       {section === "data" ? (
         <div className="flex flex-col gap-3">
+          {/* 22라운드(심사 냉독): 공모전 심사는 "어떤 공공데이터를 썼나"부터 본다. 첫 줄에 종수 요약(목록 순서는 그대로) */}
+          {(() => {
+            const prov = provided(data).length
+            const col = collected(data, topBeta, ledgerRows).length
+            const seoul = seoulOpen(data).length
+            return (
+              <p className="rounded-lg bg-[var(--cp-hover)] px-3 py-2 text-[14px] leading-relaxed text-[var(--cp-text)]">
+                쓰인 자료 <b className="text-[var(--cp-text-strong)]">{prov + col + seoul}종</b>: 공공데이터 {col + seoul}종(직접 수집 {col} · 서울시 {seoul})과 구청 내부 행정자료 {prov}종. 공공데이터 층은 25개 자치구 어디서나 같은 방식으로 다시 만들어집니다.
+              </p>
+            )
+          })()}
           <DatasetGroup
             badge="구청 제공"
             badgeCls="bg-[#8a530e]/12 text-[#8a530e]"

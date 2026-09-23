@@ -1253,13 +1253,25 @@
 :root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, calc(0.98 - var(--lg-lo) * 0.24 - var(--lg-hi) * 0.6)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
 :root[data-theme="dark"].lg-on .dump-page .lg-shell:not(:has(> .lg-inner)) { background: rgba(14, 20, 24, calc(0.9 - var(--lg-lo) * 0.3 - var(--lg-hi) * 0.6)); }
 :root[data-theme="dark"].lg-on .dump-page button.dump-fl.lg-shell:hover { background: rgba(255, 255, 255, 0.14); }
+/* 22라운드(2026-09-23 사용자 결정 "/snow와 같게 불투명"): 짙은 3D(과태료 원기둥·초록 건물) 위에서 카드·오른쪽 열 글 뒤로 색이 비쳤다(다크에서 특히).
+   /dumping만: 유리 강도 기본(1)에서 서리 층 0.96·쉘 0.9(/snow 카드와 같은 값). 굴절 테두리는 그대로, 다이얼을 1~1.6으로 올리면 다시 맑아진다 */
+.dump-page:not(.snow-page) .lg-inner,
+.lg-on .dump-page:not(.snow-page) .lg-inner { background: rgba(251, 249, 243, calc(0.99 - var(--lg-lo) * 0.03 - var(--lg-hi) * 0.6)); }
+:root[data-theme="dark"] .dump-page:not(.snow-page) .lg-inner,
+:root[data-theme="dark"].lg-on .dump-page:not(.snow-page) .lg-inner { background: rgba(18, 25, 30, calc(0.99 - var(--lg-lo) * 0.03 - var(--lg-hi) * 0.6)); }
+.lg-on .dump-page:not(.snow-page) .lg-shell:not(:has(> .lg-inner)),
+.dump-page:not(.snow-page) .lg-shell.lg-dense { background: rgba(251, 249, 243, calc(0.97 - var(--lg-lo) * 0.07 - var(--lg-hi) * 0.5)); }
+:root[data-theme="dark"].lg-on .dump-page:not(.snow-page) .lg-shell:not(:has(> .lg-inner)),
+:root[data-theme="dark"] .dump-page:not(.snow-page) .lg-shell.lg-dense { background: rgba(14, 20, 24, calc(0.97 - var(--lg-lo) * 0.07 - var(--lg-hi) * 0.5)); }
+.lg-on .dump-page:not(.snow-page) .lg-shell.lg-dense { background: rgba(251, 249, 243, calc(0.97 - var(--lg-lo) * 0.07 - var(--lg-hi) * 0.5)) !important; }
+:root[data-theme="dark"].lg-on .dump-page:not(.snow-page) .lg-shell.lg-dense { background: rgba(14, 20, 24, calc(0.97 - var(--lg-lo) * 0.07 - var(--lg-hi) * 0.5)) !important; }
 /* 폰: 시트 뒤로 지도가 비쳐 글이 안 읽힌다 → 서리 층은 유리 강도와 무관하게 0.94 이상 */
 @media (max-width: 767px) {
   .dump-page .lg-inner, .lg-on .dump-page .lg-inner { background: rgba(251, 249, 243, 0.94); }
   :root[data-theme="dark"] .dump-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, 0.94); }
   /* 22라운드: 레이어 덮개는 시트 글 위에 뜬다. 0.56이라 아래 결론 문장이 목록 사이로 겹쳐 읽혔다 */
-  .dump-page .dump-overlay-solid, .lg-on .dump-page .lg-shell.dump-overlay-solid { background: rgba(251, 249, 243, 0.97); }
-  :root[data-theme="dark"] .dump-page .dump-overlay-solid, :root[data-theme="dark"].lg-on .dump-page .lg-shell.dump-overlay-solid { background: rgba(18, 25, 30, 0.97); }
+  .dump-page .dump-overlay-solid, .lg-on .dump-page:not(.snow-page) .lg-shell.dump-overlay-solid { background: rgba(251, 249, 243, 0.97); }
+  :root[data-theme="dark"] .dump-page .dump-overlay-solid, :root[data-theme="dark"].lg-on .dump-page:not(.snow-page) .lg-shell.dump-overlay-solid { background: rgba(18, 25, 30, 0.97); }
 }
 /* 로딩 커튼(19라운드): 지도 영역만 종이로 덮는 준비 화면. 단계 4개 + 헤어라인 진행선. 걷힐 때 0.6초 페이드 */
 .dump-page .dump-curtain {

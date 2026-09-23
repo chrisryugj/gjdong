@@ -405,7 +405,8 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
             ))}
           </span>
           <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
-            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
+            {/* 숫자와 단위는 한 덩어리(NBSP). 좁은 열에서 "세대"가 홀로 다음 줄로 떨어졌다(심사 냉독) */}
+            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+\u00a0${def.unit}`}
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
@@ -413,8 +414,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
           {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>
-        {(showHelp || view.weather || view.grid3d) && (
-          <>
+        {/* 22라운드(심사 냉독): 켜진 원·원기둥은 지도에서 가장 큰 요소라 설명 한 줄은 늘 보인다. 빈 칸 설명만 "자세한 설명" 안에 */}
         {view.weather ? (
           <p className="flex items-center gap-1.5">
             <i
@@ -446,11 +446,11 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
             기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 청회·과태료 앰버). 5건 이상 칸만, 확대하면 값도 보임
           </p>
         )}
-        <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
-          <i className="h-3 w-3 shrink-0 rounded-sm border" style={{ borderColor: ZERO_CELL, background: `${ZERO_CELL}20` }} />
-          <span>옅은 칸은 {def.legend} 0. 흰 바탕은 민원·과태료·다가구 모두 0인 곳</span>
-        </p>
-          </>
+        {showHelp && (
+          <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">
+            <i className="h-3 w-3 shrink-0 rounded-sm border" style={{ borderColor: ZERO_CELL, background: `${ZERO_CELL}20` }} />
+            <span>옅은 칸은 {def.legend} 0. 흰 바탕은 민원·과태료·다가구 모두 0인 곳</span>
+          </p>
         )}
         <div className="mt-0.5 flex items-center gap-3 text-[13px] text-[var(--cp-text-dim)]">
           <button onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp} className="font-medium text-(--dump-accent) hover:underline">

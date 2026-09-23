@@ -368,7 +368,7 @@ export default function DumpingDashboard() {
       {
         title: "결론",
         caption: "단속에 잡히는 무단투기는 사람이 많은 곳보다 다가구·단독주택 골목에 더 많습니다.",
-        note: `건물 색 = 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥은 과태료 건수 · 지도가 천천히 돕니다`,
+        note: `건물 색은 100m 칸의 다가구·단독 밀집(${mapData.grid.length.toLocaleString()}칸) · 앰버 원기둥은 과태료 건수 · 지도가 천천히 돕니다`,
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
@@ -405,7 +405,7 @@ export default function DumpingDashboard() {
       {
         title: "집중관리 상습격자",
         caption: `최근 12개월 10건 이상 상습격자는 ${kpi.criticalCellsNow}곳, 앱 신고를 빼도 ${kpi.criticalCellsNowNoApp}곳입니다.`,
-        note: "벽돌색 기둥 = 12개월 민원+과태료 건수 · 드론이 1위부터 5위까지 찾아갑니다 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
+        note: "벽돌색 기둥은 12개월 민원+과태료 건수 · 드론이 1위부터 5위까지 찾아갑니다 · 성과는 앱 편향에 덜 민감한 이 수로 판단",
         // 예측 핫스팟 기둥·순위는 다음 장면에서 솟는다. 20곳 중 15곳이 상습격자와 같은 칸이라 여기서 같이 보이면 3·4장면이 같은 그림으로 읽힌다(사용자 지적)
         hotspots: false,
         apply: () => {
@@ -421,7 +421,8 @@ export default function DumpingDashboard() {
       },
       {
         title: "다음 분기 예측",
-        caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 ${bt.avgPrecision20 ?? "-"}%였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
+        // 22라운드 심사 냉독: "20곳의 63.1%는 12.6곳이라 정수가 아니다" → 분기 평균임을 캡션에서 밝힌다
+        caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 지난 ${bt.windows.length}개 분기 평균 ${bt.avgPrecision20 ?? "-"}%였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
         note: `지난 ${bt.windows.length}개 분기 되돌려 검증 · 무작위 포착 ${bt.avgRandomCapture ?? "-"}% 대비 ${bt.avgCapture20 ?? "-"}% · 기둥 높이는 예측 점수, 꼭대기 숫자는 순위(상위 3곳 진한 벽돌)`,
         apply: () => {
           setTab("ops")

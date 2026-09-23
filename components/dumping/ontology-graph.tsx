@@ -61,7 +61,9 @@ interface OntologyGraphProps {
 export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyGraphProps) {
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState({ yaw: 0.6, pitch: 0.28, k: DEFAULT_ZOOM })
-  const [layout, setLayout] = useState<LayoutId>("sphere")
+  // 22라운드(2026-09-23 사용자 결정): 첫 배치는 선택 중심. 구면은 계속 돌며 라벨 105개가 뭉쳐 보였다(심사 냉독 "털뭉치").
+  // 선택 중심은 결과지표를 가운데 두고 '예측함' 요인·'낮추려는 수단' 제안이 관계 이름과 한눈에 들어온다. 구면은 배치 버튼으로 남는다
+  const [layout, setLayout] = useState<LayoutId>("radial")
   const [pan, setPan] = useState({ x: 0, y: 0 }) // 평면 배치의 이동(viewBox 단위)
   const [legendOpen, setLegendOpen] = useState(false) // 모바일에서만 의미. 데스크톱은 항상 펼침
   const dragRef = useRef<{ sx: number; sy: number; yaw: number; pitch: number; px: number; py: number; moved: boolean } | null>(null)
@@ -95,6 +97,14 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
     for (const [id, q] of p) if (keep.has(id)) sub.set(id, q)
     return fitZoom(sub, W, H, 0.6, 2.2)
   }
+
+  // 첫 배치(선택 중심)의 맞춤 줌은 그래프가 온 뒤 한 번. 배치를 바꿀 때는 switchLayout이 맞춘다
+  const fittedRef = useRef(false)
+  useEffect(() => {
+    if (!graph || fittedRef.current) return
+    fittedRef.current = true
+    if (layout === "radial") setView((v) => ({ ...v, k: radialFit(layoutFor("radial", graph, selectedId), selectedId) }))
+  }, [graph])
 
   const switchLayout = (id: LayoutId) => {
     setLayout(id)

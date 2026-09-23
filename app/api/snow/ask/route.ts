@@ -11,11 +11,14 @@ export const maxDuration = 60
 
 // /snow 물어보기(6라운드). /dumping ask 라우트 규약 그대로(스트림 먼저 열고 접수 표시 › 모델 호출, 프롬프트 캐시, 클라이언트 중단 시 상류도 중단).
 // 차이: 인증 없음(공개 페이지) → IP당 분당 5회(rate-limiter snowAsk) + 인스턴스당 하루 상한(DAILY_CAP. 서버리스라 인스턴스마다 따로 세는 상한선이다). SNOW_ASK=off면 모델을 부르지 않는다(준비된 답만)
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash"
+// 2026-09-23(dumping 22라운드와 같이): 3.6-flash 기본 사고는 답이 15초씩 걸렸다. 3.8-flash 사고 low로 첫 글자 중앙 1.7초.
+// 규칙 겨냥 15문항(결정 질문 첫 문장·비용 개략·시 관리 구간·효과 계산·위험 단정·급경사 추정) 실측으로 형식 리마인더만으로 규칙이 지켜졌다.
+// dumping식 내용 리마인더를 붙이면 "시 관리 구간은 구가 뭘 하나"의 첫 문장까지 결정 문장으로 끌려가 붙이지 않는다
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 const MAX_QUESTION = 500
 const MAX_HISTORY = 8
 const UPSTREAM_TIMEOUT_MS = 55_000
-const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL ?? ""
+const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL ?? "low"
 const CACHE_TTL_S = 3600
 const DAILY_CAP = Number(process.env.SNOW_ASK_DAILY_CAP ?? 200)
 const FORMAT_REMINDER =
