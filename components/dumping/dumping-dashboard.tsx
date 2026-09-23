@@ -32,6 +32,7 @@ import { Ico } from "./icons"
 import { AUTH_EXPIRED, fetchBundle, resetDumpingData, startDumpingData, type Early } from "./data-early"
 import { LOAD_NONE, LOAD_STEPS, loadStageOf } from "@/lib/dumping/load-stage"
 import { liveWeatherKey } from "@/lib/dumping/labels"
+import { NSDI_BUILDING_COUNT } from "@/lib/dumping/basemap-style"
 import { weatherLabel } from "@/lib/snow/weather"
 import type { SnowForecast } from "@/lib/snow/types"
 
@@ -63,6 +64,7 @@ const TABS_SHORT: { id: Tab; label: string }[] = [
 const TOP = "md:top-[76px]" // 상단 띠 아래 카드·열이 시작하는 높이
 const RIGHT_W = 236 // 오른쪽 열 폭(px)
 const SHEET_TOP_MOBILE = "44dvh" // 모바일 시트 기본 시작 높이
+const DEMO_CAPTION_PAD = 160 // 시연 캡션 카드 높이 + 간격(px). 지도 맞춤 여백 바닥에 더한다
 
 // 화면 폭 단계. 지도 맞춤 여백(카드·열이 가리는 만큼)을 계산하는 데만 쓴다
 function useBreakpoint(query: string): boolean {
@@ -116,6 +118,18 @@ export default function DumpingDashboard() {
   const [curtain, setCurtain] = useState<"on" | "out" | "off">("on")
   const [tiles, setTiles] = useState({ loaded: 0, failed: 0, total: 0 }) // 03 단계 안의 타일 진행(/snow 방식). 실패는 따로 센다
   const revealTimers = useRef<number[]>([])
+  // 결론 등장(초록·기둥) 전에 사용자가 지도를 바꾸거나 시연을 시작하면 등장 단계는 취소한다.
+  // 시연 1~3장면은 {...DEFAULT_VIEW, circles: []}로 시작해 등장 가드 조건과 같아, 커튼 직후 시연을 누르면 1.8초 뒤 과태료 기둥이 장면을 덮었다(2026-09-23 실측)
+  const revealCancelled = useRef(false)
+  const curtainTimer = useRef<number | null>(null)
+  const clearRevealTimers = useCallback(() => {
+    revealTimers.current.forEach((t) => window.clearTimeout(t))
+    revealTimers.current = []
+  }, [])
+  const cancelReveal = useCallback(() => {
+    revealCancelled.current = true
+    clearRevealTimers()
+  }, [clearRevealTimers])
   const theme = useTheme()
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
@@ -137,6 +151,7 @@ export default function DumpingDashboard() {
 
   // 좌상단 마크 클릭 → 첫 화면 상태로 초기화
   const resetAll = () => {
+    cancelReveal()
     setTab("policy")
     setView({ ...DEFAULT_VIEW, tilt: isMd })
     setSelectedDong(null)
@@ -237,8 +252,9 @@ export default function DumpingDashboard() {
     if (curtainDone.current) return
     curtainDone.current = true
     setCurtain("out")
+    curtainTimer.current = window.setTimeout(() => setCurtain("off"), 650)
+    if (revealCancelled.current) return
     const t = revealTimers.current
-    t.push(window.setTimeout(() => setCurtain("off"), 650))
     t.push(window.setTimeout(() => setView((v) => (v.base === "none" && v.circles.length === 0 ? { ...v, base: DEFAULT_VIEW.base } : v)), 800))
     t.push(window.setTimeout(() => setView((v) => (v.base === DEFAULT_VIEW.base && v.circles.length === 0 ? { ...v, circles: DEFAULT_VIEW.circles } : v)), 1800))
   }, [])
@@ -250,11 +266,19 @@ export default function DumpingDashboard() {
     const t = window.setTimeout(dismissCurtain, 25000)
     return () => window.clearTimeout(t)
   }, [auth, dismissCurtain])
-  useEffect(() => () => revealTimers.current.forEach((t) => window.clearTimeout(t)), [])
+  // 내려갈 때는 타이머만 지운다. 취소 플래그를 세우면 StrictMode 이중 마운트(개발)에서 결론 등장이 영영 안 일어났다
+  useEffect(
+    () => () => {
+      clearRevealTimers()
+      if (curtainTimer.current != null) window.clearTimeout(curtainTimer.current)
+    },
+    [clearRevealTimers],
+  )
 
   // 자동 회전 중 지도를 만지면 회전을 끈다(지도가 부른다). 다른 상태는 건드리지 않는다. 로그인 게이트 분기보다 위(훅 순서)
   const stopOrbit = useCallback(() => setView((v) => (v.orbit || v.fly ? { ...v, orbit: false, fly: false } : v)), [])
   const applyViz = useCallback((viz: VizAction) => {
+    cancelReveal()
     setView((v) => ({
       ...v,
       ...(viz.mode ? MODE_MAP[viz.mode] : {}),
@@ -272,7 +296,7 @@ export default function DumpingDashboard() {
     // 그래서 viz가 동을 명시하지 않으면 선택을 해제하고 구 전체 뷰로 복귀
     setSelectedDong(viz.dong !== undefined ? viz.dong : null)
     setMapCollapsed(false) // 지도를 바꾸라는 뜻이니 모바일에서 접혀 있던 지도를 편다
-  }, [])
+  }, [cancelReveal])
 
   // 답변·칩이 지도를 바꾸면 이전 "반영 중" 배지는 사실이 아니다
   const applyVizFromQa = useCallback(
@@ -410,7 +434,7 @@ export default function DumpingDashboard() {
       },
       {
         title: "정책 제안",
-        caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 현 위치와 발생이력으로 뽑은 재배치 후보 ${mapData.cctvCandidates.length}곳을 1위부터 찾아갑니다.` : "정책 제안 6건",
+        caption: cctv ? `${cctv.node.label.split("(")[0].trim()} · 현 위치와 발생이력으로 고른 재배치 후보 ${mapData.cctvCandidates.length}곳을 1위부터 찾아갑니다.` : "정책 제안 6건",
         note: "핀 숫자는 후보 순위(발생이력 순, 자원배분 논리 · 상위 3 벽돌색·바닥 고리, 나머지 앰버) · 회색 진할수록 기록 많은 칸 · 보라 카메라는 이동식 CCTV 현 위치 · 효과는 조치 대장에 등록한 시범으로 판정",
         apply: () => {
           setTab("policy")
@@ -426,6 +450,7 @@ export default function DumpingDashboard() {
 
   useEffect(() => {
     if (demo === null || !scenes[demo]) return
+    cancelReveal()
     for (const t of demoTimers.current) window.clearTimeout(t)
     demoTimers.current = []
     scenes[demo].apply()
@@ -466,6 +491,7 @@ export default function DumpingDashboard() {
       } else if (e.key === "Escape") {
         setDemo(null)
         setView((v) => ({ ...v, fly: false, orbit: false }))
+        setPadSeq((n) => n + 1)
       } else if (e.key === "h" || e.key === "H" || e.key === "ㅎ") {
         e.preventDefault()
         toggleCard()
@@ -486,6 +512,7 @@ export default function DumpingDashboard() {
     setDemo(null)
     setCameraCue(null)
     setView((v) => ({ ...v, fly: false, orbit: false }))
+    setPadSeq((n) => n + 1) // 캡션 카드가 걷힌 만큼 보이는 영역 가운데로
   }
 
   if (auth !== "open") {
@@ -506,6 +533,7 @@ export default function DumpingDashboard() {
       ? { label: activeFinding.title, onClear: clearApplied }
       : null
   const onLayerChange = (next: MapView) => {
+    cancelReveal()
     setView(next)
     clearActive()
     setMapCollapsed(false)
@@ -516,8 +544,9 @@ export default function DumpingDashboard() {
   const sideW = side.width ?? 440
   const hideCard = demo !== null && cardHidden // 시연 중에만. xl 미만에선 시연 자체가 없다
   const leftEdge = hideCard ? "16px" : "calc(16px + var(--dump-side-w, 440px) + 16px)" // 캡션 바·월별 띠의 왼쪽 끝
+  // 시연 중(xl)에는 월별 띠 위 캡션 카드(약 140px + 간격)도 지도를 가린다. 조망으로 물러날 때 구 남쪽(자양동)이 캡션 뒤에 숨었다(22라운드 캡처)
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
-    ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 : 24] }
+    ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 + (demo !== null ? DEMO_CAPTION_PAD : 0) : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
   const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} /> : null
@@ -598,7 +627,7 @@ export default function DumpingDashboard() {
             <p className="dump-kicker mt-4 text-[10.5px] text-[var(--cp-text-dim)]">클린광진 상황실 · 준비 중</p>
             <h2 className="mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-[var(--cp-text-strong)]">광진구 무단투기 100m 격자를 불러옵니다</h2>
             <ol className="mt-5 flex flex-col gap-2">
-              {["민원·과태료·격자 자료", "지도 바탕", "건물 24,520동 입체 결합", "시설·청소차 3D"].map((label, i) => {
+              {["민원·과태료·격자 자료", "지도 바탕", `건물 ${NSDI_BUILDING_COUNT.toLocaleString()}동 입체 결합`, "시설·청소차 3D"].map((label, i) => {
                 const st = ready[LOAD_STEPS[i]] ? "done" : loadStage === i ? "now" : "wait"
                 // 02(map load = 첫 화면 타일까지)·03(첫 idle)이 길다: 타일 도착 수를 같이 보인다. 실패한 타일은 도착에 섞지 않는다
                 const tail =
@@ -657,13 +686,16 @@ export default function DumpingDashboard() {
             </span>
           </button>
           <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
+            {/* 모바일은 390 한 줄에 제목이 남도록 레이어는 아이콘, "데이터·방법"은 "데이터", 글자 크기 버튼은 숨긴다(제목이 폭 0으로 사라졌다, 2026-09-23 실측) */}
             {rightPane === "map" && (
               <button
                 onClick={() => setLayersOpen((v) => !v)}
                 aria-expanded={layersOpen}
-                className={`dump-fl lg-shell relative rounded-full px-3.5 py-2 text-[13px] font-semibold md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
+                aria-label="지도 레이어"
+                title="지도 레이어"
+                className={`dump-fl lg-shell relative flex h-9 w-9 items-center justify-center rounded-full md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
               >
-                레이어
+                <Ico name="layers" size={17} />
               </button>
             )}
             {isXl && mapData && (
@@ -684,11 +716,14 @@ export default function DumpingDashboard() {
               onClick={() => openMethods("data")}
               className="dump-fl lg-shell group relative rounded-full px-3.5 py-2 text-[13px] font-semibold text-[var(--cp-text-strong)] transition-colors hover:text-(--dump-accent)"
             >
-              데이터·방법
+              <span className="md:hidden">데이터</span>
+              <span className="hidden md:inline">데이터·방법</span>
               <Ico name="arrow" size={13} className="ml-1 hidden transition-transform group-hover:translate-x-0.5 md:inline-block" />
             </button>
-            {/* 글자 크기(보통·크게·더 크게). 카드·레이어·범례·모달 콘텐츠를 zoom */}
-            <FontScaleButton compact={!isXl} />
+            {/* 글자 크기(보통·크게·더 크게). 카드·레이어·범례·모달 콘텐츠를 zoom. 모바일은 브라우저 확대로 */}
+            <div className="hidden md:block">
+              <FontScaleButton compact={!isXl} />
+            </div>
             {/* 유리 강도 다이얼 + 라이트·다크(sunlight-fund 유리 스위치·다이얼). 지도 바탕도 같이 바뀐다 */}
             {isMd && <GlassDial compact={!isXl} />}
             <ThemeSwitch compact={!isXl} />
@@ -919,7 +954,7 @@ export default function DumpingDashboard() {
 
       {/* 모바일 레이어 덮개: 레이어 패널 · 범례 · 후보 목록 */}
       {rightPane === "map" && layersOpen && (
-        <div className="dump-fl lg-shell absolute inset-x-3 top-[104px] z-[1150] flex max-h-[calc(100%-120px)] flex-col overflow-hidden rounded-2xl md:hidden">
+        <div className="dump-fl lg-shell dump-overlay-solid absolute inset-x-3 top-[104px] z-[1150] flex max-h-[calc(100%-120px)] flex-col overflow-hidden rounded-2xl md:hidden">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--cp-border)] px-3 py-2">
             <span className="text-[13.5px] font-bold text-[var(--cp-text-strong)]">지도 레이어</span>
             <button onClick={() => setLayersOpen(false)} aria-label="닫기" className="rounded-full px-2 py-0.5 text-[14px] text-[var(--cp-text-dim)]">

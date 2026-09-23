@@ -163,9 +163,9 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
           {[
             { k: "적중률", v: `${bt.avgPrecision20}%`, s: "20곳 중 다음 분기 기록" },
             { k: "포착률", v: `${bt.avgCapture20}%`, s: `무작위 기대 ${bt.avgRandomCapture}%` },
-            // 단순 집계(누적·최근 90일·반감기 동일가중) 3종으로 뽑아도 같은 수준이라는 고지. 범위 하나로 보인다
+            // 단순 집계(누적·최근 90일·반감기 동일가중) 3종으로 골라도 같은 수준이라는 고지. 범위 하나로 보인다
             {
-              k: "단순 집계로 뽑아도",
+              k: "단순 집계로 골라도",
               v: (() => {
                 const vs = Object.values(bt.baselines ?? {}).map((b) => b.avgCapture20).filter((x): x is number => typeof x === "number")
                 return vs.length ? `${Math.min(...vs)}~${Math.max(...vs)}%` : "미산출"
@@ -180,7 +180,7 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
             </div>
           ))}
         </div>
-        <p className="mb-1.5 text-[12.5px] text-[var(--cp-text-faint)]">지난 {bt.windows.length}개 분기마다 그 시점으로 돌아가 뽑은 20곳을 채점한 값입니다.</p>
+        <p className="mb-1.5 text-[12.5px] text-[var(--cp-text-faint)]">지난 {bt.windows.length}개 분기마다 그 시점까지의 기록만으로 고른 20곳을 채점한 값입니다.</p>
         <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--cp-border)] bg-[var(--cp-panel)]">
           {d.hotspots.top.map((h, i) => (
             <button
@@ -213,7 +213,8 @@ export default function OpsPanel({ data, interventions, onFocus, showCritical, o
                 </span>
                 {/* 12라운드: 왜 이 칸인가. 최근 90일 vs 이전 90일, 12개월 누계, 마지막 기록. 한 줄 안에 */}
                 <span className="block text-[12.5px] text-[var(--cp-text-faint)]">
-                  최근 90일 {h[9]}건{h[9] > h[10] ? "↑" : h[9] < h[10] ? "↓" : "="}이전 {h[10]}건 · 12개월 {h[8]}건{h[11] >= 0 ? ` · 마지막 ${h[11]}일 전` : ""}
+                  {/* 22라운드: "15건=이전 15건"의 등호·붙은 화살을 괄호 비교로. 늘거나 줄었을 때만 ↑↓ */}
+                  최근 90일 {h[9]}건{h[9] > h[10] ? "↑" : h[9] < h[10] ? "↓" : ""}(이전 {h[10]}건) · 12개월 {h[8]}건{h[11] >= 0 ? ` · 마지막 ${h[11]}일 전` : ""}
                 </span>
               </span>
             </button>

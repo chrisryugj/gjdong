@@ -10,18 +10,23 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash"
+// 2026-09-23 속도(22라운드): 3.6-flash 기본 사고는 사고 2,222토큰에 첫 글자 중앙 12.9초·최대 22초였다("답이 15초씩 걸린다").
+// 3.8-flash low는 사고 0토큰으로 첫 글자 중앙 1.8초·완료 2.2초. 평가셋 게이트 33/33·형식 이상 0(3회 반복, 아래 리마인더와 함께)
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 const MAX_QUESTION = 500
 const MAX_HISTORY = 8 // user+model 합산 턴 수 상한
 const UPSTREAM_TIMEOUT_MS = 55_000
-// 13라운드 속도. thinking 수준은 env로(비우면 모델 기본). 실측(2026-09-16, 프롬프트 3.3만 토큰): 기본 첫 토큰 10.5s(사고 1,652토큰) ·
-// low 6.2s(813) · minimal 2.4s(0). 평가셋 11문항 게이트로 품질을 확인한 값만 기본으로 둔다
-const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL ?? ""
+// thinking 수준은 env로 바꾼다(빈 문자열이면 모델 기본). 13라운드 실측(3.6-flash): 기본 10.5s · low 6.2s · minimal 2.4s
+const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL ?? "low"
 // 시스템 프롬프트(고정, 3.3만 토큰)는 Gemini 컨텍스트 캐시에 올려 두고 이름만 보낸다. 입력 토큰 과금과 프리필이 준다.
 // 인스턴스마다 만들지 않도록 displayName(프롬프트 해시)으로 기존 캐시를 찾아 재사용. 실패하면 인라인으로 보낸다(기능 손실 없음)
 const CACHE_TTL_S = 3600
 const FORMAT_REMINDER =
   "(답 형식을 다시 확인: 1부는 존댓말 평문 3~4문장, 각 문장 55자 이하, 전체 100~140자, 첫 문장이 결론. 그다음 줄에 [부연]. 2부는 \"- 수치: \", \"- 근거: \", \"- 한계: \"(정책 질문이면 \"- 다음 행동: \") 불릿, 각 45자 이하.)"
+// 22라운드: 사고를 low로 줄이자 긴 프롬프트의 내용 규칙이 샜다(결정 질문 4/4에 "0원", 인구 질문에 생활인구 누락, 상습격자 1위를 "예측 핫스팟 1위"로).
+// 가장 잘 새는 규칙만 형식 리마인더 뒤에 다시 적는다. 정본은 buildSystemPrompt 해석 규칙(3·14번과 비용·세 목록 절)
+const CONTENT_REMINDER =
+  "(내용 규칙도 다시 확인: 연관을 원인으로 단정하지 않는다. 비용은 '추가 예산 없음'·'저비용'·'예산 필요'로만 말하고 '0원'·'무예산'은 쓰지 않는다. 인구를 물으면 생활인구·상주인구를 이름 그대로 말하고 '통제했다'고 쓰지 않는다. 재배치 후보·예측 핫스팟·집중관리 상습격자는 서로 다른 목록이라 이름을 섞지 않는다.)"
 let cacheState: { name: string; expiresAt: number; hash: string } | null = null
 
 async function cachedPromptName(apiKey: string, sys: string): Promise<string | null> {
@@ -102,7 +107,7 @@ export async function POST(request: NextRequest) {
   // 규칙은 시스템 프롬프트 앞쪽에 있어 긴 프롬프트 끝에서 잊힌다. 질문 뒤에 짧은 형식 리마인더를 붙여 마지막에 다시 읽게 한다(화면엔 안 보임)
   const contents = [
     ...history.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
-    { role: "user", parts: [{ text: `${question}\n\n${FORMAT_REMINDER}` }] },
+    { role: "user", parts: [{ text: `${question}\n\n${FORMAT_REMINDER} ${CONTENT_REMINDER}` }] },
   ]
 
   // 클라이언트가 중단하면 Gemini 호출도 같이 끊는다 — 화면에서 중단해도 토큰 과금이 이어지지 않게

@@ -20,18 +20,26 @@ export type WakeStep =
   | { kind: "hear"; heard: string } // awake 상태의 중간 결과
   | { kind: "hold" } // awake 유지. 호출어만 부른 구간의 최종 결과
   | { kind: "submit"; text: string }
+  | { kind: "stop" } // "지니야 그만"처럼 멈춤 말. 질문으로 보내지 않고 읽기만 멈추고 대기로
 
 const strip = (s: string) => s.replace(/^[\s,.!?]+/, "").trim()
+// 22라운드: "지니야 그만"의 "그만"(2자)이 질문으로 제출돼 새 답을 만들고 다시 읽었다(코드리뷰). 이 말들만 오면 멈춤
+const STOP_RE = /^(그만|멈춰|정지|조용|됐어|스톱)(해|해요|하세요|요|해줘|해 줘)?[\s.!?]*$/
+// 마지막 호출어 뒤의 말. 읽는 도중 끼어들면 스피커에서 되받은 앞말("…앱 신고 지니야 어디가 제일 많아")이 같은 구간에 붙어 온다(22라운드 코드리뷰)
+function afterLastWake(text: string): string | null {
+  let last: RegExpExecArray | null = null
+  for (const m of text.matchAll(new RegExp(WAKE_RE.source, "g"))) last = m as RegExpExecArray
+  return last ? strip(text.slice((last.index ?? 0) + last[0].length)) : null
+}
 
 export function wakeStep(state: WakeState, text: string, isFinal: boolean): WakeStep {
   if (state !== "awake") {
-    const m = WAKE_RE.exec(text)
-    if (!m) return { kind: "ignore" }
-    const rest = strip(text.slice(m.index + m[0].length))
-    if (isFinal) return rest.length >= MIN_QUESTION ? { kind: "submit", text: rest } : { kind: "wake", heard: "" }
+    const rest = afterLastWake(text)
+    if (rest === null) return { kind: "ignore" }
+    if (isFinal) return STOP_RE.test(rest) ? { kind: "stop" } : rest.length >= MIN_QUESTION ? { kind: "submit", text: rest } : { kind: "wake", heard: "" }
     return { kind: "wake", heard: rest }
   }
-  const q = strip(text.replace(WAKE_RE, ""))
-  if (isFinal) return q.length >= MIN_QUESTION ? { kind: "submit", text: q } : { kind: "hold" }
+  const q = afterLastWake(text) ?? strip(text)
+  if (isFinal) return STOP_RE.test(q) ? { kind: "stop" } : q.length >= MIN_QUESTION ? { kind: "submit", text: q } : { kind: "hold" }
   return { kind: "hear", heard: q }
 }

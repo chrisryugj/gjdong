@@ -177,7 +177,8 @@ test("제안 카드의 기대효과는 6건 모두 있고 '사업'이라 부르�
 // 규칙: 줄표·꺾쇠 화살·말줄임표·"수 있습니다"(번역투)·등호 범례체·프로즈 화살표(낱말 → 낱말. 숫자 전후 표기 "2024→2025"와 ←→ 키 안내는 표기라 허용)·반말 종결
 // (대비 보드의 "기존 해석" 인용문은 통념을 그대로 옮긴 것이라 제외)·12px 미만 글자(키커·SVG 축 글자 제외)·세로 색선(border-l/r. 면 틴트로 대신한다) 0
 const SRC_FILES = readdirSync(new URL("../components/dumping/", import.meta.url))
-  .filter((f) => /\.(tsx|ts)$/.test(f) && !/icons3d|digit-font|use-voice|liquid-glass|onto-layouts|onto-view|^map-geo\.ts$/.test(f))
+  // 22라운드: onto-layouts(그래프 배치 안내문)·map-geo(지도 툴팁·범례 문장)도 화면 문구라 넣었다. 빠져 있는 동안 "자료 → 증거 → …"·"순위 = …"가 남았다
+  .filter((f) => /\.(tsx|ts)$/.test(f) && !/icons3d|digit-font|use-voice|liquid-glass|onto-view/.test(f))
   .map((f) => `components/dumping/${f}`)
 const readSrc = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8")
 // 한글 문자열 리터럴 + JSX 본문 텍스트(태그 사이 글)를 뽑는다(코드 식별자·주석 제외)

@@ -458,7 +458,7 @@ export default function OntologyGraph({ graph, selectedId, onSelect }: OntologyG
         </button>
       </div>
       <div className="pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-4rem)] rounded bg-[var(--cp-overlay)] px-2 py-1 text-[13px] text-[var(--cp-text-dim)]">
-        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · {LAYOUTS.find((l) => l.id === layout)?.help}{" "}
+        지식 {graph.nodes.length}개 · 연결 {graph.edges.length}개 · {LAYOUTS.find((l) => l.id === layout)?.help}.{" "}
         {flat ? (
           <>
             <span className="pointer-coarse:hidden">드래그로 이동, 휠로 확대,</span>

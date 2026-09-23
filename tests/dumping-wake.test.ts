@@ -43,3 +43,17 @@ test("2026-09-22 감도 보강 변형(지니여·지니예·진희야·지니이
   assert.deepStrictEqual(wakeStep("idle", "지니이 민원 왜 늘었어", true), { kind: "submit", text: "민원 왜 늘었어" })
   assert.deepStrictEqual(wakeStep("idle", "사진이야", true), { kind: "ignore" })
 })
+
+test("22라운드: 읽는 도중 끼어들면 같은 구간에 붙은 되받은 앞말은 버리고 마지막 호출어 뒤만 질문으로 쓴다", () => {
+  assert.deepStrictEqual(wakeStep("awake", "앱 신고 창구에 지니야", true), { kind: "hold" })
+  assert.deepStrictEqual(wakeStep("awake", "민원 증가는 대부분 앱 신고 지니야 어디가 제일 많아", true), { kind: "submit", text: "어디가 제일 많아" })
+  assert.deepStrictEqual(wakeStep("awake", "순찰 적발은 지니야 상습", false), { kind: "hear", heard: "상습" })
+})
+
+test("22라운드: \"지니야 그만\"·\"멈춰\"는 질문이 아니라 멈춤이다", () => {
+  assert.deepStrictEqual(wakeStep("idle", "지니야 그만", true), { kind: "stop" })
+  assert.deepStrictEqual(wakeStep("awake", "그만해", true), { kind: "stop" })
+  assert.deepStrictEqual(wakeStep("awake", "멈춰요.", true), { kind: "stop" })
+  // "그만"으로 시작하는 질문은 질문이다
+  assert.deepStrictEqual(wakeStep("awake", "그만 늘어나게 하려면 뭘 해야 해", true), { kind: "submit", text: "그만 늘어나게 하려면 뭘 해야 해" })
+})

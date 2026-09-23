@@ -15,7 +15,9 @@ const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview"
 const TTS_VOICE = process.env.GEMINI_TTS_VOICE || "Kore"
 const MAX_TEXT = 400
 const UPSTREAM_TIMEOUT_MS = 25_000
-const STYLE = "차분하고 또렷한 보고 톤으로, 자연스러운 한국어로 읽어라. 숫자는 한국어로 읽는다: "
+// 22라운드(2026-09-23, "읽어 주는 것도 빨랐으면"): "차분하고"가 말을 늘어지게 했다. 같은 두 문장 실측 4.3~5.0음절/초 → "조금 빠른 속도로" 5.5~6.3음절/초
+// (9.6초 분량이 6.6초), 첫 소리 1.1초 → 0.8초. 생성이 재생보다 두 배 빨라 문장 안에서 끊기지 않는다. 재생 속도(playbackRate)로 올리면 음높이가 같이 올라 안 쓴다
+const STYLE = "또렷한 보고 톤으로, 평소보다 조금 빠른 속도로 자연스럽게 읽어라. 숫자는 한국어로 읽는다: "
 
 export async function POST(request: NextRequest) {
   if (!verifyRequest(request)) {

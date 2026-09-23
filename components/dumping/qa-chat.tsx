@@ -104,6 +104,8 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
   const abortRef = useRef<AbortController | null>(null)
   const voiceOnRef = useRef(voiceOn)
   voiceOnRef.current = voiceOn
+  // 호출어로 끼어들거나 "지니야 그만"이면 지금 받는 답의 남은 문장을 읽기 큐에 다시 넣지 않는다(끊었는데 다음 문장이 이어 읽히던 것, 22라운드 코드리뷰)
+  const silencedRef = useRef(false)
 
   const speaker = useSpeaker()
   const mic = useSpeechInput((text) => {
@@ -122,7 +124,10 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
       void askFree(text, true)
     },
     speaker.speaking,
-    speaker.stop,
+    () => {
+      silencedRef.current = true
+      speaker.stop()
+    },
   )
   const wakeOn = wake.state !== "off"
   const listening = mic.listening || wake.state === "awake"
@@ -279,8 +284,9 @@ export default function QaChat({ onAuthExpired, onViz, data, graph }: QaChatProp
     let acc = ""
     let spokenIdx = 0
     let spokenDone = !speakThis
+    silencedRef.current = false
     const speakProgress = (final: boolean) => {
-      if (spokenDone) return
+      if (spokenDone || silencedRef.current) return
       const parts = splitAnswer(acc)
       const base = parts.split ? parts.spoken : acc.trimStart()
       const [sentences, consumed] = completeSentences(base.slice(spokenIdx) + (parts.split || final ? " " : ""))

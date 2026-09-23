@@ -14,6 +14,9 @@ export const HILLSHADE_LAYER = "dump-hillshade"
 // 국가공간정보포털 GIS건물통합정보(광진구) 타일. scripts/dumping-buildings.mjs로 만든 buildings.pmtiles가 public에 있으면 true로.
 // 구 안 건물은 이 소스(전수·층수·높이)로, OSM 건물은 구 밖만 그린다(dumping-map declareLayers)
 export const HAS_NSDI_BUILDINGS = true
+// 그 타일의 건물 수(2026-09-09 빌드, 법정동 11215 = 광진구 전수). 로딩 커튼 "건물 N동 입체 결합" 문구. 타일을 다시 만들면 같이 고친다
+// (커튼이 건축물대장 동 수 24,520을 적고 있었다. 대장은 회귀 입력이고 입체 건물은 이 타일이다)
+export const NSDI_BUILDING_COUNT = 27_491
 export const NSDI_SOURCE = "dump-nsdi"
 // 추출 범위. 그 밖은 타일이 없어 빈 바탕이라 카메라를 안에 가둔다
 export const BASEMAP_BOUNDS: [[number, number], [number, number]] = [

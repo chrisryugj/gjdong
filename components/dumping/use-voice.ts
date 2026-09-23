@@ -423,11 +423,18 @@ export function useWakeWord(onQuestion: (text: string) => void, muted: boolean, 
         }
         if (step.kind === "ignore") continue
         if (mutedRef.current) {
-          // 읽는 동안: 스피커 소리를 되받은 말은 버리고, 호출어(대기 상태에서 wake·submit)만 끼어들기로 받는다
-          if (stateRef.current === "awake" || (step.kind !== "wake" && step.kind !== "submit")) continue
+          // 읽는 동안: 스피커 소리를 되받은 말은 버리고, 호출어(대기 상태에서 wake·submit·stop)만 끼어들기로 받는다
+          if (stateRef.current === "awake" || (step.kind !== "wake" && step.kind !== "submit" && step.kind !== "stop")) continue
           onWakeRef.current?.()
         }
-        if (step.kind === "wake") {
+        if (step.kind === "stop") {
+          // "지니야 그만": 읽기는 onWake가 이미 멈췄다(끼어들기). 질문으로 보내지 않고 대기로
+          if (awakeTimer.current != null) window.clearTimeout(awakeTimer.current)
+          setSt("idle")
+          setHeard("")
+          onWakeRef.current?.()
+          refresh()
+        } else if (step.kind === "wake") {
           if (ctxRef.current) chime(ctxRef.current)
           setSt("awake")
           setHeard(step.heard)

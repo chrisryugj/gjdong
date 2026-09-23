@@ -1257,6 +1257,9 @@
 @media (max-width: 767px) {
   .dump-page .lg-inner, .lg-on .dump-page .lg-inner { background: rgba(251, 249, 243, 0.94); }
   :root[data-theme="dark"] .dump-page .lg-inner, :root[data-theme="dark"].lg-on .dump-page .lg-inner { background: rgba(18, 25, 30, 0.94); }
+  /* 22라운드: 레이어 덮개는 시트 글 위에 뜬다. 0.56이라 아래 결론 문장이 목록 사이로 겹쳐 읽혔다 */
+  .dump-page .dump-overlay-solid, .lg-on .dump-page .lg-shell.dump-overlay-solid { background: rgba(251, 249, 243, 0.97); }
+  :root[data-theme="dark"] .dump-page .dump-overlay-solid, :root[data-theme="dark"].lg-on .dump-page .lg-shell.dump-overlay-solid { background: rgba(18, 25, 30, 0.97); }
 }
 /* 로딩 커튼(19라운드): 지도 영역만 종이로 덮는 준비 화면. 단계 4개 + 헤어라인 진행선. 걷힐 때 0.6초 페이드 */
 .dump-page .dump-curtain {
@@ -1419,4 +1422,7 @@
    문구가 전부 px라 zoom이 가장 덜 깨진다. 지도·상단 띠는 제외 */
 :root[data-fontscale="1.15"] { --dump-ui-zoom: 1.15; }
 :root[data-fontscale="1.3"] { --dump-ui-zoom: 1.3; }
-.dump-page .dump-zoom { zoom: var(--dump-ui-zoom, 1); }
+/* 22라운드: 데스크톱만(모바일은 버튼을 숨겼고 저장값만 남아 되돌릴 길이 없었다), 인쇄 제외(동 브리핑 한 장이 두 장으로 넘쳤다) */
+@media screen and (min-width: 768px) {
+  .dump-page .dump-zoom { zoom: var(--dump-ui-zoom, 1); }
+}

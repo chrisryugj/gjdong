@@ -135,6 +135,7 @@ interface KindState {
   pos: { x: number; z: number; y: number }[] // 원점 기준 미터. y는 지형 고도
   meshes: THREE.InstancedMesh[]
   coins: THREE.Group[] // 순위 입체 숫자(기둥·핀 꼭대기, 카메라 방위를 따라 선다)
+  order: number[] // 점마다 숫자 우선순위(0이 먼저). 순위는 작은 순, 상습격자 건수는 큰 순. 조망에서는 앞 DIGIT_TOP_N개만 선다
   rings: THREE.Mesh[] // 후보 상위 3의 바닥 고리(앰버, 땅 위). 순위 강조
   appearAt: number
   elevated: boolean // 지형 고도를 한 번이라도 받았나
@@ -191,6 +192,14 @@ function makeDigit(text: string, color: string, halo: string): THREE.Group {
 }
 const DONG_DIGIT_M = 78 // 동별 기둥 숫자 높이(m). 기둥 한 변 96m 안에 든다
 const DIGIT_MIN_PX = 22 // 조망에서 읽히는 최소 높이(px). 기둥 폭(10px)보다 크면 폭만큼 바깥으로 비킨다
+// 조망 숫자 정리(2026-09-23 캡처: 운영 탭·재배치 후보·시연 3·5장면에서 20~50개 숫자가 서로 뭉개져 안 읽혔다).
+// 줌 14.3 아래에서는 종류마다 상위 5곳만 숫자를 세우고(드론이 찾아가는 5곳과 같다), 확대하면 전부. 기둥·핀은 그대로 둔다.
+// 매 프레임 화면 충돌 회피는 회전·드론 중에 숫자가 들락거린다(/snow 5라운드 라벨 깜박임) → 줌 문턱 하나 + 히스테리시스
+const DIGIT_TOP_N = 5
+const DIGIT_ALL_ZOOM = 14.3
+const DIGIT_ALL_HYST = 0.15
+// 예측 핫스팟과 같은 칸(60m 안)의 상습격자 건수는 세우지 않는다. 같은 자리에 순위·건수 두 숫자가 겹쳤다(21라운드 "숫자 중복")
+const DIGIT_SAME_M = 60
 
 export class Icons3DLayer implements CustomLayerInterface {
   id = "dump-icons3d"
@@ -205,6 +214,7 @@ export class Icons3DLayer implements CustomLayerInterface {
   private kinds = new Map<IconKind, KindState>()
   private lastZoom = -1
   private lastTick = 0
+  private digitsAll = false // 확대해서 숫자를 전부 세우는 중(줌 문턱 히스테리시스)
   private trucks: Truck[] = []
   private truckMeshes: THREE.InstancedMesh[] = []
   private accent = "#c0741a"
@@ -306,7 +316,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     if (!defs || !map) {
       // 아직 지도에 안 붙었으면 점만 기억해 둔다
       const prev = this.kinds.get(kind)
-      this.kinds.set(kind, { points, pos: [], meshes: prev?.meshes ?? [], coins: prev?.coins ?? [], rings: prev?.rings ?? [], appearAt: 0, elevated: false })
+      this.kinds.set(kind, { points, pos: [], meshes: prev?.meshes ?? [], coins: prev?.coins ?? [], order: prev?.order ?? [], rings: prev?.rings ?? [], appearAt: 0, elevated: false })
       return
     }
     const prev = this.kinds.get(kind)
@@ -319,7 +329,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       for (const r of prev.rings) this.scene.remove(r)
     }
     if (!points.length) {
-      this.kinds.set(kind, { points: [], pos: [], meshes: [], coins: [], rings: [], appearAt: 0, elevated: true })
+      this.kinds.set(kind, { points: [], pos: [], meshes: [], coins: [], order: [], rings: [], appearAt: 0, elevated: true })
       map.triggerRepaint()
       return
     }
@@ -352,7 +362,11 @@ export class Icons3DLayer implements CustomLayerInterface {
         }
       })
     }
-    this.kinds.set(kind, { points, pos, meshes, coins, rings, appearAt: animate ? performance.now() : 0, elevated: false })
+    // 숫자 우선순위: 상습격자는 건수가 큰 순, 나머지(순위)는 작은 순
+    const byValue = points.map((p, i) => ({ i, v: p.rank ?? i + 1 })).sort((a, b) => (kind === "critCount" ? b.v - a.v : a.v - b.v))
+    const order: number[] = []
+    byValue.forEach((e, k) => (order[e.i] = k))
+    this.kinds.set(kind, { points, pos, meshes, coins, order, rings, appearAt: animate ? performance.now() : 0, elevated: false })
     this.lastZoom = -1
     map.triggerRepaint()
   }
@@ -366,6 +380,9 @@ export class Icons3DLayer implements CustomLayerInterface {
     const mpp = metersPerPixel(zoom)
     // 숫자는 카메라 방위를 따라 선다. 모델 행렬이 x를 뒤집어(getMatrixForModel scale -x) 부호가 반대: rotation.y = -bearing(방위 90·-18 실측)
     const face = (-map.getBearing() * Math.PI) / 180
+    // 조망이면 종류마다 상위 DIGIT_TOP_N개 숫자만. 문턱 근처에서 줌이 흔들려도 들락거리지 않게 히스테리시스
+    this.digitsAll = zoom >= DIGIT_ALL_ZOOM - (this.digitsAll ? DIGIT_ALL_HYST : 0)
+    const hotPos = this.kinds.get("hotRank")?.pos ?? []
     let animating = false
     const tmp = new THREE.Matrix4()
     const sc = new THREE.Matrix4()
@@ -417,6 +434,14 @@ export class Icons3DLayer implements CustomLayerInterface {
         coin.position.set(p.x + dx, p.y + (pt.h ?? 12.4 * k * a), p.z)
         coin.scale.set(hgt, hgt, hgt)
         coin.rotation.y = face
+        // 동별 1~3위는 늘 선다. 나머지는 조망에서 상위 N개만. 상습격자 건수는 핫스팟 순위가 같이 서 있으면(운영 탭) 조망에서는 숫자를 핫스팟에 양보하고,
+        // 확대해도 핫스팟과 같은 칸이면 뺀다(순위·건수 두 숫자가 한 자리에 겹쳤다)
+        coin.visible =
+          kind === "dongRank" ||
+          (kind === "critCount"
+            ? (this.digitsAll || (hotPos.length === 0 && (st.order[i] ?? 0) < DIGIT_TOP_N)) &&
+              !hotPos.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < DIGIT_SAME_M)
+            : this.digitsAll || (st.order[i] ?? 0) < DIGIT_TOP_N)
       })
       if (!appearing) st.appearAt = 0
     }

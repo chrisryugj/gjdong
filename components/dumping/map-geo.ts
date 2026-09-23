@@ -204,7 +204,7 @@ export function hotspotTooltip(rank: number, h: HotspotRow): string {
       { label: "최근 90일", value: h[9], unit: "건", sub: `이전 90일 ${h[10]}건` },
       { label: "12개월", value: h[8], unit: "건", sub: h[11] >= 0 ? `마지막 기록 ${h[11]}일 전` : undefined },
     ],
-    note: "순위 = 최근 기록일수록 크게(90일마다 절반) 더한 점수",
+    note: "순위는 최근 기록일수록 크게(90일마다 절반) 더한 점수",
   })
 }
 

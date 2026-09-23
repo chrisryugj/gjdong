@@ -261,11 +261,11 @@ export function buildFindings(data: DumpingMapData, graph: OntoGraph): Finding[]
       title: "다음 분기 핫스팟은 미리 알 수 있지만, 단순 빈도표와 동급입니다",
       body: `최근성을 가중한 점수 상위 20개 격자를 지난 ${bt.windows.length}개 분기로 검증해 보면 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기에 민원·과태료 기록이 있었습니다. 무작위보다 포착률이 높지만(${bt.avgCapture20 ?? "미산출"}% vs ${bt.avgRandomCapture ?? "미산출"}%), 담당자가 원래 쓰던 누적 빈도 목록과는 동급입니다.`,
       detail: [
-        `${data.decision.hotspots.method}으로 격자에 순위를 매긴 뒤, ${bt.windows.length}개 분기 시점마다 상위 20곳을 뽑아 이후 90일의 민원·과태료 기록과 대조했습니다.`,
+        `${data.decision.hotspots.method}으로 격자에 순위를 매긴 뒤, ${bt.windows.length}개 분기 시점마다 상위 20곳을 골라 이후 90일의 민원·과태료 기록과 대조했습니다.`,
         `상위 20곳 가운데 평균 ${bt.avgPrecision20 ?? "미산출"}%에서 다음 분기 기록이 있었습니다. 구 전체 기록의 ${bt.avgCapture20 ?? "미산출"}%가 이 20곳 안에서 일어났습니다(무작위로 20곳을 고르면 ${bt.avgRandomCapture ?? "미산출"}%). 같은 자리에서 반복되는 성질(재발률 ${recur}%)이 강해 복잡한 모형 없이도 예측이 성립합니다.`,
         ...(bt.baselines
           ? [
-              `같은 창·같은 20곳으로 실무 기준모형을 평가하면 ${Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(", ")}입니다. 최근성 가중 점수는 이 목록들과 동급이며 우열은 확정하지 않습니다. 이번 분석의 가치는 점수식의 정교함이 아니라 매 분기 같은 규칙으로 뽑고 사후에 채점한다는 데 있습니다.`,
+              `같은 창·같은 20곳으로 실무 기준모형을 평가하면 ${Object.values(bt.baselines).map((b) => `${b.label} ${b.avgCapture20 ?? "미산출"}%`).join(", ")}입니다. 최근성 가중 점수는 이 목록들과 동급이며 우열은 확정하지 않습니다. 이번 분석의 가치는 점수식의 정교함이 아니라 매 분기 같은 규칙으로 고르고 사후에 채점한다는 데 있습니다.`,
             ]
           : []),
         "활용: 순찰·점검·재배치 대상을 고르는 자원 배분입니다. 인과를 예측하는 것이 아니므로 개입 효과 판정은 조치 대장의 사전등록 설계로만 합니다.",

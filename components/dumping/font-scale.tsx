@@ -45,8 +45,8 @@ export default function FontScaleButton({ compact = false }: { compact?: boolean
       }`}
     >
       <span aria-hidden className="leading-none">
-        <span className="text-[11px]">가</span>
-        <span className="text-[16px]">가</span>
+        <span className="text-[12px]">가</span>
+        <span className="text-[17px]">가</span>
       </span>
       {!compact && <span>{LABEL[scale]}</span>}
     </button>

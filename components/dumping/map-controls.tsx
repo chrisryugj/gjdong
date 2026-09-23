@@ -6,6 +6,7 @@ import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_C
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
+import { nbParen } from "@/lib/dumping/nobreak"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
 // 지도 모드 상수는 lib/dumping/labels.ts(순환 import 회피). 여기서는 다시 내보내기만
@@ -404,7 +405,7 @@ export function MapLegend({ data, view, selectedDong = null }: LegendProps) {
             ))}
           </span>
           <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
-            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ … ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
+            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+ ${def.unit}`}
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
@@ -512,7 +513,7 @@ export function CandidateList({ data, onFocusCandidate, onClose }: { data: Dumpi
       <div className="flex shrink-0 items-start gap-2 border-b border-[var(--cp-border)] py-2 pl-3 pr-2">
         <p className="min-w-0 flex-1 text-[13.5px] font-semibold text-[var(--cp-text-strong)]">
           이동식 CCTV 재배치 후보 {data.cctvCandidates.length}곳
-          <span className="block text-[12px] font-normal text-[var(--cp-text-dim)]">발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)</span>
+          <span className="block text-[12px] font-normal text-[var(--cp-text-dim)]">{nbParen("발생이력 순 · 자원배분 논리 (통계 효과 근거 아님)", 12)}</span>
         </p>
         {/* 18라운드 후속: 들어왔다가 나갈 길이 없었다(유저 실측). 목록 닫기 = 후보 레이어 끄기 */}
         <button onClick={onClose} aria-label="후보 목록 닫기" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] text-[var(--cp-text-dim)] hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]">
@@ -538,8 +539,14 @@ export function CandidateList({ data, onFocusCandidate, onClose }: { data: Dumpi
             </span>
             <span className="min-w-0">
               <span className="block truncate text-[13.5px] font-medium text-[var(--cp-text-strong)]">{c[5] || `${c[4]} (주소 없음)`}</span>
+              {/* 조각은 한 줄에(nowrap), " · "에서만 꺾인다. "전"이 줄 끝에 남고 "기간"이 홀로 떨어지던 것(2026-09-23 캡처, /snow Meta 규약) */}
               <span className="block text-[12.5px] text-[var(--cp-text-dim)]">
-                {c[4]} · 민원 {c[2]} · 과태료 {c[3]} · 전 기간
+                {[c[4], `민원 ${c[2]}`, `과태료 ${c[3]}`, "전 기간"].map((part, k) => (
+                  <span key={k}>
+                    {k > 0 && " · "}
+                    <span className="whitespace-nowrap">{part}</span>
+                  </span>
+                ))}
               </span>
             </span>
           </button>

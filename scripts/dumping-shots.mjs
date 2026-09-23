@@ -80,8 +80,10 @@ async function diffPct(a, b) {
   return (d / n) * 100
 }
 // 커튼이 걷힐 때까지(최대 30초). 걷힌 뒤 결론 등장(초록 0.8초·기둥 1.8초)까지 더 기다린다
+// 22라운드: 커튼은 대시보드 청크가 뜬 뒤에야 생긴다. 생기기 전엔 "커튼 없음"이 참이라 바로 통과해 프로덕션에서 01·00-after가 커튼째 찍혔다 → 먼저 생기길 기다린다
 async function settled(page) {
-  await page.waitForFunction(() => !document.querySelector(".dump-curtain") || document.querySelector(".dump-curtain.out"), null, { timeout: 30_000 }).catch(() => {})
+  await page.waitForSelector(".dump-curtain", { timeout: 30_000 }).catch(() => {})
+  await page.waitForFunction(() => !document.querySelector(".dump-curtain") || document.querySelector(".dump-curtain.out"), null, { timeout: 40_000 }).catch(() => {})
   await wait(3200)
 }
 
@@ -130,7 +132,8 @@ const SHOTS = [
     desc: "준비된 답 펼침(1부 문장별·2부 슬롯 칩)",
     run: async (page) => {
       await tab(page, "물어보기")
-      await page.locator("aside button").filter({ hasText: /무엇이|어디에|왜/ }).nth(1).click()
+      // 준비된 답 목록에서 닫혀 있는 첫 항목(첫째는 기본으로 펼쳐져 있다. 닫힌 항목 글에는 힌트가 붙어 "?"로 끝나지 않는다)
+      await page.locator('aside button[aria-expanded="false"]:visible').filter({ hasText: "?" }).first().click()
       await wait(1200)
     },
   },
@@ -213,7 +216,7 @@ const SHOTS = [
     desc: "모바일 레이어 덮개(범례)",
     viewport: MOBILE,
     run: async (page) => {
-      await page.locator('button:has-text("레이어")').first().click()
+      await page.locator('button[aria-label="지도 레이어"]').first().click()
       await wait(800)
     },
   },
