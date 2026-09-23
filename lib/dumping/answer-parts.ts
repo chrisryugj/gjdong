@@ -69,6 +69,7 @@ export function detailLines(detail: string): DetailLine[] {
 export function ttsClean(text: string): string {
   return text
     .replace(/\[부연\]/g, "")
+    .replace(/\u2060/g, "") // 줄바꿈 금지 문자(WORD JOINER, 시연 캡션 "63.1%"와 "였습니다" 사이)는 화면용
     .replace(/\([^)]*\)/g, "") // 괄호 풀이는 화면용. 읽으면 흐름이 끊긴다
     .replace(/p\s*<\s*0\.001/gi, "연관이 뚜렷함")
     .replace(/p\s*=\s*([\d.]+)/gi, "피값 $1")

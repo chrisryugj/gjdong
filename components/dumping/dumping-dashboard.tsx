@@ -421,8 +421,8 @@ export default function DumpingDashboard() {
       },
       {
         title: "다음 분기 예측",
-        // 22라운드 심사 냉독: "20곳의 63.1%는 12.6곳이라 정수가 아니다" → 분기 평균임을 캡션에서 밝힌다
-        caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 지난 ${bt.windows.length}개 분기 평균 ${bt.avgPrecision20 ?? "-"}%였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
+        // 22라운드 심사 냉독: "20곳의 63.1%는 12.6곳이라 정수가 아니다" → 분기 평균임을 캡션에서 밝힌다. "%"와 "였" 사이는 줄바꿈 금지(WORD JOINER, "63.1% / 였습니다"로 갈렸다)
+        caption: `예측 핫스팟 20곳 가운데 다음 분기에 실제 기록이 남은 비율은 지난 ${bt.windows.length}개 분기 평균 ${bt.avgPrecision20 ?? "-"}%\u2060였습니다. 상위 5곳을 드론으로 돌아봅니다.`,
         note: `지난 ${bt.windows.length}개 분기 되돌려 검증 · 무작위 포착 ${bt.avgRandomCapture ?? "-"}% 대비 ${bt.avgCapture20 ?? "-"}% · 기둥 높이는 예측 점수, 꼭대기 숫자는 순위(상위 3곳 진한 벽돌)`,
         apply: () => {
           setTab("ops")
