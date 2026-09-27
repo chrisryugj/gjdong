@@ -24,8 +24,11 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 
 
 def fetch(url: str) -> bytes:
+    # 구글 폰트 CSS·woff2 만 받는다 — file:// 등 다른 스킴·호스트는 거부
+    if not url.startswith(("https://fonts.googleapis.com/", "https://fonts.gstatic.com/")):
+        raise ValueError(f"허용되지 않은 URL: {url}")
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         return r.read()
 
 

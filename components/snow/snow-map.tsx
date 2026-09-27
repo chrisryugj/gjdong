@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import maplibregl, { type LngLatBoundsLike, type Map as MlMap, type PaddingOptions, type Popup as MlPopup } from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
+import type { LngLatBoundsLike, Map as MlMap, PaddingOptions, Popup as MlPopup } from "maplibre-gl"
 import { Protocol } from "pmtiles"
+import { tipNode } from "@/lib/dumping/tip-node"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { LayerId, SnowMapData } from "@/lib/snow/types"
 import type { WeatherFx } from "@/lib/snow/weather"
@@ -116,6 +118,8 @@ let protocolReady = false
 function ensureProtocol() {
   if (protocolReady) return
   maplibregl.addProtocol("pmtiles", new Protocol().tile)
+  // maplibre 6 ESM 워커는 번들러가 못 옮겨 public/ 에 복사해 둔 것을 가리킨다(scripts/copy-maplibre-worker.mjs)
+  maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
   protocolReady = true
 }
 const empty = (): GeoJSON.FeatureCollection => ({ type: "FeatureCollection", features: [] })
@@ -359,7 +363,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
         return
       }
       m.getCanvas().style.cursor = "default"
-      popup.setLngLat(e.lngLat).setHTML(String(hit.properties.tip)).addTo(m)
+      popup.setLngLat(e.lngLat).setDOMContent(tipNode(String(hit.properties.tip))).addTo(m)
     })
     map.on("mouseout", () => popup.remove())
     map.on("dragstart", () => popup.remove())
@@ -536,7 +540,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     map.setLayoutProperty(S.weakLabel, "text-anchor", ["get", tilt ? "anchorT" : "anchor"])
     map.setLayoutProperty(S.weakLabel, "text-radial-offset", ["get", tilt ? "roffT" : "roff"])
     // 예산 역산으로 신설되는 구간은 배지도 호박색(잉크 글자)
-    map.setPaintProperty(S.weakLabel, "text-halo-color", ownerView ? ownerColorExpr(dark) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), badgeColor(dark)] : badgeColor(dark))
+    map.setPaintProperty(S.weakLabel, "text-halo-color", ownerView ? (ownerColorExpr(dark) as maplibregl.ExpressionSpecification) : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], resColor("heat", dark), badgeColor(dark)] : badgeColor(dark))
     map.setPaintProperty(S.weakLabel, "text-color", ownerView ? ["case", ["==", ["get", "owner"], "시"], dark ? "#0b1216" : "#ffffff", "#ffffff"] : planned.length ? ["case", ["in", ["get", "id"], ["literal", planned]], "#0b1216", "#ffffff"] : "#ffffff")
     for (const id of [S.ice, S.iceCase]) vis(id, on("ice"))
     vis(S.iceEnds, on("ice") && !tilt)
@@ -690,7 +694,7 @@ export default function SnowMap({ data, layers, stageView, colMetric, selectedDo
     const step = (t: number) => {
       const m = mapRef.current
       if (!m) return
-      if (!m.isEasing()) m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
+      if (!m.isMoving()) m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
       last = t
       raf = requestAnimationFrame(step)
     }

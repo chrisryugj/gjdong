@@ -8,7 +8,8 @@ import * as THREE from "three"
 import { Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
 import digitFont from "./digit-font.json"
-import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput, type Map as MlMap } from "maplibre-gl"
+import * as maplibregl from "maplibre-gl"
+import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from "maplibre-gl"
 import { INFRA_STYLE, BIN_RECO_COLOR, CRIT_COLOR, type RouteChain } from "./map-geo"
 
 export type IconKind = "clothBins" | "cctvFixed" | "cctvMobile" | "recycling" | "bins" | "cand" | "binReco" | "dongRank" | "hotRank" | "critCount"
@@ -221,6 +222,13 @@ export class Icons3DLayer implements CustomLayerInterface {
   private dark = false
   private anchor = maplibregl.MercatorCoordinate.fromLngLat(ANCHOR, 0)
   private scale = this.anchor.meterInMercatorCoordinateUnits()
+  // 모델 원점 행렬: 원점 이동, Z 180도, X 90도, 미터 스케일(x 뒤집기). maplibre 5 내부 transform.getMatrixForModel(ANCHOR, 0) 과 같은 값인데
+  // 6 에서 map.transform 이 없어져 여기서 한 번 만든다. 메르카토르 전용(지도가 globe 를 쓰지 않는다)
+  private model = new THREE.Matrix4()
+    .makeTranslation(this.anchor.x, this.anchor.y, this.anchor.z)
+    .multiply(new THREE.Matrix4().makeRotationZ(Math.PI))
+    .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+    .multiply(new THREE.Matrix4().makeScale(-this.scale, this.scale, this.scale))
 
   constructor() {
     const hemi = new THREE.HemisphereLight(0xffffff, 0x8f8a7c, 1.1)
@@ -516,9 +524,8 @@ export class Icons3DLayer implements CustomLayerInterface {
     const map = this.map
     if (!map || !this.renderer || !this.visible) return
     const animating = this.updateMatrices(performance.now())
-    const model = (map as unknown as { transform: { getMatrixForModel: (l: [number, number], alt?: number) => Float64Array | number[] } }).transform.getMatrixForModel(ANCHOR, 0)
     const proj = new THREE.Matrix4().fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>))
-    this.camera.projectionMatrix = proj.multiply(new THREE.Matrix4().fromArray(Array.from(model)))
+    this.camera.projectionMatrix = proj.multiply(this.model)
     // 건물·기둥 깊이를 지우고 그린다(카메라가 움직일 때 4~13px 핀이 건물 뒤로 들락거리며 깜박이던 것. /snow 0ed2bdd와 같은 수리).
     // 핀·청소차는 마커처럼 늘 위, 핀끼리는 깊이 검사 유지. 이 층 뒤는 라벨(깊이 없음)뿐
     _gl.depthMask(true)

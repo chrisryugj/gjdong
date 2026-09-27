@@ -7,7 +7,7 @@ import path from "node:path"
 import zlib from "node:zlib"
 import { PMTiles } from "pmtiles"
 import { VectorTile } from "@mapbox/vector-tile"
-import Pbf from "pbf"
+import { PbfReader } from "pbf" // pbf 5(maplibre 6·vector-tile 3 이 끌어온 판): default 대신 PbfReader
 import { distM, GWANGJIN_BBOX } from "./snow-roads.mjs"
 
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..")
@@ -58,7 +58,7 @@ async function loadWater() {
       if (!t) continue
       let buf = Buffer.from(t.data)
       if (buf[0] === 0x1f) buf = zlib.gunzipSync(buf)
-      const vt = new VectorTile(new Pbf(buf))
+      const vt = new VectorTile(new PbfReader(buf))
       const L = vt.layers.water
       if (!L) continue
       const { lngW, lngE, latN, latS } = tileBounds(x, y, z)

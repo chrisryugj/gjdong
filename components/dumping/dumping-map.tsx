@@ -1,18 +1,20 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import maplibregl, {
-  type ExpressionSpecification,
-  type FilterSpecification,
-  type GeoJSONSource,
-  type LayerSpecification,
-  type LngLatBoundsLike,
-  type Map as MlMap,
-  type Marker as MlMarker,
-  type PaddingOptions,
-  type Popup as MlPopup,
+import * as maplibregl from "maplibre-gl"
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  GeoJSONSource,
+  LayerSpecification,
+  LngLatBoundsLike,
+  Map as MlMap,
+  Marker as MlMarker,
+  PaddingOptions,
+  Popup as MlPopup,
 } from "maplibre-gl"
 import { Protocol } from "pmtiles"
+import { tipNode } from "@/lib/dumping/tip-node"
 import type { IconKind, IconPoint, Icons3DLayer } from "./icons3d"
 import { tallyInfra } from "@/lib/dumping/facts"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -153,6 +155,8 @@ function ensureProtocol() {
   if (protocolReady) return
   const protocol = new Protocol()
   maplibregl.addProtocol("pmtiles", protocol.tile)
+  // maplibre 6 ESM 워커는 번들러가 못 옮겨 public/ 에 복사해 둔 것을 가리킨다(scripts/copy-maplibre-worker.mjs)
+  maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
   protocolReady = true
 }
 
@@ -337,9 +341,9 @@ export default function DumpingMap({
         onStageRef.current?.("icons")
       })
     })
-    // 스타일을 바꾸면(테마) 등록한 이미지가 사라진다. 없다고 할 때 다시 그린다
-    map.on("styleimagemissing", (e) => {
-      if (e.id === BIN_RECO_ICON && !map.hasImage(BIN_RECO_ICON)) map.addImage(BIN_RECO_ICON, dashedCircleIcon().data, { pixelRatio: 2 })
+    // 스타일을 바꾸면(테마) 등록한 이미지가 사라진다. 없다고 할 때 다시 그린다(maplibre 6 은 styleimagemissing 이 알림 전용이라 resolver 로)
+    map.setMissingStyleImageResolver((id) => {
+      if (id === BIN_RECO_ICON && !map.hasImage(BIN_RECO_ICON)) map.addImage(BIN_RECO_ICON, dashedCircleIcon().data, { pixelRatio: 2 })
     })
     // 건물 조인: 타일이 오면 보이는 건물마다 중심점이 든 칸의 값을 feature-state로 붙인다(한 번 붙인 id는 건너뜀)
     const joinBuildings = () => {
@@ -414,7 +418,7 @@ export default function DumpingMap({
       // 동별 기둥은 카드형 툴팁(.dump-bartip). 다른 것은 보통 한 장
       if (hit.properties.card) popup.addClassName("dump-bartip-wrap")
       else popup.removeClassName("dump-bartip-wrap")
-      popup.setLngLat(e.lngLat).setHTML(String(hit.properties.tip)).addTo(m)
+      popup.setLngLat(e.lngLat).setDOMContent(tipNode(String(hit.properties.tip))).addTo(m)
     })
     map.on("mouseout", () => popup.remove())
     map.on("dragstart", () => popup.remove())
@@ -493,7 +497,7 @@ export default function DumpingMap({
     // 인프라·후보·핫스팟·상습격자 레이어가 켜지면 격자를 자동으로 흐려 점이 확실히 보이게
     const muted = layers.length > 0 || showCandidates || showBinRecos || showHotspots || showCritical
     // 동을 골랐으면 그 동 안은 항상 또렷하게. 레이어 때문에 흐려지는 건 선택 없는 전체보기일 때만
-    const dimmed: unknown[] = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted]
+    const dimmed: ExpressionSpecification = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted]
     // 재배치 후보를 표시하는 동안은 바탕 램프를 회색 단계로: 근거(기록이 많은 칸)는 남기되 색은 앰버 핀·보라 카메라만 갖는다(2026-09-21 "색이 겹친다")
     const greyMode = showCandidates && !selectedDong && base !== "none"
     if (base === "none") {
@@ -504,14 +508,14 @@ export default function DumpingMap({
     } else {
       const def = BASE_DEF[base]
       const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
-      const positive: unknown[] = [">", ["get", prop], 0]
+      const positive: ExpressionSpecification = [">", ["get", prop], 0]
       // 값 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다(흐림 상태에선 숨김)
-      map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, greyMode ? greyRamp(themeRef.current, def.pal.length) : def.pal), ZERO_CELL])
+      map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, greyMode ? greyRamp(themeRef.current, def.pal.length) : def.pal) as ExpressionSpecification, ZERO_CELL])
       map.setPaintProperty(S.grid, "fill-opacity", ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]])
       map.setPaintProperty(L_GRID_LINE, "line-color", ["case", positive, "#ffffff", ZERO_CELL])
       map.setPaintProperty(L_GRID_LINE, "line-opacity", ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
     }
-    const dimPt: unknown[] = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted && !selectedDong]
+    const dimPt: ExpressionSpecification = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted && !selectedDong]
     // 날씨별 원이 켜져 있으면 보통 원 대신 그쪽만
     setFC(map, S.circles, weather ? emptyFC() : circlesFC(data, circles))
     map.setPaintProperty(S.circles, "circle-opacity", ["case", dimPt, 0.04, ["get", "fill"]])
@@ -532,16 +536,16 @@ export default function DumpingMap({
     const neutral = NEUTRAL_BUILDING[themeRef.current]
     // 재배치 후보가 서면 건물도 회색 단계(greyMode): 과태료 바탕(앰버·벽돌) 위에서 앰버 핀·숫자가 묻혔다(2026-09-21 사용자 지적 "색이 겹친다").
     // 근거(진할수록 기록 많음)는 남고 색은 앰버 핀·보라 카메라만. 바탕 없음이면 실사 대신 중립 회색
-    const dimB: unknown[] = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", showDongBars]
+    const dimB: ExpressionSpecification = selectedDong ? ["!=", ["feature-state", "dong"], selectedDong] : ["literal", showDongBars]
     if (map.getLayer(L_BUILDINGS_NSDI)) {
-      if (base === "none") map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", showCandidates && !selectedDong ? neutral : realBuildingExpr(themeRef.current))
+      if (base === "none") map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", showCandidates && !selectedDong ? neutral : (realBuildingExpr(themeRef.current) as ExpressionSpecification))
       else {
         const def = BASE_DEF[base]
         const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
-        const val: unknown[] = ["coalesce", ["feature-state", prop], 0]
+        const val: ExpressionSpecification = ["coalesce", ["feature-state", prop], 0]
         const pointsOn = layers.length > 0 || showBinRecos
         const pal = greyMode ? greyRamp(themeRef.current, def.pal.length) : pointsOn ? def.pal.map((c) => mixHex(c, neutral, 0.55)) : def.pal
-        map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val), neutral])
+        map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val) as ExpressionSpecification, neutral])
       }
     }
   }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme, showDongBars])
@@ -728,8 +732,8 @@ export default function DumpingMap({
     const step = (t: number) => {
       const m = mapRef.current
       if (!m) return
-      // 카메라 큐(easeTo)가 움직이는 동안은 기다린다. setBearing은 jumpTo라 진행 중인 이동을 끊는다
-      if (!m.isEasing()) m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
+      // 카메라 큐(easeTo)가 움직이는 동안은 기다린다. setBearing은 jumpTo라 진행 중인 이동을 끊는다(maplibre 6 은 isEasing 이 Map 에 없어 isMoving: 끌기 중에도 쉰다)
+      if (!m.isMoving()) m.setBearing(m.getBearing() + (t - last) * ORBIT_DEG_PER_MS)
       last = t
       raf = requestAnimationFrame(step)
     }

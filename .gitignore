@@ -44,6 +44,9 @@ out-data/
 out-data-jeju/
 .env*
 
+# maplibre-gl 6 워커: 빌드·dev 전에 node_modules 에서 복사 (scripts/copy-maplibre-worker.mjs)
+public/maplibre/
+
 # /dumping 격자 데이터 평문 — 공개 레포에는 .enc만 (scripts/dumping-data.mjs)
 data/dumping/map.json
 data/dumping/bin-recos.json
