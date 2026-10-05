@@ -15,6 +15,7 @@ import {
 import { levelNum, textColor, type CrowdDetail } from "@/lib/crowd/seoul-rtd"
 import { useLang } from "@/components/crowd/lang-context"
 import { trHour, trRange, type Lang, type UIStrings } from "@/lib/crowd/i18n"
+import { niceTicks } from "@/lib/crowd/chart-axis"
 
 interface ChartDatum {
   time: string
@@ -131,6 +132,10 @@ export default function SpotChart({ detail, light }: { detail: CrowdDetail; ligh
     level: p.level,
   }))
 
+  // 눈금·단위를 축 최대값 하나로 정한다 — 눈금마다 단위를 고르면 "8500"과 "1.7만"이 한 축에 섞였다
+  const yTicks = niceTicks(Math.max(0, ...detail.series.map((p) => Math.max(p.people, p.yesterday ?? 0))))
+  const yTop = yTicks[yTicks.length - 1]
+
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between">
@@ -153,7 +158,9 @@ export default function SpotChart({ detail, light }: { detail: CrowdDetail; ligh
             />
             <YAxis
               tick={{ fontSize: 10, fill: "#64748b" }}
-              tickFormatter={(v: number) => t.yAxisTen(v)}
+              ticks={yTicks}
+              domain={[0, yTop]}
+              tickFormatter={(v: number) => t.yAxisTen(v, yTop)}
               axisLine={false}
               tickLine={false}
               width={46}

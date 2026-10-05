@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import { Button } from "@/components/ui/button"
 
 export default function Error({
   error,
@@ -20,9 +19,14 @@ export default function Error({
       <p className="text-muted-foreground text-center max-w-md">
         일시적인 오류가 발생했습니다. 아래 버튼을 눌러 다시 시도해주세요.
       </p>
-      <Button onClick={reset} variant="outline">
+      {/* shadcn Button 대신 평범한 버튼 — 루트 에러 경계는 모든 라우트 첫 번들에 실려
+          tailwind-merge 청크(7.7KB br, 사용률 4.9%)를 매번 끌고 왔다(2026-10-05 실측) */}
+      <button
+        onClick={reset}
+        className="rounded-md border px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-gray-50"
+      >
         다시 시도
-      </Button>
+      </button>
     </div>
   )
 }

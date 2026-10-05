@@ -1,4 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
+import { settleSnapshotRefreshes } from "@/lib/crowd/adapter-kit"
 import { ADAPTERS } from "@/lib/crowd/adapters"
 import { isCityId, type CityId } from "@/lib/crowd/cities"
 
@@ -10,6 +11,8 @@ const CACHE_HEADERS = {
 }
 
 export async function GET(request: NextRequest) {
+  // 묵은 스냅샷을 주고 띄운 백그라운드 갱신의 수명 연장 (adapter-kit createSnapshot)
+  after(settleSnapshotRefreshes)
   const spot = request.nextUrl.searchParams.get("spot")
   if (!spot || spot.length > 60) {
     return NextResponse.json({ error: "Invalid spot name" }, { status: 400 })

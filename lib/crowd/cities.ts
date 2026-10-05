@@ -16,6 +16,9 @@ export interface CityInfo {
   nameKo: string
   center: [number, number]
   zoom: number
+  /** 명소 좌표 bbox [[남, 서], [북, 동]] — 대시보드 지도가 생성·도시 전환 순간 이 범위로 바로 맞춘다
+   *  (데이터 도착 후 재맞춤이 첫 타일을 버리던 문제). 산출: scripts/crowd-city-bounds.ts (2026-10-05) */
+  bounds: [[number, number], [number, number]]
   /** 데이터 출처 링크 (푸터) */
   sourceUrl: string
 }
@@ -87,6 +90,8 @@ export const CITIES: Record<CityId, CityInfo> = {
     nameKo: "서울",
     center: [37.5519, 126.9918],
     zoom: 12,
+    // SeoulRtd hotspot-category 121곳 실측
+    bounds: [[37.429, 126.8025], [37.6562, 127.1549]],
     sourceUrl: "https://data.seoul.go.kr/SeoulRtd/",
   },
   jeju: {
@@ -94,6 +99,8 @@ export const CITIES: Record<CityId, CityInfo> = {
     nameKo: "제주",
     center: [33.375, 126.53],
     zoom: 10,
+    // JEJU_SPOTS 66곳
+    bounds: [[33.1735, 126.165], [33.5578, 126.953]],
     sourceUrl: "https://www.visitjeju.net/",
   },
   busan: {
@@ -101,6 +108,8 @@ export const CITIES: Record<CityId, CityInfo> = {
     nameKo: "부산",
     center: [35.13, 129.06],
     zoom: 11,
+    // BUSAN_SPOTS 26곳
+    bounds: [[35.0466, 128.9655], [35.3187, 129.2578]],
     sourceUrl: "https://its.busan.go.kr/",
   },
   gangwon: {
@@ -109,6 +118,8 @@ export const CITIES: Record<CityId, CityInfo> = {
     // 동해안 벨트(고성~삼척)가 남북으로 길어 강릉을 중심으로 넓게 잡는다
     center: [37.95, 128.83],
     zoom: 9,
+    // GANGWON_SPOTS 중 등급 원천(주차·교차로)이 있는 강릉권 9곳 — 외곽 정보 없음 9곳까지 담으면 콩알
+    bounds: [[37.7528, 128.831], [37.8934, 128.947]],
     sourceUrl: "https://www.data.go.kr/data/15140011/openapi.do",
   },
   incheon: {
@@ -116,14 +127,18 @@ export const CITIES: Record<CityId, CityInfo> = {
     nameKo: "인천공항",
     center: [37.4588, 126.4435],
     zoom: 14,
+    // INCHEON_SPOTS 출국장 8곳
+    bounds: [[37.4468, 126.4336], [37.4677, 126.4545]],
     sourceUrl: "https://www.airport.kr/",
   },
   gwangjin: {
     id: "gwangjin",
     nameKo: "광진구",
-    // 광진구 중심(구의동 일대) — 실제 뷰는 fitCity가 스팟 bbox로 맞춘다
+    // 광진구 중심(구의동 일대) — 실제 뷰는 아래 bounds로 맞춘다
     center: [37.548, 127.0855],
     zoom: 13,
+    // SeoulRtd 중 GWANGJIN_SPOTS 5곳 + 광나루한강공원
+    bounds: [[37.5291, 127.0681], [37.5669, 127.1299]],
     sourceUrl: "https://data.seoul.go.kr/SeoulRtd/",
   },
 }

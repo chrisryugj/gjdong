@@ -86,27 +86,65 @@ export function emptyDetailFields(): Pick<
   }
 }
 
+// 묵은 값 허용 상한 = TTL×2. 부산·강원(2분)은 4분, 인천(1분)은 2분으로 클라이언트 폴링 주기(5분)보다
+// 짧다 — 상한이 폴링보다 길면 CDN stale-while-revalidate(이전 폴링 응답) 위에 함수 SWR(이전 스냅샷)이
+// 겹쳐, 혼자 보는 사용자가 폴링 두 주기 묵은 값을 받는다. 상한을 넘긴 값은 버리고 새로 받을 때까지 기다린다.
+const STALE_FACTOR = 2
+// 백그라운드 갱신이 이 시간 안에 안 끝나면 죽은 것으로 보고 다음 요청이 새로 띄운다 — 응답 뒤 얼어붙은
+// 함수 인스턴스에서 promise가 영영 안 끝나면 묵은 값만 계속 나간다. (로더 최장: 부산 ITS 12초 + bisco 3배치×10초 ≈ 42초)
+const REFRESH_DEAD_MS = 60_000
+
+// 응답을 막지 않고 띄운 갱신들 — 라우트가 after()로 함수 수명을 이어 준다 (settleSnapshotRefreshes)
+const backgroundRefreshes = new Set<Promise<unknown>>()
+
+/** 진행 중인 백그라운드 스냅샷 갱신이 모두 끝날 때까지 — 라우트의 after(settleSnapshotRefreshes)용 */
+export function settleSnapshotRefreshes(): Promise<void> {
+  return Promise.allSettled([...backgroundRefreshes]).then(() => undefined)
+}
+
 /**
- * 모듈 스냅샷 캐시 — TTL 내 재사용 + 동시 호출 단일화(pending promise 공유).
- * 로드 실패는 캐시하지 않아 다음 호출이 재시도한다.
- * (제주는 직결→프록시→맥미니 3단 폴백으로 계약이 달라 이 헬퍼를 쓰지 않는다)
+ * 모듈 스냅샷 캐시 — stale-while-revalidate.
+ * TTL 내면 캐시, TTL이 지났어도 상한(TTL×STALE_FACTOR) 안이면 묵은 값을 즉시 주고 갱신은 백그라운드 1회.
+ * 값이 없거나 상한을 넘겼을 때만 로드를 기다린다. 동시 호출은 진행 중 로드 하나를 공유한다.
+ * 로드 실패는 캐시하지 않아(묵은 값은 그대로) 다음 호출이 재시도한다.
+ * (2026-10-05 프로덕션 실측: 부산 상세 캐시 MISS 9.4초 — TTL 만료 때마다 ITS 3종+bisco 재수집을 기다렸다)
+ * (제주는 맥미니 스냅샷 전용 로더(jeju.ts loadSnapshot)라 이 헬퍼를 쓰지 않는다)
  */
 export function createSnapshot<T>(ttlMs: number, load: () => Promise<T>): { get(): Promise<T> } {
+  // at = 로드 시작 시각 — 늦게 끝난 옛 로드가 새 값을 덮지 않게 비교 기준으로도 쓴다
   let data: { at: number; value: T } | null = null
-  let pending: Promise<T> | null = null
+  let pending: { at: number; promise: Promise<T> } | null = null
+
+  const refresh = (): Promise<T> => {
+    if (pending && Date.now() - pending.at < REFRESH_DEAD_MS) return pending.promise
+    const at = Date.now()
+    const promise = load().then((value) => {
+      if (!data || at >= data.at) data = { at, value }
+      return value
+    })
+    const entry = { at, promise }
+    pending = entry
+    const clear = () => {
+      if (pending === entry) pending = null
+    }
+    void promise.then(clear, clear)
+    return promise
+  }
+
   return {
     get() {
-      if (data && Date.now() - data.at < ttlMs) return Promise.resolve(data.value)
-      if (pending) return pending
-      pending = load()
-        .then((value) => {
-          data = { at: Date.now(), value }
-          return value
-        })
-        .finally(() => {
-          pending = null
-        })
-      return pending
+      if (data) {
+        const age = Date.now() - data.at
+        if (age < ttlMs) return Promise.resolve(data.value)
+        if (age < ttlMs * STALE_FACTOR) {
+          const bg = refresh()
+          backgroundRefreshes.add(bg)
+          const drop = () => backgroundRefreshes.delete(bg)
+          void bg.then(drop, drop)
+          return Promise.resolve(data.value)
+        }
+      }
+      return refresh()
     },
   }
 }

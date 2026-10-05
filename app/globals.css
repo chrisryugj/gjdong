@@ -1,9 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* 인파레이더 한국어 제목(crowd-header h1) 전용 — 원본 1.1MB를 제목에 쓰는 22자만 남긴 서브셋 13KB.
+   원본 jsdelivr 통째 로드가 모바일 LCP 타일과 대역폭을 나눠 load를 3.6초까지 밀었다(2026-10-05 실측).
+   제목 문구(i18n-ui-ko title·cityNames·gwangjinTitle)를 바꾸면 다시 뽑을 것:
+   pyftsubset ChosunCentennial.woff2 --text="서울제주부산강원인천공항광진구인파레이더라이프 " --flavor=woff2 --layout-features='*'
+   빠진 글자는 serif 폴백으로 보인다. */
 @font-face {
   font-family: "Joseon100Years";
-  src: url("https://gcore.jsdelivr.net/gh/projectnoonnu/noonfonts_2206-02@1.0/ChosunCentennial.woff2") format("woff2");
+  src: url("./fonts/ChosunCentennial-crowd-title.woff2") format("woff2");
   font-weight: normal;
   font-display: swap;
 }
@@ -195,11 +200,16 @@
   --cp-text-strong: #ffffff;
   --cp-text: #d6dee8;
   --cp-text-muted: #94a3b8;
-  --cp-text-dim: #64748b;
-  --cp-text-faint: #475569;
+  /* dim·faint는 기준 시각·행 번호·basis 고지 같은 정보 글자에도 쓰여 WCAG 대비를 맞춘다
+     (2026-10-05 실측: faint 2.54:1 → 4.74:1, dim 4.04:1 → 5.94:1, 바탕 #0b0f14 기준) */
+  --cp-text-dim: #8390a4;
+  --cp-text-faint: #727f94;
   --cp-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
-.crowd-page.crowd-light {
+/* 로딩 골격(crowd-shell)은 대시보드 전이라 crowd-light 클래스를 못 받는다 — 하이드레이션 전 스크립트가 남긴
+   html[data-crowd-theme]로 고른다(값이 없으면 기본 라이트, 대시보드 기본값과 같음) */
+.crowd-page.crowd-light,
+:root:not([data-crowd-theme="dark"]) .crowd-page.crowd-shell {
   --cp-bg: #f7f6f3;
   --cp-overlay: rgba(247, 246, 243, 0.88);
   --cp-tip-bg: #ffffff;
@@ -215,8 +225,9 @@
   --cp-text-strong: #0f172a;
   --cp-text: #1e293b;
   --cp-text-muted: #475569;
-  --cp-text-dim: #64748b;
-  --cp-text-faint: #94a3b8;
+  /* 라이트: faint 2.37:1 → 4.31:1(흰 카드 위 4.66), dim 4.40:1 → 5.44:1 (바탕 #f7f6f3 기준) */
+  --cp-text-dim: #5b6577;
+  --cp-text-faint: #6a7587;
   --cp-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 .crowd-page .leaflet-container {

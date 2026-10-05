@@ -54,7 +54,8 @@ export const KO = {
   detailFail: "상세 데이터를 불러오지 못했습니다.",
   nowAbout: "지금 약",
   people: (n: number) => `${n.toLocaleString()}명`,
-  chipParking: "주차",
+  // 칩 값은 남은 자리 비율 — "주차 82%"가 점유율로 읽혀 "여유"를 붙인다 (2026-10-05 리뷰)
+  chipParking: "주차 여유",
   chipEvents: "행사",
   chipBike: "따릉이",
   bikeCount: (n: number) => `${n}대`,
@@ -79,7 +80,8 @@ export const KO = {
   kindForecast: "예측",
   yesterday: "어제",
   approxPeople: (n: number) => `약 ${n.toLocaleString()}명`,
-  yAxisTen: (v: number) => (v >= 10000 ? `${+(v / 10000).toFixed(1)}만` : String(v)),
+  // 단위는 축 최대값(max)으로 한 번 정한다 — 눈금마다 정하면 한 축에 "8500"과 "1.7만"이 섞였다 (2026-10-05 실측)
+  yAxisTen: (v: number, max: number) => (max >= 10000 && v > 0 ? `${+(v / 10000).toFixed(1)}만` : String(v)),
   peakForecast: (h: string, lv: string) => ({ pre: "앞으로는 ", hour: `${h}시`, post: `에 가장 붐빌 전망 (${lv})` }),
   calmBest: (t: string, lv: string) => ({ pre: "한산하게 가려면 ", time: t, post: `가 좋아요 (${lv} 예상)` }),
   allBusy: "오늘은 남은 시간 내내 붐빌 전망이에요",
@@ -134,7 +136,9 @@ export const KO = {
   // CCTV
   cctvTitle: "주변 CCTV",
   noVideo: "영상 없음",
-  cctvNote: "탭하면 실시간 영상 (서울시 교통 CCTV) · 명소에 따라 없을 수 있어요",
+  // 원천이 도시마다 다르다 — 서울 RTD·TOPIS / 부산 ITS / 강원 KBS 재난 CCTV (부산 상세에 "서울시"가 뜨던 오기, 2026-10-05)
+  cctvNote: (city?: string) =>
+    `탭하면 실시간 영상 (${city === "busan" ? "부산시 교통정보센터 CCTV" : city === "gangwon" ? "KBS 재난 CCTV" : "서울시 교통 CCTV"}) · 명소에 따라 없을 수 있어요`,
   // 부가정보
   parkingTitle: "주차 여유",
   parkingSummary: (n: string, p: number) => `${n}면 (${p}%)`,
@@ -260,6 +264,8 @@ export const KO = {
   mbtiClear: "유형 지우기",
   mbtiNote: "재미로 보는 추천이에요 — 카테고리 취향 + 지금 인파를 버무린 것으로, 등급 산출식과는 무관해요",
   methodologyLink: "등급 기준",
+  // [그룹2] 시간대 렌즈 지도 띠 — dow 0=일 (heatmap 배열 규약)
+  lensBanner: (dow: number, h: number) => `${["일", "월", "화", "수", "목", "금", "토"][dow]} ${h}시 평균 · 실시간 아님`,
 }
 
 export type UIStrings = typeof KO

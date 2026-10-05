@@ -1,4 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
+import { settleSnapshotRefreshes } from "@/lib/crowd/adapter-kit"
 import { fetchAir } from "@/lib/crowd/air"
 import { isCityId, type CityId } from "@/lib/crowd/cities"
 
@@ -10,6 +11,8 @@ export const maxDuration = 30
 const CACHE = { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=900" }
 
 export async function GET(request: NextRequest) {
+  // 묵은 스냅샷을 주고 띄운 백그라운드 갱신의 수명 연장 (adapter-kit createSnapshot)
+  after(settleSnapshotRefreshes)
   const spot = request.nextUrl.searchParams.get("spot") ?? ""
   const cityRaw = request.nextUrl.searchParams.get("city")
   const city: CityId = isCityId(cityRaw) ? cityRaw : "seoul"

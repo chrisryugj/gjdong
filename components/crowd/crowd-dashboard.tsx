@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, Tags, X } from "lucide-react"
+import { ArrowLeft, Clock, LoaderCircle, LocateFixed, MapPin, Search, Tags, X } from "lucide-react"
 import { LEVEL_COLORS } from "@/lib/crowd/seoul-rtd"
 import { UI } from "@/lib/crowd/i18n"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
@@ -113,6 +113,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
 
   // 시간대 패턴 렌즈 — 켜진 동안 지도 마커만 평균 패턴 색으로, 목록·헤더는 실시간 유지
   const timeLens = useTimeLens(city, mapSpots)
+  const lensOn = timeLens.available && !selectedName && timeLens.lens != null
   // 광진 생활 데이터(따릉이·EV·쉼터·역·응급실 POI + 생활보드) — 광진에서만 페치
   const life = useGwangjinLife(city === "gwangjin")
   // 지금 vs 평소 — 누적 히트맵 대비 상대 배지 (서울·제주, 파일 1회 로드)
@@ -215,6 +216,23 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
       .sort((a, b) => a.km - b.km)
       .slice(0, 8)
   }, [spots, addressPin])
+  // 지도 effect 의존값이라 참조를 고정 — 렌더마다 새 배열이면 주소 핀이 떠 있는 동안 지도가 매번 다시 날아갔다
+  const nearestNames = useMemo(() => nearest.map((n) => n.spot.name), [nearest])
+
+  // 상세 청크(recharts 포함 ~113KB) 선행 로드 — 클릭 후 상세 API → 청크 → 부가 요청이 직렬로 이어지던 것 중
+  // 청크 단계를 지운다(2026-10-05 실측: 청크 373ms 시작). 목록 도착 뒤 한가할 때 한 번만
+  const detailPrefetchedRef = useRef(false)
+  useEffect(() => {
+    if (loading || detailPrefetchedRef.current) return
+    detailPrefetchedRef.current = true
+    const load = () => void import("@/components/crowd/spot-detail")
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(load, { timeout: 4000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const timer = setTimeout(load, 1500) // 사파리 — rIC 없음
+    return () => clearTimeout(timer)
+  }, [loading])
 
   // 가까우면서 여유·보통인 첫 곳 = 지금 갈 만한 추천
   const recommendedName = useMemo(
@@ -236,6 +254,9 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
 
   const noSpotMatch = query.trim().length > 1 && filtered.length === 0
 
+  // 등급 근거가 인파 실측이 아닌 도시(부산·강원=주차·도로, 인천=대기시간) — 모바일은 헤더 부제가 숨어 범례 옆에 짧게
+  const listBasis = spots.find((s) => s.basis === "access" || s.basis === "wait")?.basis
+
   const selectedSpot = useMemo(
     () => (selectedName ? (spots.find((s) => s.name === selectedName) ?? null) : null),
     [spots, selectedName],
@@ -247,6 +268,7 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
         city={city ?? "seoul"}
         spotCount={spots.length}
         levelCounts={levelCounts}
+        loading={loading}
         updatedAt={updatedAt}
         light={light}
         disaster={disaster}
@@ -289,13 +311,18 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
         />
       ) : (
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* 모바일: 지도는 컴팩트하게, 목록에 공간을 양보 (상세/근처 목록이 열리면 더 축소).
+        {/* 모바일: 지도는 컴팩트하게, 목록에 공간을 양보 (근처 목록 24dvh, 상세 18dvh).
+            상세 본문이 390×844에서 315px(37%)뿐이라 상세 중엔 더 접는다(2026-10-05 실측).
             핸들로 조절했으면(--crowd-map-h) 그 높이가 자동 전환보다 우선 */}
         <div
           ref={mapBoxRef}
           style={mapH != null ? ({ "--crowd-map-h": `${mapH}px` } as React.CSSProperties) : undefined}
           className={`relative shrink-0 md:h-auto md:flex-1 ${splitDragging ? "" : "transition-[height] duration-300"} ${
-            selectedName || addressPin ? "h-[var(--crowd-map-h,24dvh)]" : "h-[var(--crowd-map-h,32dvh)]"
+            selectedName
+              ? "h-[var(--crowd-map-h,18dvh)]"
+              : addressPin
+                ? "h-[var(--crowd-map-h,24dvh)]"
+                : "h-[var(--crowd-map-h,32dvh)]"
           }`}
         >
           <CrowdMap
@@ -303,7 +330,10 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             lang={lang}
             selectedName={selectedName}
             addressPin={addressPin}
-            nearestNames={nearest.map((n) => n.spot.name)}
+            nearestNames={nearestNames}
+            // 검색 → 지도 연결: 목록에 남은 명소 범위로 맞추고 나머지를 흐린다 (지도가 검색과 무관하게 서 있던 것)
+            searchNames={query.trim() ? filtered.map((s) => s.name) : null}
+            favNames={favs}
             cctvItems={selectedName ? (detail?.cctv ?? []) : []}
             onSelect={selectSpot}
             center={CITIES[city ?? "seoul"].center}
@@ -319,8 +349,21 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             boundaryKey={city === "gwangjin" ? "gwangjin" : undefined}
             darkTiles={!light}
           />
-          {/* 지도 우상단 컨트롤 스택 — 이름표 토글(전 도시) + 시간대 렌즈(서울·제주, 상세 중 숨김) */}
-          <div className="absolute right-2 top-2 z-[1000] flex flex-col items-end gap-1.5">
+          {/* 렌즈 띠 — 지도만 패턴색인데 헤더 시각·목록은 실시간이라 헷갈렸다(2026-10-05 리뷰). 무엇을 보는지 지도 위에 못 박는다 */}
+          {lensOn && timeLens.lens && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex h-7 items-center justify-center gap-1.5 border-b border-amber-500/40 bg-amber-400/20 px-3 text-[12px] font-medium text-[var(--cp-text-strong)] backdrop-blur-sm">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{t.lensBanner(timeLens.lens.dow, timeLens.lens.hour)}</span>
+              {timeLens.loading && <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />}
+            </div>
+          )}
+          {/* 지도 우상단 컨트롤 스택 — 이름표 토글(전 도시) + 시간대 렌즈(서울·제주, 상세 중 숨김).
+              모바일은 스택이 지도 전체를 덮고(클릭은 통과) 펼친 렌즈만 바닥 전체 폭으로 내린다 */}
+          <div
+            className={`pointer-events-none absolute inset-x-2 bottom-2 z-[1000] flex flex-col items-end gap-1.5 md:bottom-auto md:left-auto md:right-2 [&>*]:pointer-events-auto ${
+              lensOn ? "top-9" : "top-2"
+            }`}
+          >
             <button
               onClick={toggleLabels}
               aria-pressed={labels}
@@ -335,25 +378,36 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
               {t.labelsToggle}
             </button>
             {timeLens.available && !selectedName && (
-              <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
+              <div className={lensOn ? "mt-auto w-full md:mt-0 md:w-auto" : ""}>
+                <TimeLens lens={timeLens.lens} loading={timeLens.loading} onChange={timeLens.setLens} />
+              </div>
             )}
           </div>
           {/* 광진 생활 레이어 칩 — 좌상단 가로 스크롤 바 (우측 세로 스택과 분리, 모바일 지도 시야 확보) */}
           {city === "gwangjin" && !selectedName && (
-            <div className="absolute left-2 right-24 top-2 z-[1000]">
+            <div className={`absolute left-2 right-24 z-[1000] ${lensOn ? "top-9" : "top-2"}`}>
               <LifeLayerChips layers={life.layers} counts={life.counts} onToggle={life.toggleLayer} />
             </div>
           )}
-          {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로) */}
-          <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden">
+          {/* 모바일 전용 범례 (헤더 통계는 md 이상에서만 보이므로). 숫자는 실시간 개수라 렌즈 중엔 숨긴다(색과 안 맞음) */}
+          <div
+            className={`absolute bottom-2 left-2 z-[1000] flex items-center gap-2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-overlay)] px-2.5 py-1 backdrop-blur-sm md:hidden ${
+              lensOn ? "hidden" : ""
+            }`}
+          >
             {LEVEL_ORDER.map((level) => (
               <span key={level} className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: LEVEL_COLORS[level] }} />
                 <span className="font-mono text-[11px] tabular-nums text-[var(--cp-text)]">
-                  {levelCounts[level] ?? 0}
+                  {loading ? "–" : (levelCounts[level] ?? 0)}
                 </span>
               </span>
             ))}
+            {listBasis && (
+              <span className="text-[11px] text-[var(--cp-text-muted)]">
+                {listBasis === "access" ? t.basisAccess : t.basisWait}
+              </span>
+            )}
           </div>
           {loading && (
             <div className="absolute inset-0 z-[1050] flex items-center justify-center bg-[var(--cp-overlay)]">
@@ -379,8 +433,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
           >
             <span className="h-1 w-9 rounded-full bg-[var(--cp-border-strong)]" />
           </div>
-          {/* 검색 + 내 위치 */}
-          <div className="shrink-0 border-b border-[var(--cp-border)] p-2.5 md:p-3">
+          {/* 검색 + 내 위치 — 모바일 상세 중엔 숨김(본문 74px 확보, 검색은 목록으로 돌아가서) */}
+          <div className={`shrink-0 border-b border-[var(--cp-border)] p-2.5 md:block md:p-3 ${selectedName ? "hidden" : ""}`}>
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-[var(--cp-border-strong)] bg-[var(--cp-panel)] px-3 focus-within:border-[var(--cp-border-active)]">
                 <Search className="h-3.5 w-3.5 shrink-0 text-[var(--cp-text-dim)]" />
@@ -578,7 +632,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
             />
           )}
 
-          {install.showInstall && (
+          {/* 설치 배너 — 상세 중엔 숨김(상세 본문 확보), 목록으로 돌아오면 다시 */}
+          {install.showInstall && !selectedName && (
             <div className="flex shrink-0 items-center gap-2 border-t border-[var(--cp-border)] bg-[var(--cp-panel)] px-3 py-2 md:hidden">
               <p className="min-w-0 flex-1 text-[12px] leading-snug text-[var(--cp-text-muted)]">
                 {install.showInstall === "ios" ? t.installIos : t.installAndroid}
@@ -597,7 +652,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
               <button
                 onClick={install.dismissInstall}
                 aria-label={t.installDismiss}
-                className="shrink-0 p-1 text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
+                // 44px 히트 — -my-2·-mr-2로 배너 높이 불변 (실측 22×22)
+                className="-my-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-[var(--cp-text-dim)] hover:text-[var(--cp-text-strong)]"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

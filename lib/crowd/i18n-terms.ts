@@ -1,6 +1,7 @@
 // 서울시 API 한국어 데이터 번역 테이블 — 등급·카테고리·해수욕·도로·사고·재난·연령 + 캔드 문장
 
 import { IDX, pick, type Lang } from "./i18n-core"
+import { romanizeAddress } from "./romanize"
 
 // ── 혼잡도 4단계 (API: 여유·보통·약간 붐빔·붐빔)
 const LEVEL_T: Record<string, [string, string, string]> = {
@@ -46,6 +47,8 @@ const BEACH_T: Record<string, [string, string, string]> = {
   보통: ["Fair", "普通", "一般"],
   나쁨: ["Poor", "悪い", "较差"],
   매우나쁨: ["Very poor", "非常に悪い", "很差"],
+  // 해수욕장 개장 기간 밖이면 지수 대신 이 문구가 온다 — 비한국어 화면에 한글이 새던 값 (2026-10-05 실측)
+  "서비스기간 아님": ["Off-season", "期間外", "非开放期"],
 }
 
 // ── 도로 소통 지수 (API: 원활·서행·정체)
@@ -186,11 +189,147 @@ export const trDisaster = (word: string, lang: Lang) => pick(DISASTER_T, word, l
 export const trAge = (label: string, lang: Lang) => pick(AGE_T, label, lang)
 export const trBeach = (word: string, lang: Lang) => pick(BEACH_T, word, lang)
 
-/** API 한국어 안내문 대체 — 비한국어는 혼잡 단계별 캔드 문장 1개 */
-export function trLevelMessages(messages: string[], levelNum: number, lang: Lang): string[] {
+// ── 인파 실측이 아닌 도시(부산·강원=접근·주차 / 인천공항=출국장 대기)의 안내문 번역
+// 어댑터(busan.ts·gangwon.ts·incheon.ts)가 만드는 정형 문장만 패턴으로 옮긴다. 인파 캔드 문장으로
+// 덮으면 부산 en이 "Somewhat lively…"(인파 묘사)로 바뀌어 등급 기준 고지가 거짓이 됐다 (2026-10-05 실측).
+const BASIS_CITY_T: Record<string, [string, string, string]> = {
+  부산: ["Busan", "釜山", "釜山"],
+  강원: ["Gangwon", "江原", "江原"],
+}
+// 주차 등급은 "주차장이 얼마나 찼나" — 인파 등급어(Quiet·Crowded)를 그대로 쓰면 뜻이 어긋난다
+const PARK_LV_T: Record<string, [string, string, string]> = {
+  여유: ["plenty of space", "空きあり", "空位充足"],
+  보통: ["moderately full", "やや埋まっている", "一般"],
+  "약간 붐빔": ["filling up", "混み始め", "较紧张"],
+  붐빔: ["nearly full", "ほぼ満車", "接近满位"],
+}
+const SIDE_T: Record<string, [string, string, string]> = {
+  동편: ["East", "東側", "东侧"],
+  서편: ["West", "西側", "西侧"],
+}
+// 문장 단위 번역이 안 될 때 대신 보여줄 등급 기준 설명 (어댑터 문안이 바뀌어도 기준 고지는 남는다)
+const BASIS_FALLBACK_T: Record<"access" | "wait", [string, string, string]> = {
+  access: [
+    "This level reflects access-road and parking congestion, not a live crowd count.",
+    "この混雑度は人出の実測ではなく、アクセス道路・駐車場の混雑を基準にしています。",
+    "该等级依据周边道路与停车拥堵程度，并非实时人流计测。",
+  ],
+  wait: [
+    "This level reflects the departure-gate waiting time.",
+    "この混雑度は出国ゲートの待ち時間を基準にしています。",
+    "该等级依据出境口的等候时间。",
+  ],
+}
+
+/** 어댑터 정형 문장 1개 → 대상 언어. 패턴 밖이면 null */
+function trBasisLine(m: string, lang: Exclude<Lang, "ko">): string | null {
+  const i = IDX[lang]
+  const L = (en: string, ja: string, zh: string) => [en, ja, zh][i]
+
+  let r = m.match(/^(부산|강원)은 인파 계측 원천이 없어 접근 도로·주차 혼잡 기준으로 보여드려요\.$/)
+  if (r) {
+    const c = BASIS_CITY_T[r[1]][i]
+    return L(
+      `${c} has no live crowd count, so this level reflects access-road and parking congestion.`,
+      `${c}には人出の実測データがないため、アクセス道路・駐車場の混雑度で表示しています。`,
+      `${c}没有实时人流数据，因此按周边道路与停车拥堵程度显示等级。`,
+    )
+  }
+  if (m.startsWith("이 지점은 주차·교차로 실시간 원천이 없어")) {
+    return L(
+      "No live parking or intersection data here, so no level is given — check the CCTV, sea and weather below.",
+      "この地点には駐車場・交差点のリアルタイムデータがないため混雑度は出していません。下のCCTV・海・天気でご確認ください。",
+      "该地点没有停车场与路口实时数据，不显示等级，请参考下方监控、海况与天气。",
+    )
+  }
+  r = m.match(/^지금 (.+) 수준이에요\.$/)
+  if (r) {
+    const parts = r[1].split(" · ").map((b) => {
+      const road = b.match(/^접근 도로 (원활|서행|정체)$/)
+      if (road) return L(`access roads: ${pick(ROAD_T, road[1], lang).toLowerCase()}`, `アクセス道路 ${pick(ROAD_T, road[1], lang)}`, `周边道路${pick(ROAD_T, road[1], lang)}`)
+      const park = b.match(/^주차 (.+)$/)
+      if (park && PARK_LV_T[park[1]]) return L(`parking: ${PARK_LV_T[park[1]][i]}`, `駐車場 ${PARK_LV_T[park[1]][i]}`, `停车${PARK_LV_T[park[1]][i]}`)
+      return null
+    })
+    if (parts.some((p) => p == null)) return null
+    return L(`Right now — ${parts.join(" · ")}.`, `現在：${parts.join(" · ")}。`, `目前：${parts.join(" · ")}。`)
+  }
+  r = m.match(/^지금은 운영하지 않는 출국장이에요\.(?: 운영 시간은 (.+)입니다\.)?$/)
+  if (r) {
+    const h = r[1]
+    return L(
+      `This departure gate is closed right now.${h ? ` Hours: ${h}.` : ""}`,
+      `この出国ゲートは現在運営していません。${h ? `運営時間は${h}です。` : ""}`,
+      `该出境口目前未开放。${h ? `开放时间：${h}。` : ""}`,
+    )
+  }
+  r = m.match(/^지금 대기 약 (\d+)분(?: · 줄 선 인원 ([\d,]+)명)?이에요\.$/)
+  if (r) {
+    const [, min, ppl] = r
+    return L(
+      `About ${min} min wait right now${ppl ? ` · ${ppl} people in line` : ""}.`,
+      `現在の待ち時間は約${min}分${ppl ? ` · 列に${ppl}人` : ""}です。`,
+      `目前等候约${min}分钟${ppl ? ` · 排队${ppl}人` : ""}。`,
+    )
+  }
+  r = m.match(/^입구별로는 (.+) 수준이에요\.$/)
+  if (r) {
+    const parts = r[1].split(" · ").map((b) => {
+      const g = b.match(/^(동편|서편|(\S+)입구) (\d+)분$/)
+      if (!g) return null
+      const side = g[2] ? L(`Entrance ${g[2]}`, `${g[2]}入口`, `${g[2]}入口`) : SIDE_T[g[1]][i]
+      return L(`${side} ${g[3]} min`, `${side} ${g[3]}分`, `${side} ${g[3]}分钟`)
+    })
+    if (parts.some((p) => p == null)) return null
+    return L(`By entrance: ${parts.join(" · ")}.`, `入口別：${parts.join(" · ")}。`, `各入口：${parts.join(" · ")}。`)
+  }
+  return null
+}
+
+/**
+ * API 한국어 안내문 대체.
+ * - 인파 도시(서울·제주): 비한국어는 혼잡 단계별 캔드 문장 1개
+ * - 부산·강원·인천공항: 등급 기준 고지가 핵심이라 정형 문장을 번역하고, 못 옮긴 문장은 기준 설명으로 대체
+ */
+export function trLevelMessages(messages: string[], levelNum: number, lang: Lang, city?: string): string[] {
   if (lang === "ko") return messages
+  if (city === "busan" || city === "gangwon" || city === "incheon") {
+    const out = messages.map((m) => trBasisLine(m, lang))
+    if (out.every((m) => m != null)) return out as string[]
+    const fallback = BASIS_FALLBACK_T[city === "incheon" ? "wait" : "access"][IDX[lang]]
+    return [fallback, ...out.filter((m): m is string => m != null && m !== fallback)]
+  }
   const msg = LEVEL_MSG_T[levelNum]?.[IDX[lang]]
   return msg ? [msg] : []
+}
+
+/**
+ * 서울 RTD 지하철 도착 안내(arvlMsg2) 현지화 — 통째 로마자로 두면 "3Bun 10Cho Hu (Seonjeongneung)"가 됐다
+ * (2026-10-05 실측). 정형 4종만 옮기고 역명은 로마자, 그 밖은 기존처럼 통째 로마자.
+ */
+export function trArrival(msg: string, lang: Lang): string {
+  if (lang === "ko") return msg
+  const i = IDX[lang]
+  const L = (en: string, ja: string, zh: string) => [en, ja, zh][i]
+  const at = (st?: string) => (st ? ` (${romanizeAddress(st)})` : "")
+  let r = msg.match(/^(?:(\d+)분\s*)?(?:(\d+)초\s*)?후\s*(?:\((.+)\))?$/)
+  if (r && (r[1] || r[2])) {
+    const [, m, sec, st] = r
+    return L(
+      `in ${m ? `${m}m` : ""}${m && sec ? " " : ""}${sec ? `${sec}s` : ""}${at(st)}`,
+      `${m ? `${m}分` : ""}${sec ? `${sec}秒` : ""}後${at(st)}`,
+      `${m ? `${m}分` : ""}${sec ? `${sec}秒` : ""}后${at(st)}`,
+    )
+  }
+  r = msg.match(/^\[(\d+)\]번째 전역\s*(?:\((.+)\))?$/)
+  if (r) return L(`${r[1]} stops away`, `${r[1]}駅前`, `前${r[1]}站`) + at(r[2])
+  r = msg.match(/^(.+?) (도착|출발|진입)$/)
+  if (r) {
+    const place = r[1] === "전역" ? L("previous stn", "前の駅", "前一站") : romanizeAddress(r[1])
+    const act = { 도착: L("Arriving", "到着", "到达"), 출발: L("Departed", "出発", "出发"), 진입: L("Approaching", "進入", "进站") }[r[2]]
+    return lang === "en" ? `${act} · ${place}` : `${place} ${act}`
+  }
+  return romanizeAddress(msg)
 }
 
 /** "18시"·"현재" 시각 라벨 현지화 */

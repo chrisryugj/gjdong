@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import GwangjinDashboard from "@/components/gwangjin/client"
+import { CROWD_THEME_INIT_SCRIPT } from "@/components/crowd/hooks/theme-init"
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -40,5 +41,11 @@ export const metadata: Metadata = {
 }
 
 export default function GwangjinPage() {
-  return <GwangjinDashboard />
+  return (
+    <>
+      {/* 첫 페인트 전 테마 확정 — 로딩 셸이 html[data-crowd-theme]으로 다크를 고른다 */}
+      <script dangerouslySetInnerHTML={{ __html: CROWD_THEME_INIT_SCRIPT }} />
+      <GwangjinDashboard />
+    </>
+  )
 }

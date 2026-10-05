@@ -1,10 +1,13 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
 import { ADAPTERS } from "@/lib/crowd/adapters"
+import { settleSnapshotRefreshes } from "@/lib/crowd/adapter-kit"
 import { isCityId, type CityId } from "@/lib/crowd/cities"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
+  // 스냅샷이 묵은 값을 주고 띄운 백그라운드 갱신이 응답 뒤 함수 동결로 잘리지 않게 수명을 잇는다
+  after(settleSnapshotRefreshes)
   const spot = request.nextUrl.searchParams.get("spot")
   const cityRaw = request.nextUrl.searchParams.get("city")
   const city: CityId = isCityId(cityRaw) ? cityRaw : "seoul"
@@ -14,6 +17,10 @@ export async function GET(request: NextRequest) {
     if (spot) {
       if (spot.length > 60) {
         return NextResponse.json({ error: "Invalid spot name" }, { status: 400 })
+      }
+      // 이 도시에 없는 명소는 원천 실패(502)가 아니라 404 — 도시 전환 직후 이전 도시 명소로 온 요청 등
+      if (!(await adapter.hasSpot(spot))) {
+        return NextResponse.json({ error: "이 도시에 없는 명소입니다." }, { status: 404 })
       }
       return NextResponse.json(await adapter.fetchDetail(spot), { headers: adapter.cacheHeaders })
     }

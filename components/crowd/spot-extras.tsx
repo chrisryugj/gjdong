@@ -5,8 +5,8 @@ import { Bike, CalendarDays, CarFront, Navigation, SquareParking, TrainFront } f
 import { textColor, type CrowdExtra } from "@/lib/crowd/seoul-rtd"
 import { distanceM, formatMeters } from "@/components/crowd/shared"
 import { useLang } from "@/components/crowd/lang-context"
-import { trRoad, trRoadMsg } from "@/lib/crowd/i18n"
-import { romanizeAddress } from "@/lib/crowd/romanize"
+import { trArrival, trRoad, trRoadMsg } from "@/lib/crowd/i18n"
+import { romanizeAddress, romanizePlace } from "@/lib/crowd/romanize"
 
 interface SpotExtrasProps {
   extra: CrowdExtra
@@ -85,7 +85,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                   >
                     {/* 주차장·행사명은 원천의 자유 텍스트라 사전화가 불가능 — 로마자로 읽게만 한다 */}
                     <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--cp-text)]">
-                      {lang === "ko" ? lot.name : romanizeAddress(lot.name)}
+                      {lang === "ko" ? lot.name : romanizePlace(lot.name)}
                     </span>
                     {meters != null && (
                       <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]">
@@ -211,7 +211,7 @@ export default function SpotExtras({ extra, origin, light }: SpotExtrasProps) {
                         {lang === "ko" ? `${a.dest}행` : romanizeAddress(a.dest)}
                       </span>
                       <span className="ml-auto shrink-0 font-mono tabular-nums text-[var(--cp-text)]">
-                        {lang === "ko" ? a.msg : romanizeAddress(a.msg)}
+                        {trArrival(a.msg, lang)}
                       </span>
                     </li>
                   ))}

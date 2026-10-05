@@ -107,6 +107,71 @@ function romanizeWord(run: string): string {
   return capitalize(romanizeRun(run))
 }
 
+// 장소명 끝의 일반명사 — 로마자로 두면 "Daetiteoneol(Goejeongdongipchul-gu)"처럼 읽을 수 없어(입출"구"를
+// 행정구로 오인) 영어로 옮긴다. 긴 것부터 맞춘다(교차로 > 로, 입출구 > 출구 > 구). (2026-10-05 부산 CCTV 실측)
+const PLACE_TERMS: Array<[string, string]> = [
+  ["해수욕장", "Beach"],
+  ["방송총국", "Broadcasting Center"],
+  ["교차로", "Intersection"],
+  ["사거리", "Intersection"],
+  ["삼거리", "Junction"],
+  ["입출구", "Entrance"],
+  ["전망대", "Observatory"],
+  ["방파제", "Breakwater"],
+  ["우체국", "Post Office"],
+  ["백화점", "Department Store"],
+  ["주차장", "Parking Lot"],
+  ["터미널", "Terminal"],
+  ["터널", "Tunnel"],
+  ["대교", "Bridge"],
+  ["해변", "Beach"],
+  ["입구", "Entrance"],
+  ["출구", "Exit"],
+  ["등대", "Lighthouse"],
+  ["병원", "Hospital"],
+  ["구청", "-gu Office"],
+  ["시청", "City Hall"],
+  ["공원", "Park"],
+  ["시장", "Market"],
+  ["남단", "South End"],
+  ["북단", "North End"],
+  ["옥상", "Rooftop"],
+]
+// 단독 낱말일 때만 옮기는 것 — 다른 낱말 끝에 붙으면 고유명 일부일 수 있다 ("해운대암소갈비 앞" → "… front")
+const PLACE_WORDS: Record<string, string> = { 앞: "front" }
+
+/** 장소명(CCTV 카메라명 등 자유 텍스트) 로마자 — 끝의 일반명사는 영어, 고유명은 로마자, 괄호 안도 같은 규칙.
+ *  "대티터널(괴정동입출구)" → "Daeti Tunnel (Goejeong-dong Entrance)" */
+export function romanizePlace(text: string): string {
+  const out = text.replace(/[가-힣]+/g, (run: string, offset: number) => {
+    if (PLACE_WORDS[run]) return ` ${PLACE_WORDS[run]}`
+    const terms: string[] = []
+    let rest = run
+    for (;;) {
+      // "역"은 한 글자라 오탐이 많다 — 고유명이 두 글자 이상 남고 구역·지역·영역·권역이 아닐 때만 (강남역 → Gangnam Station)
+      const hit =
+        PLACE_TERMS.find(([ko]) => rest.endsWith(ko)) ??
+        (rest.length >= 3 && rest.endsWith("역") && !/[구지영권]역$/.test(rest)
+          ? (["역", "Station"] as [string, string])
+          : undefined)
+      if (!hit) break
+      terms.unshift(hit[1])
+      rest = rest.slice(0, rest.length - hit[0].length)
+    }
+    const afterDigit = /[0-9]/.test(text[offset - 1] ?? "")
+    const head = !rest
+      ? ""
+      : afterDigit && (SUFFIXES.includes(rest) || rest === "가")
+        ? `-${romanizeRun(rest)}`
+        : romanizeWord(rest)
+    // 바로 뒤에 라틴 문자가 붙으면 띄운다 ("교보타워R" → "Gyobotawo R")
+    const gap = /[A-Za-z]/.test(text[offset + run.length] ?? "") ? " " : ""
+    return head + terms.map((w) => (w.startsWith("-") && head ? w : ` ${w.replace(/^-/, "")}`)).join("") + gap
+  })
+  // 일반명사 앞 공백·괄호 앞뒤 공백 정리
+  return out.replace(/\s+/g, " ").replace(/([^\s(])\(/g, "$1 (").replace(/\(\s+/g, "(").trim()
+}
+
 /** 주소 문자열의 한글 부분만 로마자로 (숫자·괄호·라틴은 그대로).
  * "자양2동"처럼 숫자 뒤에 접미사만 남은 구간은 하이픈으로 붙인다. */
 export function romanizeAddress(text: string): string {

@@ -1,4 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
+import { settleSnapshotRefreshes } from "@/lib/crowd/adapter-kit"
 import {
   BUS_AREAS,
   fetchAirportBoard,
@@ -16,6 +17,8 @@ const LIVE_HEADERS = { "Cache-Control": "public, s-maxage=120, stale-while-reval
 const BUS_HEADERS = { "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=3600" }
 
 export async function GET(request: NextRequest) {
+  // 묵은 스냅샷을 주고 띄운 백그라운드 갱신의 수명 연장 (adapter-kit createSnapshot)
+  after(settleSnapshotRefreshes)
   const sp = request.nextUrl.searchParams
   try {
     const routeId = sp.get("routeId")

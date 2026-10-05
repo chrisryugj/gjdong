@@ -1,16 +1,27 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker as LeafletMarker, Renderer } from "leaflet"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Circle, CircleMarker, LayerGroup, LeafletKeyboardEvent, Map as LeafletMap, Marker as LeafletMarker, Renderer, TooltipOptions } from "leaflet"
 import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type CrowdSpot } from "@/lib/crowd/seoul-rtd"
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
-import { romanizeAddress } from "@/lib/crowd/romanize"
+import { romanizeAddress, romanizePlace } from "@/lib/crowd/romanize"
 import type { LifePoi, MapFocus } from "@/components/gwangjin/use-gwangjin-life"
 import type { TrafficLink } from "@/lib/gwangjin/traffic-shared"
 import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
 import { BUS_TYPE_COLOR, type BusArrival } from "@/lib/gwangjin/bus"
 import { KEY_GUIDES } from "@/lib/gwangjin/constants"
+import {
+  boundsOf,
+  cityViewBounds,
+  containsBounds,
+  cullLabelBoxes,
+  NARROW_LABEL_MIN_SPOTS,
+  NARROW_MAP_WIDTH,
+  searchFocusSet,
+  wantsNameLabel,
+  type Bounds,
+} from "@/lib/crowd/map-view"
 
 interface CrowdMapProps {
   spots: CrowdSpot[]
@@ -45,7 +56,35 @@ interface CrowdMapProps {
   boundaryKey?: "gwangjin"
   /** 다크 테마 타일(CARTO dark_all) — 대시보드가 테마와 함께 전환. 미지정=voyager 고정(보고서·미니맵) */
   darkTiles?: boolean
+  /** 검색 매칭 명소 이름(검색어 없으면 null) — 1~30개면 그 범위로 맞추고 나머지 마커를 흐린다. 0개는 지도 불변 */
+  searchNames?: string[] | null
+  /** 즐겨찾기 — 좁은 화면 혼잡 위주 이름표 모드에서도 이름표를 단다 */
+  favNames?: ReadonlySet<string> | null
 }
+
+/** 명소 마커 한 개의 Leaflet 객체 묶음. tip·paint는 마지막으로 반영한 툴팁·스타일 키 — 같으면 건너뛴다 */
+interface MarkerEntry {
+  marker: CircleMarker
+  spot: CrowdSpot
+  glow: Circle | null
+  ripple: LeafletMarker | null
+  tip: string
+  paint: string
+}
+
+type TipKind = "ops" | "name" | "tip"
+const TIP_OPTS: Record<TipKind, TooltipOptions> = {
+  // 상황실 미니맵 — 지점명·등급·인원을 상시 노출 (호버 없이 한눈에)
+  ops: { permanent: true, direction: "top", offset: [0, -8], opacity: 1, className: "crowd-ops-label" },
+  // 이름표 모드(기본) — 어느 점이 어디인지 호버 없이 보이게. 등급은 점 색이 이미 말한다.
+  // interactive: 이름표 탭 = 마커 클릭으로 전달(Leaflet interactive 툴팁) — 모바일에서
+  // 작은 점 대신 pill 전체가 탭 표적이 된다 (점만 남기면 레이블이 점 옆을 가려 오탭 유발)
+  name: { permanent: true, direction: "right", offset: [8, 0], opacity: 1, className: "crowd-name-label", interactive: true },
+  tip: { direction: "top", offset: [0, -8], opacity: 1 },
+}
+
+// 도시·검색 범위 맞춤 공통 여백 (기존 fitCity와 같은 값)
+const FIT_OPTS = { padding: [32, 32] as [number, number], maxZoom: 15 }
 
 const SEOUL_CENTER: [number, number] = [37.5519, 126.9918]
 
@@ -123,7 +162,7 @@ function lifePopupHtml(poi: LifePoi): string {
   </div>`
 }
 
-export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, focusPoi, onLifePoiTap, trafficLinks, boundaryKey, darkTiles }: CrowdMapProps) {
+export default function CrowdMap({ spots, lang, selectedName, addressPin, nearestNames, cctvItems, onSelect, center, zoom, fitCity, hoveredName, showLabels, declutterLabels, opsLabels, lifePois, focusPoi, onLifePoiTap, trafficLinks, boundaryKey, darkTiles, searchNames, favNames }: CrowdMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<LeafletMap | null>(null)
   const leafletRef = useRef<typeof import("leaflet") | null>(null)
@@ -146,30 +185,83 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const trafficLayerRef = useRef<LayerGroup | null>(null)
   const trafficRendererRef = useRef<Renderer | null>(null)
   const boundaryLayerRef = useRef<LayerGroup | null>(null)
-  const markersRef = useRef<Map<string, { marker: CircleMarker; spot: CrowdSpot }>>(new Map())
+  const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
   const [ready, setReady] = useState(false)
+  // 지도 컨테이너가 좁은가(< 640px) — 좁으면 이름표를 혼잡 위주로 줄인다 (init·ResizeObserver가 갱신)
+  const [narrow, setNarrow] = useState(false)
   // 줌 게이트 재계산 트리거 + 현재 줌에서 숨겨진 레이어 라벨(힌트 pill)
   const [zoomTick, setZoomTick] = useState(0)
   const [gatedLabels, setGatedLabels] = useState<string[]>([])
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  // 아래 ref들은 마커 갱신 함수(paintMarker·syncTooltip)가 이펙트 밖 이벤트에서도 최신 값을 읽게 렌더마다 맞춘다
   const selectedNameRef = useRef(selectedName)
+  selectedNameRef.current = selectedName
   const hoveredNameRef = useRef<string | null>(null)
+  hoveredNameRef.current = hoveredName ?? null
+  const langRef = useRef(lang)
+  langRef.current = lang
+  const showLabelsRef = useRef(showLabels)
+  showLabelsRef.current = showLabels
+  const opsLabelsRef = useRef(opsLabels)
+  opsLabelsRef.current = opsLabels
+  const favNamesRef = useRef(favNames)
+  favNamesRef.current = favNames
+  const narrowRef = useRef(narrow)
+  narrowRef.current = narrow
+  const spotCountRef = useRef(spots.length)
+  spotCountRef.current = spots.length
   const lastFitCityRef = useRef<string | null>(null)
   const centerRef = useRef(center)
   centerRef.current = center
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
+  // 도시 전체 보기면 정적 명소 bbox(CITIES.bounds) — 대시보드 전용. 보고서·미니맵은 null이라 기존 동작
+  const cityBounds = cityViewBounds(fitCity, center)
+  const cityBoundsRef = useRef(cityBounds)
+  cityBoundsRef.current = cityBounds
+  // 검색 매칭 1~30개일 때만 지도 반영 집합 — 배열 참조가 렌더마다 바뀌어도 내용이 같으면 같은 Set
+  const searchKey = searchNames?.join("\u0001") ?? ""
+  const searchSet = useMemo(() => searchFocusSet(searchKey ? searchKey.split("\u0001") : null), [searchKey])
+  const searchSetRef = useRef(searchSet)
+  searchSetRef.current = searchSet
+  const searchOff = searchNames == null
+  const searchBoundsRef = useRef<Bounds | null>(null)
+  // 사용자가 직접 지도를 움직였는가 — 프로그램 이동(fitBounds·flyTo)마다 false로 되돌리고
+  // 드래그·휠·핀치·더블클릭·줌 버튼·키보드에서만 true. 상세 닫힘·검색 해제 시 자동 복귀 여부를 가른다
+  const userMovedRef = useRef(false)
+  // 마지막으로 맞춘 도시 뷰(정적 bbox 또는 center 참조) — 같은 뷰로 다시 맞추지 않게
+  const viewKeyRef = useRef<Bounds | [number, number] | undefined>(undefined)
 
-  // 도시 전환 → 해당 도시 초기 뷰로 즉시 이동 (마운트 시엔 map 옵션이 처리,
-  // center는 CITIES 모듈 상수 참조라 도시가 바뀔 때만 이펙트가 돈다)
+  // 상세 닫힘(selected → null) → 도시 전체(검색 중이면 검색 범위)로 부드럽게 복귀. flyTo로 거리 줌에 들어간 채
+  // 남으면 목록으로 돌아와도 지도가 동네 한 칸만 보여 줬다. 단 상세가 열린 동안 사용자가 직접 지도를 움직였으면
+  // 복귀하지 않는다 — 주변을 둘러보던 중에 화면이 멋대로 튀면 방금 한 탐색을 빼앗는다. 손대지 않았다면
+  // "명소를 보러 들어갔다 나온" 것이라 원래 보던 범위로 돌아가는 게 자연스럽다.
+  // (도시 전환 이펙트보다 먼저 선언 — 같은 커밋에서 둘 다 돌면 도시 전환의 즉시 맞춤이 이 비행을 멈추고 이긴다)
+  const prevSelectedForViewRef = useRef(selectedName)
+  useEffect(() => {
+    const prev = prevSelectedForViewRef.current
+    prevSelectedForViewRef.current = selectedName
+    const map = mapInstanceRef.current
+    if (!ready || !map || !prev || selectedName || addressPin || userMovedRef.current) return
+    const target = searchBoundsRef.current ?? cityBoundsRef.current
+    if (target) map.flyToBounds(target, { ...FIT_OPTS, duration: 0.6 })
+  }, [ready, selectedName, addressPin])
+
+  // 도시 전환 → 해당 도시 뷰로 즉시 이동. 대시보드는 정적 명소 bbox로 맞추고(데이터 도착을 기다리지 않음),
+  // 그 외 호출부는 center/zoom. 마운트 시엔 init이 같은 뷰로 이미 열었으므로 건너뛴다(같은 참조).
+  // center·bounds는 CITIES 모듈 상수 참조라 도시가 바뀔 때만 이펙트가 돈다
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!ready || !map || !center) return
-    map.setView(center, zoom ?? map.getZoom())
-  }, [ready, center, zoom])
+    const key = cityBounds ?? center
+    if (!ready || !map || !center || viewKeyRef.current === key) return
+    viewKeyRef.current = key
+    userMovedRef.current = false
+    if (cityBounds) map.fitBounds(cityBounds, { ...FIT_OPTS, animate: false })
+    else map.setView(center, zoom ?? map.getZoom())
+  }, [ready, center, zoom, cityBounds])
 
-  // 이름표 겹침 컬링 — 겹치는 pill은 하나만 남긴다(선택 > 붐빔 순). 서울 121개가 도시 줌에서
+  // 이름표 겹침 컬링 — 겹치는 pill은 하나만 남긴다(선택 > 즐겨찾기 > 붐빔 순). 서울 121개가 도시 줌에서
   // 서로를 뒤덮어, interactive 이름표를 탭하면 엉뚱한 위 pill이 가로채던 문제의 근본 수정.
   // 숨김은 visibility(display 금지 — offsetWidth 측정이 0이 되어 다음 계산이 무너진다)
   const declutterRef = useRef(declutterLabels)
@@ -177,43 +269,111 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
   const cullLabels = useCallback(() => {
     const map = mapInstanceRef.current
     if (!map || !declutterRef.current) return
-    const kept: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
     const sel = selectedNameRef.current
-    const entries = [...markersRef.current.values()].sort(
-      (a, b) => Number(b.spot.name === sel) - Number(a.spot.name === sel) || b.spot.levelNum - a.spot.levelNum,
+    const fav = favNamesRef.current
+    const entries = [...markersRef.current.values()]
+      .filter((e) => e.tip.startsWith("name"))
+      .sort(
+        (a, b) =>
+          Number(b.spot.name === sel) - Number(a.spot.name === sel) ||
+          Number(!!fav?.has(b.spot.name)) - Number(!!fav?.has(a.spot.name)) ||
+          b.spot.levelNum - a.spot.levelNum,
+      )
+    // 크기를 전부 읽은 뒤에 클래스를 쓴다 — 읽기·쓰기를 섞으면 이름표마다 강제 레이아웃이 걸린다
+    const els = entries.map((e) => e.marker.getTooltip()?.getElement())
+    const culled = cullLabelBoxes(
+      entries.map((e, i) => {
+        const p = map.latLngToContainerPoint([e.spot.lat, e.spot.lng])
+        return { x: p.x, y: p.y, w: els[i]?.offsetWidth || 64, h: els[i]?.offsetHeight || 20, r: e.marker.getRadius() }
+      }),
     )
-    for (const { marker, spot } of entries) {
-      const el = marker.getTooltip()?.getElement()
-      if (!el) continue
-      const p = map.latLngToContainerPoint([spot.lat, spot.lng])
-      const w = el.offsetWidth || 64
-      const h = el.offsetHeight || 20
-      const rect = { x1: p.x + 8, y1: p.y - h / 2, x2: p.x + 8 + w, y2: p.y + h / 2 }
-      const overlaps = kept.some((r) => rect.x1 < r.x2 && rect.x2 > r.x1 && rect.y1 < r.y2 && rect.y2 > r.y1)
-      if (overlaps) el.classList.add("crowd-label-culled")
-      else {
-        el.classList.remove("crowd-label-culled")
-        kept.push(rect)
-      }
-    }
+    els.forEach((el, i) => el?.classList.toggle("crowd-label-culled", culled[i]))
   }, [])
   const cullLabelsRef = useRef(cullLabels)
   cullLabelsRef.current = cullLabels
 
-  // 선택·hover 스타일은 마커 재생성 없이 setStyle로만 반영 (121개 DOM 재생성 방지)
-  const applyMarkerStates = useCallback(() => {
-    const sel = selectedNameRef.current
-    const hov = hoveredNameRef.current
-    for (const { marker, spot } of markersRef.current.values()) {
-      const isSelected = spot.name === sel
-      const isHovered = !isSelected && spot.name === hov
-      marker.setStyle({
-        color: isSelected || isHovered ? "#1e293b" : "#ffffff",
-        weight: isSelected ? 2.5 : isHovered ? 2 : 1.2,
-        fillOpacity: isSelected || isHovered ? 0.95 : 0.85,
-      })
-      marker.setRadius(isSelected ? 11 + TOUCH_PAD : isHovered ? 9 : 5 + spot.levelNum * 1.5 + TOUCH_PAD)
+  // 마커 한 개의 스타일(선택·hover·검색 흐림·등급색·크기·글로우·붐빔 리플). 직전과 같으면 건너뛴다 —
+  // 예전엔 hover 한 번에 121개 전부 setStyle/setRadius를 다시 썼다(2026-10-05 실측 32~48ms)
+  const paintMarker = useCallback((e: MarkerEntry) => {
+    const L = leafletRef.current
+    const layer = spotLayerRef.current
+    if (!L || !layer) return
+    const { spot, marker } = e
+    const isSelected = spot.name === selectedNameRef.current
+    const isHovered = !isSelected && spot.name === hoveredNameRef.current
+    const dim = !isSelected && !isHovered && !!searchSetRef.current && !searchSetRef.current.has(spot.name)
+    const key = `${spot.color}|${spot.levelNum}|${isSelected ? 2 : isHovered ? 1 : 0}|${dim ? 1 : 0}`
+    if (key === e.paint) return
+    e.paint = key
+    marker.setStyle({
+      color: isSelected || isHovered ? "#1e293b" : "#ffffff",
+      weight: isSelected ? 2.5 : isHovered ? 2 : 1.2,
+      fillColor: spot.color,
+      opacity: dim ? 0.35 : 1,
+      fillOpacity: isSelected || isHovered ? 0.95 : dim ? 0.25 : 0.85,
+    })
+    marker.setRadius(isSelected ? 11 + TOUCH_PAD : isHovered ? 9 : 5 + spot.levelNum * 1.5 + TOUCH_PAD)
+    // 혼잡도 글로우 — 보간 아님, 스팟 주변 분위기 표시 (혼잡할수록 넓고 진하게)
+    e.glow?.setStyle({ fillColor: spot.color, fillOpacity: (0.13 + spot.levelNum * 0.05) * (dim ? 0.3 : 1) })
+    e.glow?.setRadius(200 + spot.levelNum * 80) // m
+    // 붐빔은 링이 바깥으로 퍼지는 리플로 다른 등급과 확실히 구분 (색 차이만으론 약해서 모양으로도)
+    if (spot.levelNum === 4 && !e.ripple) {
+      e.ripple = L.marker([spot.lat, spot.lng], {
+        icon: L.divIcon({ className: "crowd-ripple-anchor", html: `<span class="crowd-ripple"></span>`, iconSize: [22, 22] }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(layer)
+    } else if (spot.levelNum !== 4 && e.ripple) {
+      e.ripple.remove()
+      e.ripple = null
     }
+    e.ripple?.setOpacity(dim ? 0.3 : 1)
+  }, [])
+
+  // 마커 한 개의 툴팁 종류(상황실 레이블·이름표·hover 툴팁)와 내용을 맞춘다. 바뀐 것만 다시 묶는다 —
+  // permanent 툴팁은 붙을 때마다 Leaflet이 offsetWidth를 읽어 강제 레이아웃을 건다(2026-10-05 실측:
+  // 전량 재생성 한 태스크에 Layout 123회·스타일 재계산 185회). 반환: 이름표 배치가 바뀌었는가(컬링 재계산 필요)
+  const syncTooltip = useCallback((e: MarkerEntry) => {
+    const { spot, marker } = e
+    const lg = langRef.current
+    const opsLabel = opsLabelsRef.current?.get(spot.name)
+    let kind: TipKind
+    let html: string
+    if (opsLabel) {
+      kind = "ops"
+      html = `<div class="crowd-tip">${opsLabel}</div>`
+    } else if (
+      showLabelsRef.current &&
+      wantsNameLabel({
+        levelNum: spot.levelNum,
+        fav: !!favNamesRef.current?.has(spot.name),
+        selected: spot.name === selectedNameRef.current,
+        matched: searchSetRef.current ? searchSetRef.current.has(spot.name) : null,
+        // 좁은 화면 혼잡 위주 모드 — 대시보드(declutter)에서 지점이 많을 때만. 보고서 배치도는 전 지점 이름 유지
+        crowded: narrowRef.current && !!declutterRef.current && spotCountRef.current > NARROW_LABEL_MIN_SPOTS,
+      })
+    ) {
+      kind = "name"
+      html = `<span>${escapeHtml(trSpot(spot.name, lg))}</span>`
+    } else {
+      // 등급이 인파 실측이 아닌 도시(access/wait)는 툴팁에도 근거 병기
+      const basisLine =
+        spot.basis === "access" || spot.basis === "wait"
+          ? `<span style="opacity:.65">${escapeHtml(spot.basis === "access" ? UI[lg].basisAccess : UI[lg].basisWait)}</span>`
+          : ""
+      kind = "tip"
+      html = `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lg))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lg))}</span>${basisLine}</div>`
+    }
+    const key = `${kind}\u0000${html}`
+    if (key === e.tip) return false
+    const prevKind = e.tip.slice(0, e.tip.indexOf("\u0000"))
+    if (prevKind === kind) marker.setTooltipContent(html)
+    else {
+      marker.unbindTooltip()
+      marker.bindTooltip(html, TIP_OPTS[kind])
+    }
+    e.tip = key
+    return kind === "name" || prevKind === "name"
   }, [])
 
   // 지도 초기화 (1회)
@@ -225,9 +385,14 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       if (cancelled || !mapRef.current || mapInstanceRef.current) return
       leafletRef.current = L
 
+      // 대시보드는 정적 명소 bbox로 바로 연다 — center/zoom(서울 z12)로 열고 데이터 도착 후 다시 맞추면
+      // 첫 타일 8장 중 6장이 취소되고 LCP가 두 번째 줌의 타일이 됐다(2026-10-05 모바일 실측 189KB 낭비).
+      // 타일 레이어를 붙이기 전에 뷰를 정해야 첫 요청부터 최종 뷰의 타일이다
+      const initialBounds = cityBoundsRef.current
+      viewKeyRef.current = initialBounds ?? centerRef.current
       const map = L.map(mapRef.current, {
-        center: centerRef.current ?? SEOUL_CENTER,
-        zoom: zoomRef.current ?? 12,
+        center: initialBounds ? undefined : (centerRef.current ?? SEOUL_CENTER),
+        zoom: initialBounds ? undefined : (zoomRef.current ?? 12),
         zoomControl: false,
         attributionControl: true,
         // 휠 줌 부드럽게 — 기본값(정수 스냅·틱당 1레벨)은 맥 휠에서 '퍽퍽' 점프.
@@ -237,7 +402,27 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         wheelPxPerZoomLevel: 120,
         wheelDebounceTime: 20,
       })
-      L.control.zoom({ position: "bottomright" }).addTo(map)
+      if (initialBounds) map.fitBounds(initialBounds, { ...FIT_OPTS, animate: false })
+      const zoomControl = L.control.zoom({ position: "bottomright" }).addTo(map)
+
+      // 사용자 직접 조작 감지 — 프로그램 이동(fitBounds·flyTo)은 dragstart·wheel 등을 내지 않는다
+      const markUserMoved = () => {
+        userMovedRef.current = true
+      }
+      map.on("dragstart boxzoomend dblclick", markUserMoved)
+      // 키보드는 지도를 움직이는 키만 — Esc(상세 닫기)까지 세면 마커 클릭으로 포커스된 지도에서 복귀가 막힌다
+      map.on("keydown", (ev) => {
+        if (/^(Arrow\w+|[-+=_])$/.test((ev as LeafletKeyboardEvent).originalEvent.key)) markUserMoved()
+      })
+      zoomControl.getContainer()?.addEventListener("click", markUserMoved)
+      mapRef.current.addEventListener("wheel", markUserMoved, { passive: true })
+      mapRef.current.addEventListener(
+        "touchstart",
+        (ev) => {
+          if (ev.touches.length > 1) markUserMoved() // 핀치 줌
+        },
+        { passive: true },
+      )
 
       // 타일 (CARTO — OSM 한글 라벨). 테마 전환은 아래 darkTiles 이펙트가 레이어를 갈아끼운다
       tileLayerRef.current = L.tileLayer(darkTilesRef.current ? TILE_URL.dark : TILE_URL.light, {
@@ -275,13 +460,18 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
       // 생활 레이어 줌 게이트 재계산 (광진 전용 — lifePois 없는 호출부에선 상태 변화 무해)
       map.on("zoomend", () => setZoomTick((t) => t + 1))
       mapInstanceRef.current = map
+      // 첫 마커 생성 전에 폭을 정한다 — 모바일에서 121개 이름표를 다 붙였다 떼는 낭비 방지
+      setNarrow(mapRef.current.clientWidth < NARROW_MAP_WIDTH)
       setReady(true)
     }
 
     void init()
 
-    // 모바일에서 상세 열림/닫힘에 따라 지도 높이가 바뀌므로 크기 재계산
-    const observer = new ResizeObserver(() => mapInstanceRef.current?.invalidateSize())
+    // 모바일에서 상세 열림/닫힘에 따라 지도 높이가 바뀌므로 크기 재계산 (+ 좁은 화면 이름표 모드 판정)
+    const observer = new ResizeObserver(() => {
+      mapInstanceRef.current?.invalidateSize()
+      if (mapRef.current) setNarrow(mapRef.current.clientWidth < NARROW_MAP_WIDTH)
+    })
     if (mapRef.current) observer.observe(mapRef.current)
 
     return () => {
@@ -302,131 +492,141 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
     }
   }, [])
 
-  // 명소 마커 갱신 (데이터가 바뀔 때만 재생성 — 선택 변경은 아래 setStyle 이펙트가 처리)
+  // 명소 마커 갱신 — 이름 키로 기존 마커를 유지하고 바뀐 속성만 반영한다(diff). 5분 폴링·시간대 렌즈 한 칸마다
+  // 121개를 clearLayers 후 전량 재생성하던 시절 실측(2026-10-05, 모바일 4x): 새로고침 102ms·렌즈 한 칸 87~136ms
+  // long task. 마커 생성·삭제는 이름 집합이 바뀔 때(필터·도시 전환)만, 이름표 종류 변경은 그 마커만 다시 묶는다
   useEffect(() => {
     const L = leafletRef.current
     const layer = spotLayerRef.current
     const glowLayer = glowLayerRef.current
     const glowRenderer = glowRendererRef.current
     if (!ready || !L || !layer) return
-    layer.clearLayers()
-    glowLayer?.clearLayers()
-    markersRef.current.clear()
-
+    const markers = markersRef.current
+    const seen = new Set<string>()
+    let relayout = false
     for (const spot of spots) {
-      // 혼잡도 글로우 — 보간 아님, 스팟 주변 분위기 표시 (혼잡할수록 넓고 진하게)
-      if (glowLayer && glowRenderer) {
-        L.circle([spot.lat, spot.lng], {
-          radius: 200 + spot.levelNum * 80, // m
-          stroke: false,
-          fillColor: spot.color,
-          fillOpacity: 0.13 + spot.levelNum * 0.05,
-          interactive: false,
-          renderer: glowRenderer,
-        }).addTo(glowLayer)
-      }
-      // 붐빔은 링이 바깥으로 퍼지는 리플로 다른 등급과 확실히 구분 (색 차이만으론 약해서 모양으로도)
-      if (spot.levelNum === 4) {
-        L.marker([spot.lat, spot.lng], {
-          icon: L.divIcon({ className: "crowd-ripple-anchor", html: `<span class="crowd-ripple"></span>`, iconSize: [22, 22] }),
-          interactive: false,
-          keyboard: false,
-        }).addTo(layer)
-      }
-      const marker = L.circleMarker([spot.lat, spot.lng], {
-        radius: 5 + spot.levelNum * 1.5 + TOUCH_PAD,
-        color: "#ffffff",
-        weight: 1.2,
-        fillColor: spot.color,
-        fillOpacity: 0.85,
-      })
-
-      // 등급이 인파 실측이 아닌 도시(access/wait)는 툴팁에도 근거 병기
-      const basisLine =
-        spot.basis === "access" || spot.basis === "wait"
-          ? `<span style="opacity:.65">${escapeHtml(spot.basis === "access" ? UI[lang].basisAccess : UI[lang].basisWait)}</span>`
-          : ""
-      const opsLabel = opsLabels?.get(spot.name)
-      if (opsLabel) {
-        // 상황실 미니맵 — 지점명·등급·인원을 상시 노출 (호버 없이 한눈에)
-        marker.bindTooltip(`<div class="crowd-tip">${opsLabel}</div>`, {
-          permanent: true,
-          direction: "top",
-          offset: [0, -8],
-          opacity: 1,
-          className: "crowd-ops-label",
-        })
-      } else if (showLabels) {
-        // 이름표 모드(기본) — 어느 점이 어디인지 호버 없이 보이게. 등급은 점 색이 이미 말한다.
-        // interactive: 이름표 탭 = 마커 클릭으로 전달(Leaflet interactive 툴팁) — 모바일에서
-        // 작은 점 대신 pill 전체가 탭 표적이 된다 (점만 남기면 레이블이 점 옆을 가려 오탭 유발)
-        marker.bindTooltip(`<span>${escapeHtml(trSpot(spot.name, lang))}</span>`, {
-          permanent: true,
-          direction: "right",
-          offset: [8, 0],
-          opacity: 1,
-          className: "crowd-name-label",
-          interactive: true,
-        })
+      seen.add(spot.name)
+      let e = markers.get(spot.name)
+      if (!e) {
+        const glow =
+          glowLayer && glowRenderer
+            ? L.circle([spot.lat, spot.lng], { stroke: false, interactive: false, renderer: glowRenderer }).addTo(glowLayer)
+            : null
+        const marker = L.circleMarker([spot.lat, spot.lng])
+        marker.on("click", () => onSelectRef.current(spot.name))
+        marker.addTo(layer)
+        e = { marker, spot, glow, ripple: null, tip: "", paint: "" }
+        markers.set(spot.name, e)
       } else {
-        marker.bindTooltip(
-          `<div class="crowd-tip"><b>${escapeHtml(trSpot(spot.name, lang))}</b><span style="color:${spot.color}">● ${escapeHtml(trLevel(spot.level, lang))}</span>${basisLine}</div>`,
-          { direction: "top", offset: [0, -8], opacity: 1 },
-        )
+        if (e.spot.lat !== spot.lat || e.spot.lng !== spot.lng) {
+          e.marker.setLatLng([spot.lat, spot.lng])
+          e.glow?.setLatLng([spot.lat, spot.lng])
+          e.ripple?.setLatLng([spot.lat, spot.lng])
+          relayout = true
+        }
+        // 등급이 바뀌면 컬링 우선순위·점 크기가 달라진다
+        if (e.spot.levelNum !== spot.levelNum) relayout = true
+        e.spot = spot
       }
-      marker.on("click", () => onSelectRef.current(spot.name))
-      marker.addTo(layer)
-      markersRef.current.set(spot.name, { marker, spot })
+      paintMarker(e)
+      if (syncTooltip(e)) relayout = true
     }
-    applyMarkerStates()
+    for (const [name, e] of markers) {
+      if (seen.has(name)) continue
+      e.marker.remove()
+      e.glow?.remove()
+      e.ripple?.remove()
+      markers.delete(name)
+      relayout = true
+    }
     // 툴팁 DOM은 addTo 직후 프레임에 붙는다 — 붙은 뒤 겹침 컬링
-    requestAnimationFrame(() => cullLabelsRef.current())
-  }, [ready, spots, lang, applyMarkerStates, opsLabels, showLabels])
+    if (relayout) requestAnimationFrame(() => cullLabelsRef.current())
+  }, [ready, spots, lang, opsLabels, showLabels, narrow, favNames, searchSet, paintMarker, syncTooltip])
 
-  // 선택 변경 반영
+  // 선택 변경 반영 — 이전·현재 선택 마커 2개만 (좁은 화면에선 선택 지점에 이름표가 붙었다 떨어진다)
+  const prevSelectedRef = useRef<string | null>(null)
   useEffect(() => {
-    selectedNameRef.current = selectedName
     if (!ready) return
-    applyMarkerStates()
+    const prev = prevSelectedRef.current
+    prevSelectedRef.current = selectedName
+    for (const name of new Set([prev, selectedName])) {
+      const e = name ? markersRef.current.get(name) : undefined
+      if (!e) continue
+      paintMarker(e)
+      syncTooltip(e)
+    }
     // 선택 지점 이름표는 컬링 최우선 생존 — 재계산
     cullLabelsRef.current()
-  }, [ready, selectedName, applyMarkerStates])
+  }, [ready, selectedName, paintMarker, syncTooltip])
 
-  // 목록 hover ↔ 지도 연동 — 마커 강조 + 툴팁 열기 (permanent 라벨을 쓰는 미니맵에선 미동작)
+  // 목록 hover ↔ 지도 연동 — 이전·현재 hover 마커 2개만 강조 + 툴팁 열기 (permanent 라벨을 쓰는 미니맵에선 미동작).
+  // 이름표가 붙은 마커는 여닫지 않고 확대만으로 짚는다 — hover 툴팁은 이름표가 없는 마커(이름표 끔·좁은 화면·검색 흐림)만
+  const prevHoveredRef = useRef<string | null>(null)
   useEffect(() => {
-    hoveredNameRef.current = hoveredName ?? null
     if (!ready || opsLabels) return
-    applyMarkerStates()
-    // 이름표 모드에선 툴팁이 전부 permanent라 여닫지 않는다 — 마커 확대만으로 짚어준다
-    if (showLabels) return
-    for (const [name, { marker }] of markersRef.current) {
-      if (name === hoveredName) marker.openTooltip()
-      else if (marker.isTooltipOpen()) marker.closeTooltip()
+    const prev = prevHoveredRef.current
+    const cur = hoveredName ?? null
+    prevHoveredRef.current = cur
+    for (const name of new Set([prev, cur])) {
+      const e = name ? markersRef.current.get(name) : undefined
+      if (!e) continue
+      paintMarker(e)
+      if (!e.tip.startsWith("tip")) continue
+      if (name === cur) e.marker.openTooltip()
+      else if (e.marker.isTooltipOpen()) e.marker.closeTooltip()
     }
-  }, [ready, hoveredName, applyMarkerStates, opsLabels, showLabels])
+  }, [ready, hoveredName, opsLabels, paintMarker])
 
-  // 도시 전환·첫 로드 시 실좌표 bbox로 뷰 최적화 — 고정 줌은 화면 폭에 따라 낭비가 커서(강원 내륙 2/3)
-  // 데이터가 도착한 시점에 도시당 1회만 맞춘다. 딥링크로 상세·주소핀이 열려 있으면 그쪽 flyTo가 우선.
+  // 첫 데이터 도착 시 실좌표 bbox로 뷰 최적화 — 고정 줌은 화면 폭에 따라 낭비가 커서(강원 내륙 2/3)
+  // 도시당 1회만 맞춘다. 딥링크로 상세·주소핀이 열려 있으면 그쪽 flyTo가 우선.
   // 뷰는 등급이 있는 지점 위주 — "정보 없음" 외곽(강원 속초~삼척 8곳)까지 다 담으면 신호 밀도가 죽는다.
+  // 대시보드는 정적 bbox로 이미 열렸으니 실좌표가 그 안에 들면 건너뛴다(재맞춤 = 첫 타일 폐기).
+  // 원천이 명소를 늘려 bbox 밖으로 나갔거나 등급이 다 빠진 경우에만 다시 맞춘다. 보고서 배치도는 늘 맞춘다
   useEffect(() => {
     const map = mapInstanceRef.current
-    const L = leafletRef.current
-    if (!ready || !map || !L || !fitCity || spots.length === 0) return
+    if (!ready || !map || !fitCity || spots.length === 0) return
     if (lastFitCityRef.current === fitCity) return
     lastFitCityRef.current = fitCity
     if (selectedNameRef.current || addressPin) return
     const graded = spots.filter((s) => s.levelNum > 0)
-    const target = graded.length >= 2 ? graded : spots
-    const bounds = L.latLngBounds(target.map((s) => [s.lat, s.lng] as [number, number]))
-    map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 })
+    const bounds = boundsOf(graded.length >= 2 ? graded : spots)
+    if (!bounds) return
+    const fixed = cityBoundsRef.current
+    if (fixed && containsBounds(fixed, bounds, 0.005)) return
+    userMovedRef.current = false
+    map.fitBounds(bounds, FIT_OPTS)
   }, [ready, spots, fitCity, addressPin])
+
+  // 검색 결과 지도 반영 — 매칭 1~30개면 그 범위로 맞춘다(흐림은 마커 갱신 이펙트가 searchSet으로 처리).
+  // 0개·과다는 지도 불변. 검색어를 지우면 검색이 옮긴 뷰를 도시 전체로 되돌린다 — 그 사이 사용자가
+  // 지도를 직접 움직였으면 그 자리를 둔다(상세 닫힘 복귀와 같은 규칙)
+  const prevSearchSetRef = useRef<Set<string> | null>(null)
+  const searchFittedRef = useRef(false)
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!ready || !map) return
+    searchBoundsRef.current = searchSet ? boundsOf(spots.filter((s) => searchSet.has(s.name))) : null
+    const changed = prevSearchSetRef.current !== searchSet
+    prevSearchSetRef.current = searchSet
+    if (selectedNameRef.current || addressPin) return
+    if (changed && searchBoundsRef.current) {
+      userMovedRef.current = false
+      searchFittedRef.current = true
+      map.flyToBounds(searchBoundsRef.current, { ...FIT_OPTS, duration: 0.5 })
+    } else if (searchOff && searchFittedRef.current) {
+      searchFittedRef.current = false
+      if (!userMovedRef.current && cityBoundsRef.current) map.flyToBounds(cityBoundsRef.current, { ...FIT_OPTS, duration: 0.5 })
+    }
+  }, [ready, searchSet, searchOff, spots, addressPin])
 
   // 선택 시 지도 이동
   useEffect(() => {
     const map = mapInstanceRef.current
     if (!map || !selectedName) return
     const spot = spots.find((s) => s.name === selectedName)
-    if (spot) map.flyTo([spot.lat, spot.lng], Math.max(map.getZoom(), 14), { duration: 0.6 })
+    if (!spot) return
+    userMovedRef.current = false
+    map.flyTo([spot.lat, spot.lng], Math.max(map.getZoom(), 14), { duration: 0.6 })
   }, [ready, selectedName, spots])
 
   // 선택 명소의 주변 CCTV 마커
@@ -454,12 +654,12 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
         // https·CORS 개방 스트림(TOPIS) — 네이티브 HLS는 src 직결, 그 외는 popupopen 때 hls.js 부착
         if (supportsNativeHls()) {
           marker.bindPopup(
-            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p><video src="${c.src}" autoplay muted playsinline></video></div>`,
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizePlace(c.name))}</p><video src="${c.src}" autoplay muted playsinline></video></div>`,
             { maxWidth: 320, minWidth: 280, closeButton: true },
           )
         } else {
           marker.bindPopup(
-            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p><video data-hls-src="${c.src}" autoplay muted playsinline></video></div>`,
+            `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizePlace(c.name))}</p><video data-hls-src="${c.src}" autoplay muted playsinline></video></div>`,
             { maxWidth: 320, minWidth: 280, closeButton: true },
           )
           marker.on("popupopen", (e) => {
@@ -482,7 +682,7 @@ export default function CrowdMap({ spots, lang, selectedName, addressPin, neares
           ? `<video src="${cctvStreamUrl(c)}" autoplay muted playsinline></video>`
           : `<iframe src="${cctvPlayerUrl(c)}" title="CCTV ${escapeHtml(c.name)}" allow="autoplay"></iframe>`
         marker.bindPopup(
-          `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizeAddress(c.name))}</p>${player}</div>`,
+          `<div class="crowd-cctv-pop"><p>${escapeHtml(lang === "ko" ? c.name : romanizePlace(c.name))}</p>${player}</div>`,
           { maxWidth: 320, minWidth: 280, closeButton: true },
         )
       } else {

@@ -50,7 +50,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ko">
+    // suppressHydrationWarning: /crowd·/gwangjin(data-crowd-theme)·/dumping(data-theme) 테마 스크립트가 하이드레이션 전에 html 속성을 박는다
+    <html lang="ko" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${suit.variable} font-sans antialiased`}>
         {children}
         <Analytics />

@@ -128,6 +128,11 @@ export default function SpotDetail({
   const [copied, setCopied] = useState(false)
 
   const city = detail.city ?? "seoul"
+  // 등급 근거 태그 — CrowdDetail엔 basis가 없어 어댑터 규칙(부산·강원=주차·도로, 인천공항=대기시간,
+  // 등급 없음=none)을 도시·등급으로 되짚는다. 목록·지도엔 있는데 상세 헤더에만 빠져 있었다 (2026-10-05 리뷰)
+  const basisTag =
+    detail.levelNum > 0 ? (city === "incheon" ? t.basisWait : city === "busan" || city === "gangwon" ? t.basisAccess : null) : null
+  const levelMessages = trLevelMessages(detail.message, detail.levelNum, lang, city)
 
   // 부가정보(사고·주차·행사·도로·따릉이)는 첫 페인트를 막지 않게 지연 로드 — 제주는 원천 없음
   const [extra, setExtra] = useState<CrowdExtra | null>(null)
@@ -242,12 +247,15 @@ export default function SpotDetail({
           >
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
           </button>
-          <span
-            className="shrink-0 rounded-full px-2.5 py-1 text-[13px] font-bold"
-            style={{ color: textColor(detail.color, light), background: `${detail.color}1f`, border: `1px solid ${detail.color}55` }}
-          >
-            {trLv(detail.level)}
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            <span
+              className="rounded-full px-2.5 py-1 text-[13px] font-bold"
+              style={{ color: textColor(detail.color, light), background: `${detail.color}1f`, border: `1px solid ${detail.color}55` }}
+            >
+              {trLv(detail.level)}
+            </span>
+            {basisTag && <span className="whitespace-nowrap text-[11px] text-[var(--cp-text-dim)]">{basisTag}</span>}
+          </div>
         </div>
         {now && (
           <p className="mt-1.5 font-mono text-[14px] tabular-nums text-[var(--cp-text)]">
@@ -351,9 +359,9 @@ export default function SpotDetail({
             )}
           </div>
         )}
-        {trLevelMessages(detail.message, detail.levelNum, lang).length > 0 && (
+        {levelMessages.length > 0 && (
           <ul className="mt-2 space-y-0.5">
-            {trLevelMessages(detail.message, detail.levelNum, lang).map((m, i) => (
+            {levelMessages.map((m, i) => (
               <li key={i} className="text-[13px] leading-relaxed text-[var(--cp-text-muted)]">
                 {m}
               </li>
@@ -446,7 +454,7 @@ export default function SpotDetail({
       )}
 
       {/* CCTV — 차트에서 본 붐빔을 바로 눈으로 확인하는 흐름이라 상단 배치 */}
-      <SpotCctv cctv={detail.cctv} origin={origin} />
+      <SpotCctv cctv={detail.cctv} origin={origin} city={city} />
 
       {/* 부가정보: 주차·행사·도로·지하철·따릉이 */}
       {extra && <SpotExtras extra={extra} origin={origin} light={light} />}
@@ -534,7 +542,7 @@ export default function SpotDetail({
               {air.o3 != null && <span> · O₃ {air.o3}</span>}
             </p>
           </div>
-          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.airStation(air.station)}</p>
+          <p className="mt-1 text-[11px] text-[var(--cp-text-faint)]">{t.airStation(lang === "ko" ? air.station : romanizeAddress(air.station))}</p>
         </div>
       )}
 

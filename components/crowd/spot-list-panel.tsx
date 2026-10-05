@@ -130,10 +130,15 @@ export default function SpotListPanel({
             {t[p.tKey] as string}
           </button>
         ))}
-        <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--cp-border)]" />
+        {/* 구분선은 앞에 칩이 있을 때만 — 서울 외 도시는 프리셋이 없어 "|"만 홀로 남았다(2026-10-05 실측).
+            모바일은 혼잡도 칩(order-first) 바로 뒤(-order-1)로 */}
+        {(showPresets || favs.size > 0 || favOnly) && (
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--cp-border)] max-md:-order-1" />
+        )}
         {/* 혼잡도 칩은 모바일에서 맨 앞으로(order-first) — 프리셋 5개 뒤에 있으면 인파레이더의
-            주 필터가 가로 스크롤 밖(x>400)으로 밀려 아예 안 보였다. PC는 DOM 순서 그대로 */}
-        {LEVEL_ORDER.slice().reverse().map((level) => {
+            주 필터가 가로 스크롤 밖(x>400)으로 밀려 아예 안 보였다. PC는 DOM 순서 그대로.
+            순서는 지도 범례와 같은 붐빔→여유 (예전엔 칩만 여유→붐빔으로 반대였다) */}
+        {LEVEL_ORDER.map((level) => {
           const active = levelFilter.has(level)
           return (
             <button
@@ -149,7 +154,10 @@ export default function SpotListPanel({
             >
               <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: LEVEL_COLORS[level] }} />
               {trLv(level)}
-              <span className="ml-1 font-mono tabular-nums opacity-70">{levelCounts[level] ?? 0}</span>
+              {/* 로딩 중엔 "–" — 0은 실값처럼 읽힌다. 폭 고정으로 숫자 도착 시 줄바꿈이 바뀌지 않게 */}
+              <span className="ml-1 inline-block min-w-[2ch] font-mono tabular-nums opacity-70">
+                {loading ? "–" : (levelCounts[level] ?? 0)}
+              </span>
             </button>
           )
         })}
@@ -167,7 +175,13 @@ export default function SpotListPanel({
       )}
       {/* 카테고리 필터 (다중선택, 한 줄 가로 스크롤) + 정렬 고정 */}
       <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--cp-border)] px-3 py-1.5 md:py-2.5">
-        <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)] md:[mask-image:none] md:flex-wrap md:overflow-visible">
+        {/* PC는 줄바꿈이라 데이터 도착 시 카테고리가 1줄→2줄로 늘며 목록을 밀었다(CLS 0.073, 2026-10-05 실측) —
+            카테고리를 모르는 로딩 중엔 2줄 높이를 미리 잡는다 (서울·부산 2줄) */}
+        <div
+          className={`scrollbar-thin flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)] md:[mask-image:none] md:flex-wrap md:overflow-visible ${
+            loading && categories.length <= 1 ? "md:min-h-[66px] md:content-start" : ""
+          }`}
+        >
           {categories.map((c) => {
             const active = c === "전체" ? categoryFilter.size === 0 : categoryFilter.has(c)
             return (
@@ -188,16 +202,23 @@ export default function SpotListPanel({
         </div>
         {/* 정렬 — 모바일은 select 하나로 압축. 3개 링크가 140px를 먹어 카테고리 칩이
             2개만 보이던 자리를 되돌려준다 (PC는 한눈에 보이는 3링크 유지) */}
-        <select
-          value={sort}
-          onChange={(e) => onSort(e.target.value as SortMode)}
-          aria-label={t.sortLabel}
-          className="ml-0.5 shrink-0 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)] py-1 pl-2 pr-1 text-[12px] text-[var(--cp-text-muted)] md:hidden"
-        >
-          <option value="busy">{t.sortBusy}</option>
-          <option value="calm">{t.sortCalm}</option>
-          <option value="name">{t.sortName}</option>
-        </select>
+        {/* 히트 영역 44px — 알약 모양은 뒤 장식이 그리고 select 자체는 투명하게 키운다(-my-2로 줄 높이 불변, 실측 62×27) */}
+        <div className="relative ml-0.5 shrink-0 md:hidden">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-1/2 h-[27px] -translate-y-1/2 rounded-full border border-[var(--cp-border)] bg-[var(--cp-panel)]"
+          />
+          <select
+            value={sort}
+            onChange={(e) => onSort(e.target.value as SortMode)}
+            aria-label={t.sortLabel}
+            className="relative -my-2 h-11 bg-transparent pl-2 pr-1 text-[12px] text-[var(--cp-text-muted)]"
+          >
+            <option value="busy">{t.sortBusy}</option>
+            <option value="calm">{t.sortCalm}</option>
+            <option value="name">{t.sortName}</option>
+          </select>
+        </div>
         <div className="hidden shrink-0 items-center gap-1 border-l border-[var(--cp-border-faint)] pl-1.5 md:flex">
           {(
             [
@@ -235,6 +256,21 @@ export default function SpotListPanel({
             </button>
           </div>
         )}
+        {/* 로딩 스켈레톤 — 도시 전환 콜드 응답이 12초까지 걸리는데 목록이 빈 칸이었다(2026-10-05 실측) */}
+        {loading && !error && filtered.length === 0 && (
+          <ul aria-hidden className="animate-pulse">
+            {Array.from({ length: 8 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 border-b border-[var(--cp-border-faint)] py-2.5 pl-4 pr-11">
+                <span className="h-3 w-6 shrink-0 rounded bg-[var(--cp-panel2)]" />
+                <div className="min-w-0 flex-1 space-y-1.5 py-0.5">
+                  <div className="h-3.5 rounded bg-[var(--cp-panel2)]" style={{ width: `${45 + ((i * 17) % 35)}%` }} />
+                  <div className="h-3 w-1/4 rounded bg-[var(--cp-panel2)]" />
+                </div>
+                <span className="h-5 w-11 shrink-0 rounded-full bg-[var(--cp-panel2)]" />
+              </li>
+            ))}
+          </ul>
+        )}
         <ul>
           {filtered.map((spot, i) => (
             <li key={spot.name} className="relative">
@@ -267,8 +303,9 @@ export default function SpotListPanel({
                       </span>
                     )}
                     {/* 인파 실측이 아닌 등급은 근거를 병기 — 서울·제주(ppl)는 붙지 않아 첫인상 불변 */}
+                    {/* 근거는 부제와 같은 text-dim — faint(대비 2.37:1)로는 고지가 안 읽혔다 */}
                     {(spot.basis === "access" || spot.basis === "wait") && (
-                      <span className="text-[var(--cp-text-faint)]">
+                      <span>
                         {" · "}
                         {spot.basis === "access" ? t.basisAccess : t.basisWait}
                       </span>
@@ -292,7 +329,8 @@ export default function SpotListPanel({
               </button>
               <button
                 onClick={() => onToggleFav(spot.name)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1.5 transition-colors hover:bg-[var(--cp-hover)]"
+                // 44px 정사각 히트 — 행 오른쪽 여백(pr-11)을 그대로 쓴다 (실측 26×26)
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded transition-colors hover:bg-[var(--cp-hover)]"
                 aria-label={favs.has(spot.name) ? t.favOff(trSpotName(spot.name)) : t.favOn(trSpotName(spot.name))}
                 title={t.favTitle}
               >

@@ -14,6 +14,8 @@ interface CrowdHeaderProps {
   city: CityId
   spotCount: number
   levelCounts: Record<string, number>
+  /** 목록 로딩 중 — 등급 숫자를 실값(0)처럼 보이지 않게 "–"로 */
+  loading?: boolean
   updatedAt: string | null
   light: boolean
   disaster: CrowdDisaster[]
@@ -32,6 +34,7 @@ export default function CrowdHeader({
   city,
   spotCount,
   levelCounts,
+  loading,
   updatedAt,
   light,
   disaster,
@@ -102,7 +105,8 @@ export default function CrowdHeader({
           key={id}
           onClick={() => onCityChange(id)}
           aria-pressed={city === id}
-          className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors md:py-1 ${
+          // 모바일 히트 영역 — 시각 크기는 그대로, 의사요소로 세로 44px까지 (실측 41×22, 2026-10-05)
+          className={`relative whitespace-nowrap rounded-full px-3 py-0.5 text-[12px] font-medium transition-colors max-md:after:absolute max-md:after:inset-x-0 max-md:after:-inset-y-[11px] md:px-2.5 md:py-1 ${
             city === id
               ? "bg-[var(--cp-text-strong)] text-[var(--cp-bg)]"
               : "text-[var(--cp-text-dim)] hover:text-[var(--cp-text)]"
@@ -115,17 +119,19 @@ export default function CrowdHeader({
   )
 
   // 라이브 갱신 시각 — md↑는 헤더 우측, 모바일은 도시 행 우측(dateline)에 붙는다
-  const liveClock = updatedAt && (
+  // 로딩 중(updatedAt 없음)에도 자리는 남긴다 — 도착 순간 끼어들면 헤더 등급 숫자가 옆으로 밀렸다(CLS, 2026-10-05 실측)
+  const liveClock = (
     <span
-      className="flex shrink-0 items-center gap-1.5 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)]"
+      className={`flex shrink-0 items-center gap-1.5 font-mono text-[12px] tabular-nums text-[var(--cp-text-dim)] ${updatedAt ? "" : "invisible"}`}
       title={t.autoRefresh}
+      aria-hidden={updatedAt ? undefined : true}
     >
       <span className="relative flex h-1.5 w-1.5" aria-hidden>
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-50" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
       </span>
-      {t.updatedAt(formatClock(updatedAt))}
-      <span className="hidden text-[var(--cp-text-faint)] xl:inline">· {t.autoRefresh}</span>
+      {t.updatedAt(updatedAt ? formatClock(updatedAt) : "00:00")}
+      <span className={`hidden text-[var(--cp-text-faint)] ${lang === "ko" ? "xl:inline" : "min-[1760px]:inline"}`}>· {t.autoRefresh}</span>
     </span>
   )
 
@@ -159,24 +165,26 @@ export default function CrowdHeader({
         <div className="flex shrink-0 items-center gap-3 md:gap-4">
           {/* 등급 분포 — xl부터만 (md~lg 폭에서 제목을 짜부라뜨리던 주범.
               그 폭에선 목록 패널의 등급 필터 칩이 같은 숫자를 보여준다) */}
-          <div className="hidden items-center gap-3 xl:flex">
+          {/* 외국어는 제목·스위처·시각 문구가 길어 1440에서도 스위처가 범례를 덮었다(2026-10-05 en 실측) → 2xl부터 */}
+          <div className={`hidden items-center gap-3 ${lang === "ko" ? "xl:flex" : "2xl:flex"}`}>
             {LEVEL_ORDER.map((lv) => (
               <div key={lv} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ background: LEVEL_COLORS[lv] }} />
                 <span className="text-[12px] text-[var(--cp-text-muted)]">{level(lv)}</span>
-                <span className="font-mono text-[13px] tabular-nums text-[var(--cp-text)]">
-                  {levelCounts[lv] ?? 0}
+                <span className="min-w-[2ch] text-right font-mono text-[13px] tabular-nums text-[var(--cp-text)]">
+                  {loading ? "–" : (levelCounts[lv] ?? 0)}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 border-l border-[var(--cp-border)] pl-3 md:pl-4">
+          {/* 모바일 아이콘은 44px 정사각 히트(-my-2로 헤더 높이 불변, 간격 0) — 실측 26×26이었다(2026-10-05) */}
+          <div className="flex items-center border-l border-[var(--cp-border)] pl-1 md:gap-1.5 md:pl-4">
             {/* 갱신 시각 — md↑만 여기, 모바일은 도시 행 우측 (좁은 폭에서 제목과 폭 다툼 금지) */}
             <div className="hidden md:contents">{liveClock}</div>
             <button
               onClick={onEnterOps}
-              className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+              className="-my-2 flex h-11 w-11 items-center justify-center rounded text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)] md:my-0 md:h-auto md:w-auto md:p-1.5"
               title={t.opsMode}
               aria-label={t.opsMode}
             >
@@ -184,7 +192,7 @@ export default function CrowdHeader({
             </button>
             <button
               onClick={onRefresh}
-              className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+              className="-my-2 flex h-11 w-11 items-center justify-center rounded text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)] md:my-0 md:h-auto md:w-auto md:p-1.5"
               title={t.refresh}
               aria-label={t.refresh}
             >
@@ -193,13 +201,16 @@ export default function CrowdHeader({
             <button
               ref={themeBtnRef}
               onClick={animatedToggleTheme}
-              className="rounded p-1.5 text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)]"
+              className="-my-2 flex h-11 w-11 items-center justify-center rounded text-[var(--cp-text-muted)] transition-colors hover:bg-[var(--cp-hover)] hover:text-[var(--cp-text-strong)] md:my-0 md:h-auto md:w-auto md:p-1.5"
               title={light ? t.darkMode : t.lightMode}
               aria-label={light ? t.darkMode : t.lightMode}
             >
               {light ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
             </button>
-            <LangSwitcher />
+            {/* 언어 버튼(lang-context 소유)은 모바일에서 의사요소로 세로 히트만 넓힌다 (실측 43×25) */}
+            <div className="contents max-md:[&>div>button]:relative max-md:[&>div>button]:after:absolute max-md:[&>div>button]:after:inset-x-0 max-md:[&>div>button]:after:-inset-y-[10px]">
+              <LangSwitcher />
+            </div>
           </div>
 
           <Link
@@ -216,7 +227,9 @@ export default function CrowdHeader({
       {/* ── 도시 행 (모바일) — 좌측 도시 스위처(넘치면 가로 스크롤) + 우측 라이브 갱신 시각.
              갱신 시각이 헤더 1행에 있으면 제목과 폭을 다투다 제목이 잘려서 여기로 내렸다 */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--cp-border)] px-4 py-1.5 md:hidden">
-        <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* -my/py 11px: 가로 스크롤 상자가 도시 버튼 히트 의사요소(위아래 11px)를 잘라 28px에 묶였다.
+            넓힌 여백이 헤더 아이콘 히트를 덮지 않게 상자는 클릭 통과, 버튼만 받는다 */}
+        <div className="pointer-events-none -my-[11px] min-w-0 flex-1 overflow-x-auto py-[11px] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_button]:pointer-events-auto">
           <div className="w-max">{citySwitcher}</div>
         </div>
         {liveClock}

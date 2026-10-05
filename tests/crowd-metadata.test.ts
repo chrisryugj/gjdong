@@ -1,14 +1,17 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import test, { before } from "node:test"
 import { cityCopy } from "../lib/crowd/crowd-metadata"
 import { CITY_IDS, SPOT_COUNTS } from "../lib/crowd/cities"
-import { citySubtitle, META, UI } from "../lib/crowd/i18n"
+import { citySubtitle, loadLang, META, UI } from "../lib/crowd/i18n"
 import { JEJU_SPOTS } from "../lib/crowd/jeju"
 import { BUSAN_SPOTS } from "../lib/crowd/busan"
 import { GANGWON_SPOTS } from "../lib/crowd/gangwon"
 import { INCHEON_SPOTS } from "../lib/crowd/incheon"
 
 const LANGS = ["ko", "en", "ja", "zh"] as const
+
+// en·ja·zh UI 사전은 동적 로드 레지스트리 — 서버 generateMetadata처럼 먼저 채운다
+before(() => Promise.all(LANGS.map(loadLang)))
 
 test("SPOT_COUNTS는 정적 목록 길이와 일치한다", () => {
   assert.equal(SPOT_COUNTS.jeju, JEJU_SPOTS.length)
