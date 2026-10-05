@@ -15,7 +15,7 @@
 //
 // ⚠️2026-08-18: jeju.mms.gislab.co.kr(27.96.146.37) 이 광역 403(맥미니·폰LTE·외국 전부).
 //   프로덕션(Vercel)은 원래부터 이 호스트에 직결 못 해(DC IP 차단이 스냅샷 구조의 존재 이유)
-//   전 지점 스냅샷 폴백으로 돈다 — geonetDirect/Proxy 는 국내 비-DC 회선용 잔존 경로.
+//   전 지점 스냅샷으로 돈다(직결·프록시 경로는 2026-10-05 제거 — 아래 스냅샷 주석).
 //   실데이터는 수집기(scripts/collect-jeju.ts)가 **다른 인스턴스** mms.gislab.co.kr:444
 //   (61.85.11.158, 제주관광공사 데이터맵 data.ijto.or.kr 백엔드)에서 떠 올린 스냅샷이다.
 //   ⚠️:444 는 응답이 JSON 아닌 `총합^시각|…` pipe 라 수집기가 이 파일 JSON 계약으로 변환한다
@@ -34,13 +34,6 @@ import {
   type CrowdSpot,
 } from "@/lib/crowd/seoul-rtd"
 import { fetchMeteo12h, LV_BY_N, toNum } from "@/lib/crowd/adapter-kit"
-import { krgovJson } from "@/lib/crowd/krgov-fetch"
-
-const GEONET = "https://jeju.mms.gislab.co.kr/mms_new/GEONET."
-// 원천이 자기 페이지發 XHR만 받는다 — 이 헤더가 빠지면 전건 403
-const GEONET_HEADERS = { "Sec-Fetch-Site": "same-origin" }
-const GEONET_SEL =
-  "M_POP_00,M_POP_10,M_POP_20,M_POP_30,M_POP_40,M_POP_50,M_POP_60,M_POP_70,M_POP_80,M_POP_90,W_POP_00,W_POP_10,W_POP_20,W_POP_30,W_POP_40,W_POP_50,W_POP_60,W_POP_70,W_POP_80,W_POP_90"
 
 interface JejuSpotDef {
   name: string
@@ -133,42 +126,11 @@ interface GeonetRow {
   TIME: number | string
 }
 
-/**
- * 원천 직결. 국내 일반 회선에서는 이것만으로 충분하다.
- * 클라우드 IP에서는 403 대신 200+빈 배열이 오므로 호출부가 폴백을 판단한다.
- */
-async function geonetDirect(path: string): Promise<unknown> {
-  return krgovJson(`${GEONET}${path}`, { headers: GEONET_HEADERS, timeoutMs: 12000 })
-}
-
-/**
- * 우회 경로 — 원천이 받아주는 회선에 있는 프록시를 경유한다.
- * `GEONET_PROXY`에 `...?url=` 형태의 프리픽스를 넣으면 그 뒤에 인코딩된 원천 URL을 붙인다.
- * 응답이 `{status, body}` 봉투면 벗기고, 원문 그대로면 그대로 파싱한다.
- */
-async function geonetViaProxy(path: string, proxy: string): Promise<unknown> {
-  const raw = await krgovJson(`${proxy}${encodeURIComponent(`${GEONET}${path}`)}`, { timeoutMs: 15000 })
-  const env = raw as { status?: number; body?: unknown; error?: string } | null
-  if (env && typeof env === "object" && "body" in env) {
-    // 봉투가 실패를 알리는 방식이 둘이다: 상류 상태코드, 그리고 프록시 자체 사유(쿨다운 등).
-    // status 0 + body "" 를 성공으로 읽으면 JSON.parse("")가 터져 원인이 가려진다.
-    if (env.error) throw new Error(`proxy ${env.error}`)
-    if (typeof env.status === "number" && (env.status === 0 || env.status >= 400)) {
-      throw new Error(`proxy upstream ${env.status}`)
-    }
-    return typeof env.body === "string" ? JSON.parse(env.body) : env.body
-  }
-  return raw
-}
-
-// 빈 배열 = 원천이 이 회선을 조용히 거절한 것(클라우드 IP 실측). 직결이 빈손이면 프록시로 한 번 더 간다.
-function isEmpty(rows: unknown): boolean {
-  return !Array.isArray(rows) || rows.length === 0
-}
-
-// ── 맥미니 스냅샷 (data-jeju 브랜치)
-// 원천이 데이터센터 대역을 거르므로 배포 환경에서는 직결·프록시가 모두 빈손일 수 있다.
-// 국내 회선에서 15분마다 떠 올린 원본 행을 최후 폴백으로 쓴다 (scripts/collect-jeju.ts).
+// ── 맥미니 스냅샷 (data-jeju 브랜치) — 유일한 읽기 경로
+// 2026-10-05: 직결(jeju.mms)·프록시 경로 제거. jeju.mms는 광역 403이라 성공한 적이 없는데도
+// 지점마다 직결부터 시도해 ①Vercel에서 캐시 만료마다 차단 호스트에 66콜+상세 콜을 계속 보냈고
+// (운영자가 "무단 크롤링"을 이유로 막은 호스트다) ②국내 회선 로컬에선 지점당 12초 타임아웃이라
+// 목록이 30초를 넘겼다(실측). 수집기가 매시간 떠 올린 행을 읽는다 (scripts/collect-jeju.ts).
 const SNAPSHOT_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data-jeju/jeju.json"
 const SNAPSHOT_TTL = 300_000
 
@@ -193,43 +155,16 @@ function loadSnapshot(): Promise<JejuSnapshot | null> {
   return snapshotPromise
 }
 
-/** 지점 인구 조회 — 직결 → 프록시 → 맥미니 스냅샷 순으로 내려간다 */
+/** 지점 인구 — 스냅샷의 원본 26행 */
 async function geonetPop(s: JejuSpotDef): Promise<unknown> {
-  try {
-    const rows = await geonetFetch(popUrl(s))
-    if (!isEmpty(rows)) return rows
-  } catch {
-    // 직결·프록시가 모두 막힌 회선 — 스냅샷으로 간다
-  }
   const snap = await loadSnapshot()
   return snap?.pop?.[s.name] ?? []
 }
 
-/** 성·연령 구성 — 인구와 같은 순서로 폴백한다 */
+/** 성·연령 구성 — 스냅샷 */
 async function geonetSexAge(s: JejuSpotDef): Promise<unknown> {
-  try {
-    const rows = await geonetFetch(`getSexAgePopByCircle.php?X=${s.lng}&Y=${s.lat}&R=${s.r}`)
-    if (!isEmpty(rows)) return rows
-  } catch {
-    // 막힌 회선 — 스냅샷으로
-  }
   const snap = await loadSnapshot()
   return snap?.sexAge?.[s.name] ?? null
-}
-
-async function geonetFetch(path: string): Promise<unknown> {
-  const proxy = process.env.GEONET_PROXY
-  try {
-    const direct = await geonetDirect(path)
-    if (!isEmpty(direct) || !proxy) return direct
-  } catch (err) {
-    if (!proxy) throw err
-  }
-  return geonetViaProxy(path, proxy)
-}
-
-function popUrl(s: JejuSpotDef): string {
-  return `getTimePopByCircle.php?SELECT=${GEONET_SEL}&X=${s.lng}&Y=${s.lat}&R=${s.r}`
 }
 
 interface JejuPop {

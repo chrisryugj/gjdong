@@ -16,7 +16,6 @@ npm run dev                  # http://localhost:3000/crowd
 |---|---|---|---|
 | `KAKAO_REST_API_KEY` | 주소 검색·자치구 매핑 스크립트 | developers.kakao.com (무료) | 주소 검색만 비활성 |
 | `DATA_GO_KR_KEY` | 강원(강릉 ITS) | data.go.kr 활용신청 (무료, 즉시) | 강원 전 지점 "정보 없음" |
-| `GEONET_PROXY` | 제주 (선택) | 자체 프록시 | 직결·스냅샷 폴백으로 동작 |
 
 서울·부산·인천공항은 **인증키가 필요 없다.** 배포는 Vercel 기준이며 `vercel.json`의
 `regions: ["icn1"]`(서울 리전 고정)이 중요하다 — 해외 리전에서는 국내 관공서 원천 일부가

@@ -1,5 +1,5 @@
 // 요일×시간 히트맵 클라이언트 로더 — 상세 패널(spot-heatmap)·시간대 렌즈(use-time-lens) 공용.
-// 서울은 GitHub Actions가 3시간마다(data 브랜치), 제주는 맥미니가 15분마다(data-jeju 브랜치) 누적한다.
+// 서울은 GitHub Actions가 3시간마다(data 브랜치), 제주는 맥미니가 매시간(data-jeju 브랜치) 누적한다.
 // 도시당 파일 1개를 통째로 받아 세션 동안 캐시 — 지점 수와 무관하게 fetch 1회.
 
 const HEATMAP_URLS: Record<string, string> = {

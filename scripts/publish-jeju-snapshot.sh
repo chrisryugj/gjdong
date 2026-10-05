@@ -1,9 +1,9 @@
 #!/bin/bash
-# 제주 스냅샷 수집 → data-jeju 브랜치 발행 (맥미니 LaunchAgent가 15분마다 실행)
+# 제주 스냅샷 수집 → data-jeju 브랜치 발행 (맥미니 LaunchAgent가 매시 12분에 실행 — 2026-10-05 15분에서 축소)
 #
 # 브랜치를 체크아웃하지 않고 commit-tree 로 부모 없는 커밋을 만들어 강제 푸시한다.
 # 이유 둘: ①작업 중인 main 워킹트리를 절대 건드리지 않는다 ②히스토리가 쌓이지 않아
-# 15분마다 도는데도 레포가 커지지 않는다(히트맵의 force_orphan 과 같은 효과).
+# 매시간 도는데도 레포가 커지지 않는다(히트맵의 force_orphan 과 같은 효과).
 #
 # data 브랜치(히트맵)와 분리한 이유: 그쪽은 force_orphan 으로 브랜치를 통째 교체해서
 # 같이 두면 서로의 파일을 지운다.
@@ -15,14 +15,15 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # 수집 실패가 조용히 계속되는 것을 막는다 — 2026-08-09 원천 403 잠김을 9일간
 # 아무도 몰랐다. 실패가 이어지면 하루 한 번 텔레그램으로 알린다.
 # 단 실패 1회로는 안 울린다: :444 원천은 매일 04:20~04:50 KST에 응답이 끊긴다
-# (08-18~09-28 매일 실측, 점검창 추정). 마지막 성공이 2시간 넘게 끊겼을 때만 알린다.
+# (08-18~09-28 매일 실측, 점검창 추정). 매시간 수집이라 한 회만 빠져도 간격이 2시간이 되므로
+# 마지막 성공이 3시간 넘게 끊겼을 때(= 연속 2회 실패)만 알린다.
 OK_STAMP="$HOME/.local/state/gjdong-jeju-ok.stamp"
 alert_once_a_day() {
   local stamp="$HOME/.local/state/gjdong-jeju-alert.stamp" now last ok
   mkdir -p "$(dirname "$stamp")"
   now=$(date +%s); last=$(cat "$stamp" 2>/dev/null || echo 0)
   ok=$(cat "$OK_STAMP" 2>/dev/null || echo 0)
-  (( now - ok < 7200 )) && return 0
+  (( now - ok < 10800 )) && return 0
   (( now - last < 86400 )) && return 0
   echo "$now" > "$stamp"
   local env_file="$HOME/.hermes/.env" token chat
@@ -33,7 +34,7 @@ alert_once_a_day() {
   curl -sS -m 20 -o /dev/null -X POST "https://api.telegram.org/bot${token}/sendMessage" \
     --data-urlencode "chat_id=${chat}" \
     --data-urlencode "text=⚠️ 제주 인파 수집 실패가 계속되고 있다.
-마지막 성공 후 2시간+ 원천(mms.gislab.co.kr:444)이 응답하지 않아 /crowd 제주 탭이 옛 데이터로 남아 있다.
+마지막 성공 후 3시간+ 원천(mms.gislab.co.kr:444)이 응답하지 않아 /crowd 제주 탭이 옛 데이터로 남아 있다.
 로그: ~/Library/Logs/gjdong-jeju-snapshot.log" 2>/dev/null || true
 }
 
