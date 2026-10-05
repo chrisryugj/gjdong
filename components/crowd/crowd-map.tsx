@@ -6,7 +6,7 @@ import { cctvPlayerUrl, cctvStreamUrl, supportsNativeHls, type CrowdCctv, type C
 import { trLevel, trSpot, UI, type Lang } from "@/lib/crowd/i18n"
 import { romanizeAddress } from "@/lib/crowd/romanize"
 import type { LifePoi, MapFocus } from "@/components/gwangjin/use-gwangjin-life"
-import type { TrafficLink } from "@/lib/gwangjin/traffic"
+import type { TrafficLink } from "@/lib/gwangjin/traffic-shared"
 import { LIFE_ICON_SVG, LIFE_MARKER_SHAPE, LINE_COLOR_BY_NUM } from "@/components/gwangjin/life-icons"
 import type { SubwayArrival } from "@/lib/gwangjin/subway"
 import { BUS_TYPE_COLOR, type BusArrival } from "@/lib/gwangjin/bus"

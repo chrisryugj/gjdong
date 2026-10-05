@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState, type MutableRefObject } from "react"
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react"
 import type { CrowdDisaster, CrowdSpot } from "@/lib/crowd/seoul-rtd"
-import { CITY_CAPS, isCityId, type CityId } from "@/lib/crowd/cities"
-import { crowdPath, parseCrowdPathname } from "@/lib/crowd/crowd-url"
+import { CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import { crowdPath, parseCrowdPathname, resolveCrowdCity } from "@/lib/crowd/crowd-url"
 
 /** 도시 확정(경로·?city=) · 목록 로드 · 자동 폴링 — 도시 상태의 단일 소유자 */
 export function useCrowdData(
@@ -23,27 +23,35 @@ export function useCrowdData(
   const [disaster, setDisaster] = useState<CrowdDisaster[]>([])
   const [disasterOpen, setDisasterOpen] = useState(false)
 
+  // 도시 전환 시 이전 도시 요청을 끊는다 — 늦게 온 부산 응답(콜드 12초 실측)이 제주 탭 목록을 덮어쓰고,
+  // 그 목록 행을 누르면 ?spot=벡스코&city=jeju 가 제주 어댑터로 가던 버그(2026-10-05)
+  const listAbortRef = useRef<AbortController | null>(null)
   const loadSpots = useCallback(async () => {
+    const reqCity = cityRef.current
+    listAbortRef.current?.abort()
+    const controller = new AbortController()
+    listAbortRef.current = controller
     try {
       setError(false)
-      const res = await fetch(`/api/crowd?city=${cityRef.current}`)
+      const res = await fetch(`/api/crowd?city=${reqCity}`, { signal: controller.signal })
       if (!res.ok) throw new Error("bad status")
       const data = (await res.json()) as { spots: CrowdSpot[]; disaster?: CrowdDisaster[]; updatedAt: string }
+      if (reqCity !== cityRef.current) return
       setSpots(data.spots)
       setDisaster(data.disaster ?? [])
       setUpdatedAt(data.updatedAt)
-    } catch {
-      setError(true)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
+      if (reqCity === cityRef.current) setError(true)
     } finally {
-      setLoading(false)
+      if (listAbortRef.current === controller && reqCity === cityRef.current) setLoading(false)
     }
   }, [cityRef])
 
   // URL에서 도시 확정 → 이후 목록 로드 시작.
   // 고정 서피스(/gwangjin) → ?city= (기존 공유 링크 하위호환) → 경로(/crowd/busan) → 서울 순.
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get("city")
-    const resolved: CityId = fixedCity ?? (isCityId(raw) ? raw : parseCrowdPathname(window.location.pathname).city)
+    const resolved = resolveCrowdCity(fixedCity)
     cityRef.current = resolved
     setCity(resolved)
   }, [cityRef, fixedCity])
@@ -80,6 +88,7 @@ export function useCrowdData(
   /** 도시 전환의 데이터 파트 — 목록 비우고 URL 갱신 (선택·필터 리셋은 호출부가 합성) */
   const resetForCity = useCallback((next: CityId) => {
     setSpots([])
+    setUpdatedAt(null) // 이전 도시 기준 시각이 새 도시 로딩·오류 화면에 실값처럼 남지 않게
     setLoading(true)
     setDisaster([])
     setDisasterOpen(false)

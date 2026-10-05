@@ -19,7 +19,7 @@ export const EN: UIStrings = {
   myLocation: "My location",
   searchAsAddress: "Search as an address to see crowds nearby",
   searchNearQuery: (q) => `See spots near '${q}'`,
-  errLoad: "Couldn't load Seoul real-time data. Please try again shortly.",
+  errLoad: "Couldn't load real-time data. Please try again shortly.",
   errOriginDown:
     "The Jeju data source (Jeju Tourism Organization big-data map) isn't responding right now. It will come back automatically once the source recovers.",
   errAddress: "Address not found. Try a street name, landmark, or building name.",
@@ -73,7 +73,7 @@ export const EN: UIStrings = {
   kindForecast: "forecast",
   yesterday: "Yesterday",
   approxPeople: (n) => `~${n.toLocaleString()} people`,
-  yAxisTen: (v) => (v >= 1000 ? `${v / 1000}k` : String(v)),
+  yAxisTen: (v) => (v >= 1000 ? `${+(v / 1000).toFixed(1)}k` : String(v)),
   peakForecast: (h, lv) => ({ pre: "Expected to peak around ", hour: `${h}:00`, post: ` (${lv})` }),
   calmBest: (t, lv) => ({ pre: "Quietest time to go: ", time: t, post: ` (${lv} expected)` }),
   allBusy: "Expected to stay busy for the rest of today",

@@ -10,10 +10,10 @@ import type { BikeStation, EvSummary, GjEvent, Library, PublicParking, SeniorCen
 import type { Aed, ErRoom, Pharmacy } from "@/lib/gwangjin/emergency"
 import type { BusStop } from "@/lib/gwangjin/bus"
 import type { ReserveItem } from "@/lib/gwangjin/reserve"
-import { fillTrafficSpeeds, gradeBySpeed, IDX_COLOR, type TrafficBundle, type TrafficLink } from "@/lib/gwangjin/traffic"
+import { fillTrafficSpeeds, gradeBySpeed, IDX_COLOR, type TrafficBundle, type TrafficLink } from "@/lib/gwangjin/traffic-shared"
 import { HOSPITAL_COORDS } from "@/lib/gwangjin/constants"
 
-import type { RoadGeoLink } from "@/lib/gwangjin/traffic"
+import type { RoadGeoLink } from "@/lib/gwangjin/traffic-shared"
 
 export interface LifePoiStat {
   label: string

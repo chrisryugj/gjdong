@@ -98,8 +98,12 @@ export function useSpotFilters({
     if (q) list = list.filter((s) => s.name.toLowerCase().includes(q) || trSpotName(s.name).toLowerCase().includes(q))
     const byName = (a: CrowdSpot, b: CrowdSpot) => trSpotName(a.name).localeCompare(trSpotName(b.name), lang)
     const byFav = (a: CrowdSpot, b: CrowdSpot) => (favs.has(b.name) ? 1 : 0) - (favs.has(a.name) ? 1 : 0)
-    if (sort === "busy") list = [...list].sort((a, b) => byFav(a, b) || b.levelNum - a.levelNum || byName(a, b))
-    else if (sort === "calm") list = [...list].sort((a, b) => byFav(a, b) || a.levelNum - b.levelNum || byName(a, b))
+    // 같은 등급 안에선 대기시간(인천 출국장)으로, 등급 없음(0)은 여유순에서도 맨 뒤로 —
+    // 강원 여유순 상위 9개가 전부 "정보 없음"이던 것(2026-10-05 실측)
+    const byWait = (a: CrowdSpot, b: CrowdSpot) => (b.waitMin ?? 0) - (a.waitMin ?? 0)
+    const calmKey = (s: CrowdSpot) => s.levelNum || 99
+    if (sort === "busy") list = [...list].sort((a, b) => byFav(a, b) || b.levelNum - a.levelNum || byWait(a, b) || byName(a, b))
+    else if (sort === "calm") list = [...list].sort((a, b) => byFav(a, b) || calmKey(a) - calmKey(b) || byWait(b, a) || byName(a, b))
     else list = [...list].sort((a, b) => byFav(a, b) || byName(a, b))
     return list
   }, [mapSpots, query, sort, favs, trSpotName, lang])

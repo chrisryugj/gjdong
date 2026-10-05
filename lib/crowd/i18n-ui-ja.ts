@@ -19,7 +19,7 @@ export const JA: UIStrings = {
   myLocation: "現在地",
   searchAsAddress: "住所として検索して周辺の混雑を見る",
   searchNearQuery: (q) => `「${q}」周辺のスポットを見る`,
-  errLoad: "ソウル市のリアルタイムデータを取得できませんでした。しばらくしてからもう一度お試しください。",
+  errLoad: "リアルタイムデータを取得できませんでした。しばらくしてからもう一度お試しください。",
   errOriginDown:
     "済州のデータ元（済州観光公社ビッグデータ地図）が現在応答していません。復旧すると自動的に再表示されます。",
   errAddress: "住所が見つかりませんでした。通り名やランドマーク名でもう一度お試しください。",
@@ -73,7 +73,7 @@ export const JA: UIStrings = {
   kindForecast: "予測",
   yesterday: "昨日",
   approxPeople: (n) => `約${n.toLocaleString()}人`,
-  yAxisTen: (v) => (v >= 10000 ? `${v / 10000}万` : String(v)),
+  yAxisTen: (v) => (v >= 10000 ? `${+(v / 10000).toFixed(1)}万` : String(v)),
   peakForecast: (h, lv) => ({ pre: "この後は", hour: `${h}時`, post: `頃が最も混雑する見込み（${lv}）` }),
   calmBest: (t, lv) => ({ pre: "空いている時間帯は", time: t, post: `がおすすめ（${lv}の見込み）` }),
   allBusy: "今日はこの後も混雑が続く見込みです",

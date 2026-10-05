@@ -5,7 +5,6 @@ import {
   detectLang,
   isLang,
   LANGS,
-  META,
   trCategory,
   trLevel,
   trSpot,
@@ -49,9 +48,9 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
     setLangState(isLang(stored) ? stored : detectLang())
   }, [])
 
-  // 언어 반영: 문서 제목·lang 속성 동기화 (공유·탭 표시용)
+  // 언어 반영: lang 속성 동기화. 탭 제목은 도시를 아는 대시보드가 맡는다 — 여기서 쓰면 부모 effect가
+  // 나중에 돌아 부산 탭 제목을 "Seoul Crowd Radar — 121 hotspots"로 덮었다(2026-10-05 실측)
   useEffect(() => {
-    document.title = META[lang].title
     document.documentElement.lang = lang === "zh" ? "zh-CN" : lang
   }, [lang])
 

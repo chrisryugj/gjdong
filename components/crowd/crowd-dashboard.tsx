@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { ArrowLeft, LoaderCircle, LocateFixed, MapPin, Search, Tags, X } from "lucide-react"
 import { LEVEL_COLORS } from "@/lib/crowd/seoul-rtd"
-import { META, UI } from "@/lib/crowd/i18n"
+import { UI } from "@/lib/crowd/i18n"
 import { CITIES, CITY_CAPS, type CityId } from "@/lib/crowd/cities"
+import { resolveCrowdCity } from "@/lib/crowd/crowd-url"
+import { cityCopy } from "@/lib/crowd/crowd-metadata"
 import CrowdMap from "@/components/crowd/crowd-map"
 import CrowdHeader from "@/components/crowd/crowd-header"
 import DirectionsBar from "@/components/crowd/directions-bar"
@@ -79,7 +81,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
   }
 
   // 도시 참조는 여기서 만들어 데이터·선택 훅 양쪽에 주입 (훅 간 순환 의존 방지)
-  const cityRef = useRef<CityId>(fixedCity ?? "seoul")
+  // 첫 렌더부터 URL 도시로 — 선택 훅의 ?spot= 딥링크 effect가 데이터 훅보다 먼저 돈다 (ssr:false 라 window 있음)
+  const cityRef = useRef<CityId>(resolveCrowdCity(fixedCity))
   // 알림 무장 여부도 ref 주입 — 데이터 훅(폴링)과 알림 훅(spots 소비) 사이 순환을 끊는다
   const alertsArmedRef = useRef(false)
   const selection = useSpotSelection(cityRef)
@@ -139,9 +142,8 @@ function CrowdDashboardInner({ fixedCity }: { fixedCity?: CityId }) {
       document.title = UI[lang].gwangjinTitle
       return
     }
-    const base = META[lang].title
-    document.title =
-      city === "seoul" ? base : base.replaceAll(UI[lang].cityNames.seoul, UI[lang].cityNames[city])
+    // 서버 메타와 같은 문안 — META 본문은 서울 전용 사실(121곳)이라 도시명 치환은 거짓 제목이 된다
+    document.title = cityCopy(lang, city).title
   }, [city, lang])
 
   // 도시 전환 — 목록·선택·검색·필터 전부 초기화 후 새 도시 로드 (URL은 ?city=로 공유 가능)

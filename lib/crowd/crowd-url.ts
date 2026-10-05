@@ -60,3 +60,14 @@ export function parseCrowdPathname(pathname: string): { lang: Lang; city: CityId
   const segs = pathname.split("/").filter(Boolean) // ["crowd", ...]
   return parseCrowdSlug(segs.slice(1)) ?? { lang: DEFAULT_LANG, city: DEFAULT_CITY }
 }
+
+/**
+ * 브라우저에서 도시 확정 — 고정 서피스(/gwangjin) → ?city= (기존 공유 링크 하위호환) → 경로(/crowd/busan) → 서울.
+ * 데이터 훅과 선택 훅이 같은 답을 내야 해서 한 곳에 둔다(선택 훅의 ?spot= 딥링크 effect가 데이터 훅의
+ * 도시 확정보다 먼저 돌아 부산 딥링크가 city=seoul로 요청되던 버그, 2026-10-05).
+ */
+export function resolveCrowdCity(fixedCity?: CityId): CityId {
+  if (fixedCity) return fixedCity
+  const raw = new URLSearchParams(window.location.search).get("city")
+  return isCityId(raw) ? raw : parseCrowdPathname(window.location.pathname).city
+}

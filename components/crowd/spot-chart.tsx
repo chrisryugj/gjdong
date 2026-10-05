@@ -143,7 +143,7 @@ export default function SpotChart({ detail, light }: { detail: CrowdDetail; ligh
       </div>
       <div className="h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: -14 }}>
+          <ComposedChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: -4 }}>
             <XAxis
               dataKey="time"
               tick={{ fontSize: 10, fill: "#64748b" }}

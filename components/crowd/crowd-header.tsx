@@ -147,8 +147,10 @@ export default function CrowdHeader({
             {title}
           </h1>
           {/* 도시 스위처 (선택 도시는 URL ?city=로 공유 가능) — 모바일은 헤더 아래 독립 행으로.
-              긴 언어(영어 Incheon Airport)가 md 폭에서 우측 시계를 침범하지 않게 내부 스크롤로 양보 */}
-          <div className="hidden min-w-0 overflow-x-auto md:block [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              긴 언어(영어 Incheon Airport)가 md 폭에서 우측 시계를 침범하지 않게 내부 스크롤로 양보.
+              xl부터는 줄어드는 몫을 부제에 넘긴다 — 스크롤바가 숨어 있어 ko 1280에서 강원 반쪽·en 1280에서
+              Seoul만 보이고 나머지 도시가 있는지조차 알 수 없었다(2026-10-05 실측) */}
+          <div className="hidden min-w-0 overflow-x-auto md:block xl:shrink-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="w-max">{citySwitcher}</div>
           </div>
           <p className="hidden min-w-0 truncate text-[12px] text-[var(--cp-text-dim)] xl:block">{subtitle}</p>
@@ -202,6 +204,8 @@ export default function CrowdHeader({
 
           <Link
             href="/"
+            // 프리페치 끔 — 뷰포트 진입만으로 "/" 청크·RSC를 받고, 그 페이지의 방문 카운터까지 올라갔다(2026-10-05 실측)
+            prefetch={false}
             className="hidden border-l border-[var(--cp-border)] pl-3 text-[12px] text-[var(--cp-text-dim)] transition-colors hover:text-[var(--cp-text-strong)] sm:block md:hidden lg:block md:pl-4"
           >
             {t.homeLink}

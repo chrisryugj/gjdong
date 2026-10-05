@@ -262,13 +262,16 @@ export async function fetchSpotExtra(name: string): Promise<CrowdExtra> {
   // row[0]가 핫스팟 전체 요약(지수·평균속도·안내문)을 담고 있음
   const roadRows = (roadRaw as { row?: unknown[] } | null)?.row
   const r0 = Array.isArray(roadRows) && roadRows.length > 0 ? (roadRows[0] as Record<string, string>) : null
+  // adapter-kit ROAD_COLOR와 같은 값 — 이 파일은 클라이언트도 import해서 서버 전용 adapter-kit(node:https)을 못 끌어온다
+  const RTD_ROAD_COLOR: Record<string, string> = { 원활: "#00d369", 서행: "#ffb100", 정체: "#ff3939" }
   const road: CrowdRoadInfo | null =
     r0 && (r0.ROAD_TRAFFIC_IDX || r0.ROAD_MSG)
       ? {
           idx: r0.ROAD_TRAFFIC_IDX ?? "",
           speed: toNum(r0.ROAD_TRAFFIC_SPD),
           msg: (r0.ROAD_MSG ?? "").trim(),
-          color: r0.COLOR ?? "#999",
+          // 원천 COLOR는 서행도 초록(#33db87, 흰 칩에서 대비 1.67:1) — 등급명이 있으면 다른 도시와 같은 도로색으로
+          color: RTD_ROAD_COLOR[r0.ROAD_TRAFFIC_IDX ?? ""] ?? r0.COLOR ?? "#999",
         }
       : null
 
