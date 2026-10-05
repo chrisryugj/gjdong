@@ -158,7 +158,7 @@ export const JA: UIStrings = {
   subtitleBusan: (n) => `釜山${n}スポットのアクセス・駐車混雑状況`,
   subtitleGangwon: (n) => `東海岸${n}スポットのアクセス・駐車混雑状況`,
   subtitleIncheon: (n) => `仁川空港${n}カ所の出国場待ち時間`,
-  footerDataJeju: "済州観光公社ビッグデータ（SKT通信基盤の推定、10分間隔）· ",
+  footerDataJeju: "済州観光公社ビッグデータ（SKT通信基盤の推定、1時間ごと更新）· ",
   footerSourceJeju: "ビジット済州",
   footerDataBusan: "釜山交通情報センター・施設公団・海洋調査院（アクセス・駐車基準）· ",
   footerSourceBusan: "釜山ITS",

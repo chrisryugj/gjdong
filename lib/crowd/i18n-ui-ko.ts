@@ -180,7 +180,7 @@ export const KO = {
   subtitleBusan: (n: number) => `접근·주차 혼잡 상황판 · 부산 명소 ${n}곳`,
   subtitleGangwon: (n: number) => `접근·주차 혼잡 상황판 · 동해안 ${n}곳`,
   subtitleIncheon: (n: number) => `출국장 대기 상황판 · 인천공항 ${n}곳`,
-  footerDataJeju: "제주관광공사 빅데이터(SKT 통신 기반 추정, 10분 주기) · 표준주소실록 × ",
+  footerDataJeju: "제주관광공사 빅데이터(SKT 통신 기반 추정, 매시간 갱신) · 표준주소실록 × ",
   footerSourceJeju: "비짓제주",
   footerDataBusan: "부산 교통정보센터·시설공단·해양조사원(접근·주차 혼잡 기준) · 표준주소실록 × ",
   footerSourceBusan: "부산 ITS",

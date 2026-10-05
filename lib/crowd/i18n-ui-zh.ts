@@ -157,7 +157,7 @@ export const ZH: UIStrings = {
   subtitleBusan: (n) => `釜山${n}个地点的交通与停车拥堵状况`,
   subtitleGangwon: (n) => `东海岸${n}个地点的交通与停车拥堵状况`,
   subtitleIncheon: (n) => `仁川机场${n}处出境大厅等候时间`,
-  footerDataJeju: "济州观光公社大数据（基于SKT通信信号估算，每10分钟更新）· ",
+  footerDataJeju: "济州观光公社大数据（基于SKT通信信号估算，每小时更新）· ",
   footerSourceJeju: "Visit Jeju",
   footerDataBusan: "釜山交通信息中心·设施公团·海洋调查院（以交通停车为准）· ",
   footerSourceBusan: "釜山ITS",

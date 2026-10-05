@@ -158,7 +158,7 @@ export const EN: UIStrings = {
   subtitleBusan: (n) => `Access & parking congestion at ${n} Busan spots`,
   subtitleGangwon: (n) => `Access & parking congestion at ${n} East Coast spots`,
   subtitleIncheon: (n) => `Departure gate waiting times · ${n} gates at Incheon Airport`,
-  footerDataJeju: "Jeju Tourism Organization big data (SKT mobile-signal estimates, 10-min updates) · ",
+  footerDataJeju: "Jeju Tourism Organization big data (SKT mobile-signal estimates, hourly updates) · ",
   footerSourceJeju: "Visit Jeju",
   footerDataBusan: "Busan ITS · parking & marine agencies (access/parking-based levels) · ",
   footerSourceBusan: "Busan ITS",
