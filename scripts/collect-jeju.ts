@@ -12,13 +12,15 @@
 // 원본 행을 그대로 담는 이유는 앱이 쓰는 파싱·등급 로직을 한 벌로 유지하기 위해서다.
 
 import { mkdir, writeFile } from "node:fs/promises"
-import { deriveLevel, JEJU_SPOTS } from "../lib/crowd/jeju"
+import { deriveLevel, JEJU_SPOTS, sleepBase } from "../lib/crowd/jeju"
 import { levelNum } from "../lib/crowd/seoul-rtd"
 
 // 요일×시간 히트맵도 같이 쌓는다. GEONET은 호출 1회에 지난 24시간을 함께 주므로
 // (서울 히트맵의 12시간 룩백과 같은 원리) 15분 주기로도 갭 없이 누적된다.
 // 전역 lastSlot(YYYYMMDDHH)으로 이미 센 시각은 건너뛴다.
 const HEATMAP_URL = "https://raw.githubusercontent.com/chrisryugj/gjdong/data-jeju/jeju-heatmap.json"
+// 2 = 등급에서 새벽 3~5시 잠든 인구 바닥을 뺀 판(2026-10-05, lib/crowd/jeju.ts deriveLevel)
+const HEATMAP_VERSION = 2
 
 interface HeatEntry {
   sum: number[][]
@@ -36,7 +38,10 @@ async function loadHeatmap(): Promise<{ lastSlot: number; spots: Record<string, 
     try {
       const res = await fetch(HEATMAP_URL, { cache: "no-store" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const d = (await res.json()) as { lastSlot?: number; spots?: Record<string, HeatEntry> }
+      const d = (await res.json()) as { v?: number; lastSlot?: number; spots?: Record<string, HeatEntry> }
+      // v1(바닥 미차감 등급)은 새벽에도 '붐빔'이 쌓여 있어 v2와 섞으면 평소 배지가 틀어진다 → 새로 쌓는다.
+      // 옛 파일은 out-data-jeju/jeju-heatmap.v1-backup-20261005.json 에 보관.
+      if (d.v !== HEATMAP_VERSION) return { lastSlot: 0, spots: {} }
       return { lastSlot: Number.isFinite(d.lastSlot) ? (d.lastSlot as number) : 0, spots: d.spots ?? {} }
     } catch (err) {
       if (i >= 3) throw new Error(`이전 누적 로드 실패 — 덮어쓰기 방지로 중단: ${String(err)}`)
@@ -132,11 +137,18 @@ function buildSexAge(sa: { domin: number[]; tour: number[] } | null): Array<Reco
   return [male, female]
 }
 
-/** 지점의 시각별 도민 비율(8/9 프로파일). 결측 시각 → 지점 평균 → 전역 평균. */
+/** 지점의 시각별 도민 비율(8/9 프로파일). 결측 시각 → 지점 평균 → 전역 평균.
+ *  0·1 은 한라산 등 그 시각 인원이 몇 명뿐이던 표본이라 버린다(백록담 13시 도민 0%·영실 새벽 100% 실측).
+ *  지점 평균도 그런 시각 위주로 났으면(남는 시각 6개 미만) 전역 평균을 쓴다. */
 function residentRatioFor(name: string, hour: number): number {
   const spot = (residentProfile.spots as Record<string, Record<string, number>>)[name]
   if (!spot) return residentProfile._global_avg
-  return spot[String(hour)] ?? spot.avg ?? residentProfile._global_avg
+  const ok = (v: number | undefined): v is number => v != null && v > 0 && v < 1
+  const v = spot[String(hour)]
+  if (ok(v)) return v
+  const usable = Object.entries(spot).filter(([k, x]) => k !== "avg" && ok(x)).map(([, x]) => x)
+  if (usable.length < 6) return residentProfile._global_avg
+  return usable.reduce((a, b) => a + b, 0) / usable.length
 }
 
 /** 지점 하나 수집. 정의 반경으로 비면(산간 새벽 등) 1.5·2배까지 키워 재시도. */
@@ -251,6 +263,7 @@ async function main() {
     if (slots.length === 0) continue
     // 등급은 앱과 같은 기준으로 낸다 — 자기 24시간 최대 대비 비율 + 면적당 밀도 상한
     const rhythmMax = Math.max(...slots.map((x) => x.v), 1)
+    const base = sleepBase(slots.map((x) => ({ h: x.hour, v: x.v })))
     const entry = (spots[s.name] ??= { sum: zeros(), cnt: zeros() })
     if (entry.sum?.length !== 7 || entry.cnt?.length !== 7) {
       entry.sum = zeros()
@@ -258,7 +271,7 @@ async function main() {
     }
     for (const slot of slots) {
       if (slot.key <= prev.lastSlot) continue
-      const lv = levelNum(deriveLevel(slot.v, rhythmMax, s.r / 1000))
+      const lv = levelNum(deriveLevel(slot.v, rhythmMax, s.r / 1000, base))
       if (!lv) continue
       entry.sum[slot.dow][slot.hour] += lv
       entry.cnt[slot.dow][slot.hour] += 1
@@ -269,7 +282,7 @@ async function main() {
 
   await writeFile(
     "out-data-jeju/jeju-heatmap.json",
-    JSON.stringify({ updated: kst.toISOString().replace("Z", "+09:00"), lastSlot: maxSlot, spots }),
+    JSON.stringify({ v: HEATMAP_VERSION, updated: kst.toISOString().replace("Z", "+09:00"), lastSlot: maxSlot, spots }),
   )
   console.log(
     `제주 ${JEJU_SPOTS.length - failed}/${JEJU_SPOTS.length} 수집 · 히트맵 +${added}표본 · lastSlot ${prev.lastSlot} → ${maxSlot}`,

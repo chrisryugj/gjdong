@@ -167,7 +167,7 @@ export const EN: UIStrings = {
   footerSourceIncheon: "Incheon Int'l Airport",
   gwangjinTitle: "Gwangjin Life",
   gwangjinSubtitle: (n: number) => `Real-time daily-life board for Gwangjin-gu · subway, ER, pharmacies, ${n} hotspots`,
-  jejuLocals: "Locals",
+  jejuLocals: "Locals (est.)",
   jejuTourists: "Tourists",
   beachTitle: "Beach conditions",
   beachWater: "Water",

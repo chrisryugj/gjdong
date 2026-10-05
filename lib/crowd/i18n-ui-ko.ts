@@ -187,7 +187,7 @@ export const KO = {
   // 광진 생활상황판(/gwangjin) — 인파레이더가 아니라 생활앱 브랜드
   gwangjinTitle: "광진 라이프",
   gwangjinSubtitle: (n: number) => `광진구 실시간 생활상황판 · 지하철·응급실·약국·명소 ${n}곳`,
-  jejuLocals: "도민",
+  jejuLocals: "도민(추정)",
   jejuTourists: "관광객",
   beachTitle: "해수욕장 컨디션",
   beachWater: "수온",

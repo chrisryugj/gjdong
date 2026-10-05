@@ -263,15 +263,28 @@ export function parsePop(rows: GeonetRow[]): JejuPop | null {
 }
 
 // 혼잡 등급 파생 — 원천에 등급이 없어(절대 인구뿐) 두 축으로 산출:
-// ① 리듬 비율 = 현재 ÷ 자기 지난 24시간 최대 (자기 정규화 — 지점 간 규모 차 무관)
-// ② 밀도 상한 = 인구/면적(명/km²)이 낮으면 등급 상한 (한적한 넓은 반경이 자기 피크라는
+// ① 리듬 비율 = (현재 − 바닥) ÷ (자기 지난 24시간 최대 − 바닥) (자기 정규화 — 지점 간 규모 차 무관)
+// ② 밀도 상한 = (현재 − 바닥)/면적(명/km²)이 낮으면 등급 상한 (한적한 넓은 반경이 자기 피크라는
 //    이유만으로 '붐빔'이 되는 과대해석 방지)
-export function deriveLevel(now: number, rhythmMax: number, rKm: number): string {
-  const ratio = now / Math.max(rhythmMax, 1)
+// 바닥(base) = 새벽 3~5시 '잠든 인구'(sleepBase). 생활인구 총량엔 그 일대 거주민·숙박객이 늘 깔려 있어
+// 빼지 않으면 도심·해변 마을은 리듬비율이 하루 종일 0.85를 넘는다(2026-10-05 실측: 동문시장 새벽 3시
+// 12,926명/하루 최대 15,141명 → 24시간 '붐빔', 새벽 3시에 66곳 중 10곳 붐빔). 바닥을 빼면 새벽 붐빔 0곳.
+export function deriveLevel(now: number, rhythmMax: number, rKm: number, base = 0): string {
+  const active = Math.max(now - base, 0)
+  const ratio = active / Math.max(rhythmMax - base, 1)
   const n = ratio >= 0.85 ? 4 : ratio >= 0.6 ? 3 : ratio >= 0.35 ? 2 : 1
-  const dens = now / Math.max(Math.PI * rKm * rKm, 0.01)
+  const dens = active / Math.max(Math.PI * rKm * rKm, 0.01)
   const cap = dens < 60 ? 1 : dens < 250 ? 2 : dens < 800 ? 3 : 4
   return LV_BY_N[Math.min(n, cap)]
+}
+
+/** 잠든 인구 바닥 — 지난 24시간 중 3·4·5시 평균. 24시간 창이라 항상 있지만, 없으면 최솟값으로 대신한다.
+ *  최솟값을 쓰지 않는 이유: 주거지는 낮에 출근으로 비어 최솟값이 한낮에 걸리고, 그러면 귀가한 새벽이
+ *  '붐빔'이 된다(누웨마루·삼양 실측). */
+export function sleepBase(series: Array<{ h: number; v: number }>): number {
+  const night = series.filter((p) => p.h >= 3 && p.h <= 5)
+  if (night.length > 0) return night.reduce((s, p) => s + p.v, 0) / night.length
+  return series.length > 0 ? Math.min(...series.map((p) => p.v)) : 0
 }
 
 export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
@@ -293,7 +306,7 @@ export async function fetchJejuSpots(): Promise<CrowdSpot[]> {
             return
           }
           const rhythmMax = Math.max(...pop.series.map((x) => x.v), pop.total, 1)
-          const level = deriveLevel(pop.total, rhythmMax, s.r / 1000)
+          const level = deriveLevel(pop.total, rhythmMax, s.r / 1000, sleepBase(pop.series))
           spots.push({
             name: s.name,
             category: s.category,
@@ -331,13 +344,14 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
   if (!pop) throw new Error(`GEONET detail missing for ${name}`)
 
   const rhythmMax = Math.max(...pop.series.map((x) => x.v), pop.total, 1)
-  const level = deriveLevel(pop.total, rhythmMax, def.r / 1000)
+  const floor = sleepBase(pop.series)
+  const level = deriveLevel(pop.total, rhythmMax, def.r / 1000, floor)
 
   // 시계열 → 공통 형태 (전부 과거, 마지막 점 = NOW 값으로 치환해 신선도 유지)
   const series: CrowdSeriesPoint[] = pop.series.map((p, i) => {
     const last = i === pop.series.length - 1
     const v = last ? pop.total : p.v
-    const lv = deriveLevel(v, rhythmMax, def.r / 1000)
+    const lv = deriveLevel(v, rhythmMax, def.r / 1000, floor)
     return {
       time: last ? "현재" : `${p.h}시`,
       people: v,
@@ -392,7 +406,8 @@ export async function fetchJejuDetail(name: string): Promise<CrowdDetail> {
   const peakPast = pop.series.reduce((best, p) => (p.v > best.v ? p : best), pop.series[0])
 
   const message = [
-    `지금 이 일대(반경 ${def.r}m)에 약 ${pop.total.toLocaleString("ko-KR")}명 — 관광객 ${pop.outp.toLocaleString("ko-KR")} · 도민 ${pop.inp.toLocaleString("ko-KR")}.`,
+    // 도민/관광 나눔은 원천이 안 줘서 8/9 시각별 비율로 추정한 값이다(파일 머리 주석) — 실측처럼 쓰지 않는다
+    `지금 이 일대(반경 ${def.r}m)에 약 ${pop.total.toLocaleString("ko-KR")}명 — 관광객 ${pop.outp.toLocaleString("ko-KR")} · 도민 ${pop.inp.toLocaleString("ko-KR")}(추정).`,
   ]
   if (pop.avg3 != null && pop.avg3 > 0) {
     const diff = Math.round(((pop.total - pop.avg3) / pop.avg3) * 100)
