@@ -139,9 +139,8 @@ export async function POST(request: NextRequest) {
       const sys = buildSystemPrompt()
       const cacheName = await cachedPromptName(apiKey, sys)
       // 사고형 모델은 사고 토큰이 출력 한도를 같이 쓴다 — 2048이면 프롬프트가 커진 뒤 답이 몇 문장 만에 잘렸다(2026-09-05 실측: 첫 바이트 12s 뒤 382B에서 종료)
-      // 10라운드: 결재 자리에서 같은 질문에 같은 결론이 나오게 온도를 낮춘다(0.3에서 결정 질문의 첫 제안이 실행마다 바뀌었다)
+      // temperature 는 3.6 Flash 부터 무시되고 신형 모델은 오류로 돌려준다(2026-10 Google 공지) — 넣지 않는다
       const generationConfig = {
-        temperature: 0.15,
         maxOutputTokens: 8192,
         ...(THINKING_LEVEL ? { thinkingConfig: { thinkingLevel: THINKING_LEVEL } } : {}),
       }

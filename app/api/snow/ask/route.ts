@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       controller.enqueue(encoder.encode(ASK_ACCEPT))
       const sys = buildSystemPrompt()
       const cacheName = await cachedPromptName(apiKey, sys)
-      const generationConfig = { temperature: 0.15, maxOutputTokens: 8192, ...(THINKING_LEVEL ? { thinkingConfig: { thinkingLevel: THINKING_LEVEL } } : {}) }
+      const generationConfig = { maxOutputTokens: 8192, ...(THINKING_LEVEL ? { thinkingConfig: { thinkingLevel: THINKING_LEVEL } } : {}) }
       const call = (useCache: boolean) =>
         fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
           method: "POST",
