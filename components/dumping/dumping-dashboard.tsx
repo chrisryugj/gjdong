@@ -330,7 +330,7 @@ export default function DumpingDashboard() {
   useEffect(() => {
     if (loadStage >= 4 || load === "error") dismissCurtain()
   }, [loadStage, load, dismissCurtain])
-  // 자유 비행 중 입체를 끄거나 회전·드론 비행을 켜면 비행을 끝낸다(카메라 루프가 둘이 되고, 평면에선 "비행 끝" 단추가 숨는다)
+  // 자유 비행 중 입체를 끄거나 회전·드론 비행을 켜면 비행을 끝낸다(카메라 루프가 둘이 되고, 평면에선 자유 비행 줄이 숨는다)
   useEffect(() => {
     if (flight && (!view.tilt || view.orbit || view.fly)) {
       setFlight(false)
@@ -635,7 +635,7 @@ export default function DumpingDashboard() {
     ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 + (demo !== null ? DEMO_CAPTION_PAD : 0) : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
-  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} look={look} onLook={setLook} skyChoice={skyChoice} onSky={setSkyChoice} liveSky={wx ? weatherLabel(wx.code) : null} /> : null
+  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} look={look} onLook={setLook} skyChoice={skyChoice} onSky={setSkyChoice} liveSky={wx ? weatherLabel(wx.code) : null} flight={flight} onFlight={isMd ? toggleFlight : undefined} /> : null
   const hotspotsOn = tab === "ops" && (demo === null || scenes[demo]?.hotspots !== false)
   const criticalOn = showCritical && (tab === "ops" || tab === "policy")
   // 지도는 다른 층(시설·후보·배치추천·핫스팟·상습격자)이 켜지면 원·원기둥을 숨긴다(dumping-map muted). 범례도 같은 조건으로 그 줄을 뺀다
@@ -796,20 +796,6 @@ export default function DumpingDashboard() {
                 className={`dump-fl lg-shell relative flex h-9 w-9 items-center justify-center rounded-full md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
               >
                 <Ico name="layers" size={17} />
-              </button>
-            )}
-            {isMd && mapData && rightPane === "map" && view.tilt && (
-              <button
-                type="button"
-                onClick={toggleFlight}
-                aria-pressed={flight}
-                title="자유 비행: W·S 앞뒤, A·D 돌기, Q·E 오르내리기, 끌어서 둘러보기, Esc로 나가기"
-                className={`dump-fl lg-shell relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors hover:text-(--dump-accent) ${
-                  flight ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"
-                }`}
-              >
-                <Ico name="drone" size={14} />
-                {flight ? "비행 끝" : "자유 비행"}
               </button>
             )}
             {isXl && mapData && (

@@ -205,9 +205,11 @@ interface LayerPanelProps {
   skyChoice: SkyChoice
   onSky: (c: SkyChoice) => void
   liveSky?: string | null // 지금 날씨 이름(헤더와 같은 실황). 없으면 칩은 "지금"만
+  flight?: boolean // 25라운드 자유 비행 중인가. onFlight 가 있을 때만(데스크톱) 보기 묶음에 줄이 선다
+  onFlight?: () => void
 }
 
-export function MapLayerPanel({ data, view, onChange, active, liveWeather = null, look, onLook, skyChoice, onSky, liveSky = null }: LayerPanelProps) {
+export function MapLayerPanel({ data, view, onChange, active, liveWeather = null, look, onLook, skyChoice, onSky, liveSky = null, flight = false, onFlight }: LayerPanelProps) {
   // 동별 막대 연도 버튼. 민원 연도(접수) 기준. 과태료 위반 연도에는 2022·2023 이월 키(구 전체 한 자리 건수)가 있어 합치면 빈 막대 칩이 생긴다
   const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => Object.keys(d.yr?.complaints ?? {})))).sort() : []
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
@@ -290,6 +292,18 @@ export function MapLayerPanel({ data, view, onChange, active, liveWeather = null
           >
             <Ico name="house" size={15} />
             <span className="min-w-0 flex-1">모형으로 보기</span>
+          </button>
+        )}
+        {/* 25라운드: 자유 비행(map-flight FreeFlight). 상단 띠에 두었더니 1440 폭에서 가운데 탭 알약이 단추 앞을 덮었다 → 보기 묶음 줄로 */}
+        {view.tilt && onFlight && (
+          <button
+            aria-pressed={flight}
+            title="드론 높이로 내려가 직접 날아봅니다. W·S 앞뒤, A·D 돌기, Q·E 오르내리기, 끌어서 둘러보기, Esc로 나가기"
+            onClick={onFlight}
+            className={`${ROW} ${flight ? ROW_ON : ROW_OFF}`}
+          >
+            <Ico name="drone" size={15} className={flight ? "text-(--dump-accent)" : ""} />
+            <span className="min-w-0 flex-1">자유 비행</span>
           </button>
         )}
         {/* 23라운드: 지도 날씨. 지금은 기상청 실황, 칩을 고르면 그 날씨로(빗줄기·눈송이·안개, 모형이면 조명·구름·눈 덮인 지붕까지). 데이터 색은 그대로 */}
