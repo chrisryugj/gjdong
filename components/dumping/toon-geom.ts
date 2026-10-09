@@ -4,6 +4,7 @@
 // 평지붕은 난간(바깥 고리와 0.3~0.75m 안쪽 고리 사이 띠)과 그 안 지붕면, 3층 이상은 옥탑(계단실·기계실), 빌라·주택 일부는 물탱크.
 // 박공은 1~2층 직사각에 가까운 집 중 연대가 오래될수록 많이(1980년대 이전 단독 75%, 2010년대 15%). 처마는 내민다.
 // 꼭짓점 속성: position · normal · aB(동 번호, 면 종류 Part) · aW(벽: 변 따라 거리·변 길이 / 난간: 바깥 1·안쪽 0)
+// 25라운드: 길쭉한 아파트(5층 이상)의 양 끝 짧은 벽은 측벽(Part.end): 창 없이 꼭대기 층 아래 동 번호(GIS건물통합정보 동명)·꼭대기 색띠를 셰이더가 칠한다
 import { ShapeUtils, Vector2 } from "three"
 import { BuildingUse, decadeOf, useOf, type ToonBuildings } from "@/lib/dumping/toon-world"
 import { hash01 } from "./toon-palette"
@@ -15,7 +16,7 @@ const EAVE_M = 0.4 // 박공 처마 내민 길이
 const BURY_M = 1.2 // 벽 밑을 땅 아래로 묻는 깊이(경사지에서 벽 밑이 뜨지 않게)
 
 /** 면 종류(셰이더가 aB.y 로 고른다) */
-export const Part = { wall: 0, roof: 1, parapet: 2, plain: 3, tile: 4, tank: 5 } as const
+export const Part = { wall: 0, roof: 1, parapet: 2, plain: 3, tile: 4, tank: 5, end: 6 } as const
 
 export interface ToonChunk {
   position: Float32Array
@@ -119,20 +120,36 @@ export interface RoofPlan {
   area: number
 }
 
-/** 지붕 꼴: 1~2층 · 직사각형에 가까운 꼴(외접 사각형의 82% 이상) · 짧은 변 2.5~11m · 장단비 4 이하 중 gableChance 만큼 박공 */
-export function roofPlan(b: ToonBuildings, i: number, ring: XZ[]): RoofPlan {
+/** 지붕 꼴: 1~2층 · 직사각형에 가까운 꼴(외접 사각형의 82% 이상) · 짧은 변 2.5~11m · 장단비 4 이하 중 박공.
+ * pitched 는 위성 판정(25라운드 toon-sat: 1 박공 · 0 평지붕 · −1 판정 없음). 판정이 없으면 gableChance 만큼 */
+export function roofPlan(b: ToonBuildings, i: number, ring: XZ[], pitched = -1): RoofPlan {
   const area = Math.abs(signedArea(ring))
   const f = floorsOf(b, i)
   const H = heightOf(b, i)
   const rect = minRect(ring)
   const full = rect.long * rect.short * 4
   const shape = f <= 2 && rect.short * 2 >= 2.5 && rect.short * 2 <= 11 && rect.long / Math.max(rect.short, 0.1) <= 4 && area / full > 0.82
-  const gable = shape && hash01(i, 31) < gableChance(b.style[i])
+  const gable = shape && (pitched >= 0 ? pitched === 1 : hash01(i, 31) < gableChance(b.style[i]))
   const pitch = ((rect.short <= 2.5 ? 30 : rect.short <= 4 ? 26 : 20) * Math.PI) / 180
   const ridge = gable ? rect.short * Math.tan(pitch) : 0
   // 높이가 기재돼 있으면 용마루까지 포함한 높이로 본다(처마 = 높이 − 용마루). 층수로 짐작한 높이면 그 위에 지붕을 얹는다
   const eave = gable ? (b.height[i] > 0 ? Math.max(2.6, H - ridge) : H) : H
   return { gable, rect, eave, ridge, area }
+}
+
+/** 아파트 측벽: 외접 사각형이 길쭉하면(장단비 1.6 이상) 긴 축에 거의 수직이고(|cos| < 0.45) 짧은 변 반 이상 길며 긴 축 양 끝(82% 밖)에 선 변. 변 번호 집합 */
+export function endWalls(ring: XZ[], rect: ReturnType<typeof minRect>): Set<number> {
+  const out = new Set<number>()
+  if (rect.long / Math.max(rect.short, 0.1) < 1.6) return out
+  const [ux, uz] = rect.u
+  for (let k = 0; k < ring.length; k++) {
+    const a = ring[k], c = ring[(k + 1) % ring.length]
+    const len = Math.hypot(c[0] - a[0], c[1] - a[1])
+    if (len < Math.max(6, rect.short) || Math.abs(((c[0] - a[0]) * ux + (c[1] - a[1]) * uz) / len) > 0.45) continue
+    const t = ((a[0] + c[0]) / 2 - rect.c[0]) * ux + ((a[1] + c[1]) / 2 - rect.c[1]) * uz
+    if (Math.abs(t) >= rect.long * 0.82) out.add(k)
+  }
+  return out
 }
 
 /** 고리를 d 만큼 안으로(모서리 이등분선 방향). 너무 얇거나 뒤집히면 null */
@@ -265,7 +282,8 @@ export function addBuilding(B: Builder, b: ToonBuildings, i: number, exag: numbe
   const ground = b.groundMid[i] * exag
   const base = b.groundMin[i] * exag - BURY_M
   const top = ground + plan.eave
-  for (let k = 0; k < n; k++) wallQuad(B, ring[k], ring[(k + 1) % n], base, top, i, Part.wall)
+  const ends = !plan.gable && useOf(b.style[i]) === BuildingUse.apartment && floorsOf(b, i) >= 5 ? endWalls(ring, plan.rect) : null
+  for (let k = 0; k < n; k++) wallQuad(B, ring[k], ring[(k + 1) % n], base, top, i, ends?.has(k) ? Part.end : Part.wall)
   if (!plan.gable) {
     // 난간 띠: 바깥 고리(1)와 안쪽 고리(0) 사이. 좁은 동(짧은 변 3m 미만)·작은 동은 지붕면만
     const inner = plan.area >= 20 && plan.rect.short * 2 >= 3 ? insetRing(ring, Math.min(0.75, Math.max(0.3, 0.3 + 0.025 * Math.sqrt(plan.area)))) : null

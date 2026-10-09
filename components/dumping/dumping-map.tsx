@@ -16,6 +16,8 @@ import { tipNode } from "@/lib/dumping/tip-node"
 import type { IconKind, IconPoint, Icons3DLayer } from "./icons3d"
 import type { ToonLayer } from "./toon-layer"
 import WeatherOverlay from "./weather-overlay"
+import FlightHud from "./flight-hud"
+import { FreeFlight, runIntro, type CameraPose, type IntroEvent } from "./map-flight"
 import { NO_SKY, mapSkyFor, type SkyWeather } from "@/lib/dumping/map-weather"
 import { tallyInfra } from "@/lib/dumping/facts"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -189,6 +191,11 @@ interface DumpingMapProps {
   onTiles?: (p: { loaded: number; failed: number; total: number }) => void // 첫 idle까지 네트워크 타일(벡터·DEM) 요청·도착·실패 수. 커튼의 "지도 타일 n/m"
   padSeq?: number // 증가 시 가려진 영역(fitPadding)을 다시 재서 보이는 영역 가운데로 부드럽게 옮긴다(시연 중 카드 숨김·보임)
   onToon?: (ready: boolean) => void // 23라운드: 모형 건물이 섰나(범례가 지도와 같은 색을 말하게. 못 받으면 도면 압출이 대신 선다)
+  // 25라운드 첫 화면 진입 비행(map-flight runIntro). intro.seq 가 바뀌면 지금 구도(구 전체)에서 비행, null 이면 하던 비행을 조용히 멈춘다
+  intro?: { seq: number; alley: [number, number] | null } | null
+  onIntro?: (e: IntroEvent) => void // green 다가구 초록 · beams 과태료 빛기둥 · end 끝(조작으로 멈춘 것 포함)
+  flight?: boolean // 자유 비행(map-flight FreeFlight). 나가기는 onFlightEnd
+  onFlightEnd?: () => void
 }
 export type MapLoadStage = "map" | "idle" | "icons"
 
@@ -223,6 +230,10 @@ export default function DumpingMap({
   onTiles,
   padSeq = 0,
   onToon,
+  intro = null,
+  onIntro,
+  flight = false,
+  onFlightEnd,
 }: DumpingMapProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
@@ -237,6 +248,11 @@ export default function DumpingMap({
   onStageRef.current = onStage
   const onTilesRef = useRef(onTiles)
   onTilesRef.current = onTiles
+  const onIntroRef = useRef(onIntro)
+  onIntroRef.current = onIntro
+  const onFlightEndRef = useRef(onFlightEnd)
+  onFlightEndRef.current = onFlightEnd
+  const flightRef = useRef<FreeFlight | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
   const prevDongRef = useRef<string | null>(null)
@@ -362,17 +378,21 @@ export default function DumpingMap({
   // 가린 영역은 옵션 padding이 아니라 지도의 padding(setPadding)으로 준다: 옵션 padding은 수평 시점 기준 픽셀만큼 중심을 옮기는 방식이라
   // 기울이면 어긋나고(모바일 시트 뒤로 구가 숨던 실측), 지도 padding은 화면의 중심점 자체를 옮겨 기울기와 무관하게 보이는 영역 가운데에 놓는다.
   // 덕분에 flyTo(후보 초점)도 카드 뒤가 아니라 보이는 영역 가운데로 온다
-  const fitTo = (bounds: LngLatBoundsLike, opts: { pad?: PaddingOptions; maxZoom?: number; duration: number; keepBearing?: boolean }) => {
+  const fitCamera = (bounds: LngLatBoundsLike, opts: { pad?: PaddingOptions; maxZoom?: number; keepBearing?: boolean }): CameraPose | null => {
     const map = mapRef.current
-    if (!map) return
+    if (!map) return null
     const t = tiltRef.current
     const bearing = opts.keepBearing ? map.getBearing() : t ? TILT_BEARING : 0
     map.setPadding(opts.pad ?? padding())
     // maxZoom 키를 undefined로 넘기면 maplibre extend가 기본값을 덮어 NaN 카메라가 된다(실측). 있을 때만 넣는다
     const cam = map.cameraForBounds(bounds, { bearing, ...(opts.maxZoom != null ? { maxZoom: opts.maxZoom } : {}) })
-    if (!cam) return
-    const zoom = Math.min(opts.maxZoom ?? 99, (cam.zoom ?? map.getZoom()) - (t ? TILT_ZOOM_BACK : 0))
-    map.easeTo({ center: cam.center, zoom, bearing, pitch: t ? TILT_PITCH : 0, duration: opts.duration })
+    if (!cam) return null
+    const c = maplibregl.LngLat.convert(cam.center as maplibregl.LngLatLike)
+    return { center: [c.lng, c.lat], zoom: Math.min(opts.maxZoom ?? 99, (cam.zoom ?? map.getZoom()) - (t ? TILT_ZOOM_BACK : 0)), bearing, pitch: t ? TILT_PITCH : 0 }
+  }
+  const fitTo = (bounds: LngLatBoundsLike, opts: { pad?: PaddingOptions; maxZoom?: number; duration: number; keepBearing?: boolean }) => {
+    const cam = fitCamera(bounds, opts)
+    if (cam) mapRef.current?.easeTo({ ...cam, duration: opts.duration })
   }
 
   // 지도 1회 초기화. 스타일은 구 경계가 필요해(구 안 OSM 동 라벨 숨김) 데이터가 온 뒤에 만든다
@@ -391,7 +411,8 @@ export default function DumpingMap({
       maxPitch: 68,
       minZoom: 11,
       maxBounds: BASEMAP_BOUNDS,
-      attributionControl: { compact: true },
+      // 모형 지붕 색은 브이월드 위성영상에서 뽑은 숫자(scripts/dumping-toon-sat.py). 커스텀 층이라 소스 출처에 안 붙어 여기서 늘 적는다
+      attributionControl: { compact: true, customAttribution: "모형 지붕 색 브이월드 위성영상" },
       localIdeographFontFamily: `${suit ? `${suit}, ` : ""}"Apple SD Gothic Neo", "Noto Sans KR", sans-serif`,
       canvasContextAttributes: { antialias: true },
     })
@@ -478,8 +499,16 @@ export default function DumpingMap({
       tiles.failed++
       reportTiles()
     })
+    // 건물 조인은 새 타일이 온 뒤의 대기(idle)에서만: 차가 보이면 지도가 매 프레임 대기에 들어가 초당 20~50번 querySourceFeatures 를 다시 돌았다(fresh 검증)
+    let joinDirty = true
+    map.on("sourcedata", (e) => {
+      if (e.tile) joinDirty = true
+    })
     map.on("idle", () => {
-      joinBuildings()
+      if (joinDirty) {
+        joinDirty = false
+        joinBuildings()
+      }
       iconsRef.current?.refreshElevation()
       if (!idled) {
         idled = true
@@ -1014,9 +1043,36 @@ export default function DumpingMap({
     if (!map || !ready || padSeqRef.current === padSeq) return
     padSeqRef.current = padSeq
     // 드론 비행은 프레임마다 jumpTo라 easeTo가 첫 프레임에 끊긴다 → 즉시 적용. 회전(orbit)은 isEasing 중 쉬므로 부드럽게
+    // 자유 비행에서 나올 때(기울기 68도 초과)는 기울기도 같이 내린다: 이 easeTo 가 비행의 내려오기 easeTo 를 끊었다(68도에서 툭 멈춤)
     if (fly) map.setPadding(padding())
-    else map.easeTo({ padding: padding(), duration: 700, essential: true })
+    else map.easeTo({ padding: padding(), ...(map.getPitch() > 68 ? { pitch: 60 } : {}), duration: 700, essential: true })
   }, [ready, padSeq, fly])
+
+  // 진입 비행(25라운드). 골목으로 내려앉는 사이 다가구 초록이 골목에서 번진다(모형 건물 물결). 끝·멈춤은 대시보드가 결론 상태로 마무리한다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !intro || !ringBoundsRef.current) return
+    const final = fitCamera(ringBoundsRef.current, {})
+    if (!final) return
+    const alley = intro.alley
+    return runIntro(map, alley, final, (e) => {
+      if (e === "green" && alley) toonRef.current?.wave(alley)
+      onIntroRef.current?.(e)
+    })
+  }, [ready, intro?.seq])
+
+  // 자유 비행(25라운드). 켜는 동안 지도 기본 끌기·키보드를 끄고 드론 조작을 받는다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !flight) return
+    const ff = new FreeFlight(map, () => onFlightEndRef.current?.(), padding)
+    flightRef.current = ff
+    ff.start()
+    return () => {
+      ff.stop()
+      flightRef.current = null
+    }
+  }, [ready, flight])
 
   // 헤더 배너 리셋 → 구 전체 뷰(기본 방위로)
   useEffect(() => {
@@ -1031,6 +1087,7 @@ export default function DumpingMap({
       <div ref={boxRef} className="dumping-map h-full w-full" />
       {/* 빗줄기·눈송이·안개(지도 날씨). 카드·열이 가리지 않는 영역에만(유리 패널 아래가 움직이면 굴절을 매 프레임 다시 계산한다) */}
       <WeatherOverlay sky={sky} dark={theme === "dark"} inset={{ left: fitPadding?.tl[0] ?? 0, top: fitPadding?.tl[1] ?? 0, right: fitPadding?.br[0] ?? 0, bottom: fitPadding?.br[1] ?? 0 }} />
+      {flight && <FlightHud onPress={(k, on) => flightRef.current?.press(k, on)} onExit={() => onFlightEndRef.current?.()} inset={{ left: pad?.tl[0] ?? 16, right: pad?.br[0] ?? 16, bottom: pad?.br[1] ?? 16 }} />}
       {/* 드론 비행 안내 띠: 보이는 지도 영역(카드·열이 가리지 않는 곳) 위 가운데. 몇 번째 목표로 가는지 */}
       {flyInfo && (
         <div

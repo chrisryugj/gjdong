@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
 import DumpingMap, { type CameraCue, type CandidateFocus, type MapLoadStage } from "./dumping-map"
+import type { IntroEvent } from "./map-flight"
 import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, useMapLook, useSkyChoice, type MapView } from "./map-controls"
 import { dongAnchors } from "./map-geo"
 import LoginGate from "./login-gate"
@@ -66,6 +67,17 @@ const TOP = "md:top-[76px]" // 상단 띠 아래 카드·열이 시작하는 높
 const RIGHT_W = 236 // 오른쪽 열 폭(px)
 const SHEET_TOP_MOBILE = "44dvh" // 모바일 시트 기본 시작 높이
 const DEMO_CAPTION_PAD = 160 // 시연 캡션 카드 높이 + 간격(px). 지도 맞춤 여백 바닥에 더한다
+const INTRO_KEY = "dump-intro" // 진입 비행을 이번 세션에 했나(sessionStorage)
+
+// 결론이 내려앉는 골목(시연 1장면·진입 비행): 다가구·단독 밀집 상위 10% 칸 가운데 과태료가 가장 많은 칸(건물 색과 앰버 기둥이 한 화면에).
+// 1위 동(화양동)은 시연 다음 장면이 내려가므로 뺀다(두 장면이 같은 곳으로 가던 것, 사용자 지적) → 자양4동. [경도, 위도]
+function alleyOf(data: DumpingMapData): [number, number] | null {
+  const topDong = [...data.dong].sort((a, b) => b.comp - a.comp)[0]
+  const unmSorted = data.grid.map((c) => c[6]).sort((a, b) => a - b)
+  const unmHigh = unmSorted[Math.floor(unmSorted.length * 0.9)] ?? 0
+  const alley = data.grid.filter((c) => c[6] >= unmHigh && c[7] !== topDong?.d).sort((a, b) => b[5] - a[5])[0]
+  return alley ? [(alley[1] + alley[3]) / 2, (alley[0] + alley[2]) / 2] : null
+}
 
 // 화면 폭 단계. 지도 맞춤 여백(카드·열이 가리는 만큼)을 계산하는 데만 쓴다
 function useBreakpoint(query: string): boolean {
@@ -127,9 +139,16 @@ export default function DumpingDashboard() {
     revealTimers.current.forEach((t) => window.clearTimeout(t))
     revealTimers.current = []
   }, [])
+  // 첫 화면 진입 비행(25라운드, map-flight runIntro): 마운트 때 정한다(데스크톱 768+ · 움직임 줄이기 아님 · 이번 세션 처음). 아니면 예전처럼 제자리에서 단계 등장
+  const introPlan = useRef(false)
+  const [intro, setIntro] = useState<{ seq: number; alley: [number, number] | null } | null>(null)
+  const introSafety = useRef<number | null>(null)
+  // 자유 비행(25라운드, map-flight FreeFlight). 켜는 동안 왼쪽 카드를 숨긴다
+  const [flight, setFlight] = useState(false)
   const cancelReveal = useCallback(() => {
     revealCancelled.current = true
     clearRevealTimers()
+    setIntro(null)
   }, [clearRevealTimers])
   const theme = useTheme()
   const [look, setLook] = useMapLook() // 23라운드: 입체 표현(모형 기본 · 도면)
@@ -141,6 +160,16 @@ export default function DumpingDashboard() {
   useEffect(() => {
     const t = window.setTimeout(() => setSettled(true), 1500)
     return () => window.clearTimeout(t)
+  }, [])
+  useEffect(() => {
+    let seen = false
+    try {
+      seen = sessionStorage.getItem(INTRO_KEY) === "1"
+    } catch {
+      // 저장소를 막은 창: 진입 비행을 매번 한다
+    }
+    const on = window.matchMedia("(min-width: 768px)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches && !seen
+    introPlan.current = on
   }, [])
   // 모바일(768 미만)은 평면 기본(/snow 4라운드 결정 이식: 3D 핀·기둥이 작은 화면에서 점으로 뭉개진다). 첫 마운트에 한 번
   useEffect(() => {
@@ -167,6 +196,7 @@ export default function DumpingDashboard() {
     setShowMethods(false)
     setMethodsSection("data")
     setLayersOpen(false)
+    setFlight(false)
     setResetSeq((v) => v + 1)
   }
 
@@ -177,7 +207,10 @@ export default function DumpingDashboard() {
 
   // 탭을 옮기면 목록 클릭으로 찍은 펄스 라벨은 의미를 잃는다 (핫스팟 순위는 운영 탭에서만 보인다)
   const switchTab = (t: Tab) => {
+    // 진입 비행 중이면 결론 상태로 마무리한다(지도가 내려갔다 다시 서면 남은 비행이 처음부터 다시 돌다 안전 타이머에 멈췄다)
+    if (intro) onIntro("end")
     setTab(t)
+    setFlight(false)
     setFocusCandidate(null)
     setLayersOpen(false)
   }
@@ -256,19 +289,54 @@ export default function DumpingDashboard() {
   }, [])
   // 걷힘 → 0.65초 페이드 → 결론 등장: 0.8초 뒤 다가구·단독 초록, 1.8초 뒤 과태료 기둥(riseColumns). 그 사이 사용자가 바탕·원을 바꿨으면 건드리지 않는다
   const curtainDone = useRef(false)
+  const mapDataRef = useRef(mapData)
+  mapDataRef.current = mapData
+  const revealBase = () => setView((v) => (v.base === "none" && v.circles.length === 0 ? { ...v, base: DEFAULT_VIEW.base } : v))
+  const revealCircles = () => setView((v) => (v.base === DEFAULT_VIEW.base && v.circles.length === 0 ? { ...v, circles: DEFAULT_VIEW.circles } : v))
+  // 진입 비행 단계: green 다가구 초록 · beams 과태료 빛기둥 · end 둘 다(조작으로 멈췄어도 결론은 선다). 그 사이 사용자가 바탕·원을 바꿨으면 건드리지 않는다
+  const onIntro = useCallback((e: IntroEvent) => {
+    if (e === "start" || e === "end") {
+      if (introSafety.current != null) window.clearTimeout(introSafety.current)
+      introSafety.current = null
+    }
+    if (e === "start") return
+    if (e === "end") setIntro(null)
+    if (revealCancelled.current) return
+    if (e !== "beams") revealBase()
+    if (e !== "green") revealCircles()
+  }, [])
   const dismissCurtain = useCallback(() => {
     if (curtainDone.current) return
     curtainDone.current = true
     setCurtain("out")
     curtainTimer.current = window.setTimeout(() => setCurtain("off"), 650)
     if (revealCancelled.current) return
+    if (introPlan.current) {
+      try {
+        sessionStorage.setItem(INTRO_KEY, "1")
+      } catch {
+        // 저장소를 막은 창
+      }
+      const d = mapDataRef.current
+      setIntro({ seq: Date.now(), alley: d ? alleyOf(d) : null })
+      // 지도가 끝내 안 서서 비행이 시작조차 못 하면(start 가 안 오면) 결론만 세운다. 시작하면 비행이 스스로 끝낸다
+      introSafety.current = window.setTimeout(() => onIntro("end"), 15000)
+      return
+    }
     const t = revealTimers.current
-    t.push(window.setTimeout(() => setView((v) => (v.base === "none" && v.circles.length === 0 ? { ...v, base: DEFAULT_VIEW.base } : v)), 800))
-    t.push(window.setTimeout(() => setView((v) => (v.base === DEFAULT_VIEW.base && v.circles.length === 0 ? { ...v, circles: DEFAULT_VIEW.circles } : v)), 1800))
-  }, [])
+    t.push(window.setTimeout(revealBase, 800))
+    t.push(window.setTimeout(revealCircles, 1800))
+  }, [onIntro])
   useEffect(() => {
     if (loadStage >= 4 || load === "error") dismissCurtain()
   }, [loadStage, load, dismissCurtain])
+  // 자유 비행 중 입체를 끄거나 회전·드론 비행을 켜면 비행을 끝낸다(카메라 루프가 둘이 되고, 평면에선 "비행 끝" 단추가 숨는다)
+  useEffect(() => {
+    if (flight && (!view.tilt || view.orbit || view.fly)) {
+      setFlight(false)
+      setPadSeq((n) => n + 1)
+    }
+  }, [flight, view.tilt, view.orbit, view.fly])
   useEffect(() => {
     if (auth !== "open") return
     const t = window.setTimeout(dismissCurtain, 25000)
@@ -362,12 +430,8 @@ export default function DumpingDashboard() {
     const kpi = mapData.decision.kpi
     const bt = mapData.decision.hotspots.backtest
     const cctv = levers.find((lv) => vizForLever(lv)?.candidates) ?? levers.find((lv) => vizForLever(lv)) ?? null
-    // 결론 장면이 내려가는 골목: 다가구·단독 밀집 상위 10% 칸 가운데 과태료가 가장 많은 칸(건물 색과 앰버 기둥이 한 화면에).
-    // 1위 동(화양동)은 다음 장면이 내려가므로 뺀다(두 장면이 같은 곳으로 가던 것, 사용자 지적) → 자양4동
-    const unmSorted = mapData.grid.map((c) => c[6]).sort((a, b) => a - b)
-    const unmHigh = unmSorted[Math.floor(unmSorted.length * 0.9)] ?? 0
-    const alley = mapData.grid.filter((c) => c[6] >= unmHigh && c[7] !== topDong?.d).sort((a, b) => b[5] - a[5])[0]
-    const alleyPt: [number, number] | null = alley ? [(alley[1] + alley[3]) / 2, (alley[0] + alley[2]) / 2] : null
+    // 결론 장면이 내려가는 골목(alleyOf, 진입 비행과 같은 곳)
+    const alleyPt = alleyOf(mapData)
     // 동별 비교가 내려가는 곳: 1위 동의 기둥(동주민센터 기준점)
     const topDongPt = topDong ? (dongAnchors(mapData).get(topDong.d) ?? null) : null
     const later = (ms: number, fn: () => void) => demoTimers.current.push(window.setTimeout(fn, ms))
@@ -460,6 +524,7 @@ export default function DumpingDashboard() {
   useEffect(() => {
     if (demo === null || !scenes[demo]) return
     cancelReveal()
+    setFlight(false)
     for (const t of demoTimers.current) window.clearTimeout(t)
     demoTimers.current = []
     scenes[demo].apply()
@@ -524,6 +589,18 @@ export default function DumpingDashboard() {
     setPadSeq((n) => n + 1) // 캡션 카드가 걷힌 만큼 보이는 영역 가운데로
   }
 
+  // 자유 비행 켜고 끄기. 켜면 진입 비행은 결론 상태로 마무리하고 시연·회전·드론 비행을 끈다
+  const toggleFlight = () => {
+    if (!flight) {
+      if (intro) onIntro("end")
+      if (demo !== null) endDemo()
+      setView((v) => ({ ...v, orbit: false, fly: false }))
+      setFocusCandidate(null)
+    }
+    setFlight(!flight)
+    setPadSeq((n) => n + 1)
+  }
+
   if (auth !== "open") {
     return <LoginGate checking={auth === "checking"} onOpen={() => setAuth("open")} />
   }
@@ -551,7 +628,7 @@ export default function DumpingDashboard() {
   const sheetTop = mapCollapsed ? "104px" : split.mapH != null ? `${split.mapH}px` : SHEET_TOP_MOBILE
   // 구 전체 맞춤 여백. 데스크톱은 왼쪽 카드·오른쪽 열·(xl) 아래 띠가 가리는 만큼, 모바일은 상단 띠와 시트가 가리는 만큼
   const sideW = side.width ?? 440
-  const hideCard = demo !== null && cardHidden // 시연 중에만. xl 미만에선 시연 자체가 없다
+  const hideCard = (demo !== null && cardHidden) || flight // 시연 중(H)과 자유 비행 중. xl 미만에선 시연 자체가 없다
   const leftEdge = hideCard ? "16px" : "calc(16px + var(--dump-side-w, 440px) + 16px)" // 캡션 바·월별 띠의 왼쪽 끝
   // 시연 중(xl)에는 월별 띠 위 캡션 카드(약 140px + 간격)도 지도를 가린다. 조망으로 물러날 때 구 남쪽(자양동)이 캡션 뒤에 숨었다(22라운드 캡처)
   const fitPadding: { tl: [number, number]; br: [number, number] } = isMd
@@ -627,6 +704,13 @@ export default function DumpingDashboard() {
             fitPadding={fitPadding}
             padSeq={padSeq}
             cameraCue={cameraCue}
+            intro={intro}
+            onIntro={onIntro}
+            flight={flight}
+            onFlightEnd={() => {
+              setFlight(false)
+              setPadSeq((n) => n + 1)
+            }}
           />
         ) : (
           // 근거 그래프는 제 툴바(범례·배치·확대)를 갖고 있어 상단 띠·카드 밖 영역에만 그린다
@@ -712,6 +796,20 @@ export default function DumpingDashboard() {
                 className={`dump-fl lg-shell relative flex h-9 w-9 items-center justify-center rounded-full md:hidden ${layersOpen ? "text-(--dump-accent)" : "text-[var(--cp-text-strong)]"}`}
               >
                 <Ico name="layers" size={17} />
+              </button>
+            )}
+            {isMd && mapData && rightPane === "map" && view.tilt && (
+              <button
+                type="button"
+                onClick={toggleFlight}
+                aria-pressed={flight}
+                title="자유 비행: W·S 앞뒤, A·D 돌기, Q·E 오르내리기, 끌어서 둘러보기, Esc로 나가기"
+                className={`dump-fl lg-shell relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors hover:text-(--dump-accent) ${
+                  flight ? "!bg-[var(--dump-ink)] !text-[var(--dump-paper)]" : "text-[var(--cp-text-strong)]"
+                }`}
+              >
+                <Ico name="drone" size={14} />
+                {flight ? "비행 끝" : "자유 비행"}
               </button>
             )}
             {isXl && mapData && (

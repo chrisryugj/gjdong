@@ -68,8 +68,16 @@ const BASE_MEANING: Record<BaseMode, string> = {
   lp: "색이 진할수록 생활인구가 많은 칸(서울시 250m 격자)",
 }
 
-// 모형으로 볼 때 바탕 없음의 건물(24라운드 실사, toon-palette materialOf). 건축물대장 용도·연대·구조로 고른 외벽·지붕
-const NONE_MEANING_MODEL = "격자를 칠하지 않습니다. 건물은 건축물대장의 용도·사용승인 연대·구조로 고른 외벽(벽돌조 단독·다가구, 2000년대 이후 빌라 석재, 아파트 흰 외벽, 업무 유리)과 지붕(평지붕 초록 방수, 오래된 단독 기와)"
+// 모형으로 볼 때 바탕 없음의 건물(25라운드: 지붕은 위성 색 toon-sat, 외벽은 toon-palette materialOf). 색 칸마다 이름을 붙인 칩 + 한 줄(2026-10-10 "가독성 너무 떨어진다":
+// 다섯 칸 색 띠와 이름 줄이 따로 놀아 어느 색이 무엇인지 안 읽히고, 이름 줄이 중간에서 갈리고, 괄호 겹친 긴 문장이었다).
+// 가운뎃점 묶음과 마지막 두 어절은 붙인다(마지막 줄에 "고른 재질"만 남았다)
+const NONE_MEANING_MODEL = (
+  <>
+    지붕은 위성 사진에서 뽑은 색, 외벽은 건축물대장 <span className="whitespace-nowrap">용도·연대·구조로 고른 재질</span>
+  </>
+)
+const NONE_DESC_MODEL =
+  "바탕 지표 없이 원·기둥·시설만 봅니다. 지붕 색은 브이월드 위성영상에서 동마다 가장 많은 색을 뽑았고, 박공지붕 여부도 같은 사진의 지붕 밝기 차로 가렸습니다. 외벽은 사진에 거의 보이지 않아 건축물대장의 용도·사용승인 연대·구조로 고른 재질입니다(벽이 찍힌 고층 일부만 사진 색)."
 
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
@@ -483,26 +491,42 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
   const none = view.base === "none"
   const def = BASE_DEF[view.base === "none" ? "unm" : view.base]
   const grey = view.candidates && !selectedDong && !none // 후보 표시 중: 바탕 램프가 회색 단계(dumping-map greyMode)
+  const model = none && view.tilt && look === "model"
 
   return (
     <div className="text-[13.5px] leading-snug text-[var(--cp-text)]">
       <div className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? (view.tilt && look === "model" ? "바탕 없음 · 건물 재질" : "바탕 없음 · 건물 층수") : `${def.legend} · 100m`}</span>
+          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? (model ? "바탕 없음 · 건물 재질" : "바탕 없음 · 건물 층수") : `${def.legend} · 100m`}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="flex overflow-hidden rounded-[3px]">
-            {(none ? (view.tilt && look === "model" ? modelSwatches().map((m) => m.color) : [...REAL_BUILDING[theme]]) : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
-              <i key={c} className="h-2.5 w-5" style={{ background: c }} />
+        {model ? (
+          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+            {modelSwatches().map((m) => (
+              <li key={m.label} className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-[var(--cp-text)]">
+                <span className="flex h-3 w-3.5 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-black/10" aria-hidden>
+                  {m.colors.map((c) => (
+                    <i key={c} className="h-full flex-1" style={{ background: c }} />
+                  ))}
+                </span>
+                {m.label}
+              </li>
             ))}
-          </span>
-          <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
-            {/* 숫자와 단위는 한 덩어리(NBSP). 좁은 열에서 "세대"가 홀로 다음 줄로 떨어졌다(심사 냉독) */}
-            {none ? (view.tilt && look === "model" ? "벽돌 · 석재 · 아파트 · 유리 · 옥상" : "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층") : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+\u00a0${def.unit}`}
-          </span>
-        </div>
+          </ul>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="flex overflow-hidden rounded-[3px]">
+              {(none ? [...REAL_BUILDING[theme]] : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
+                <i key={c} className="h-2.5 w-5" style={{ background: c }} />
+              ))}
+            </span>
+            <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
+              {/* 숫자와 단위는 한 덩어리(NBSP). 좁은 열에서 "세대"가 홀로 다음 줄로 떨어졌다(심사 냉독) */}
+              {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+\u00a0${def.unit}`}
+            </span>
+          </div>
+        )}
         <p className="text-[var(--cp-text-muted)]">
-          {none && view.tilt && look === "model" ? NONE_MEANING_MODEL : BASE_MEANING[view.base]}
+          {model ? NONE_MEANING_MODEL : BASE_MEANING[view.base]}
           {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>
@@ -558,7 +582,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
         </div>
         {showHelp && (
           <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
-            {baseDesc(view.base, data)}
+            {model ? NONE_DESC_MODEL : baseDesc(view.base, data)}
             {view.circles.length > 0 &&
               ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
           </p>

@@ -104,9 +104,9 @@ test("로컬 미터 ↔ 경위도: 원점은 ANCHOR, 동쪽 1km는 경도로 약
 })
 
 // 손으로 만든 동 하나(층수·높이·유형 지정)
-function one(ring: [number, number][], floors: number, style = 0, height = 0): ToonBuildings {
+function one(ring: [number, number][], floors: number, style = 0, height = 0, label = 0): ToonBuildings {
   const xz = new Float32Array(ring.flat())
-  return { count: 1, start: Uint32Array.from([0, ring.length]), xz, floors: Uint8Array.from([floors]), style: Uint8Array.from([style]), height: Float32Array.from([height]), groundMin: Float32Array.from([20]), groundMid: Float32Array.from([20]) }
+  return { count: 1, start: Uint32Array.from([0, ring.length]), xz, floors: Uint8Array.from([floors]), style: Uint8Array.from([style]), height: Float32Array.from([height]), groundMin: Float32Array.from([20]), groundMid: Float32Array.from([20]), label: Uint16Array.from([label]) }
 }
 const SQUARE: [number, number][] = [[0, 0], [10, 0], [10, 8], [0, 8]]
 const HOUSE_70S = BuildingUse.house | (1 << 4)

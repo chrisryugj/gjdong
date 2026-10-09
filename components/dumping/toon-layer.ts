@@ -4,10 +4,10 @@
 // 변마다 창을 고르게 나누고(모서리 반쪽 창 없음), 아파트 긴 면은 발코니 띠, 상가 1층은 진열창·간판, 업무·고층 공공은 커튼월, 2000년대 이후 빌라 1층은 필로티.
 // 평지붕은 난간 띠·옥탑·물탱크, 오래된 단독은 기와·슬레이트 박공. 창 간격이 화면 몇 픽셀보다 작아지면 평균 색으로 물러난다(계단·깜박임 없음). 밤엔 창마다 불빛.
 // 데이터 색은 지도 압출과 같은 규칙(toon-palette toonColors)으로 동마다 텍셀에 담고, 바탕을 바꾸면 그 텍스처만 다시 올린다(기하 그대로).
-// 기둥은 빛기둥(toon-beams), 나무·구름은 toon-decor. 깊이는 지도와 나눈다(지우지 않는다): 뒤에 그리는 말뚝(fill-extrusion)이 건물과 서로 가린다.
+// 기둥은 빛기둥(toon-beams), 나무·구름은 toon-decor, 도로 위 차·사람은 toon-traffic(25라운드). 깊이는 지도와 나눈다(지우지 않는다): 뒤에 그리는 말뚝(fill-extrusion)이 건물과 서로 가린다.
 import * as THREE from "three"
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from "maplibre-gl"
-import { decodeBuildings, decodeGround, decodeTrees, groundAt, localToLngLat, TOON_ANCHOR, type ToonBuildings, type ToonGround } from "@/lib/dumping/toon-world"
+import { decodeBuildings, decodeGround, decodeSat, decodeTraffic, decodeTrees, groundAt, lngLatToLocal, localToLngLat, SAT_PITCH_KNOWN, SAT_PITCHED, TOON_ANCHOR, type ToonBuildings, type ToonGround, type ToonSat } from "@/lib/dumping/toon-world"
 import type { GridCell } from "@/lib/dumping/types"
 import { buildChunk, centroidOf, chunkIds, CHUNK_M, floorsOf, ringOf, roofPlan, type RoofPlan } from "./toon-geom"
 import { TEXELS_PER_BUILDING, toonColors, toonMaterials, type ToonPaint } from "./toon-palette"
@@ -15,6 +15,7 @@ import { anchorMatrix, cloudUniforms, eyeOf, loadAsset } from "./toon-assets"
 import { FRAG_COLOR, FRAG_LIGHT, FRAG_PARS, RECV_FRAG, RECV_FRAG_FIND, RECV_FRAG_PARS, RECV_VERT, RECV_VERT_PARS, VERT_MAIN, VERT_PARS } from "./toon-shaders"
 import { ToonDecor } from "./toon-decor"
 import { ToonBeams } from "./toon-beams"
+import { ToonTraffic } from "./toon-traffic"
 import { cellLookup } from "./map-geo"
 import { weatherLook, type SkyWeather } from "@/lib/dumping/map-weather"
 
@@ -26,19 +27,43 @@ const SUN_AZIMUTH = (215 * Math.PI) / 180 // 남서쪽 오후 해(그림자는 �
 const SUN_ALTITUDE = (44 * Math.PI) / 180
 const RECEIVER_SEG = 112
 const DRIFT_MS = 90 // 구름만 흐를 때 다시 그리는 간격(초당 약 11번. 유리 굴절 재계산을 줄인다)
+const TRAFFIC_MS = 33 // 차가 보이는 줌(15 이상)에서 다시 그리는 간격(실측 초당 약 20번. 20ms 로 줄이면 가까이 회전이 60 → 48fps 로 떨어졌다)
 
 const THEMES = {
   light: {
     sky: "#eef3f8", ground: "#b3aa9b", hemi: 1.42, sun: "#fff1dc", sunI: 3.2, shadow: 0.66,
     glass: "#4d5f6c", skyRef: "#c3d2dc", cap: "#cdc8bd", rail: "#f1f0ec", tank: "#9eb8c9", muted: "#d9d6cf",
-    receiver: { color: "#33404c", opacity: 0.36 }, night: 0, lit: 0.0, cloudDark: 0.5,
+    receiver: { color: "#33404c", opacity: 0.36 }, night: 0, lit: 0.0, cloudDark: 0.5, num: "#3a3f45",
   },
   dark: {
     sky: "#6a7a94", ground: "#1c222a", hemi: 0.75, sun: "#a9b9d8", sunI: 0.55, shadow: 0.4,
     glass: "#0d151c", skyRef: "#26323d", cap: "#3a434a", rail: "#4a535a", tank: "#33414c", muted: "#2b3339",
-    receiver: { color: "#000000", opacity: 0.32 }, night: 1, lit: 0.3, cloudDark: 0.25,
+    receiver: { color: "#000000", opacity: 0.32 }, night: 1, lit: 0.3, cloudDark: 0.25, num: "#2c3036",
   },
 } as const
+
+/** 측벽 동 번호 숫자 아틀라스(25라운드): 0~9 를 가로로 한 칸씩(칸 비율 0.62:1 = 셰이더 글자 비율). 흰 글자 알파만 쓴다. 칸 안 여백으로 밉맵 번짐을 막는다 */
+function digitAtlas(): THREE.CanvasTexture {
+  const cw = 60
+  const ch = 96
+  const c = document.createElement("canvas")
+  c.width = cw * 10
+  c.height = ch
+  const g = c.getContext("2d")!
+  g.fillStyle = "#ffffff"
+  g.textAlign = "center"
+  g.textBaseline = "alphabetic"
+  g.font = `700 ${Math.round(ch * 0.9)}px "Helvetica Neue", Arial, sans-serif`
+  for (let d = 0; d < 10; d++) {
+    const w = g.measureText(String(d)).width
+    const k = Math.min(1, (cw * 0.84) / w)
+    g.setTransform(k, 0, 0, 1, cw * d + cw / 2, 0)
+    g.fillText(String(d), 0, ch * 0.88)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.anisotropy = 4
+  return t
+}
 
 interface BuildingChunk {
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>
@@ -64,6 +89,8 @@ export class ToonLayer implements CustomLayerInterface {
   private readonly exag: number
   private dark: boolean
   private bld: ToonBuildings | null = null
+  /** 위성 색(25라운드). 못 받았거나 건물 자료와 짝이 안 맞으면 null: 재질 팔레트 */
+  private sat: ToonSat | null = null
   private ground: ToonGround | null = null
   private plans: RoofPlan[] = []
   private gable = new Uint8Array(0)
@@ -72,6 +99,7 @@ export class ToonLayer implements CustomLayerInterface {
   private readonly chunks: BuildingChunk[] = []
   private readonly decor: ToonDecor
   readonly beams = new ToonBeams()
+  readonly traffic: ToonTraffic
   private colorBytes = new Uint8Array(4)
   private colorTex = new THREE.DataTexture(this.colorBytes, 1, 1)
   private infoTex = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType)
@@ -96,6 +124,10 @@ export class ToonLayer implements CustomLayerInterface {
     uRoofSnow: { value: 0 },
     uSnowC: { value: new THREE.Color("#f7f9fc") },
     uCloudDark: { value: THEMES.light.cloudDark as number },
+    uDigits: { value: null as THREE.Texture | null },
+    uWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uNumC: { value: new THREE.Color(THEMES.light.num) },
+    uNumGlow: { value: new THREE.Color("#ffe2a8").multiplyScalar(0.55) },
     ...this.cloudU,
   }
   private readonly recvU = { uCloudRecv: { value: 0.5 }, ...this.cloudU }
@@ -111,11 +143,13 @@ export class ToonLayer implements CustomLayerInterface {
   private driftTimer = 0
   private readonly center = new THREE.Vector2()
   private disposed = false
+  private waveT0 = 0
 
   constructor(opts: { dark: boolean; exag: number }) {
     this.exag = opts.exag
     this.dark = opts.dark
     this.bldMat = new THREE.MeshLambertMaterial({ color: "#ffffff" })
+    this.bldU.uDigits.value = digitAtlas()
     this.bldMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.bldU)
       sh.vertexShader = sh.vertexShader.replace("#include <common>", `#include <common>\n${VERT_PARS}`).replace("#include <begin_vertex>", `#include <begin_vertex>\n${VERT_MAIN}`)
@@ -146,7 +180,8 @@ export class ToonLayer implements CustomLayerInterface {
     this.receiver.renderOrder = 2
     this.scene.add(this.receiver)
     this.decor = new ToonDecor(this.cloudU, this.exag, opts.dark)
-    this.scene.add(this.decor.group, this.beams.group)
+    this.traffic = new ToonTraffic(opts.dark)
+    this.scene.add(this.decor.group, this.beams.group, this.traffic.group)
     this.setTheme(opts.dark)
   }
 
@@ -158,27 +193,30 @@ export class ToonLayer implements CustomLayerInterface {
       if (!r.ok) throw new Error(`${f} ${r.status}`)
       return r.arrayBuffer()
     })
-    const [bBuf, gBuf] = await Promise.all([get("toon-buildings.bin"), get("toon-ground.bin")])
+    const [bBuf, gBuf, sBuf] = await Promise.all([get("toon-buildings.bin"), get("toon-ground.bin"), get("toon-sat.bin").catch(() => null)])
     if (this.disposed) return
     const bld = decodeBuildings(bBuf)
     this.bld = bld
+    this.sat = sBuf ? decodeSat(sBuf, bBuf, bld.count) : null
     this.ground = decodeGround(gBuf)
     this.addTint(this.ground)
     this.beams.setGround(this.ground, this.exag)
-    // 지붕 계획(박공·처마 높이)을 먼저 전부: 재질(박공이면 기와)과 정보 텍스처(지면·벽 꼭대기·층수)가 그 값을 쓴다
+    // 지붕 계획(박공·처마 높이)을 먼저 전부: 재질(박공이면 기와)과 정보 텍스처(지면·벽 꼭대기·층수)가 그 값을 쓴다. 박공은 위성 판정이 있으면 그것으로
     const n = bld.count
     this.plans = new Array(n)
     this.gable = new Uint8Array(n)
     const info = new Float32Array(INFO_TEX_W * Math.ceil(n / INFO_TEX_W) * 4)
     let last = performance.now()
     for (let i = 0; i < n; i++) {
-      const plan = roofPlan(bld, i, ringOf(bld, i))
+      const f = this.sat?.flags[i] ?? 0
+      const plan = roofPlan(bld, i, ringOf(bld, i), f & SAT_PITCH_KNOWN ? (f & SAT_PITCHED ? 1 : 0) : -1)
       this.plans[i] = plan
       this.gable[i] = plan.gable ? 1 : 0
       const g = bld.groundMid[i] * this.exag
       info[i * 4] = g
       info[i * 4 + 1] = g + plan.eave
       info[i * 4 + 2] = floorsOf(bld, i)
+      info[i * 4 + 3] = bld.label[i]
       if (performance.now() - last > 14) {
         await new Promise((r) => setTimeout(r, 0))
         if (this.disposed) return
@@ -222,6 +260,15 @@ export class ToonLayer implements CustomLayerInterface {
     void this.loadDecor(get).catch(() => {
       // 나무·구름은 장식이라 못 받아도 건물·데이터는 그대로
     })
+    void get("toon-traffic.bin")
+      .then((buf) => {
+        if (this.disposed) return
+        this.traffic.setData(decodeTraffic(buf), this.exag)
+        this.map?.triggerRepaint()
+      })
+      .catch(() => {
+        // 차·사람도 장식
+      })
   }
 
   private addChunk(ids: number[]) {
@@ -283,7 +330,7 @@ export class ToonLayer implements CustomLayerInterface {
   private remat() {
     const bld = this.bld
     if (!bld || !this.gable.length) return
-    toonMaterials(bld.count, bld.style, bld.floors, this.gable, this.dark ? "dark" : "light", this.colorBytes)
+    toonMaterials(bld.count, bld.style, bld.floors, this.gable, this.dark ? "dark" : "light", this.colorBytes, this.sat)
     this.colorTex.needsUpdate = true
   }
 
@@ -310,10 +357,12 @@ export class ToonLayer implements CustomLayerInterface {
     u.uRail.value.set(t.rail)
     u.uTank.value.set(t.tank)
     u.uMuted.value.set(t.muted)
+    u.uNumC.value.set(t.num)
     u.uNight.value = t.night
     u.uLit.value = t.lit
     this.decor.setTheme(dark)
     this.beams.setTheme(dark)
+    this.traffic.setTheme(dark)
     this.applyLight()
     this.remat()
     if (this.paint) this.repaint()
@@ -396,6 +445,14 @@ export class ToonLayer implements CustomLayerInterface {
     this.tint.visible = false
     this.scene.add(this.tint)
     this.applySnow()
+  }
+
+  /** 진입 비행(25라운드): 데이터 색이 이 자리에서 바깥으로 번진다(초속 2.2km, 구 끝까지 약 3초) */
+  wave(lngLat: [number, number]) {
+    const [x, z] = lngLatToLocal(lngLat[0], lngLat[1])
+    this.bldU.uWave.value.set(x, z, 0, 1)
+    this.waveT0 = performance.now()
+    this.map?.triggerRepaint()
   }
 
   setVisible(v: boolean) {
@@ -495,15 +552,24 @@ export class ToonLayer implements CustomLayerInterface {
     const pxK = (Math.hypot(((b.x / b.w - ax) * w) / 2, ((b.y / b.w - ay) * h) / 2) / 10) * aw
     const decor = this.decor.frame(proj, zoom, this.center, pxK, h, this.cloudU, g)
     const rising = this.beams.frame(this.eye)
+    const moving = this.traffic.frame(zoom)
+    const wave = this.bldU.uWave.value
+    if (wave.w > 0.5) {
+      wave.z = (performance.now() - this.waveT0) * 2.2
+      if (wave.z > 7500) wave.w = 0
+    }
     r.resetState()
     r.setViewport(0, 0, w, h)
     r.render(this.scene, this.camera)
-    if (decor.moving || rising) map.triggerRepaint()
-    else if (decor.drifting && !this.driftTimer)
-      this.driftTimer = window.setTimeout(() => {
-        this.driftTimer = 0
-        this.map?.triggerRepaint()
-      }, DRIFT_MS)
+    if (decor.moving || rising || wave.w > 0.5) map.triggerRepaint()
+    else if ((moving || decor.drifting) && !this.driftTimer)
+      this.driftTimer = window.setTimeout(
+        () => {
+          this.driftTimer = 0
+          this.map?.triggerRepaint()
+        },
+        moving ? TRAFFIC_MS : DRIFT_MS,
+      )
   }
 
   dispose() {
@@ -512,6 +578,7 @@ export class ToonLayer implements CustomLayerInterface {
     for (const c of this.chunks) c.mesh.geometry.dispose()
     this.decor.dispose()
     this.beams.dispose()
+    this.traffic.dispose()
     this.bldMat.dispose()
     this.receiver.geometry.dispose()
     this.receiver.material.dispose()
@@ -519,6 +586,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.tint?.material.dispose()
     this.colorTex.dispose()
     this.infoTex.dispose()
+    this.bldU.uDigits.value?.dispose()
     this.renderer?.dispose()
     this.renderer = null
   }

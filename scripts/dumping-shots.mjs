@@ -5,6 +5,7 @@
 // Playwright는 character-card 레포의 것을 빌린다(gjdong devDependency 아님). 헤드 크롬(channel chrome)을 화면 밖에 띄운다:
 // headless swiftshader는 setData 반영이 수 초 늦어 장면 5에 앞 장면 기둥이 남은 것처럼 찍힌다(19라운드 실측).
 // 장면 목록은 SHOTS. 첫 화면 결론 등장(커튼 뒤 초록·기둥) 전후 픽셀 차이(게이트 2%)는 sharp로 잰다.
+// 25라운드: 첫 화면 진입 비행(세션마다 한 번)은 intro: true 장면만 본다. 나머지는 세션 표시(dump-intro)를 미리 넣어 예전 첫 화면(제자리 등장)에서 시작한다
 /* global window, document */
 import fs from "node:fs"
 import path from "node:path"
@@ -99,6 +100,21 @@ const SHOTS = [
       ctx.curtain = await shot(page, "00-curtain")
       await settled(page)
       ctx.after = await shot(page, "00-curtain-after")
+    },
+  },
+  {
+    name: "01-intro",
+    desc: "진입 비행(구 전체에서 골목으로 내려앉아 초록 물결·빛기둥, 다시 구 전체로). 프레임 넷 + 끝",
+    noSettle: true,
+    intro: true,
+    run: async (page) => {
+      await page.waitForSelector(".dump-curtain", { timeout: 30_000 }).catch(() => {})
+      await page.waitForFunction(() => !document.querySelector(".dump-curtain") || document.querySelector(".dump-curtain.out"), null, { timeout: 40_000 }).catch(() => {})
+      for (const [k, ms] of [[1, 1500], [2, 2300], [3, 2400], [4, 2600]]) {
+        await wait(ms)
+        await shot(page, `01-intro-${k}`)
+      }
+      await wait(2000)
     },
   },
   { name: "01-first", desc: "첫 화면(정책 제안 탭·입체·라이트. 결론 등장 뒤 다가구·단독 초록 + 과태료 기둥)", run: async () => {} },
@@ -242,6 +258,7 @@ async function main() {
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()))
     // 로그인 쿠키를 먼저 받고 페이지를 연다(게이트 화면 없이 바로 대시보드·커튼). 새 컨텍스트라 캐시가 비어 있어 커튼 단계가 실제로 보인다
     await login(context)
+    if (!s.intro) await context.addInitScript(() => sessionStorage.setItem("dump-intro", "1"))
     if (s.throttle) {
       const cdp = await context.newCDPSession(page)
       await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 40, downloadThroughput: (3 * 1024 * 1024) / 8, uploadThroughput: (1 * 1024 * 1024) / 8 })

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /dumping 입체 지도 건물·나무·지면 정적 자료를 만든다(23라운드 모형 보기, 24라운드 2026-10-09 실사 건물·OSM 신축 보강).
-#   - public/dumping/basemap/toon-buildings.bin    : 모형 보기 건물(three, components/dumping/toon-layer.ts). 윤곽 + 층수·높이 + 유형(용도·연대·벽돌) + 지면 고도
+#   - public/dumping/basemap/toon-buildings.bin    : 모형 보기 건물(three, components/dumping/toon-layer.ts). 윤곽 + 층수·높이 + 유형(용도·연대·벽돌) + 지면 고도 + 동 번호(25라운드)
 #   - public/dumping/basemap/buildings.pmtiles     : 도면 보기 건물(maplibre 압출). 위와 같은 건물 집합
 #   - public/dumping/basemap/context-buildings.pmtiles : 구 밖 OSM 건물(배경). 구 경계 밖 1.5km 안만
 #   - public/dumping/basemap/toon-trees.bin · toon-ground.bin : 나무 자리 · 그림자 받이 지면 격자
@@ -20,7 +20,8 @@
 #
 # 쓰는 법: python3 -I scripts/dumping-toon-world.py <AL_D010_11_YYYYMMDD 폴더 · zip · shp>
 #   자료 받는 곳: 브이월드 데이터마켓 https://www.vworld.kr/dtmk/dtmk_ntads_s002.do?svcCde=NA&dsId=18 (로그인, 서울 전체 SHP. EPSG:5186 · CP949 · A0~A28)
-#   쓰는 필드: A1 UFID · A3 법정동코드(광진 11215*) · A9 주용도 · A11 구조 · A13 사용승인일 · A16 높이 · A24 건물명 · A26 지상층수
+#   쓰는 필드: A1 UFID · A3 법정동코드(광진 11215*) · A9 주용도 · A11 구조 · A13 사용승인일 · A16 높이 · A24 건물명 · A25 동명 · A26 지상층수
+#   동명은 숫자 동만 번호로 싣는다("101동"·"제104동"·"6" → 101·104·6). "주건축물제1동"(필지의 주 건물이라는 뜻)·"가동"·"A동"·"상가동"은 0
 #   나무·구 밖 건물은 구 경계가 필요하다. 경계는 data/dumping/map.json 의 ring(복호화된 로컬 자료, `npm run dumping:decrypt`)에서 읽기만 하고 출력에는 넣지 않는다.
 #   새 고층 검증(캐시에 없는 것만): 환경변수 ARCHHUB_MCP_URL(건축HUB MCP 서버 주소) + .env.local KAKAO_REST_API_KEY. 없으면 캐시만 쓰고 미검증 후보는 건너뛴다.
 # 필요한 도구: ogr2ogr(GDAL 3.8+, PMTiles 드라이버) · pmtiles CLI · tippecanoe. 파이썬은 표준 라이브러리만.
@@ -366,6 +367,12 @@ def use_class(use, floors, name):
     return ANNEX if floors <= 2 else VILLA
 
 
+def dong_label(name):
+    """동명 → 측벽 동 번호(숫자 동만, 1~9999). 없으면 0"""
+    m = re.fullmatch(r"제?(\d{1,4})동?", (name or "").strip())
+    return int(m.group(1)) if m and int(m.group(1)) > 0 else 0
+
+
 def decade_of(ymd):
     """사용승인 연대: 0 1960년대 이전 · 1 70 · 2 80 · 3 90 · 4 2000 · 5 2010 · 6 2020 · 7 모름"""
     m = re.match(r"(\d{4})", ymd or "")
@@ -510,7 +517,7 @@ def main():
             os.path.join(work, "bld.geojson"),
             [
                 "-t_srs", "EPSG:4326",
-                "-sql", f'SELECT A1 AS id, A26 AS flr, A16 AS h, A9 AS use, A11 AS st, A13 AS ymd, A24 AS nm FROM "{layer}" WHERE A3 LIKE \'11215%\'',
+                "-sql", f'SELECT A1 AS id, A26 AS flr, A16 AS h, A9 AS use, A11 AS st, A13 AS ymd, A24 AS nm, A25 AS dn FROM "{layer}" WHERE A3 LIKE \'11215%\'',
                 "--config", "SHAPE_ENCODING", "CP949",
             ],
         )
@@ -525,7 +532,7 @@ def main():
                 flr = int(p.get("flr") or 0)
                 blds.append({
                     "ring": ring, "ll": ll, "id": p.get("id") or "", "flr": flr, "h": float(p.get("h") or 0),
-                    "use": p.get("use") or "", "st": p.get("st") or "", "ymd": p.get("ymd") or "", "nm": p.get("nm") or "", "src": "nsdi",
+                    "use": p.get("use") or "", "st": p.get("st") or "", "ymd": p.get("ymd") or "", "nm": p.get("nm") or "", "dn": dong_label(p.get("dn")), "src": "nsdi",
                 })
         n_nsdi = len(blds)
         print(f"대장 건물 {n_nsdi:,}동")
@@ -694,12 +701,12 @@ def main():
             b["style"] = style_byte(b["use"], 0 if unknown_osm else b["flr"] or (round(b["h"] / 3.2) if b["h"] else 0), b["st"], b["ymd"], b["nm"])
         # 512m 덩어리 순으로(런타임 덩어리 나누기와 같은 순서라 메모리 접근이 모인다)
         blds.sort(key=lambda b: (math.floor(b["ring"][0][1] / 512), math.floor(b["ring"][0][0] / 512)))
-        out = bytearray(b"TNB2")
+        out = bytearray(b"TNB3")
         out += struct.pack("<Idd", len(blds), *ANCHOR)
         nverts = 0
         for b in blds:
             r = [(round(x * 10), round(z * 10)) for x, z in b["ring"]]
-            out += struct.pack("<HBBHhhii", len(r), min(255, max(0, b["flr"])), b["style"], min(65535, round(b["h"] * 10)), round(b["gmin"] * 10), round(b["gc"] * 10), r[0][0], r[0][1])
+            out += struct.pack("<HBBHhhHii", len(r), min(255, max(0, b["flr"])), b["style"], min(65535, round(b["h"] * 10)), round(b["gmin"] * 10), round(b["gc"] * 10), b.get("dn", 0), r[0][0], r[0][1])
             for k in range(1, len(r)):
                 out += struct.pack("<hh", r[k][0] - r[k - 1][0], r[k][1] - r[k - 1][1])
             nverts += len(r)

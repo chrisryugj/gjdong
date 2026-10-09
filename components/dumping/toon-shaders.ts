@@ -7,6 +7,10 @@ import { CLOUD_SHADE_GLSL } from "./toon-assets"
 // 데이터 텍셀 알파: 1 데이터 색(재질 밝기만 조금 남김) · 0.5 흐린 재질 · 0 재질 그대로. 눈(uRoofSnow)은 지붕면에만(바탕 없음일 때만, setWeather).
 // 동 번호·텍셀 값은 flat varying(보간하지 않는다): 동 번호를 창 해시에 쓰니 1ulp 흔들려도 창이 얼룩질 수 있다
 // 눈 위치 uEye 는 eyeOf 가 투영 행렬에서 푼다(이 층은 지도 행렬을 투영에 통째로 넣어 three 시점 행렬이 단위다)
+// 25라운드 진입 비행 물결(uWave = 가운데 x·z, 반지름, 켬): 데이터 색이 그 원 안에서만 보인다(골목에서 바깥으로 번진다).
+// 25라운드 측벽(면 종류 6): 창 없이 꼭대기 층 색띠(10층 이상 절반 남짓, TN_CROWN)와 그 아래 동 번호(정보 텍스처 w, 숫자 아틀라스 uDigits).
+// 번호는 바깥에서 볼 때 왼쪽에서 오른쪽으로 읽히게 변 따라 거리를 뒤집는다(변 a→c 는 바깥에서 보면 오른쪽에서 왼쪽). 글자가 화면에서 작아지면 흐려지고 밤엔 은은히 켜진다.
+// 숫자 조회는 픽셀마다 갈리는 분기 안이라 밉맵 단계가 정의되지 않는다 → 미분은 분기 밖 맨 앞(tnDdx·tnDdy)에서 구해 textureGrad 로 넘긴다
 export const VERT_PARS = /* glsl */ `
 attribute vec2 aB;
 attribute vec2 aW;
@@ -21,7 +25,7 @@ flat varying vec4 vDataW;
 flat varying vec4 vDataR;
 flat varying vec4 vMatW;
 flat varying vec4 vMatR;
-flat varying vec3 vInfo;
+flat varying vec4 vInfo;
 vec4 tnTex(int t, int w) { return texelFetch(uColors, ivec2(t % w, t / w), 0); }`
 export const VERT_MAIN = /* glsl */ `
 vLocal = position;
@@ -34,7 +38,7 @@ vDataR = tnTex(tnId * 4 + 1, tnCW);
 vMatW = tnTex(tnId * 4 + 2, tnCW);
 vMatR = tnTex(tnId * 4 + 3, tnCW);
 int tnIW = int(uInfoW);
-vInfo = texelFetch(uInfo, ivec2(tnId % tnIW, tnId / tnIW), 0).xyz;`
+vInfo = texelFetch(uInfo, ivec2(tnId % tnIW, tnId / tnIW), 0);`
 export const FRAG_PARS = /* glsl */ `
 uniform vec3 uGlass;
 uniform vec3 uSkyRef;
@@ -50,6 +54,10 @@ uniform vec3 uGlowCool;
 uniform float uRoofSnow;
 uniform vec3 uSnowC;
 uniform float uCloudDark;
+uniform sampler2D uDigits;
+uniform vec4 uWave;
+uniform vec3 uNumC;
+uniform vec3 uNumGlow;
 varying vec3 vLocal;
 flat varying vec2 vPart;
 varying vec2 vW;
@@ -57,7 +65,7 @@ flat varying vec4 vDataW;
 flat varying vec4 vDataR;
 flat varying vec4 vMatW;
 flat varying vec4 vMatR;
-flat varying vec3 vInfo;
+flat varying vec4 vInfo;
 ${CLOUD_SHADE_GLSL}
 float tnHash(vec3 p) {
   p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -67,8 +75,11 @@ float tnHash(vec3 p) {
 float tnBox(float x, vec2 r, float w) {
   return smoothstep(r.x - w, r.x + w, x) * (1.0 - smoothstep(r.y - w, r.y + w, x));
 }
-const vec3 TN_SIGNS[6] = vec3[6](vec3(0.58, 0.07, 0.05), vec3(0.03, 0.14, 0.42), vec3(0.72, 0.38, 0.03), vec3(0.03, 0.26, 0.09), vec3(0.8, 0.8, 0.78), vec3(0.04, 0.04, 0.05));`
+const vec3 TN_SIGNS[6] = vec3[6](vec3(0.58, 0.07, 0.05), vec3(0.03, 0.14, 0.42), vec3(0.72, 0.38, 0.03), vec3(0.03, 0.26, 0.09), vec3(0.8, 0.8, 0.78), vec3(0.04, 0.04, 0.05));
+const vec3 TN_CROWN[5] = vec3[5](vec3(0.11, 0.2, 0.35), vec3(0.38, 0.14, 0.13), vec3(0.15, 0.3, 0.2), vec3(0.55, 0.4, 0.17), vec3(0.3, 0.31, 0.33));`
 export const FRAG_COLOR = /* glsl */ `
+vec2 tnDdx = vec2(dFdx(vW.x), dFdx(vLocal.y));
+vec2 tnDdy = vec2(dFdy(vW.x), dFdy(vLocal.y));
 float tnPart = floor(vPart.x + 0.5);
 float tnId = vPart.y;
 float tnStyle = floor(vMatW.a * 255.0 + 0.5);
@@ -79,6 +90,11 @@ float tnGround = vInfo.x;
 float tnTop = vInfo.y;
 float tnIsData = step(0.75, vDataW.a);
 float tnMuted = step(0.25, vDataW.a) * (1.0 - tnIsData);
+if (uWave.w > 0.5) {
+  float tnWv = smoothstep(uWave.z, uWave.z - 180.0, distance(vLocal.xz, uWave.xy));
+  tnIsData *= tnWv;
+  tnMuted *= tnWv;
+}
 vec3 tnLumW = vec3(dot(vMatW.rgb, vec3(0.2126, 0.7152, 0.0722)));
 vec3 tnLumR = vec3(dot(vMatR.rgb, vec3(0.2126, 0.7152, 0.0722)));
 vec3 tnWall = mix(vMatW.rgb, mix(tnLumW, uMuted, 0.4), tnMuted * 0.62);
@@ -111,6 +127,8 @@ if (tnPart == 1.0) {
   float tnFi = floor(tnFv);
   float tnFy = fract(tnFv);
   float tnLen = vW.y;
+  float tnEnd = step(5.5, tnPart);
+  float tnDS = abs(tnDdx.x) + abs(tnDdy.x);
   float tnSpan = 3.0;
   vec2 tnWu = vec2(0.27, 0.73);
   vec2 tnWv = vec2(0.32, 0.76);
@@ -139,7 +157,7 @@ if (tnPart == 1.0) {
     tnGlow = uGlowCool;
   }
   else { tnSpan = 6.0; tnWu = vec2(0.1, 0.9); tnWv = vec2(0.7, 0.88); tnSkip = 0.2; }
-  float tnN = tnLen < tnSpan * 0.55 ? 0.0 : max(1.0, floor(tnLen / tnSpan + 0.5));
+  float tnN = (tnEnd > 0.5 || tnLen < tnSpan * 0.55) ? 0.0 : max(1.0, floor(tnLen / tnSpan + 0.5));
   float tnU = vW.x / (tnLen / max(tnN, 1.0));
   float tnFu = fract(tnU);
   float tnCi = floor(tnU);
@@ -177,6 +195,33 @@ if (tnPart == 1.0) {
     tnC *= 1.0 - 0.1 * tnBox(tnFy, vec2(-0.03, 0.035), tnDv) * tnFade * step(0.5, tnFi);
   }
   if (tnUse > 7.5) tnC *= 0.95 + 0.05 * step(0.5, fract(vW.x / 0.6));
+  float tnNum = 0.0;
+  if (tnEnd > 0.5) {
+    float tnCrown = step(tnFloors - 1.0, tnFi) * step(9.5, tnFloors) * step(tnHash(vec3(tnId, 11.0, 5.0)), 0.55);
+    tnC = mix(tnC, TN_CROWN[int(mod(floor(tnHash(vec3(tnId, 13.0, 7.0)) * 5.0), 5.0))], tnCrown * 0.72 * (1.0 - 0.6 * tnIsData));
+    float tnLab = vInfo.w;
+    if (tnLab > 0.5) {
+      float tnNd = tnLab > 999.5 ? 4.0 : tnLab > 99.5 ? 3.0 : tnLab > 9.5 ? 2.0 : 1.0;
+      float tnGh = min(clamp(tnFh * 1.6, 3.0, 6.0), tnLen * 0.75 / (tnNd * 0.62 + (tnNd - 1.0) * 0.1));
+      float tnGw = tnGh * 0.62;
+      float tnGap = tnGh * 0.1;
+      float tnTw = tnNd * tnGw + (tnNd - 1.0) * tnGap;
+      float tnS = tnLen - vW.x - (tnLen - tnTw) * 0.5;
+      float tnTy = tnY - (tnH - tnFh - 0.4 - tnGh);
+      float tnK = floor(tnS / (tnGw + tnGap));
+      float tnGx = (tnS - tnK * (tnGw + tnGap)) / tnGw;
+      if (tnS >= 0.0 && tnS <= tnTw && tnTy >= 0.0 && tnTy <= tnGh && tnGx <= 1.0) {
+        float tnP = tnNd - 1.0 - tnK;
+        float tnPw = tnP > 2.5 ? 1000.0 : tnP > 1.5 ? 100.0 : tnP > 0.5 ? 10.0 : 1.0;
+        float tnD = mod(floor((tnLab + 0.5) / tnPw), 10.0);
+        vec2 tnGs = vec2(-1.0 / (10.0 * tnGw), 1.0 / tnGh);
+        tnNum = textureGrad(uDigits, vec2((tnD + clamp(tnGx, 0.0, 1.0)) / 10.0, tnTy / tnGh), tnDdx * tnGs, tnDdy * tnGs).a;
+        tnNum *= 1.0 - smoothstep(0.3, 0.7, tnDS / tnGw);
+      }
+      tnC = mix(tnC, uNumC, tnNum * 0.9 * (1.0 - 0.5 * tnIsData));
+      totalEmissiveRadiance += uNumGlow * tnNum * uNight;
+    }
+  }
   float tnWin = mix(tnCover, tnM, tnFade) * tnBody;
   vec3 tnV = normalize(uEye - vLocal);
   float tnFres = pow(1.0 - clamp(abs(dot(normal, tnV)), 0.0, 1.0), 2.0);
