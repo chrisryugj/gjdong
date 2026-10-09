@@ -6,7 +6,7 @@ import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_C
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
-import { toonRealSwatches } from "./toon-palette"
+import { modelSwatches } from "./toon-palette"
 import type { BasemapLook } from "@/lib/dumping/basemap-style"
 import { SKY_CHOICES, type SkyChoice } from "@/lib/dumping/map-weather"
 import { nbParen } from "@/lib/dumping/nobreak"
@@ -68,8 +68,8 @@ const BASE_MEANING: Record<BaseMode, string> = {
   lp: "색이 진할수록 생활인구가 많은 칸(서울시 250m 격자)",
 }
 
-// 모형으로 볼 때 바탕 없음의 건물 색(toon-palette TOON_REAL). 같은 층수 구간을 지붕·벽 색으로 가른다
-const NONE_MEANING_MODEL = "격자를 칠하지 않습니다. 건물은 층수로 짐작한 유형 색(1~2층 단독은 박공지붕 · 3~4층 다가구 · 5~9층 근생·빌라 · 10층+ 아파트 · 20층+ 고층)"
+// 모형으로 볼 때 바탕 없음의 건물(24라운드 실사, toon-palette materialOf). 건축물대장 용도·연대·구조로 고른 외벽·지붕
+const NONE_MEANING_MODEL = "격자를 칠하지 않습니다. 건물은 건축물대장의 용도·사용승인 연대·구조로 고른 외벽(벽돌조 단독·다가구, 2000년대 이후 빌라 석재, 아파트 흰 외벽, 업무 유리)과 지붕(평지붕 초록 방수, 오래된 단독 기와)"
 
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
@@ -488,17 +488,17 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
     <div className="text-[13.5px] leading-snug text-[var(--cp-text)]">
       <div className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? "바탕 없음 · 건물 층수" : `${def.legend} · 100m`}</span>
+          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? (view.tilt && look === "model" ? "바탕 없음 · 건물 재질" : "바탕 없음 · 건물 층수") : `${def.legend} · 100m`}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-[3px]">
-            {(none ? (view.tilt && look === "model" ? toonRealSwatches(theme) : [...REAL_BUILDING[theme]]) : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
+            {(none ? (view.tilt && look === "model" ? modelSwatches().map((m) => m.color) : [...REAL_BUILDING[theme]]) : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
           <span className="font-mono text-[13px] leading-none text-[var(--cp-text-dim)]">
             {/* 숫자와 단위는 한 덩어리(NBSP). 좁은 열에서 "세대"가 홀로 다음 줄로 떨어졌다(심사 냉독) */}
-            {none ? "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층" : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+\u00a0${def.unit}`}
+            {none ? (view.tilt && look === "model" ? "벽돌 · 석재 · 아파트 · 유리 · 옥상" : "1~2 · 3~4 · 5~9 · 10~19 · 20+ 층") : `${def.stops[1]}+ ~ ${def.stops[def.stops.length - 1]}+\u00a0${def.unit}`}
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
@@ -526,7 +526,9 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
                 style={{ borderColor: CIRCLE_DEF[c].color, background: `${CIRCLE_DEF[c].color}30` }}
               />
               <span>
-                {view.tilt && !view.grid3d
+                {view.tilt && !view.grid3d && look === "model"
+                  ? `${c === "comp" ? "청회" : "앰버"} 빛기둥은 ${CIRCLE_DEF[c].label} 건수, 높을수록 많음. 바닥 테는 평면 원과 같은 크기(칸 가운데)`
+                  : view.tilt && !view.grid3d
                   ? `${c === "comp" ? "청회" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
                   : `${c === "comp" ? "청회" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
               </span>

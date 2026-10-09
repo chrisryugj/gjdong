@@ -1,8 +1,9 @@
 // /dumping 지도의 소스·레이어 선언과 테마 색(23라운드, 2026-10-09 dumping-map.tsx 에서 그대로 옮김: 1,200줄 상한).
 // 레이어 id·그리는 순서·페인트 값은 옮기기 전과 같다. 지도 effect 들은 id 로 이 레이어들을 고친다
-import type { ExpressionSpecification, LayerSpecification, Map as MlMap } from "maplibre-gl"
-import { BASEMAP_SOURCE, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapLook, type BasemapTheme } from "@/lib/dumping/basemap-style"
+import type { ExpressionSpecification, LayerSpecification, Map as MlMap, StyleSpecification } from "maplibre-gl"
+import { BASEMAP_SOURCE, CONTEXT_SOURCE, HAS_CONTEXT_BUILDINGS, HAS_NSDI_BUILDINGS, NSDI_SOURCE, type BasemapLook, type BasemapTheme } from "@/lib/dumping/basemap-style"
 import { BIN_RECO_COLOR, CAND_COLOR, CRIT_COLOR, HOT_COLOR, NEUTRAL_BUILDING, ZERO_CELL, emptyFC, radiusMetersExpr, realBuildingExpr } from "./map-geo"
+import { LANDMARK_TIER_ZOOM } from "@/lib/dumping/landmarks"
 
 // 파일별 소스·레이어 id
 export const S = {
@@ -34,11 +35,19 @@ export const S = {
   recoRings: "dump-reco-rings",
   focusRing: "dump-focus-ring",
   flyPath: "dump-fly-path",
+  // 랜드마크 이름표(24라운드, 입체 전용)
+  landmarks: "dump-landmarks",
 } as const
 // 평면(원·점)과 입체(원기둥·말뚝·고리)는 같은 데이터의 두 그림. 기울기에 따라 한쪽만 보인다
 export const L_CAND_LABEL = "dump-cand-label"
 export const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco, L_CAND_LABEL, S.hotLabels, S.critLabels] as string[]
-export const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings] as string[]
+// 랜드마크 이름표 레이어(등급마다 하나, 같은 소스 S.landmarks). 0등급이 맨 위라 겹치면 먼저 산다
+export const LANDMARK_LAYERS = LANDMARK_TIER_ZOOM.map((_, k) => (k === 0 ? S.landmarks : `${S.landmarks}-${k}`))
+export const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings, ...LANDMARK_LAYERS] as string[]
+// 모형 보기에서 빛기둥(three, toon-beams)으로 대신 그리는 지도 기둥. 지도 쪽은 투명으로 남아 툴팁 조회를 맡는다
+export const BEAM_LAYERS = [S.circleCols, S.weatherCols, S.cols, S.critCols, S.hotCols, S.dongCols] as string[]
+// 랜드마크 이름표 바탕(알약). 테마마다 한 장(dumping-map이 그려 등록한다)
+export const PILL_ICON = { light: "dump-pill", dark: "dump-pill-dark" } as const
 export const ACCENT = { light: "#c0741a", dark: "#e39a3f" } as const
 export const L_BUILDINGS = "dump-buildings"
 export const L_BUILDINGS_NSDI = "dump-buildings-nsdi"
@@ -58,7 +67,7 @@ export const BIN_RECO_ICON = "dump-binreco-icon"
 
 // 소스·레이어 전부를 빈 데이터로 선언. 그리는 순서(아래→위): 마스크 → 격자 면 → 동 채움 → 원 → 노선 → 상습격자 면 → 격자선·동 외곽선·구 경계
 // → 건물(바닥에 그린 것은 건물이 가리고, 점·기둥은 건물 위에) → 시설·후보·배치추천 → 기둥 3종 → 라벨(항상 맨 위)
-export function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
+export function declareLayers(map: MlMap) {
   const geo = (id: string) => map.addSource(id, { type: "geojson", data: emptyFC() })
   for (const id of Object.values(S)) geo(id)
   // 바탕 스타일의 첫 라벨 레이어 앞에 면·선을 끼워 넣는다. 도로명·지명은 우리 면 위에 남는다
@@ -105,19 +114,19 @@ export function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
   under({ id: L_GRID_LINE, type: "line", source: S.grid, paint: { "line-color": "#ffffff", "line-width": 0.8, "line-opacity": 0 } })
   under({ id: S.dongLine, type: "line", source: S.dongLine, paint: { "line-color": "#64748b", "line-width": 1, "line-opacity": 0.4 } })
   under({ id: S.ring, type: "line", source: S.ring, paint: { "line-color": "#64748b", "line-width": 1.8, "line-opacity": 0.8, "line-dasharray": [2, 4] } })
-  // OSM 건물(Protomaps buildings). 높이 없는 건물은 9m(3층)로. NSDI 타일이 있으면 구 안은 그쪽이 그리고 OSM은 구 밖만
+  // 구 밖 배경 건물(24라운드: 빌드 때 구 밖만 뽑은 context-buildings.pmtiles, 높이 h·바닥 b). 배경 타일이 없으면 OSM 전체(높이 없으면 9m)
+  // 예전엔 OSM 전체에 "구 안 제외" within 필터를 걸었는데 maplibre within 은 폴리곤에 안 먹어 구 안에도 반투명 건물이 겹쳤다
   under({
     id: L_BUILDINGS,
     type: "fill-extrusion",
-    source: BASEMAP_SOURCE,
+    source: HAS_CONTEXT_BUILDINGS ? CONTEXT_SOURCE : BASEMAP_SOURCE,
     "source-layer": "buildings",
     minzoom: 12,
     layout: { visibility: "none" },
-    ...(HAS_NSDI_BUILDINGS && ringPoly ? { filter: ["!", ["within", ringPoly]] } : {}),
     paint: {
       "fill-extrusion-color": "#d7d5cd",
-      "fill-extrusion-height": ["coalesce", ["get", "height"], 9],
-      "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
+      "fill-extrusion-height": HAS_CONTEXT_BUILDINGS ? ["get", "h"] : ["coalesce", ["get", "height"], 9],
+      "fill-extrusion-base": HAS_CONTEXT_BUILDINGS ? ["get", "b"] : ["coalesce", ["get", "min_height"], 0],
       // 구 밖은 배경. 옅게 물러나야 구 안(칸 값으로 칠한 건물)이 그림의 주인공이 된다
       "fill-extrusion-opacity": HAS_NSDI_BUILDINGS ? 0.45 : 0.85,
     },
@@ -243,6 +252,28 @@ export function declareLayers(map: MlMap, ringPoly: GeoJSON.Polygon | null) {
     layout: { "text-field": ["get", "label"], "text-size": 15, "text-font": ["Noto Sans Medium"], "text-variable-anchor": ["top", "left", "right", "bottom"], "text-radial-offset": 0.6, "text-justify": "auto", "text-pitch-alignment": "viewport", "text-line-height": 1.25 },
     paint: { "text-color": "#1c1a15", "text-halo-color": "rgba(251,249,243,0.96)", "text-halo-width": 2.6 },
   })
+  // 랜드마크 이름표(24라운드): 알약 바탕 + 이름. 등급마다 레이어(minzoom 소수 문턱), 아래 등급부터 쌓아 0등급이 맨 위. 입체에서만(TILT_ONLY)
+  for (let k = LANDMARK_TIER_ZOOM.length - 1; k >= 0; k--)
+    map.addLayer({
+      id: LANDMARK_LAYERS[k],
+      type: "symbol",
+      source: S.landmarks,
+      minzoom: LANDMARK_TIER_ZOOM[k],
+      filter: ["==", ["get", "tier"], k],
+      layout: {
+        "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 12.5, 15, 14],
+        "text-font": ["Noto Sans Medium"],
+        "text-anchor": "bottom",
+        "text-offset": [0, -0.9],
+        "text-pitch-alignment": "viewport",
+        "icon-image": PILL_ICON.light,
+        "icon-text-fit": "both",
+        "icon-text-fit-padding": [4, 9, 4, 9],
+        "symbol-sort-key": ["get", "rank"],
+      },
+      paint: { "text-color": "#1c1a15" },
+    })
   map.addLayer({
     id: L_CAND_LABEL,
     type: "symbol",
@@ -260,7 +291,14 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
   if (map.getLayer(S.mask)) map.setPaintProperty(S.mask, "fill-color", dark ? "#0c1114" : "#ffffff")
   // NSDI 건물은 바탕 effect가 칸 값으로 칠한다(중립색도 거기서 테마별로). 여기서는 구 밖 OSM 건물만
   // 모형 보기(23라운드)는 구 밖 건물도 모형 땅색에 맞춘 흰 모형 톤(구 안은 three 건물이 그린다)
-  map.setPaintProperty(L_BUILDINGS, "fill-extrusion-color", look === "model" ? (dark ? "#26323a" : "#e9e2d3") : dark ? NEUTRAL_BUILDING.dark : NEUTRAL_BUILDING.light)
+  // 모형 보기(24라운드 실사)는 구 밖도 거의 불투명한 회백 배경 건물(구가 섬처럼 떠 보이지 않게)
+  map.setPaintProperty(L_BUILDINGS, "fill-extrusion-color", look === "model" ? (dark ? "#28323a" : "#d8d4cb") : dark ? NEUTRAL_BUILDING.dark : NEUTRAL_BUILDING.light)
+  map.setPaintProperty(L_BUILDINGS, "fill-extrusion-opacity", look === "model" ? 0.92 : HAS_NSDI_BUILDINGS ? 0.45 : 0.85)
+  for (const id of LANDMARK_LAYERS) {
+    if (!map.getLayer(id)) continue
+    map.setLayoutProperty(id, "icon-image", dark ? PILL_ICON.dark : PILL_ICON.light)
+    map.setPaintProperty(id, "text-color", ink)
+  }
   const accent = dark ? ACCENT.dark : ACCENT.light
   map.setPaintProperty(S.focusRing, "fill-extrusion-color", accent)
   map.setPaintProperty(S.flyPath, "line-color", accent)
@@ -275,5 +313,21 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
     if (!map.getLayer(id)) continue
     map.setPaintProperty(id, "text-halo-color", halo)
     if (id === S.dongLabel || id === S.dongColLabels) map.setPaintProperty(id, "text-color", ink)
+  }
+}
+
+// 바탕 다시 칠하기(24라운드): 테마·표현을 바꿀 때 setStyle 로 통째로 갈지 않고 같은 레이어의 칠하기·보이기만 바꾼다.
+// 네 조합(라이트·다크 × 도면·모형)은 레이어 구성·배치·필터·소스가 같고 색만 다르다(tests/dumping-toon.test.ts 가 고정).
+// 예전 setStyle 방식은 새 스타일이 뜰 때까지(30~90ms) 다른 effect 의 setPaintProperty 가 "Style is not done loading" 을 던져
+// 오류 화면으로 떨어졌고(검증 재현), 소스를 다시 만들어 건물 feature-state·커스텀 층을 다시 붙여야 했다
+export function restyleBasemap(map: MlMap, next: StyleSpecification) {
+  const cur = new Map(map.getStyle().layers.map((l) => [l.id, l as LayerSpecification & { paint?: Record<string, unknown> }]))
+  for (const l of next.layers as (LayerSpecification & { paint?: Record<string, unknown>; layout?: Record<string, unknown> })[]) {
+    if (!map.getLayer(l.id)) continue
+    const paint = l.paint ?? {}
+    for (const k of new Set([...Object.keys(cur.get(l.id)?.paint ?? {}), ...Object.keys(paint)])) map.setPaintProperty(l.id, k as never, paint[k] as never)
+    // 보이기는 다를 때만: 미지정 → "visible" 도 maplibre 는 변경으로 보고 소스를 다시 읽었다(첫 전환에 음영 DEM 35장 재요청, 검증 실측)
+    const vis = (l.layout?.visibility as "visible" | "none" | undefined) ?? "visible"
+    if ((map.getLayoutProperty(l.id, "visibility") ?? "visible") !== vis) map.setLayoutProperty(l.id, "visibility", vis)
   }
 }

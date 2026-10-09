@@ -74,12 +74,12 @@ def link(obj):
     return obj
 
 
-def mesh_obj(name, bm, role, loc=(0, 0, 0), rot=(0, 0, 0), bevel=0.0, color=None):
+def mesh_obj(name, bm, role, loc=(0, 0, 0), rot=(0, 0, 0), bevel=0.0, color=None, smooth=False):
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
     for p in me.polygons:
-        p.use_smooth = False
+        p.use_smooth = smooth
     me.materials.append(material(role, color))
     ob = link(bpy.data.objects.new(name, me))
     ob.location = loc
@@ -100,16 +100,16 @@ def box(name, size, loc, role, bevel=0.0, rot=(0, 0, 0)):
     return mesh_obj(name, bm, role, loc, rot, bevel)
 
 
-def cyl(name, r, h, loc, role, seg=12, r2=None, bevel=0.0, rot=(0, 0, 0), caps=True):
+def cyl(name, r, h, loc, role, seg=12, r2=None, bevel=0.0, rot=(0, 0, 0), caps=True, smooth=False):
     """바닥이 loc 에 닿는 원기둥(r2 면 위쪽 반지름)"""
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=caps, cap_tris=False, segments=seg, radius1=r, radius2=r if r2 is None else r2, depth=h)
     bmesh.ops.translate(bm, vec=Vector((0, 0, h / 2)), verts=bm.verts)
-    return mesh_obj(name, bm, role, loc, rot, bevel)
+    return mesh_obj(name, bm, role, loc, rot, bevel, smooth=smooth)
 
 
-def ico(name, r, loc, role, sub=1, scale=(1, 1, 1), jitter=0.0, seed=0, flat_bottom=None, color=None):
-    """깎은 보석 같은 로우폴리 구. jitter 로 꼭짓점을 흔들어 손으로 깎은 느낌. flat_bottom 은 그 높이(구 반지름 비율) 아래를 납작하게"""
+def ico(name, r, loc, role, sub=1, scale=(1, 1, 1), jitter=0.0, seed=0, flat_bottom=None, color=None, smooth=False):
+    """구. jitter 로 꼭짓점을 흔들어 덩어리 느낌. flat_bottom 은 그 높이(구 반지름 비율) 아래를 납작하게. smooth 면 매끈한 면(법선 평균)"""
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=sub, radius=r)
     rng = random.Random(seed)
@@ -119,7 +119,7 @@ def ico(name, r, loc, role, sub=1, scale=(1, 1, 1), jitter=0.0, seed=0, flat_bot
         if flat_bottom is not None and v.co.z < -flat_bottom * r:
             v.co.z = -flat_bottom * r
     bmesh.ops.scale(bm, vec=Vector(scale), verts=bm.verts)
-    return mesh_obj(name, bm, role, loc, color=color)
+    return mesh_obj(name, bm, role, loc, color=color, smooth=smooth)
 
 
 def wedge(name, w, d, h0, h1, loc, role, bevel=0.0):
@@ -316,35 +316,49 @@ def truck():
 
 
 def tree_broad():
-    """활엽수: 줄기 + 깎은 수관 덩어리 셋. 높이 약 8.5m"""
+    """활엽수(24라운드 실사): 가는 줄기 + 둥글게 뭉친 수관 넷(매끈한 면, 꼭짓점을 흔들어 잎 덩어리처럼). 높이 약 8.5m"""
     reset()
-    cyl("trunk", 0.32, 3.4, (0, 0, 0), "trunk", seg=6, r2=0.22)
-    ico("crown_a", 2.9, (0, 0, 5.2), "leaf", sub=1, jitter=0.12, seed=3, scale=(1, 1, 0.92))
-    ico("crown_b", 2.0, (1.5, 0.6, 4.4), "leaf", sub=0, jitter=0.1, seed=5)
-    ico("crown_c", 1.7, (-1.2, -0.9, 6.3), "leaf", sub=0, jitter=0.1, seed=7)
+    cyl("trunk", 0.28, 3.6, (0, 0, 0), "trunk", seg=7, r2=0.18, caps=False, smooth=True)
+    rng = random.Random(3)
+    for i, (x, y, z, r) in enumerate([(0, 0, 5.5, 2.6), (1.25, 0.55, 4.7, 1.85), (-1.15, -0.7, 4.85, 1.9), (0.2, -1.1, 6.25, 1.6)]):
+        ico(f"crown{i}", r, (x, y, z), "leaf", sub=2, jitter=0.09, seed=rng.randint(0, 999), scale=(1, 1, 0.9), smooth=True)
     export("tree-broad")
 
 
 def tree_pine():
-    """침엽수: 줄기 + 원뿔 세 겹(아래가 넓다). 높이 약 10.5m"""
+    """침엽수(24라운드 실사): 줄기 + 원뿔 세 겹(매끈한 면, 아래가 넓다). 높이 약 10.5m"""
     reset()
-    cyl("trunk", 0.28, 2.6, (0, 0, 0), "trunk", seg=6, r2=0.2)
-    for r, h, z in ((3.0, 4.2, 1.8), (2.35, 3.8, 4.2), (1.6, 3.4, 6.6)):
-        cyl(f"tier{z}", r, h, (0, 0, z), "leaf", seg=7, r2=0.05)
+    cyl("trunk", 0.25, 2.6, (0, 0, 0), "trunk", seg=7, r2=0.18, caps=False, smooth=True)
+    for r, h, z in ((2.9, 4.2, 1.8), (2.25, 3.8, 4.1), (1.5, 3.4, 6.5)):
+        cyl(f"tier{z}", r, h, (0, 0, z), "leaf", seg=9, r2=0.05, caps=False, smooth=True)
     export("tree-pine")
 
 
-def cloud():
-    """뭉게구름: 납작 바닥 로우폴리 구 7개. 폭 약 80m"""
+CLOUDS = {
+    # 이름: 덩어리 (x, y, z, 반지름). 바닥은 납작, 위는 둥글게 솟는다. 폭 80~110m
+    "cloud": [(0, 0, 0, 20), (19, 3, -3, 15), (-19, -2, -4, 15), (8, -9, 6, 14), (-7, 8, 7, 13), (31, -2, -8, 10), (-30, 4, -9, 10), (2, 6, 12, 11)],
+    "cloud-b": [(0, 0, 0, 17), (16, -4, -2, 14), (30, 0, -6, 10), (-14, 3, -3, 13), (-26, -1, -7, 9), (6, 7, 8, 11), (-6, -6, 6, 10)],
+    "cloud-c": [(0, 0, 0, 22), (22, 2, -4, 16), (-21, 0, -5, 16), (40, -1, -10, 10), (-38, 2, -10, 9), (10, -8, 9, 14), (-10, 8, 10, 13), (0, 0, 16, 12)],
+}
+
+
+def cloud(name):
+    """뭉게구름(24라운드: 매끈한 면). 납작한 바닥 + 둥근 덩어리. 런타임이 바람 따라 흘리고 땅에 그림자를 드리운다"""
     reset()
-    rng = random.Random(11)
-    puffs = [(0, 0, 0, 20), (19, 3, -3, 15), (-19, -2, -4, 15), (8, -9, 6, 14), (-7, 8, 7, 13), (31, -2, -8, 10), (-30, 4, -9, 10)]
-    for i, (x, y, z, r) in enumerate(puffs):
-        ico(f"puff{i}", r, (x, y, z), "cloud", sub=1, jitter=0.07, seed=rng.randint(0, 999), flat_bottom=0.35, scale=(1.15, 1.0, 0.82))
-    export("cloud")
+    rng = random.Random(len(name) * 7 + 11)
+    for i, (x, y, z, r) in enumerate(CLOUDS[name]):
+        ico(f"puff{i}", r, (x, y, z), "cloud", sub=3, jitter=0.02, seed=rng.randint(0, 999), flat_bottom=0.38, scale=(1.12, 1.0, 0.86), smooth=True)
+    export(name)
 
 
 if __name__ == "__main__":
-    for build in (cctv_mobile, cctv_fixed, cloth_bin, recycling, street_bin, truck, tree_broad, tree_pine, cloud):
-        build()
+    builds = {
+        "cctv-mobile": cctv_mobile, "cctv-fixed": cctv_fixed, "cloth-bin": cloth_bin, "recycling": recycling, "street-bin": street_bin, "truck": truck,
+        "tree-broad": tree_broad, "tree-pine": tree_pine, **{k: (lambda k=k: cloud(k)) for k in CLOUDS},
+    }
+    # --only 이름,이름 이면 그것만(나머지 glb 는 그대로)
+    only = arg("--only")
+    for name, build in builds.items():
+        if not only or name in only.split(","):
+            build()
     print("ASSETS_DONE", OUT)

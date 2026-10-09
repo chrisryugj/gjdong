@@ -1,102 +1,53 @@
-// /dumping 모형 보기(23라운드, 2026-10-09) three.js 커스텀 레이어. sunlight-fund 모형 보기를 이 지도로 옮기고 더 밀었다:
-// 계단 명암(MeshToon) · 화면 폭이 일정한 윤곽선(뒷면 껍질) · 박공지붕·옥탑 · 창 무늬와 밤 창 불빛 · 해 그림자맵(보는 곳을 따라감) · 날씨(조명·눈·젖은 땅).
-// 숲·공원 나무와 구름은 toon-decor.ts.
-// 건물은 GIS건물통합정보 전수(toon-buildings.bin)를 구 전체 한 번에 싣고 512m 덩어리로 나눠 절두체로 거른다.
-// 데이터 색은 지도 압출과 같은 규칙으로 동마다 벽·지붕 두 텍셀(toon-palette)에 담고, 바탕을 바꾸면 그 텍스처만 다시 올린다(기하 그대로).
-// 깊이는 지도와 나눈다(지우지 않는다): 뒤에 그리는 기둥·말뚝(fill-extrusion)이 건물과 서로 가린다. 아이콘 층(icons3d)은 그 위에 깊이를 지우고 그린다.
+// /dumping 모형 보기 three.js 커스텀 레이어(23라운드 카툰 → 24라운드 2026-10-09 실사, 사용자: "너무 비현실적, 건물을 그리다 만 것 같다").
+// 매끈한 명암(Lambert) · 이웃 건물 그림자까지 받는 해 그림자맵(보는 곳을 따라감) · 땅과 닿는 곳 그늘 · 구름 그림자(cloudShade).
+// 외벽은 용도·연대·구조(GIS건물통합정보 + 대장 대조 OSM 신축)로 고른 재질(toon-palette) 위에 층 나누기와 창을 그린다:
+// 변마다 창을 고르게 나누고(모서리 반쪽 창 없음), 아파트 긴 면은 발코니 띠, 상가 1층은 진열창·간판, 업무·고층 공공은 커튼월, 2000년대 이후 빌라 1층은 필로티.
+// 평지붕은 난간 띠·옥탑·물탱크, 오래된 단독은 기와·슬레이트 박공. 창 간격이 화면 몇 픽셀보다 작아지면 평균 색으로 물러난다(계단·깜박임 없음). 밤엔 창마다 불빛.
+// 데이터 색은 지도 압출과 같은 규칙(toon-palette toonColors)으로 동마다 텍셀에 담고, 바탕을 바꾸면 그 텍스처만 다시 올린다(기하 그대로).
+// 기둥은 빛기둥(toon-beams), 나무·구름은 toon-decor. 깊이는 지도와 나눈다(지우지 않는다): 뒤에 그리는 말뚝(fill-extrusion)이 건물과 서로 가린다.
 import * as THREE from "three"
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from "maplibre-gl"
 import { decodeBuildings, decodeGround, decodeTrees, groundAt, localToLngLat, TOON_ANCHOR, type ToonBuildings, type ToonGround } from "@/lib/dumping/toon-world"
 import type { GridCell } from "@/lib/dumping/types"
-import { buildChunk, centroidOf, chunkIds, CHUNK_M } from "./toon-geom"
-import { toonColors, type ToonPaint } from "./toon-palette"
-import { anchorMatrix, hullMaterial, hullUniforms, loadAsset, toonMaterial } from "./toon-assets"
+import { buildChunk, centroidOf, chunkIds, CHUNK_M, floorsOf, ringOf, roofPlan, type RoofPlan } from "./toon-geom"
+import { TEXELS_PER_BUILDING, toonColors, toonMaterials, type ToonPaint } from "./toon-palette"
+import { anchorMatrix, cloudUniforms, eyeOf, loadAsset } from "./toon-assets"
+import { FRAG_COLOR, FRAG_LIGHT, FRAG_PARS, RECV_FRAG, RECV_FRAG_FIND, RECV_FRAG_PARS, RECV_VERT, RECV_VERT_PARS, VERT_MAIN, VERT_PARS } from "./toon-shaders"
 import { ToonDecor } from "./toon-decor"
+import { ToonBeams } from "./toon-beams"
 import { cellLookup } from "./map-geo"
 import { weatherLook, type SkyWeather } from "@/lib/dumping/map-weather"
 
-export type ToonPaintInput = Omit<ToonPaint, "cellOf" | "floors">
+export type ToonPaintInput = Omit<ToonPaint, "cellOf">
 
 const COLOR_TEX_W = 1024
+const INFO_TEX_W = 512
 const SUN_AZIMUTH = (215 * Math.PI) / 180 // 남서쪽 오후 해(그림자는 북동으로). 시간 자료가 없어 고정
 const SUN_ALTITUDE = (44 * Math.PI) / 180
 const RECEIVER_SEG = 112
+const DRIFT_MS = 90 // 구름만 흐를 때 다시 그리는 간격(초당 약 11번. 유리 굴절 재계산을 줄인다)
 
 const THEMES = {
   light: {
-    sky: "#fffaf1", ground: "#d6d3cc", hemi: 1.3, sun: "#fff2dc", sunI: 2.05, shadow: 0.5,
-    ink: "#3a332b", glass: "#9cb6c6", receiver: { color: "#41505e", opacity: 0.24 }, night: 0,
+    sky: "#eef3f8", ground: "#b3aa9b", hemi: 1.42, sun: "#fff1dc", sunI: 3.2, shadow: 0.66,
+    glass: "#4d5f6c", skyRef: "#c3d2dc", cap: "#cdc8bd", rail: "#f1f0ec", tank: "#9eb8c9", muted: "#d9d6cf",
+    receiver: { color: "#33404c", opacity: 0.36 }, night: 0, lit: 0.0, cloudDark: 0.5,
   },
   dark: {
-    sky: "#7d8ca8", ground: "#262b33", hemi: 0.95, sun: "#b4c3e0", sunI: 0.9, shadow: 0.45,
-    ink: "#07090b", glass: "#2f3d47", receiver: { color: "#000000", opacity: 0.3 }, night: 1,
+    sky: "#6a7a94", ground: "#1c222a", hemi: 0.75, sun: "#a9b9d8", sunI: 0.55, shadow: 0.4,
+    glass: "#0d151c", skyRef: "#26323d", cap: "#3a434a", rail: "#4a535a", tank: "#33414c", muted: "#2b3339",
+    receiver: { color: "#000000", opacity: 0.32 }, night: 1, lit: 0.3, cloudDark: 0.25,
   },
 } as const
 
-// 건물 재질에 넣는 셰이더 조각(한국어 주석은 템플릿 밖에: 카피 게이트가 문자열 안 한글을 화면 문구로 읽는다)
-// 꼭짓점: 동 번호로 색 텍스처에서 벽·지붕 색을 읽어 넘긴다. 조각: 면 법선(화면 미분)이 위를 보면 지붕색, 벽이면 창 무늬
-// 창은 벽 따라 간격마다·층마다 사각, 지면 0.8m 아래와 벽 꼭대기 0.5m 위는 비우고, 창 간격이 화면 몇 픽셀보다 작아지면 거둔다(계단·깜박임 방지).
-// 밤(uNight)이면 창마다 해시가 uLit 보다 작은 창에 불이 켜진다. 눈(uRoofSnow)은 지붕면에만 쌓인다(데이터 색이 없을 때만, setWeather)
-const VERT_PARS = /* glsl */ `
-attribute vec4 aB;
-uniform highp sampler2D uColors;
-uniform float uColorsW;
-varying vec3 vLocal;
-varying vec4 vB;
-varying vec3 vWallC;
-varying vec3 vRoofC;`
-const VERT_MAIN = /* glsl */ `
-vLocal = position;
-vB = aB;
-int tnI = int(aB.x + 0.5) * 2;
-int tnW = int(uColorsW);
-vWallC = texelFetch(uColors, ivec2(tnI % tnW, tnI / tnW), 0).rgb;
-vRoofC = texelFetch(uColors, ivec2((tnI + 1) % tnW, (tnI + 1) / tnW), 0).rgb;`
-const FRAG_PARS = /* glsl */ `
-uniform vec3 uGlass;
-uniform float uNight;
-uniform float uLit;
-uniform vec3 uGlow;
-uniform float uRoofSnow;
-uniform vec3 uSnowC;
-varying vec3 vLocal;
-varying vec4 vB;
-varying vec3 vWallC;
-varying vec3 vRoofC;
-float tnHash(vec3 p) {
-  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-  p += dot(p, p.yzx + 33.33);
-  return fract((p.x + p.y) * p.z);
-}`
-const FRAG_COLOR = /* glsl */ `
-vec3 tnN = normalize(cross(dFdx(vLocal), dFdy(vLocal)));
-float tnRoof = smoothstep(0.45, 0.7, abs(tnN.y));
-diffuseColor.rgb = mix(vWallC, vRoofC, tnRoof);
-diffuseColor.rgb = mix(diffuseColor.rgb, uSnowC, uRoofSnow * tnRoof);
-float tnWin = 0.0;
-float tnLit = 0.0;
-if (tnRoof < 0.5 && vB.w < 2.5) {
-  vec2 tnT = normalize(vec2(-tnN.z, tnN.x) + 1e-6);
-  float tnU = dot(vLocal.xz, tnT);
-  float tnH = vLocal.y - vB.y;
-  float tnSpan = vB.w < 0.5 ? 3.4 : (vB.w < 1.5 ? 3.0 : 2.5);
-  float tnFu = fract(tnU / tnSpan);
-  float tnFv = fract(tnH / 3.2);
-  tnWin = smoothstep(0.30, 0.36, tnFu) * (1.0 - smoothstep(0.64, 0.70, tnFu)) * smoothstep(0.30, 0.36, tnFv) * (1.0 - smoothstep(0.72, 0.78, tnFv));
-  tnWin *= step(0.8, tnH) * step(tnH, vB.z - vB.y - 0.5);
-  tnWin *= 1.0 - smoothstep(0.3, 0.6, fwidth(tnU) / tnSpan * 3.0);
-  float tnR = tnHash(vec3(vB.x, floor(tnH / 3.2), floor(tnU / tnSpan)));
-  tnLit = tnWin * step(tnR, uLit) * uNight;
-}
-diffuseColor.rgb = mix(diffuseColor.rgb, uGlass, tnWin * 0.8);`
-const FRAG_EMISSIVE = /* glsl */ `
-totalEmissiveRadiance += uGlow * tnLit;`
 interface BuildingChunk {
-  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshToonMaterial>
-  hull: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
+  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>
 }
 const TMP_V = new THREE.Vector4()
-const TMP_P = new THREE.Vector3()
+// 업로드 뒤 JS 쪽 배열을 버린다(동 2.7만 기하를 두 벌 들고 있지 않게. three 문서의 disposeArray)
+function dropArray(this: THREE.BufferAttribute) {
+  ;(this as unknown as { array: unknown }).array = null
+}
 
 export class ToonLayer implements CustomLayerInterface {
   id = "dump-toon"
@@ -114,63 +65,88 @@ export class ToonLayer implements CustomLayerInterface {
   private dark: boolean
   private bld: ToonBuildings | null = null
   private ground: ToonGround | null = null
+  private plans: RoofPlan[] = []
+  private gable = new Uint8Array(0)
   private cellOf: Int32Array | null = null
   private paint: ToonPaintInput | null = null
   private readonly chunks: BuildingChunk[] = []
   private readonly decor: ToonDecor
+  readonly beams = new ToonBeams()
   private colorBytes = new Uint8Array(4)
   private colorTex = new THREE.DataTexture(this.colorBytes, 1, 1)
-  private readonly hullU = hullUniforms()
+  private infoTex = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType)
+  private readonly cloudU = cloudUniforms()
+  private readonly eye = new THREE.Vector3()
   private readonly bldU = {
     uColors: { value: this.colorTex as THREE.Texture },
+    uInfo: { value: this.infoTex as THREE.Texture },
     uColorsW: { value: COLOR_TEX_W },
+    uInfoW: { value: INFO_TEX_W },
     uGlass: { value: new THREE.Color(THEMES.light.glass) },
+    uSkyRef: { value: new THREE.Color(THEMES.light.skyRef) },
+    uCap: { value: new THREE.Color(THEMES.light.cap) },
+    uRail: { value: new THREE.Color(THEMES.light.rail) },
+    uTank: { value: new THREE.Color(THEMES.light.tank) },
+    uMuted: { value: new THREE.Color(THEMES.light.muted) },
+    uEye: { value: this.eye },
     uNight: { value: 0 },
-    uLit: { value: 0.42 },
-    uGlow: { value: new THREE.Color("#ffc76a").multiplyScalar(1.6) },
+    uLit: { value: 0 },
+    uGlowWarm: { value: new THREE.Color("#ffbf66").multiplyScalar(0.95) },
+    uGlowCool: { value: new THREE.Color("#d5e6ff").multiplyScalar(0.62) },
     uRoofSnow: { value: 0 },
     uSnowC: { value: new THREE.Color("#f7f9fc") },
+    uCloudDark: { value: THEMES.light.cloudDark as number },
+    ...this.cloudU,
   }
+  private readonly recvU = { uCloudRecv: { value: 0.5 }, ...this.cloudU }
   private weather: SkyWeather = { kind: "clear", level: 0.35 }
   /** 땅 눈·젖음 덮개(지면 격자 전체, 그림자만 보이는 받이 아래) */
   private tint: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null = null
-  private readonly bldMat: THREE.MeshToonMaterial
-  private readonly bldHullMat: THREE.ShaderMaterial
+  private readonly bldMat: THREE.MeshLambertMaterial
   private readonly hemi = new THREE.HemisphereLight()
   private readonly sun = new THREE.DirectionalLight()
   private readonly receiver: THREE.Mesh<THREE.PlaneGeometry, THREE.ShadowMaterial>
   private shadowAt = { x: Infinity, z: Infinity, half: 0 }
   private shadowDirty = true
+  private driftTimer = 0
+  private readonly center = new THREE.Vector2()
   private disposed = false
 
   constructor(opts: { dark: boolean; exag: number }) {
     this.exag = opts.exag
     this.dark = opts.dark
-    this.bldMat = toonMaterial("#ffffff")
+    this.bldMat = new THREE.MeshLambertMaterial({ color: "#ffffff" })
     this.bldMat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.bldU)
       sh.vertexShader = sh.vertexShader.replace("#include <common>", `#include <common>\n${VERT_PARS}`).replace("#include <begin_vertex>", `#include <begin_vertex>\n${VERT_MAIN}`)
       sh.fragmentShader = sh.fragmentShader
         .replace("#include <common>", `#include <common>\n${FRAG_PARS}`)
-        .replace("#include <color_fragment>", `#include <color_fragment>\n${FRAG_COLOR}`)
-        .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAG_EMISSIVE}`)
+        .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAG_COLOR}`)
+        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${FRAG_LIGHT}`)
     }
-    this.bldHullMat = hullMaterial(this.hullU, THEMES.light.ink)
+    // three z 는 남쪽: 방위(북에서 시계) a 의 해는 (sin a, ·, −cos a)
+    this.cloudU.uSunDir.value.set(Math.sin(SUN_AZIMUTH) * Math.cos(SUN_ALTITUDE), Math.sin(SUN_ALTITUDE), -Math.cos(SUN_AZIMUTH) * Math.cos(SUN_ALTITUDE))
+    this.cloudU.uWind.value.set(0.94, -0.34).normalize()
     this.sun.castShadow = true
     const s = this.sun.shadow
     const big = Math.min(window.innerWidth, window.innerHeight) >= 768
-    s.mapSize.set(big ? 2048 : 1024, big ? 2048 : 1024)
-    s.bias = -0.0006
-    s.normalBias = 0
+    s.mapSize.set(big ? 4096 : 2048, big ? 4096 : 2048)
+    s.bias = -0.0003
     s.radius = 2
     this.scene.add(this.hemi, this.sun, this.sun.target)
-    this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, RECEIVER_SEG, RECEIVER_SEG).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }))
+    const recvMat = new THREE.ShadowMaterial({ depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })
+    recvMat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.recvU)
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", `#include <common>\n${RECV_VERT_PARS}`).replace("#include <begin_vertex>", `#include <begin_vertex>\n${RECV_VERT}`)
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>\n${RECV_FRAG_PARS}`).replace(RECV_FRAG_FIND, RECV_FRAG)
+    }
+    this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, RECEIVER_SEG, RECEIVER_SEG).rotateX(-Math.PI / 2), recvMat)
     this.receiver.receiveShadow = true
     this.receiver.frustumCulled = false
     this.receiver.renderOrder = 2
     this.scene.add(this.receiver)
-    this.decor = new ToonDecor(this.hullU, this.exag, opts.dark)
-    this.scene.add(this.decor.group)
+    this.decor = new ToonDecor(this.cloudU, this.exag, opts.dark)
+    this.scene.add(this.decor.group, this.beams.group)
     this.setTheme(opts.dark)
   }
 
@@ -188,13 +164,41 @@ export class ToonLayer implements CustomLayerInterface {
     this.bld = bld
     this.ground = decodeGround(gBuf)
     this.addTint(this.ground)
-    this.colorBytes = new Uint8Array(COLOR_TEX_W * Math.ceil((bld.count * 2) / COLOR_TEX_W) * 4)
+    this.beams.setGround(this.ground, this.exag)
+    // 지붕 계획(박공·처마 높이)을 먼저 전부: 재질(박공이면 기와)과 정보 텍스처(지면·벽 꼭대기·층수)가 그 값을 쓴다
+    const n = bld.count
+    this.plans = new Array(n)
+    this.gable = new Uint8Array(n)
+    const info = new Float32Array(INFO_TEX_W * Math.ceil(n / INFO_TEX_W) * 4)
+    let last = performance.now()
+    for (let i = 0; i < n; i++) {
+      const plan = roofPlan(bld, i, ringOf(bld, i))
+      this.plans[i] = plan
+      this.gable[i] = plan.gable ? 1 : 0
+      const g = bld.groundMid[i] * this.exag
+      info[i * 4] = g
+      info[i * 4 + 1] = g + plan.eave
+      info[i * 4 + 2] = floorsOf(bld, i)
+      if (performance.now() - last > 14) {
+        await new Promise((r) => setTimeout(r, 0))
+        if (this.disposed) return
+        last = performance.now()
+      }
+    }
+    this.infoTex.dispose()
+    this.infoTex = new THREE.DataTexture(info, INFO_TEX_W, info.length / 4 / INFO_TEX_W, THREE.RGBAFormat, THREE.FloatType)
+    this.infoTex.minFilter = this.infoTex.magFilter = THREE.NearestFilter
+    this.infoTex.generateMipmaps = false
+    this.infoTex.needsUpdate = true
+    this.bldU.uInfo.value = this.infoTex
+    this.colorBytes = new Uint8Array(COLOR_TEX_W * Math.ceil((n * TEXELS_PER_BUILDING) / COLOR_TEX_W) * 4)
     this.colorTex.dispose()
     this.colorTex = new THREE.DataTexture(this.colorBytes, COLOR_TEX_W, this.colorBytes.length / 4 / COLOR_TEX_W, THREE.RGBAFormat)
     this.colorTex.colorSpace = THREE.SRGBColorSpace
     this.colorTex.minFilter = this.colorTex.magFilter = THREE.NearestFilter
     this.colorTex.generateMipmaps = false
     this.bldU.uColors.value = this.colorTex
+    this.remat()
     this.repaint()
     // 덩어리를 지금 보는 곳에서 가까운 순으로 세운다. 한 덩어리마다 한 번 숨을 돌려 첫 화면이 멈추지 않게
     const groups = [...chunkIds(bld).entries()].map(([key, ids]) => {
@@ -202,7 +206,7 @@ export class ToonLayer implements CustomLayerInterface {
       return { ids, d: Math.hypot((ix + 0.5) * CHUNK_M - near[0], (iz + 0.5) * CHUNK_M - near[1]) }
     })
     groups.sort((a, b) => a.d - b.d)
-    let last = performance.now()
+    last = performance.now()
     for (const g of groups) {
       if (this.disposed) return
       this.addChunk(g.ids)
@@ -221,27 +225,36 @@ export class ToonLayer implements CustomLayerInterface {
   }
 
   private addChunk(ids: number[]) {
-    const c = buildChunk(this.bld!, ids, this.exag)
+    const c = buildChunk(this.bld!, ids, this.exag, this.plans)
     const geom = new THREE.BufferGeometry()
     geom.setAttribute("position", new THREE.BufferAttribute(c.position, 3))
-    geom.setAttribute("aB", new THREE.BufferAttribute(c.info, 4))
-    geom.setAttribute("aOut", new THREE.BufferAttribute(c.out, 3))
+    geom.setAttribute("normal", new THREE.BufferAttribute(c.normal, 3, true))
+    geom.setAttribute("aB", new THREE.BufferAttribute(c.info, 2))
+    geom.setAttribute("aW", new THREE.BufferAttribute(c.wall, 2))
     geom.setIndex(new THREE.BufferAttribute(c.index, 1))
     geom.computeBoundingSphere()
+    for (const a of Object.values(geom.attributes)) (a as THREE.BufferAttribute).onUpload(dropArray)
+    geom.index!.onUpload(dropArray)
     const mesh = new THREE.Mesh(geom, this.bldMat)
-    // 그림자는 땅(받이)에만 드리운다. 건물이 받으면 해 반대쪽 벽이 계단 명암에 그림자까지 겹쳐 흙빛이 됐다(첫 캡처)
     mesh.castShadow = true
-    mesh.receiveShadow = false
-    const hull = new THREE.Mesh(geom, this.bldHullMat)
-    this.scene.add(mesh, hull)
-    this.chunks.push({ mesh, hull })
+    mesh.receiveShadow = true
+    this.scene.add(mesh)
+    this.chunks.push({ mesh })
   }
 
   private async loadDecor(get: (f: string) => Promise<ArrayBuffer>) {
-    const [tBuf, broad, pine, cloud] = await Promise.all([get("toon-trees.bin"), loadAsset("tree-broad"), loadAsset("tree-pine"), loadAsset("cloud")])
+    const [tBuf, broad, pine, ...clouds] = await Promise.all([
+      get("toon-trees.bin"),
+      loadAsset("tree-broad", true),
+      loadAsset("tree-pine", true),
+      loadAsset("cloud", true),
+      loadAsset("cloud-b", true),
+      loadAsset("cloud-c", true),
+    ])
     if (this.disposed) return
     this.decor.addTrees(decodeTrees(tBuf), [broad, pine])
-    this.decor.addClouds(cloud)
+    this.decor.addClouds(clouds)
+    this.applyLight()
     this.shadowDirty = true
     this.map?.triggerRepaint()
   }
@@ -260,10 +273,18 @@ export class ToonLayer implements CustomLayerInterface {
     if (!bld || !p) return
     if (!this.cellOf && p.grid.length) this.cellOf = this.joinCells(bld, p.grid)
     if (!this.cellOf) return
-    toonColors({ ...p, cellOf: this.cellOf, floors: bld.floors }, this.colorBytes)
+    toonColors({ ...p, cellOf: this.cellOf }, this.colorBytes)
     this.colorTex.needsUpdate = true
     this.applySnow()
     this.map?.triggerRepaint()
+  }
+
+  /** 재질 텍셀(테마마다 한 번) */
+  private remat() {
+    const bld = this.bld
+    if (!bld || !this.gable.length) return
+    toonMaterials(bld.count, bld.style, bld.floors, this.gable, this.dark ? "dark" : "light", this.colorBytes)
+    this.colorTex.needsUpdate = true
   }
 
   /** 동 꼭짓점 평균 → 경위도 → 격자 칸(지도 압출 건물 조인과 같은 중심점 규칙) */
@@ -282,11 +303,19 @@ export class ToonLayer implements CustomLayerInterface {
     this.dark = dark
     const t = dark ? THEMES.dark : THEMES.light
     this.receiver.material.color.set(t.receiver.color)
-    ;(this.bldHullMat.uniforms.uInk.value as THREE.Color).set(t.ink)
-    this.bldU.uGlass.value.set(t.glass)
-    this.bldU.uNight.value = t.night
+    const u = this.bldU
+    u.uGlass.value.set(t.glass)
+    u.uSkyRef.value.set(t.skyRef)
+    u.uCap.value.set(t.cap)
+    u.uRail.value.set(t.rail)
+    u.uTank.value.set(t.tank)
+    u.uMuted.value.set(t.muted)
+    u.uNight.value = t.night
+    u.uLit.value = t.lit
     this.decor.setTheme(dark)
+    this.beams.setTheme(dark)
     this.applyLight()
+    this.remat()
     if (this.paint) this.repaint()
     this.shadowDirty = true
     this.map?.triggerRepaint()
@@ -301,7 +330,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
-  /** 테마 기본 조명 × 날씨 배율. 구름 색, 눈·젖음도 같이 */
+  /** 테마 기본 조명 × 날씨 배율. 구름 그늘 진하기, 눈·젖음도 같이 */
   private applyLight() {
     const t = this.dark ? THEMES.dark : THEMES.light
     const w = weatherLook(this.weather, this.dark)
@@ -310,8 +339,14 @@ export class ToonLayer implements CustomLayerInterface {
     this.hemi.intensity = t.hemi * w.hemi
     this.sun.color.set(w.sunColor ?? t.sun)
     this.sun.intensity = t.sunI * w.sun
-    this.sun.shadow.intensity = w.shadow
-    this.receiver.material.opacity = t.receiver.opacity * Math.min(1, w.shadow / t.shadow)
+    this.sun.shadow.intensity = Math.min(1, w.shadow * (t.shadow / 0.5))
+    this.receiver.material.opacity = t.receiver.opacity * Math.min(1, w.shadow / 0.5)
+    // 구름 그늘은 해가 셀수록 진하다(흐림·비는 이미 어둡다)
+    const cloud = t.cloudDark * Math.min(1, w.sun)
+    this.bldU.uCloudDark.value = cloud
+    // 땅 위 구름 그늘(받이 알파, 구름 진하기 uCloudA 와 곱해진다. 맑은 날 약 0.2)
+    this.recvU.uCloudRecv.value = this.dark ? 0.3 : 0.5 * Math.min(1, w.sun)
+    this.decor.setCloudDark(cloud)
     this.applySnow()
   }
 
@@ -379,21 +414,23 @@ export class ToonLayer implements CustomLayerInterface {
       this.renderer.shadowMap.enabled = true
       this.renderer.shadowMap.type = THREE.PCFShadowMap
       this.renderer.shadowMap.autoUpdate = false
+      if (this.renderer.capabilities.maxTextureSize < 8192) this.sun.shadow.mapSize.set(2048, 2048)
     }
     this.shadowDirty = true
   }
 
   onRemove() {
-    // 테마·표현 교체(setStyle) 때 잠깐 떼었다 붙는다. 렌더러·기하는 그대로
+    // 지도에서 뗄 때(24라운드부터 테마·표현 전환은 떼지 않는다). 렌더러·기하는 dispose 가 푼다
     this.map = null
   }
 
   /** 보는 곳(지도 가운데) 둘레로 그림자 범위를 맞춘다. 많이 옮겼거나 줌이 바뀌었을 때만 다시 그린다 */
   private fitShadow(map: MlMap) {
     const c = map.getCenter()
-    const x = (((c.lng + 180) / 360 - this.anchor.x) / this.anchor.scale)
+    const x = ((c.lng + 180) / 360 - this.anchor.x) / this.anchor.scale
     const yM = (1 - Math.log(Math.tan(Math.PI / 4 + (c.lat * Math.PI) / 360)) / Math.PI) / 2
     const z = (yM - this.anchor.y) / this.anchor.scale
+    this.center.set(x, z)
     const mpp = (78271.517 * Math.cos((TOON_ANCHOR[1] * Math.PI) / 180)) / Math.pow(2, map.getZoom())
     const half = Math.min(3800, Math.max(240, mpp * 950))
     const s = this.shadowAt
@@ -402,17 +439,19 @@ export class ToonLayer implements CustomLayerInterface {
     s.x = x
     s.z = z
     s.half = half
-    const cam = this.sun.shadow.camera
+    const sh = this.sun.shadow
+    const cam = sh.camera
     cam.left = cam.bottom = -half
     cam.right = cam.top = half
     cam.near = 10
     cam.far = 9000
     cam.updateProjectionMatrix()
+    // 법선 바이어스는 그림자맵 한 칸 크기에 비례(줌을 바꿔도 여드름·뜬 그림자가 안 생기게)
+    sh.normalBias = ((half * 2) / sh.mapSize.x) * 1.6
     const g = this.ground ? groundAt(this.ground, x, z) * this.exag : 0
     this.sun.target.position.set(x, g, z)
     this.sun.target.updateMatrixWorld()
-    const dir = TMP_P.set(Math.sin(SUN_AZIMUTH) * Math.cos(SUN_ALTITUDE), Math.sin(SUN_ALTITUDE), -Math.cos(SUN_AZIMUTH) * Math.cos(SUN_ALTITUDE))
-    // three z 는 남쪽: 방위(북에서 시계) a 의 해는 (sin a, ·, −cos a)
+    const dir = this.cloudU.uSunDir.value
     this.sun.position.set(x + dir.x * 4000, g + dir.y * 4000, z + dir.z * 4000)
     this.sun.updateMatrixWorld()
     this.layReceiver(x, z, half)
@@ -442,38 +481,44 @@ export class ToonLayer implements CustomLayerInterface {
     if (!map || !r || !this.visible || !this.chunks.length) return
     const proj = this.camera.projectionMatrix.fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>)).multiply(this.anchor.m)
     this.camera.projectionMatrixInverse.copy(proj).invert()
+    eyeOf(proj, this.eye)
     const zoom = map.getZoom()
-    // 화면 1m 가 몇 픽셀인지 × 깊이(w): 지도 가운데 땅에서 재서 껍질 셰이더가 꼭짓점 깊이로 나눠 쓴다
     const w = gl.drawingBufferWidth
     const h = gl.drawingBufferHeight
-    this.hullU.uViewport.value.set(w, h)
-    const s = this.shadowAt
-    if (Number.isFinite(s.x)) {
-      const g = this.ground ? groundAt(this.ground, s.x, s.z) * this.exag : 0
-      const a = TMP_V.set(s.x, g, s.z, 1).applyMatrix4(proj)
-      const ax = a.x / a.w, ay = a.y / a.w, aw = a.w
-      const b = TMP_V.set(s.x + 10, g, s.z, 1).applyMatrix4(proj)
-      const ppm = Math.hypot(((b.x / b.w - ax) * w) / 2, ((b.y / b.w - ay) * h) / 2) / 10
-      this.hullU.uPxK.value = ppm * aw
-    }
-    this.hullU.uPx.value = Math.max(1, (window.devicePixelRatio || 1) * 1.25)
     if (this.fitShadow(map)) r.shadowMap.needsUpdate = true
-    const animating = this.decor.frame(proj, zoom)
+    // 화면 1m 가 몇 픽셀인지 × 깊이(w): 구름이 화면에서 얼마나 크게 보이는지 재는 데 쓴다
+    const s = this.shadowAt
+    const g = this.ground ? groundAt(this.ground, s.x, s.z) * this.exag : 0
+    const a = TMP_V.set(s.x, g, s.z, 1).applyMatrix4(proj)
+    const ax = a.x / a.w, ay = a.y / a.w, aw = a.w
+    const b = TMP_V.set(s.x + 10, g, s.z, 1).applyMatrix4(proj)
+    const pxK = (Math.hypot(((b.x / b.w - ax) * w) / 2, ((b.y / b.w - ay) * h) / 2) / 10) * aw
+    const decor = this.decor.frame(proj, zoom, this.center, pxK, h, this.cloudU, g)
+    const rising = this.beams.frame(this.eye)
     r.resetState()
     r.setViewport(0, 0, w, h)
     r.render(this.scene, this.camera)
-    if (animating) map.triggerRepaint()
+    if (decor.moving || rising) map.triggerRepaint()
+    else if (decor.drifting && !this.driftTimer)
+      this.driftTimer = window.setTimeout(() => {
+        this.driftTimer = 0
+        this.map?.triggerRepaint()
+      }, DRIFT_MS)
   }
 
   dispose() {
     this.disposed = true
+    window.clearTimeout(this.driftTimer)
     for (const c of this.chunks) c.mesh.geometry.dispose()
     this.decor.dispose()
+    this.beams.dispose()
     this.bldMat.dispose()
-    this.bldHullMat.dispose()
     this.receiver.geometry.dispose()
     this.receiver.material.dispose()
+    this.tint?.geometry.dispose()
+    this.tint?.material.dispose()
     this.colorTex.dispose()
+    this.infoTex.dispose()
     this.renderer?.dispose()
     this.renderer = null
   }

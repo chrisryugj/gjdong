@@ -15,9 +15,10 @@ export const MODEL_PATH = "/dumping/models"
 const loader = new GLTFLoader()
 const cache = new Map<string, Promise<AssetPart[]>>()
 
-/** glb 하나 → 역할별 부품(변환 구움). 같은 이름은 한 번만 받는다 */
-export function loadAsset(name: string): Promise<AssetPart[]> {
-  const hit = cache.get(name)
+/** glb 하나 → 역할별 부품(변환 구움). 같은 이름은 한 번만 받는다. smooth 면 법선을 남긴다(24라운드 실사 나무·구름: 매끈한 명암) */
+export function loadAsset(name: string, smooth = false): Promise<AssetPart[]> {
+  const key = smooth ? `${name}:smooth` : name
+  const hit = cache.get(key)
   if (hit) return hit
   const p = loader.loadAsync(`${MODEL_PATH}/${name}.glb`).then((gltf) => {
     gltf.scene.updateMatrixWorld(true)
@@ -27,14 +28,14 @@ export function loadAsset(name: string): Promise<AssetPart[]> {
       if (!mesh.isMesh) return
       const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
       const geom = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
-      geom.deleteAttribute("normal") // 평면 셰이딩(화면 미분)이라 법선이 필요 없다
+      if (!smooth) geom.deleteAttribute("normal") // 평면 셰이딩(화면 미분)이라 법선이 필요 없다
       geom.computeBoundingSphere()
       parts.push({ role: (mat?.name || "body") as AssetRole, geom })
       ;(mat as THREE.Material | undefined)?.dispose()
     })
     return parts
   })
-  cache.set(name, p)
+  cache.set(key, p)
   return p
 }
 
@@ -83,11 +84,10 @@ export function mergeForHull(parts: AssetPart[], skip: AssetRole[] = []): THREE.
 }
 
 // 계단 명암 네 칸(해 반대쪽 · 해 반대쪽 · 비스듬히 · 해 쪽). 면 법선이 면마다 하나라 칸 경계가 면 경계와 같아 계단이 지지 않는다.
-// 그늘 칸을 너무 낮추면 해 반대쪽 벽이 흙빛이 됐다(첫 캡처)
-let gradient: THREE.DataTexture | null = null
+// 그늘 칸을 너무 낮추면 해 반대쪽 벽이 흙빛이 됐다(첫 캡처). 재질마다 새로 만든다(24라운드): 모듈 공용 한 장이면 해제되지 않아
+// 렌더러마다 dispose 리스너가 쌓여 지도를 새로 만들 때마다 옛 렌더러를 붙잡았다(검증 실측). 재질을 버릴 때 gradientMap 도 같이 버린다
 export function toonGradient(): THREE.DataTexture {
-  if (gradient) return gradient
-  gradient = new THREE.DataTexture(new Uint8Array([178, 184, 222, 255]), 4, 1, THREE.RedFormat)
+  const gradient = new THREE.DataTexture(new Uint8Array([178, 184, 222, 255]), 4, 1, THREE.RedFormat)
   gradient.minFilter = gradient.magFilter = THREE.NearestFilter
   gradient.generateMipmaps = false
   gradient.needsUpdate = true
@@ -169,4 +169,55 @@ export function anchorMatrix(anchor: [number, number]): { m: THREE.Matrix4; x: n
     .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
     .multiply(new THREE.Matrix4().makeScale(-scale, scale, scale))
   return { m, x, y, scale }
+}
+
+// ─── 구름 그림자(24라운드). 건물·나무·땅 받이가 같은 값을 읽는다 ───
+// 구름마다 (x, z, 반지름, 높이)와 진하기. 조각 위치에서 해 쪽으로 구름 높이까지 거슬러 올라가 그 구름 안이면 그늘.
+// 구름은 바람 방향으로 1.6배 긴 타원. 해 방향(uSunDir)은 모델 공간(+y 위)
+export const MAX_CLOUDS = 16
+export const CLOUD_SHADE_GLSL = /* glsl */ `
+uniform vec4 uClouds[${MAX_CLOUDS}];
+uniform float uCloudA[${MAX_CLOUDS}];
+uniform int uCloudN;
+uniform vec3 uSunDir;
+uniform vec2 uWind;
+float cloudShade(vec3 p) {
+  float s = 0.0;
+  for (int k = 0; k < ${MAX_CLOUDS}; k++) {
+    if (k >= uCloudN) break;
+    vec4 c = uClouds[k];
+    vec2 q = p.xz + uSunDir.xz * ((c.w - p.y) / max(uSunDir.y, 0.2));
+    vec2 d = q - c.xy;
+    vec2 e = vec2(dot(d, uWind) / 1.6, dot(d, vec2(-uWind.y, uWind.x)));
+    s = max(s, (1.0 - smoothstep(0.3, 1.0, length(e) / c.z)) * uCloudA[k]);
+  }
+  return s;
+}`
+export interface CloudUniforms {
+  uClouds: { value: THREE.Vector4[] }
+  uCloudA: { value: number[] }
+  uCloudN: { value: number }
+  uSunDir: { value: THREE.Vector3 }
+  uWind: { value: THREE.Vector2 }
+}
+export function cloudUniforms(): CloudUniforms {
+  return {
+    uClouds: { value: Array.from({ length: MAX_CLOUDS }, () => new THREE.Vector4()) },
+    uCloudA: { value: new Array(MAX_CLOUDS).fill(0) },
+    uCloudN: { value: 0 },
+    uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+    uWind: { value: new THREE.Vector2(1, 0) },
+  }
+}
+
+/** 투영 행렬(지도 행렬 × 원점 행렬)에서 모델 공간 눈 위치. 투영 행 0·1·3 이 눈에서 0 이 되는 점(시점 행렬이 단위라 three 의 vViewPosition 은 못 쓴다) */
+export function eyeOf(proj: THREE.Matrix4, out: THREE.Vector3): THREE.Vector3 {
+  const e = proj.elements // 열 우선: 행 r 열 c = e[c * 4 + r]
+  const a = [0, 1, 3].map((r) => [e[r], e[4 + r], e[8 + r], -e[12 + r]])
+  const det = (m: number[][]) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+  const M = a.map((r) => r.slice(0, 3))
+  const d = det(M)
+  if (Math.abs(d) < 1e-30) return out
+  const col = (k: number) => det(M.map((r, i) => r.map((v, j) => (j === k ? a[i][3] : v))))
+  return out.set(col(0) / d, col(1) / d, col(2) / d)
 }

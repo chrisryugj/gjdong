@@ -299,7 +299,25 @@ export class Icons3DLayer implements CustomLayerInterface {
   }
 
   onRemove() {
-    // 스타일 교체 시 잠깐 떼었다 붙는다. 렌더러·모델은 유지
+    // 지도에서 뗄 때(24라운드부터 테마·표현 전환은 떼지 않는다). 렌더러·모델은 dispose 가 푼다
+    this.map = null
+  }
+
+  /** 지도를 내릴 때(dumping-map 정리, 24라운드). map.remove()는 커스텀 레이어 onRemove를 안 불러 three 렌더러·기하가 남았다 */
+  dispose() {
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.isMesh) return
+      if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose()
+      m.geometry?.dispose()
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        ;(mat as THREE.MeshToonMaterial | undefined)?.gradientMap?.dispose()
+        mat?.dispose()
+      }
+    })
+    this.hull.dispose()
+    this.renderer?.dispose()
+    this.renderer = null
     this.map = null
   }
 

@@ -62,7 +62,7 @@ export function weatherLook(w: SkyWeather, dark: boolean): WeatherLook {
   const white = { cloud: dark ? "#aeb8c4" : "#ffffff", cloudInk: dark ? "#4a5562" : "#9aa6ad" }
   switch (w.kind) {
     case "clear":
-      return { sun: 1, hemi: 1, shadow: dark ? 0.45 : 0.5, clouds: 3 + Math.round(lv * 4), ...white, snow: 0, wet: 0 }
+      return { sun: 1, hemi: 1, shadow: dark ? 0.45 : 0.5, clouds: 5 + Math.round(lv * 4), ...white, snow: 0, wet: 0 }
     case "cloudy":
       return { sun: 0.45, hemi: 1.32, shadow: 0.18, skyColor: dark ? "#6f7a8a" : "#f2f3f3", groundColor: dark ? "#262a30" : "#c9cbcb", clouds: 10, cloud: dark ? "#6a7482" : "#f1f3f4", cloudInk: dark ? "#2c343d" : "#8f9aa3", snow: 0, wet: 0 }
     case "rain":

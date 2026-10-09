@@ -11,11 +11,14 @@
 // 쓰는 법: node scripts/dumping-buildings.mjs <zip 또는 shp 경로>
 //   → public/dumping/basemap/buildings.pmtiles (z13~16, 광진구만). 이어서 lib/dumping/basemap-style.ts HAS_NSDI_BUILDINGS를 true로 바꾸고 커밋
 // 필요한 도구: brew install gdal tippecanoe (ogr2ogr·tippecanoe). 임시 파일은 시스템 임시 폴더에
+// ⚠️24라운드(2026-10-09)부터 buildings.pmtiles 정본은 scripts/dumping-toon-world.py 다: 통합정보에 건축물대장으로 대조한 OSM 신축(광진구청 신청사 등)을
+// 더하고 철거된 낡은 건물을 뺀 합본이라 모형 보기(toon-buildings.bin)와 같은 건물 집합이다. 이 스크립트는 통합정보만으로 다시 만들 때만(합본이 아니게 된다)
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
+console.warn("주의: buildings.pmtiles 정본은 scripts/dumping-toon-world.py(통합정보 + 대장 대조 신축 합본). 이 스크립트는 통합정보만으로 만든다")
 const input = process.argv[2]
 if (!input || !existsSync(input)) {
   console.error("사용법: node scripts/dumping-buildings.mjs <GIS건물통합정보 zip 또는 shp>")

@@ -11,13 +11,17 @@ export const BASEMAP_SOURCE = "protomaps"
 export const DEM_SOURCE = "dump-dem"
 const DEM_HILL_SOURCE = "dump-dem-hill" // 음영과 지형이 같은 소스를 쓰면 maplibre가 품질 경고를 낸다. 같은 파일을 두 소스로
 export const HILLSHADE_LAYER = "dump-hillshade"
-// 국가공간정보포털 GIS건물통합정보(광진구) 타일. scripts/dumping-buildings.mjs로 만든 buildings.pmtiles가 public에 있으면 true로.
-// 구 안 건물은 이 소스(전수·층수·높이)로, OSM 건물은 구 밖만 그린다(dumping-map declareLayers)
+// 구 안 건물 타일(buildings.pmtiles): GIS건물통합정보(광진구 전수) + 건축물대장으로 대조한 OSM 신축(24라운드, scripts/dumping-toon-world.py).
+// 구 안 건물은 이 소스(층수·높이)로 그리고, 구 밖은 배경 타일(context-buildings.pmtiles)이 따로 그린다(dumping-map declareLayers)
 export const HAS_NSDI_BUILDINGS = true
-// 그 타일의 건물 수(2026-09-09 빌드, 법정동 11215 = 광진구 전수). 로딩 커튼 "건물 N동 입체 결합" 문구. 타일을 다시 만들면 같이 고친다
-// (커튼이 건축물대장 동 수 24,520을 적고 있었다. 대장은 회귀 입력이고 입체 건물은 이 타일이다)
-export const NSDI_BUILDING_COUNT = 27_491
+// 그 타일의 건물 수(2026-10-09 빌드: 통합정보 27,221 − 철거·낡은 345 + 대장 대조 신축 139 + 대장에 없는 저층 83). 로딩 커튼 "건물 N동 입체 결합" 문구.
+// 타일을 다시 만들면 같이 고친다(커튼이 건축물대장 동 수 24,520을 적고 있었다. 대장은 회귀 입력이고 입체 건물은 이 타일이다)
+export const NSDI_BUILDING_COUNT = 27_098
 export const NSDI_SOURCE = "dump-nsdi"
+// 구 밖 배경 건물(OSM, 구 경계 밖 1.5km 안만). 24라운드 전엔 OSM 건물 전체에 "구 안 제외" within 필터를 걸었는데
+// maplibre within 은 폴리곤 피처를 판정하지 않아 구 안에도 반투명 OSM 건물이 겹쳐 있었다(1,338동 실측) → 빌드 때 구 밖만 따로 뽑는다
+export const HAS_CONTEXT_BUILDINGS = true
+export const CONTEXT_SOURCE = "dump-context"
 // 추출 범위. 그 밖은 타일이 없어 빈 바탕이라 카메라를 안에 가둔다
 export const BASEMAP_BOUNDS: [[number, number], [number, number]] = [
   [127.02, 37.49],
@@ -118,48 +122,48 @@ const NIGHT: Partial<Flavor> = {
   ocean_label: "#6f8fae",
 }
 
-// 모형 보기(23라운드): 크림 땅 · 연두 공원·숲 · 청록 강 · 흰 길. 강릉 로컬 지도·sunlight-fund 모형 톤.
-// 데이터 램프(초록·파랑·앰버·청회)가 이 위에 서야 해서 녹지는 연두(노랑 쪽), 물은 청록(파랑 램프와 다른 쪽)으로 비켰다
+// 모형 보기(23라운드 카툰 → 24라운드 실사): 밝은 회백 도시 땅 · 흰 길 · 자연 녹지 · 푸른 강. 항공사진을 깨끗하게 칠한 톤.
+// 데이터 램프(초록·파랑·앰버·청회)가 건물 위에 서야 해서 땅은 채도를 눌렀다(녹지·물만 색이 있다)
 const TOON: Partial<Flavor> = {
-  background: "#ece6d4",
-  earth: "#f4efe1",
-  buildings: "#e4dccb",
-  water: "#8fcfc6",
-  park_a: "#d5e5b0",
-  park_b: "#c9dea2",
-  wood_a: "#c3dba0",
-  wood_b: "#b5d293",
-  scrub_a: "#d2e2ad",
-  scrub_b: "#c6dba0",
-  school: "#f0e9d8",
-  hospital: "#f1e7dc",
-  industrial: "#ebe5d6",
-  pedestrian: "#f3ecdb",
-  landcover: { grassland: "#d9e7b6", barren: "#efe7d2", urban_area: "#f4efe1", farmland: "#e2e8bd", glacier: "#ffffff", scrub: "#d2e2ad", forest: "#bdd69a" },
-  minor_a: "#fdfbf6",
+  background: "#dcd9d2",
+  earth: "#e4e2dc",
+  buildings: "#d9d5cc",
+  water: "#a2c4cf",
+  park_a: "#bfd3a4",
+  park_b: "#b2ca95",
+  wood_a: "#a8c48c",
+  wood_b: "#98b97b",
+  scrub_a: "#bcd09f",
+  scrub_b: "#afc792",
+  school: "#e3e0d6",
+  hospital: "#e6e0da",
+  industrial: "#dddbd5",
+  pedestrian: "#e9e6df",
+  landcover: { grassland: "#c6d8ab", barren: "#e0dcd1", urban_area: "#e4e2dc", farmland: "#d2dbb1", glacier: "#ffffff", scrub: "#bcd09f", forest: "#9fbe83" },
+  minor_a: "#f6f5f1",
   minor_b: "#ffffff",
   major: "#ffffff",
-  highway: "#fffaf0",
-  other: "#f8f4ea",
-  minor_service: "#f8f4ea",
-  minor_casing: "#e2dac8",
-  minor_service_casing: "#e7e0cf",
-  link_casing: "#e2dac8",
-  major_casing_early: "#dbd2bd",
-  major_casing_late: "#dbd2bd",
-  highway_casing_early: "#d8c9a8",
-  highway_casing_late: "#d8c9a8",
-  railway: "#b5ae9e",
-  boundaries: "#b9b29f",
-  roads_label_minor: "#857e6c",
-  roads_label_minor_halo: "#fdfbf6",
-  roads_label_major: "#6a6352",
+  highway: "#fdf8ee",
+  other: "#f1efea",
+  minor_service: "#f1efea",
+  minor_casing: "#cfcbc2",
+  minor_service_casing: "#d6d2ca",
+  link_casing: "#cfcbc2",
+  major_casing_early: "#c7c2b7",
+  major_casing_late: "#c7c2b7",
+  highway_casing_early: "#c9bda3",
+  highway_casing_late: "#c9bda3",
+  railway: "#aaa69c",
+  boundaries: "#b3aea2",
+  roads_label_minor: "#7d786d",
+  roads_label_minor_halo: "#f6f5f1",
+  roads_label_major: "#625d52",
   roads_label_major_halo: "#ffffff",
-  subplace_label: "#756e5c",
-  subplace_label_halo: "#f4efe1",
-  city_label: "#45402f",
-  city_label_halo: "#f4efe1",
-  ocean_label: "#3f7f78",
+  subplace_label: "#6f6a5f",
+  subplace_label_halo: "#e4e2dc",
+  city_label: "#423e35",
+  city_label_halo: "#e4e2dc",
+  ocean_label: "#3f6f80",
 }
 // 모형 밤: 짙은 청록 땅 · 검푸른 숲 · 깊은 청록 강 · 한 단계 밝은 길(건물 창 불빛이 주인공)
 const TOON_NIGHT: Partial<Flavor> = {
@@ -191,7 +195,7 @@ export function basemapUrl(file: string): string {
 
 // ring = 구 경계 [lat, lng][]. 구 안의 OSM 동네 라벨(법정동)은 우리 행정동 라벨과 겹치니 밖에만 남긴다
 export type BasemapTheme = "light" | "dark"
-// 입체 보기의 표현(23라운드): 도면(종이 톤·지도 압출 건물) · 모형(카툰 톤·three 건물, components/dumping/toon-layer.ts)
+// 입체 보기의 표현(23라운드): 도면(종이 톤·지도 압출 건물) · 모형(24라운드 실사 톤·three 건물, components/dumping/toon-layer.ts)
 export type BasemapLook = "paper" | "model"
 // 지형 과장 배율. 지도 setTerrain 과 모형 건물·나무 바닥 높이가 같은 값을 써야 땅에 붙는다
 export const TERRAIN_EXAG = 1.4
@@ -199,8 +203,11 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
   const model = look === "model"
   const flavor: Flavor = theme === "dark" ? { ...namedFlavor("dark"), ...(model ? TOON_NIGHT : NIGHT) } : { ...namedFlavor("light"), ...(model ? TOON : PAPER) }
   const ringPoly = { type: "Polygon" as const, coordinates: [ring.map((p) => [p[1], p[0]])] }
+  // 모형은 골목길 이름을 숨긴다: 기호 레이어는 건물에 가려지지 않아 가까이 보면 지붕 위에 길 이름이 떠 있었다(24라운드 근접 캡처).
+  // 빼지 않고 visibility 로만 숨겨 네 조합(테마 × 표현)의 레이어 구성을 같게 둔다(dumping-map 은 setStyle 대신 칠하기만 바꾼다, restyleBasemap)
   const layers: LayerSpecification[] = basemapLayers(BASEMAP_SOURCE, flavor, { lang: "ko" })
     .filter((l) => !DROP.has(l.id))
+    .map((l) => (l.id === "roads_labels_minor" ? ({ ...l, layout: { ...l.layout, visibility: model ? "none" : "visible" } } as LayerSpecification) : l))
     .map((l) => {
       if (l.id !== "places_subplace") return l
       const filter: FilterSpecification = [
@@ -221,7 +228,7 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
       theme === "dark"
         ? { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#05080a", "hillshade-highlight-color": model ? "#2f4a44" : "#3a4a52" }
         : model
-          ? { "hillshade-exaggeration": 0.38, "hillshade-shadow-color": "#7d9474", "hillshade-highlight-color": "#fffbea", "hillshade-accent-color": "#9cb98a" }
+          ? { "hillshade-exaggeration": 0.36, "hillshade-shadow-color": "#6f7c68", "hillshade-highlight-color": "#fbfaf4", "hillshade-accent-color": "#9db38c" }
           : { "hillshade-exaggeration": 0.3, "hillshade-shadow-color": "#6b7266", "hillshade-highlight-color": "#ffffff" },
   })
   return {
@@ -248,8 +255,9 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
       },
       ...(HAS_NSDI_BUILDINGS
         ? // promoteId: 건물 UFID(id 속성)를 피처 id로. 격자 칸 값을 feature-state로 붙여 건물 색을 칠한다(dumping-map 건물 조인)
-          { [NSDI_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("buildings.pmtiles")}`, promoteId: "id", attribution: "건물 국토교통부 GIS건물통합정보" } }
+          { [NSDI_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("buildings.pmtiles")}`, promoteId: "id", attribution: "건물 국토교통부 GIS건물통합정보 · 건축물대장" } }
         : {}),
+      ...(HAS_CONTEXT_BUILDINGS ? { [CONTEXT_SOURCE]: { type: "vector" as const, url: `pmtiles://${basemapUrl("context-buildings.pmtiles")}` } } : {}),
     },
     layers,
   }

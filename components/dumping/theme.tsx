@@ -60,12 +60,16 @@ export default function ThemeSwitch({ compact = false }: { compact?: boolean }) 
     const x = r ? r.left + r.width / 2 : window.innerWidth / 2
     const y = r ? r.top + r.height / 2 : 40
     const maxR = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-    doc.startViewTransition(() => flushSync(() => apply(next))).ready.then(() => {
-      document.documentElement.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${maxR}px at ${x}px ${y}px)`] },
-        { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)", pseudoElement: "::view-transition-new(root)" },
-      )
-    })
+    // 0.5초 안에 두 번 누르면 첫 전환이 건너뛰어져 ready 가 AbortError 로 끝난다(처리 안 된 오류로 남았다, 24라운드 검증 실측). 색은 이미 바뀌었으니 무시
+    doc
+      .startViewTransition(() => flushSync(() => apply(next)))
+      .ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${maxR}px at ${x}px ${y}px)`] },
+          { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)", pseudoElement: "::view-transition-new(root)" },
+        )
+      })
+      .catch(() => {})
   }, [dark, apply])
 
   return (
