@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
 import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, type CandidateFocus, type FlyKind } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
+import { toonRealSwatches } from "./toon-palette"
+import type { BasemapLook } from "@/lib/dumping/basemap-style"
+import { SKY_CHOICES, type SkyChoice } from "@/lib/dumping/map-weather"
 import { nbParen } from "@/lib/dumping/nobreak"
 
 // 지도 위에 무엇을 그릴지. 칩·발견 카드·정책 수단·질문 답변이 전부 이 한 덩어리를 바꾼다
@@ -65,6 +68,9 @@ const BASE_MEANING: Record<BaseMode, string> = {
   lp: "색이 진할수록 생활인구가 많은 칸(서울시 250m 격자)",
 }
 
+// 모형으로 볼 때 바탕 없음의 건물 색(toon-palette TOON_REAL). 같은 층수 구간을 지붕·벽 색으로 가른다
+const NONE_MEANING_MODEL = "격자를 칠하지 않습니다. 건물은 층수로 짐작한 유형 색(1~2층 단독은 박공지붕 · 3~4층 다가구 · 5~9층 근생·빌라 · 10층+ 아파트 · 20층+ 고층)"
+
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
   switch (m) {
@@ -110,6 +116,52 @@ export function vizDescription(viz: VizAction): string {
   return parts.join(" · ")
 }
 
+// 입체 표현(23라운드): 모형(카툰 건물·나무, 기본) · 도면(색 상자 건물). 화면 취향이라 지도 상태(MapView·초기화)와 따로 기억한다
+const LOOK_KEY = "dump-look"
+export function useMapLook(): [BasemapLook, (l: BasemapLook) => void] {
+  const [look, setLook] = useState<BasemapLook>("model")
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(LOOK_KEY)
+      if (v === "paper" || v === "model") setLook(v)
+    } catch {
+      // 사생활 모드 등
+    }
+  }, [])
+  const set = useCallback((l: BasemapLook) => {
+    setLook(l)
+    try {
+      localStorage.setItem(LOOK_KEY, l)
+    } catch {
+      // 사생활 모드 등
+    }
+  }, [])
+  return [look, set]
+}
+
+// 지도 날씨(23라운드): 지금(기상청 실황) 또는 손으로 고른 날씨. 시연 전에 골라 두게 기억한다
+const SKY_KEY = "dump-sky"
+export function useSkyChoice(): [SkyChoice, (c: SkyChoice) => void] {
+  const [choice, setChoice] = useState<SkyChoice>("live")
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(SKY_KEY)
+      if (v && SKY_CHOICES.some((c) => c.id === v)) setChoice(v as SkyChoice)
+    } catch {
+      // 사생활 모드 등
+    }
+  }, [])
+  const set = useCallback((c: SkyChoice) => {
+    setChoice(c)
+    try {
+      localStorage.setItem(SKY_KEY, c)
+    } catch {
+      // 사생활 모드 등
+    }
+  }, [])
+  return [choice, set]
+}
+
 // ─── 공용 스타일. 떠 있는 패널 안의 줄(row) 단위 토글 ───
 const ROW = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[14px] transition-colors hover:bg-[var(--cp-hover)] disabled:opacity-35"
 const ROW_ON = "bg-[var(--cp-hover)] font-semibold text-[var(--cp-text-strong)]"
@@ -140,9 +192,14 @@ interface LayerPanelProps {
   onChange: (next: MapView) => void // 사용자가 줄을 만졌을 때. 부모는 "반영 중" 배지를 내린다
   active: { label: string; onClear: () => void } | null // 지도에 반영 중인 발견·정책 수단
   liveWeather?: WeatherKey | null // 지금 날씨 조건(기상청 실황, lib/dumping/labels liveWeatherKey). 날씨별 원을 켜면 이 조건부터, 칩에 "지금" 표시
+  look: BasemapLook
+  onLook: (l: BasemapLook) => void
+  skyChoice: SkyChoice
+  onSky: (c: SkyChoice) => void
+  liveSky?: string | null // 지금 날씨 이름(헤더와 같은 실황). 없으면 칩은 "지금"만
 }
 
-export function MapLayerPanel({ data, view, onChange, active, liveWeather = null }: LayerPanelProps) {
+export function MapLayerPanel({ data, view, onChange, active, liveWeather = null, look, onLook, skyChoice, onSky, liveSky = null }: LayerPanelProps) {
   // 동별 막대 연도 버튼. 민원 연도(접수) 기준. 과태료 위반 연도에는 2022·2023 이월 키(구 전체 한 자리 건수)가 있어 합치면 빈 막대 칩이 생긴다
   const dongYears = data ? Array.from(new Set(data.dong.flatMap((d) => Object.keys(d.yr?.complaints ?? {})))).sort() : []
   const patch = (p: Partial<MapView>) => onChange({ ...view, ...p })
@@ -215,6 +272,39 @@ export function MapLayerPanel({ data, view, onChange, active, liveWeather = null
           <Ico name="tilt" size={15} />
           <span className="min-w-0 flex-1">입체 보기</span>
         </button>
+        {/* 23라운드: 모형(카툰) 표현. 데이터 색 규칙은 도면과 같고 건물·나무 그림만 바뀐다 */}
+        {view.tilt && (
+          <button
+            aria-pressed={look === "model"}
+            title="건물을 지붕·창이 있는 모형으로, 숲·공원에 나무를 세워 그립니다. 끄면 색 상자 건물(도면)"
+            onClick={() => onLook(look === "model" ? "paper" : "model")}
+            className={`${ROW} ${look === "model" ? ROW_ON : ROW_OFF}`}
+          >
+            <Ico name="house" size={15} />
+            <span className="min-w-0 flex-1">모형으로 보기</span>
+          </button>
+        )}
+        {/* 23라운드: 지도 날씨. 지금은 기상청 실황, 칩을 고르면 그 날씨로(빗줄기·눈송이·안개, 모형이면 조명·구름·눈 덮인 지붕까지). 데이터 색은 그대로 */}
+        <div role="group" aria-label="지도 날씨" className="px-2.5 pb-1.5 pt-1">
+          <p className="flex items-center gap-2.5 text-[14px] text-[var(--cp-text-muted)]">
+            <Ico name="cloud" size={15} />
+            <span>날씨</span>
+            {liveSky && <span className="min-w-0 truncate text-[12.5px] text-[var(--cp-text-faint)]">지금 {liveSky}</span>}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {SKY_CHOICES.map((c) => (
+              <button
+                key={c.id}
+                aria-pressed={skyChoice === c.id}
+                title={c.id === "live" ? "광진구 지금 날씨(기상청 단기예보 실황)를 지도에 입힙니다" : `지도를 ${c.label} 날씨로 봅니다. 데이터 색은 그대로`}
+                onClick={() => onSky(c.id)}
+                className={`${CHIP_SM} ${skyChoice === c.id ? CHIP_ON : CHIP_OFF}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {view.tilt && (
           <button
             aria-pressed={view.orbit}
@@ -382,9 +472,10 @@ interface LegendProps {
   view: MapView
   selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
   circlesMuted?: boolean // 다른 층이 켜져 지도가 원·원기둥을 숨긴 상태(대시보드가 dumping-map muted와 같은 조건으로 계산)
+  look?: BasemapLook // 모형이면 바탕 없음 건물 띠가 모형 팔레트
 }
 
-export function MapLegend({ data, view, selectedDong = null, circlesMuted = false }: LegendProps) {
+export function MapLegend({ data, view, selectedDong = null, circlesMuted = false, look = "paper" }: LegendProps) {
   const [showHelp, setShowHelp] = useState(false)
   const [showTable, setShowTable] = useState(false)
   const theme = useTheme()
@@ -401,7 +492,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
         </div>
         <div className="flex items-center gap-2">
           <span className="flex overflow-hidden rounded-[3px]">
-            {(none ? [...REAL_BUILDING[theme]] : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
+            {(none ? (view.tilt && look === "model" ? toonRealSwatches(theme) : [...REAL_BUILDING[theme]]) : grey ? greyRamp(theme, def.pal.length) : def.pal).map((c: string) => (
               <i key={c} className="h-2.5 w-5" style={{ background: c }} />
             ))}
           </span>
@@ -411,7 +502,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
           </span>
         </div>
         <p className="text-[var(--cp-text-muted)]">
-          {BASE_MEANING[view.base]}
+          {none && view.tilt && look === "model" ? NONE_MEANING_MODEL : BASE_MEANING[view.base]}
           {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>

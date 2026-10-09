@@ -4,6 +4,8 @@ import type { SVGProps } from "react"
 
 export type IconName =
   | "tilt" // 입체 보기(정육면체)
+  | "house" // 모형으로 보기(박공 집)
+  | "cloud" // 지도 날씨
   | "orbit" // 자동 회전
   | "drone" // 드론 비행
   | "bars" // 동별 막대
@@ -25,6 +27,14 @@ export type IconName =
   | "layers"
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  cloud: <path d="M6.2 15.6h8a3.4 3.4 0 0 0 .5-6.8 4.7 4.7 0 0 0-9 1.2 2.8 2.8 0 0 0 .5 5.6z" />,
+  house: (
+    <>
+      <path d="M3 9.6 10 3.8l7 5.8" />
+      <path d="M5.2 8v8.5h9.6V8" />
+      <path d="M8.6 16.5v-4.2h2.8v4.2" />
+    </>
+  ),
   tilt: (
     <>
       <path d="M10 2.5 17 6.5v7l-7 4-7-4v-7z" />

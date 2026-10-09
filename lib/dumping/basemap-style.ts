@@ -118,6 +118,68 @@ const NIGHT: Partial<Flavor> = {
   ocean_label: "#6f8fae",
 }
 
+// 모형 보기(23라운드): 크림 땅 · 연두 공원·숲 · 청록 강 · 흰 길. 강릉 로컬 지도·sunlight-fund 모형 톤.
+// 데이터 램프(초록·파랑·앰버·청회)가 이 위에 서야 해서 녹지는 연두(노랑 쪽), 물은 청록(파랑 램프와 다른 쪽)으로 비켰다
+const TOON: Partial<Flavor> = {
+  background: "#ece6d4",
+  earth: "#f4efe1",
+  buildings: "#e4dccb",
+  water: "#8fcfc6",
+  park_a: "#d5e5b0",
+  park_b: "#c9dea2",
+  wood_a: "#c3dba0",
+  wood_b: "#b5d293",
+  scrub_a: "#d2e2ad",
+  scrub_b: "#c6dba0",
+  school: "#f0e9d8",
+  hospital: "#f1e7dc",
+  industrial: "#ebe5d6",
+  pedestrian: "#f3ecdb",
+  landcover: { grassland: "#d9e7b6", barren: "#efe7d2", urban_area: "#f4efe1", farmland: "#e2e8bd", glacier: "#ffffff", scrub: "#d2e2ad", forest: "#bdd69a" },
+  minor_a: "#fdfbf6",
+  minor_b: "#ffffff",
+  major: "#ffffff",
+  highway: "#fffaf0",
+  other: "#f8f4ea",
+  minor_service: "#f8f4ea",
+  minor_casing: "#e2dac8",
+  minor_service_casing: "#e7e0cf",
+  link_casing: "#e2dac8",
+  major_casing_early: "#dbd2bd",
+  major_casing_late: "#dbd2bd",
+  highway_casing_early: "#d8c9a8",
+  highway_casing_late: "#d8c9a8",
+  railway: "#b5ae9e",
+  boundaries: "#b9b29f",
+  roads_label_minor: "#857e6c",
+  roads_label_minor_halo: "#fdfbf6",
+  roads_label_major: "#6a6352",
+  roads_label_major_halo: "#ffffff",
+  subplace_label: "#756e5c",
+  subplace_label_halo: "#f4efe1",
+  city_label: "#45402f",
+  city_label_halo: "#f4efe1",
+  ocean_label: "#3f7f78",
+}
+// 모형 밤: 짙은 청록 땅 · 검푸른 숲 · 깊은 청록 강 · 한 단계 밝은 길(건물 창 불빛이 주인공)
+const TOON_NIGHT: Partial<Flavor> = {
+  ...NIGHT,
+  background: "#0d171b",
+  earth: "#111d21",
+  water: "#0c2a2f",
+  park_a: "#142a22",
+  park_b: "#163025",
+  wood_a: "#132a20",
+  wood_b: "#163124",
+  scrub_a: "#142a22",
+  scrub_b: "#173024",
+  landcover: { grassland: "#152a21", barren: "#151f22", urban_area: "#111d21", farmland: "#162b22", glacier: "#1b2226", scrub: "#142a22", forest: "#132a20" },
+  minor_a: "#1d2b31",
+  minor_b: "#223238",
+  major: "#283a41",
+  highway: "#2f434a",
+}
+
 // 아이콘(스프라이트)이 필요한 레이어와 분석에 소음인 라벨은 뺀다. 스프라이트를 안 받으니 외부 요청도 없다
 const DROP = new Set(["pois", "roads_oneway", "roads_shields", "address_label", "places_country", "places_region", "boundaries_country"])
 
@@ -129,8 +191,13 @@ export function basemapUrl(file: string): string {
 
 // ring = 구 경계 [lat, lng][]. 구 안의 OSM 동네 라벨(법정동)은 우리 행정동 라벨과 겹치니 밖에만 남긴다
 export type BasemapTheme = "light" | "dark"
-export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme = "light"): StyleSpecification {
-  const flavor: Flavor = theme === "dark" ? { ...namedFlavor("dark"), ...NIGHT } : { ...namedFlavor("light"), ...PAPER }
+// 입체 보기의 표현(23라운드): 도면(종이 톤·지도 압출 건물) · 모형(카툰 톤·three 건물, components/dumping/toon-layer.ts)
+export type BasemapLook = "paper" | "model"
+// 지형 과장 배율. 지도 setTerrain 과 모형 건물·나무 바닥 높이가 같은 값을 써야 땅에 붙는다
+export const TERRAIN_EXAG = 1.4
+export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme = "light", look: BasemapLook = "paper"): StyleSpecification {
+  const model = look === "model"
+  const flavor: Flavor = theme === "dark" ? { ...namedFlavor("dark"), ...(model ? TOON_NIGHT : NIGHT) } : { ...namedFlavor("light"), ...(model ? TOON : PAPER) }
   const ringPoly = { type: "Polygon" as const, coordinates: [ring.map((p) => [p[1], p[0]])] }
   const layers: LayerSpecification[] = basemapLayers(BASEMAP_SOURCE, flavor, { lang: "ko" })
     .filter((l) => !DROP.has(l.id))
@@ -149,10 +216,13 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
     id: HILLSHADE_LAYER,
     type: "hillshade",
     source: DEM_HILL_SOURCE,
+    // 모형은 음영도 초록 기운(산이 숲으로 읽히게, sunlight 모형 hillshade-accent 와 같은 생각)
     paint:
       theme === "dark"
-        ? { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#05080a", "hillshade-highlight-color": "#3a4a52" }
-        : { "hillshade-exaggeration": 0.3, "hillshade-shadow-color": "#6b7266", "hillshade-highlight-color": "#ffffff" },
+        ? { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#05080a", "hillshade-highlight-color": model ? "#2f4a44" : "#3a4a52" }
+        : model
+          ? { "hillshade-exaggeration": 0.38, "hillshade-shadow-color": "#7d9474", "hillshade-highlight-color": "#fffbea", "hillshade-accent-color": "#9cb98a" }
+          : { "hillshade-exaggeration": 0.3, "hillshade-shadow-color": "#6b7266", "hillshade-highlight-color": "#ffffff" },
   })
   return {
     version: 8,

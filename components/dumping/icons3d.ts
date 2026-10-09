@@ -10,7 +10,8 @@ import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js"
 import digitFont from "./digit-font.json"
 import * as maplibregl from "maplibre-gl"
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from "maplibre-gl"
-import { INFRA_STYLE, BIN_RECO_COLOR, CRIT_COLOR, type RouteChain } from "./map-geo"
+import { INFRA_STYLE, BIN_RECO_COLOR, CRIT_COLOR, mixHex, type RouteChain } from "./map-geo"
+import { hullMaterial, hullUniforms, loadAsset, mergeForHull, toonMaterial, type AssetPart, type AssetRole } from "./toon-assets"
 
 export type IconKind = "clothBins" | "cctvFixed" | "cctvMobile" | "recycling" | "bins" | "cand" | "binReco" | "dongRank" | "hotRank" | "critCount"
 export interface IconPoint {
@@ -48,6 +49,25 @@ const lambert = (color: string, extra: Partial<THREE.MeshLambertMaterialParamete
 const at = (x: number, y: number, z: number, rx = 0) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationX(rx))
 const pole = (r: number, h: number, color: string): Part => ({ geom: new THREE.CylinderGeometry(r, r * 1.15, h, 10), mat: lambert(color), local: at(0, h / 2, 0) })
 const plate = (r: number, color: string): Part => ({ geom: new THREE.CylinderGeometry(r, r, 0.35, 14), mat: lambert(color), local: at(0, 0.17, 0) })
+
+// 블렌더 에셋(23라운드): 시설 다섯·배치추천·청소차는 glb(scripts/blender/dumping_assets.py, 같은 아이콘 미터 높이)로 갈아 끼운다.
+// 재질 이름이 역할이고 몸통(body·body2·body3)은 시설 종류 색 계열, 나머지는 공용 색. 받기 전·못 받으면 아래 프리미티브 그대로.
+// 스티커처럼 뒷면 껍질 윤곽선을 한 겹 두른다(화면 크기를 지키는 아이콘이라 거리로 거두지 않는다)
+const ASSET_OF: Partial<Record<IconKind, string>> = { cctvMobile: "cctv-mobile", cctvFixed: "cctv-fixed", clothBins: "cloth-bin", recycling: "recycling", bins: "street-bin", binReco: "street-bin" }
+const ROLE_COLOR: Partial<Record<AssetRole, string>> = { ink: "#2a2722", paper: "#f7f3ea", glass: "#6f8ea3", metal: "#a9a69e", tire: "#33312d" }
+function assetParts(parts: AssetPart[], body: string, opts: { reco?: boolean; hull?: THREE.ShaderMaterial } = {}): Part[] {
+  const id = new THREE.Matrix4()
+  // 기하는 층마다 복사본(모듈 캐시 기하에 렌더러 dispose 리스너가 붙으면 지도를 새로 만들 때마다 옛 렌더러가 붙잡혔다). glb 는 법선이 없어 재질은 평면 셰이딩 툰
+  const out: Part[] = parts.map(({ role, geom: src }) => {
+    const geom = src.clone()
+    if (opts.reco) return { geom, mat: toonMaterial(BIN_RECO_COLOR, { transparent: true, opacity: role === "ink" ? 0.75 : 0.55 }), local: id }
+    const color = role === "body" ? body : role === "body2" ? mixHex(body, "#ffffff", 0.3) : role === "body3" ? mixHex(body, "#000000", 0.28) : role === "light" ? "#ffd27a" : (ROLE_COLOR[role] ?? body)
+    const mat = toonMaterial(color, role === "light" ? { emissive: new THREE.Color("#ffc65a"), emissiveIntensity: 0.9 } : {})
+    return { geom, mat, local: id }
+  })
+  if (opts.hull) out.push({ geom: mergeForHull(parts, ["light"]), mat: opts.hull, local: id })
+  return out
+}
 
 // 모델은 만들 때 한 번. 종류마다 높이 10~12m 언저리(화면 크기 계산이 같은 기준을 쓰게)
 function buildDefs(): Record<IconKind, KindDef> {
@@ -218,6 +238,10 @@ export class Icons3DLayer implements CustomLayerInterface {
   private digitsAll = false // 확대해서 숫자를 전부 세우는 중(줌 문턱 히스테리시스)
   private trucks: Truck[] = []
   private truckMeshes: THREE.InstancedMesh[] = []
+  private truckParts: Part[] = TRUCK_PARTS
+  private assetsAsked = false
+  private readonly hullU = hullUniforms()
+  private readonly hull = hullMaterial(this.hullU, "#2a2722", 1)
   private accent = "#c0741a"
   private dark = false
   private anchor = maplibregl.MercatorCoordinate.fromLngLat(ANCHOR, 0)
@@ -246,6 +270,32 @@ export class Icons3DLayer implements CustomLayerInterface {
     if (!this.defs) this.defs = buildDefs()
     // 이미 받은 점이 있으면(스타일 교체 뒤 재추가) 다시 세운다
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
+    if (!this.assetsAsked) {
+      this.assetsAsked = true
+      this.hullU.uFade.value.set(-1, 0) // 늘 그린다(아이콘은 화면 크기를 지킨다)
+      void this.loadAssets().catch(() => {
+        // glb 를 못 받으면 프리미티브 모델 그대로
+      })
+    }
+  }
+
+  /** 블렌더 glb 로 시설·청소차 모델을 갈아 끼우고, 이미 선 점·청소차를 그 모델로 다시 세운다 */
+  private async loadAssets() {
+    const names = [...new Set([...Object.values(ASSET_OF), "truck"])]
+    const got = await Promise.all(names.map((n) => loadAsset(n)))
+    const by = new Map(names.map((n, i) => [n, got[i]]))
+    const defs = this.defs
+    if (!defs) return
+    for (const [kind, name] of Object.entries(ASSET_OF) as [IconKind, string][]) {
+      const parts = by.get(name)
+      if (!parts?.length) continue
+      const body = kind === "binReco" ? BIN_RECO_COLOR : INFRA_STYLE[kind as keyof typeof INFRA_STYLE].color
+      defs[kind].parts = assetParts(parts, body, kind === "binReco" ? { reco: true } : { hull: this.hull })
+    }
+    const truck = by.get("truck")
+    if (truck?.length) this.truckParts = assetParts(truck, "#c0741a", { hull: this.hull })
+    for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
+    if (this.trucks.length) this.setTrucks([...new Set(this.trucks.map((t) => t.chain))])
   }
 
   onRemove() {
@@ -479,7 +529,7 @@ export class Icons3DLayer implements CustomLayerInterface {
         sc.makeScale(kt, kt, kt)
         const rot = new THREE.Matrix4().makeRotationY(-heading)
         this.truckMeshes.forEach((mesh, m) => {
-          tmp.makeTranslation(x, y, z).multiply(rot).multiply(sc).multiply(TRUCK_PARTS[m].local)
+          tmp.makeTranslation(x, y, z).multiply(rot).multiply(sc).multiply(this.truckParts[m].local)
           mesh.setMatrixAt(i, tmp)
         })
       })
@@ -510,7 +560,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       const n = chain.meters > 2500 ? 2 : 1
       for (let t = 0; t < n; t++) this.trucks.push({ chain, cum, pts, dist: (cum[cum.length - 1] * (t + 0.35)) / n, dir: t % 2 ? -1 : 1 })
     }
-    this.truckMeshes = TRUCK_PARTS.map((part) => {
+    this.truckMeshes = this.truckParts.map((part) => {
       const mesh = new THREE.InstancedMesh(part.geom, part.mat, this.trucks.length)
       mesh.frustumCulled = false
       this.scene.add(mesh)
@@ -524,6 +574,8 @@ export class Icons3DLayer implements CustomLayerInterface {
     const map = this.map
     if (!map || !this.renderer || !this.visible) return
     const animating = this.updateMatrices(performance.now())
+    this.hullU.uViewport.value.set(_gl.drawingBufferWidth, _gl.drawingBufferHeight)
+    this.hullU.uPx.value = Math.max(1, (window.devicePixelRatio || 1) * 1.1)
     const proj = new THREE.Matrix4().fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>))
     this.camera.projectionMatrix = proj.multiply(this.model)
     // 건물·기둥 깊이를 지우고 그린다(카메라가 움직일 때 4~13px 핀이 건물 뒤로 들락거리며 깜박이던 것. /snow 0ed2bdd와 같은 수리).

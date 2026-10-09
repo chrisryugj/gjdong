@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DumpingMapData, InterventionEntry, OntoGraph, VizAction } from "@/lib/dumping/types"
 import DumpingMap, { type CameraCue, type CandidateFocus, type MapLoadStage } from "./dumping-map"
-import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, type MapView } from "./map-controls"
+import { CandidateList, DEFAULT_VIEW, MapLayerPanel, MapLegend, MODE_MAP, useMapLook, useSkyChoice, type MapView } from "./map-controls"
 import { dongAnchors } from "./map-geo"
 import LoginGate from "./login-gate"
 import OntologyGraph from "./ontology-graph"
@@ -34,6 +34,7 @@ import { LOAD_NONE, LOAD_STEPS, loadStageOf } from "@/lib/dumping/load-stage"
 import { liveWeatherKey } from "@/lib/dumping/labels"
 import { NSDI_BUILDING_COUNT } from "@/lib/dumping/basemap-style"
 import { weatherLabel } from "@/lib/snow/weather"
+import { skyOf } from "@/lib/dumping/map-weather"
 import type { SnowForecast } from "@/lib/snow/types"
 
 type Tab = "policy" | "qa" | "findings" | "ops" | "onto"
@@ -131,6 +132,8 @@ export default function DumpingDashboard() {
     clearRevealTimers()
   }, [clearRevealTimers])
   const theme = useTheme()
+  const [look, setLook] = useMapLook() // 23라운드: 입체 표현(모형 기본 · 도면)
+  const [toonOk, setToonOk] = useState(false) // 모형 건물이 실제로 섰나. 범례는 지도에 그려진 쪽을 말한다
   const isMd = useBreakpoint("(min-width: 768px)")
   const isXl = useBreakpoint("(min-width: 1280px)")
   // 등장 애니메이션은 첫 진입 한 번만. 탭을 오갈 때마다 다시 떠오르면 반복 열람에 피로하다
@@ -221,7 +224,8 @@ export default function DumpingDashboard() {
   }, [auth, loadSeq])
 
   // 지금 날씨(/snow 이식): 기상청 단기예보 광진구 격자(/api/snow/forecast, 30분 캐시). 헤더 "지금 N° 날씨"와 날씨별 민원 원의 "지금 조건" 표시가 쓴다.
-  // 눈·비 입자 효과는 안 그린다(16라운드 결정: 시간대 데이터가 없는 장식). 실황은 날씨별 원(그 조건에 접수된 민원)과 이어질 때만 데이터 뜻이 있다
+  // 23라운드(사용자 요청 "현재 날씨에 따라 지도에 반영, 수동으로도"): 16라운드에 장식이라 뺐던 눈·비 표현을 지도 날씨(skyOf)로 들였다. 데이터 색·기둥은 그대로이고
+  // 날씨별 원(그 조건에 접수된 민원)은 따로 있는 데이터 층이다(liveWeather)
   const [wx, setWx] = useState<{ temp: number; code: number } | null>(null)
   useEffect(() => {
     if (auth !== "open") return
@@ -238,6 +242,10 @@ export default function DumpingDashboard() {
     }
   }, [auth])
   const liveWeather = wx ? liveWeatherKey(wx.temp, wx.code) : null
+  // 지도 날씨(23라운드): 지금(실황) 또는 손으로 고른 것
+  const [skyChoice, setSkyChoice] = useSkyChoice()
+  const wxCode = wx?.code ?? null
+  const sky = useMemo(() => skyOf(skyChoice, wxCode), [skyChoice, wxCode])
 
   // 커튼 단계: 자료가 오면 1, 지도가 map/idle/icons를 알리면 2·3·4. 4 또는 25초 상한(회장 네트워크가 느려도 시연을 막지 않게. 3Mbps 실측 map load 12초 초과)에서 걷힌다
   useEffect(() => {
@@ -550,12 +558,12 @@ export default function DumpingDashboard() {
     ? { tl: [hideCard ? 24 : 16 + sideW + 24, 76 + 8], br: [16 + RIGHT_W + 24, isXl ? 16 + 96 + (demo !== null ? DEMO_CAPTION_PAD : 0) : 24] }
     : { tl: [8, 104 + 8], br: [8, typeof window !== "undefined" ? Math.max(8, window.innerHeight * 0.56 + 8) : 8] }
 
-  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} /> : null
+  const layerPanel = mapData ? <MapLayerPanel key={resetSeq} data={mapData} view={view} onChange={onLayerChange} active={active} liveWeather={liveWeather} look={look} onLook={setLook} skyChoice={skyChoice} onSky={setSkyChoice} liveSky={wx ? weatherLabel(wx.code) : null} /> : null
   const hotspotsOn = tab === "ops" && (demo === null || scenes[demo]?.hotspots !== false)
   const criticalOn = showCritical && (tab === "ops" || tab === "policy")
   // 지도는 다른 층(시설·후보·배치추천·핫스팟·상습격자)이 켜지면 원·원기둥을 숨긴다(dumping-map muted). 범례도 같은 조건으로 그 줄을 뺀다
   const circlesMuted = view.layers.length > 0 || view.candidates || view.binRecos || hotspotsOn || criticalOn
-  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} circlesMuted={circlesMuted} />
+  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} circlesMuted={circlesMuted} look={look === "model" && toonOk ? "model" : "paper"} />
   const candidates =
     view.candidates && mapData ? (
       <CandidateList
@@ -609,6 +617,9 @@ export default function DumpingDashboard() {
             weather={view.weather}
             tilt={view.tilt}
             theme={theme}
+            look={look}
+            sky={sky}
+            onToon={setToonOk}
             orbit={view.orbit}
             fly={view.fly}
             onOrbitStop={stopOrbit}
