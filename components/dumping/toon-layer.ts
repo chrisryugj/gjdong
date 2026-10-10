@@ -677,7 +677,10 @@ export class ToonLayer implements CustomLayerInterface {
     const pxK = (Math.hypot(((b.x / b.w - ax) * w) / 2, ((b.y / b.w - ay) * h) / 2) / 10) * aw
     const decor = this.decor.frame(proj, zoom, this.center, pxK, h, this.cloudU, g)
     const rising = this.beams.frame(proj, pxK)
-    const moving = this.traffic.frame(zoom) || this.rail.frame()
+    // 둘 다 매 프레임 불러야 한다(|| 단락이면 차·사람이 움직이는 동안 전동차가 멈췄다)
+    const trafficMoving = this.traffic.frame(zoom)
+    const railMoving = this.rail.frame()
+    const moving = trafficMoving || railMoving
     const spreading = this.hotspots.frame(proj, pxK, zoom)
     const wave = this.bldU.uWave.value
     if (wave.w > 0.5) {
