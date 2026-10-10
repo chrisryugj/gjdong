@@ -25,8 +25,8 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, WeatherKey } from "@/lib/dumping/types"
 import type { DongMode } from "@/lib/dumping/labels"
 import { BASEMAP_BOUNDS, BASEMAP_PATH, DEM_SOURCE, HAS_NSDI_BUILDINGS, NSDI_SOURCE, TERRAIN_EXAG, buildBasemapStyle, type BasemapLook, type BasemapTheme } from "@/lib/dumping/basemap-style"
-import { BEAM_LAYERS, BIN_RECO_ICON, FLAT_ONLY, HOVER_LAYERS, L_BUILDINGS, L_BUILDINGS_NSDI, L_GRID_LINE, PILL_ICON, S, TILT_ONLY, applyThemePaint, declareLayers, restyleBasemap } from "./map-layers"
-import { landmarksFC } from "@/lib/dumping/landmarks"
+import { BEAM_LAYERS, BIN_RECO_ICON, FLAT_ONLY, HOVER_LAYERS, L_BUILDINGS, L_BUILDINGS_NSDI, L_GRID_LINE, L_LANDMARK_MODEL, PILL_ICON, S, TILT_ONLY, applyThemePaint, declareLayers, restyleBasemap } from "./map-layers"
+import { LANDMARK_MODEL_HIDE_ZOOM, LANDMARK_TIER_ZOOM, landmarksFC } from "@/lib/dumping/landmarks"
 import {
   BASE_DEF,
   BIN_RECO_COLOR,
@@ -869,6 +869,15 @@ export default function DumpingMap({
     applySky(map)
     placeCallouts(map)
   }, [ready, data, theme, look, tilt])
+
+  // 모델 있는 랜드마크(광진구청) 알약: 모형 입체에서 모델이 실제로 섰을 때만 가까이 가면 숨긴다(모델 간판이 이름을 말한다).
+  // 툰을 싣는 중·실패·glb 못 받음이면 늘 보인다(검증: glb 404 에 되살린 일반 상자만 서고 이름이 없었다)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !map.getLayer(L_LANDMARK_MODEL)) return
+    const model = look === "model" && tilt && toonState === "ready" && !!toonRef.current?.landmarks.ready
+    map.setLayerZoomRange(L_LANDMARK_MODEL, LANDMARK_TIER_ZOOM[0], model ? LANDMARK_MODEL_HIDE_ZOOM : 24)
+  }, [ready, look, tilt, toonState])
 
   // 지도 날씨(23라운드). 바뀔 때·테마·입체 전환 때 다시
   useEffect(() => {

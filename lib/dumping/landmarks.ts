@@ -9,11 +9,15 @@ export interface Landmark {
   rank: number
   /** 0 구 전체 보기부터 · 1 동네 · 2 가까이 */
   tier: 0 | 1 | 2
+  /** 모형 보기에 전용 모델이 있다(toon-landmark). 모형 입체에서 가까이 가면 알약을 숨긴다: 모델의 간판이 이름을 말하고 알약은 모델 밑동을 덮었다 */
+  model?: boolean
 }
+/** 모델 있는 랜드마크 알약을 숨기는 줌(모형 입체에서만) */
+export const LANDMARK_MODEL_HIDE_ZOOM = 16.8
 export const LANDMARK_TIER_ZOOM = [12.4, 13.2, 14.2] as const
 
 export const LANDMARKS: Landmark[] = [
-  { name: "광진구청", lat: 37.53635, lng: 127.08764, rank: 0, tier: 0 },
+  { name: "광진구청", lat: 37.53635, lng: 127.08764, rank: 0, tier: 0, model: true },
   { name: "강변테크노마트", lat: 37.53557, lng: 127.09519, rank: 1, tier: 1 },
   { name: "건국대학교", lat: 37.54185, lng: 127.07711, rank: 2, tier: 1 },
   { name: "서울어린이대공원", lat: 37.54889, lng: 127.08047, rank: 3, tier: 1 },
@@ -30,9 +34,9 @@ export const LANDMARKS: Landmark[] = [
   { name: "광진문화예술회관", lat: 37.5376, lng: 127.07054, rank: 14, tier: 2 },
 ]
 
-export function landmarksFC(): GeoJSON.FeatureCollection<GeoJSON.Point, { name: string; rank: number; tier: number }> {
+export function landmarksFC(): GeoJSON.FeatureCollection<GeoJSON.Point, { name: string; rank: number; tier: number; model: number }> {
   return {
     type: "FeatureCollection",
-    features: LANDMARKS.map((l) => ({ type: "Feature", properties: { name: l.name, rank: l.rank, tier: l.tier }, geometry: { type: "Point", coordinates: [l.lng, l.lat] } })),
+    features: LANDMARKS.map((l) => ({ type: "Feature", properties: { name: l.name, rank: l.rank, tier: l.tier, model: l.model ? 1 : 0 }, geometry: { type: "Point", coordinates: [l.lng, l.lat] } })),
   }
 }

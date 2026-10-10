@@ -42,7 +42,9 @@ export const S = {
 export const L_CAND_LABEL = "dump-cand-label"
 export const FLAT_ONLY = [S.circles, S.weather, S.infra, S.cand, S.binReco, L_CAND_LABEL, S.hotLabels, S.critLabels] as string[]
 // 랜드마크 이름표 레이어(등급마다 하나, 같은 소스 S.landmarks). 0등급이 맨 위라 겹치면 먼저 산다
-export const LANDMARK_LAYERS = LANDMARK_TIER_ZOOM.map((_, k) => (k === 0 ? S.landmarks : `${S.landmarks}-${k}`))
+// 마지막은 모델 있는 랜드마크(광진구청) 전용: 모형 입체에서 가까이 가면 숨긴다(dumping-map 이 setLayerZoomRange)
+export const L_LANDMARK_MODEL = `${S.landmarks}-model`
+export const LANDMARK_LAYERS = [...LANDMARK_TIER_ZOOM.map((_, k) => (k === 0 ? S.landmarks : `${S.landmarks}-${k}`)), L_LANDMARK_MODEL]
 export const TILT_ONLY = [S.circleCols, S.weatherCols, S.infraPosts, S.candPosts, S.recoRings, ...LANDMARK_LAYERS] as string[]
 // 모형 보기에서 빛기둥(three, toon-beams)으로 대신 그리는 지도 기둥. 지도 쪽은 투명으로 남아 툴팁 조회를 맡는다
 export const BEAM_LAYERS = [S.circleCols, S.weatherCols, S.cols, S.critCols, S.hotCols, S.dongCols] as string[]
@@ -253,13 +255,15 @@ export function declareLayers(map: MlMap) {
     paint: { "text-color": "#1c1a15", "text-halo-color": "rgba(251,249,243,0.96)", "text-halo-width": 2.6 },
   })
   // 랜드마크 이름표(24라운드): 알약 바탕 + 이름. 등급마다 레이어(minzoom 소수 문턱), 아래 등급부터 쌓아 0등급이 맨 위. 입체에서만(TILT_ONLY)
-  for (let k = LANDMARK_TIER_ZOOM.length - 1; k >= 0; k--)
+  // 쌓는 순서: 2·1·0등급, 맨 위에 모델 층(광진구청 rank 0 이 겹침에서 먼저 산다)
+  for (const k of [...LANDMARK_TIER_ZOOM.keys()].reverse().concat(LANDMARK_TIER_ZOOM.length))
     map.addLayer({
       id: LANDMARK_LAYERS[k],
       type: "symbol",
       source: S.landmarks,
-      minzoom: LANDMARK_TIER_ZOOM[k],
-      filter: ["==", ["get", "tier"], k],
+      // 모델 있는 랜드마크 층(k = 등급 수)은 0등급과 같은 줌부터
+      minzoom: LANDMARK_TIER_ZOOM[k] ?? LANDMARK_TIER_ZOOM[0],
+      filter: k === LANDMARK_TIER_ZOOM.length ? ["==", ["get", "model"], 1] : ["all", ["==", ["get", "tier"], k], ["!=", ["get", "model"], 1]],
       layout: {
         "text-field": ["get", "name"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 12, 12.5, 15, 14],

@@ -17,6 +17,7 @@ import { ToonDecor } from "./toon-decor"
 import { ToonBeams } from "./toon-beams"
 import { ToonTraffic } from "./toon-traffic"
 import { ToonHotspots } from "./toon-hotspots"
+import { ToonLandmarks, landmarkReplaces } from "./toon-landmark"
 import { haloMaterial, SKIRT_M, skirtGroup } from "./toon-diorama"
 import { cellLookup } from "./map-geo"
 import { weatherLook, type SkyWeather } from "@/lib/dumping/map-weather"
@@ -105,6 +106,8 @@ export class ToonLayer implements CustomLayerInterface {
   private readonly decor: ToonDecor
   readonly beams = new ToonBeams()
   readonly hotspots = new ToonHotspots()
+  // 랜드마크 모델(광진구청 신청사, 블렌더 glb). 같은 자리의 일반 건물은 덩어리에서 뺀다. 눈·구름 그늘 유니폼은 생성자에서 bldU 와 나눈다
+  readonly landmarks: ToonLandmarks
   readonly traffic: ToonTraffic
   /** 구 경계 [위도, 경도](디오라마 블록 옆면) */
   private ringLL: [number, number][] | null = null
@@ -195,8 +198,9 @@ export class ToonLayer implements CustomLayerInterface {
     this.receiver.renderOrder = 2
     this.scene.add(this.receiver)
     this.decor = new ToonDecor(this.cloudU, this.exag, opts.dark)
+    this.landmarks = new ToonLandmarks({ uRoofSnow: this.bldU.uRoofSnow, uSnowC: this.bldU.uSnowC, uCloudDark: this.bldU.uCloudDark, ...this.cloudU })
     this.traffic = new ToonTraffic(opts.dark)
-    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group)
+    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group, this.landmarks.group)
     this.skirtU.uSunDir.value.copy(this.cloudU.uSunDir.value)
     this.setTheme(opts.dark)
   }
@@ -256,10 +260,13 @@ export class ToonLayer implements CustomLayerInterface {
     this.bldU.uColors.value = this.colorTex
     this.remat()
     this.repaint()
-    // 덩어리를 지금 보는 곳에서 가까운 순으로 세운다. 한 덩어리마다 한 번 숨을 돌려 첫 화면이 멈추지 않게
+    // 덩어리를 지금 보는 곳에서 가까운 순으로 세운다. 한 덩어리마다 한 번 숨을 돌려 첫 화면이 멈추지 않게.
+    // 랜드마크 모델이 대신 그리는 건물은 빼고, 모델을 못 받으면 그 건물만 다시 세운다
+    const replaced = landmarkReplaces(bld)
+    const landmark = this.landmarks.load(this.ground, this.exag).catch(() => false)
     const groups = [...chunkIds(bld).entries()].map(([key, ids]) => {
       const [ix, iz] = key.split(":").map(Number)
-      return { ids, d: Math.hypot((ix + 0.5) * CHUNK_M - near[0], (iz + 0.5) * CHUNK_M - near[1]) }
+      return { ids: ids.filter((i) => !replaced.has(i)), d: Math.hypot((ix + 0.5) * CHUNK_M - near[0], (iz + 0.5) * CHUNK_M - near[1]) }
     })
     groups.sort((a, b) => a.d - b.d)
     last = performance.now()
@@ -272,6 +279,8 @@ export class ToonLayer implements CustomLayerInterface {
         last = performance.now()
       }
     }
+    if (!(await landmark) && replaced.size && !this.disposed) this.addChunk([...replaced])
+    if (this.disposed) return
     this.ready = true
     this.shadowDirty = true
     this.map?.triggerRepaint()
@@ -396,6 +405,7 @@ export class ToonLayer implements CustomLayerInterface {
 
   setTheme(dark: boolean) {
     this.dark = dark
+    this.landmarks.setTheme(dark)
     const t = dark ? THEMES.dark : THEMES.light
     this.receiver.material.color.set(t.receiver.color)
     const u = this.bldU
@@ -631,6 +641,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.camera.projectionMatrixInverse.copy(proj).invert()
     eyeOf(proj, this.eye)
     this.skirtU.uEye.value.copy(this.eye)
+    this.landmarks.frame(this.eye)
     const zoom = map.getZoom()
     const w = gl.drawingBufferWidth
     const h = gl.drawingBufferHeight
@@ -677,6 +688,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.haloMat.dispose()
     this.disposeSkirt()
     this.hotspots.dispose()
+    this.landmarks.dispose()
     this.decor.dispose()
     this.beams.dispose()
     this.traffic.dispose()

@@ -127,3 +127,37 @@ test("모임 자리(TNR2): 공원·학교·광장·캠퍼스 수천 곳, 등급 
   }
   for (const c of [TrafficClass.park, TrafficClass.school, TrafficClass.plaza, TrafficClass.campus]) assert.ok((by.get(c) ?? 0) > 100, `등급 ${c}: ${by.get(c)}`)
 })
+
+// 26라운드 후속(2026-10-10 사용자 "구청 렌더 제대로 해볼래"): 광진구청 신청사는 블렌더 모델(scripts/blender/dumping_gucheong.py)로 그린다
+test("광진구청 모델: glb 는 역할 재질·간판 UV 를 갖고 높이 82.3m(대장)·땅 아래 묻힘, 대신 그리는 일반 건물은 82.3m 한 덩어리와 보건소 두 동", async () => {
+  const { landmarkReplaces, landmarkToLocal, localToLandmark, LANDMARK_MODELS } = await import("../components/dumping/toon-landmark")
+  const glb = readFileSync(new URL("../public/dumping/models/gucheong.glb", import.meta.url))
+  assert.strictEqual(glb.toString("ascii", 0, 4), "glTF")
+  const jsonLen = glb.readUInt32LE(12)
+  const gltf = JSON.parse(glb.toString("utf8", 20, 20 + jsonLen)) as {
+    materials: { name: string }[]
+    meshes: { primitives: { attributes: Record<string, number>; material: number }[] }[]
+    accessors: { min?: number[]; max?: number[] }[]
+  }
+  const roles = new Set(gltf.materials.map((m) => m.name.split("@")[0]))
+  for (const r of ["frame", "glass", "curtain", "membrane", "solar", "green", "sign_gc", "sign_council", "sign_health"]) assert.ok(roles.has(r), r)
+  assert.ok(gltf.materials.some((m) => m.name.endsWith("@c")) && gltf.materials.some((m) => m.name.endsWith("@h")), "구의회·보건소 부분 표시")
+  let yMax = -Infinity, yMin = Infinity
+  for (const mesh of gltf.meshes)
+    for (const p of mesh.primitives) {
+      const a = gltf.accessors[p.attributes.POSITION]
+      yMax = Math.max(yMax, a.max![1])
+      yMin = Math.min(yMin, a.min![1])
+      if (gltf.materials[p.material].name.startsWith("sign_")) assert.ok("TEXCOORD_0" in p.attributes, "간판은 UV")
+    }
+  assert.ok(Math.abs(yMax - 82.3) < 1.5, `꼭대기 ${yMax}`)
+  assert.ok(yMin <= -8, `묻힘 ${yMin}`)
+  const replaced = [...landmarkReplaces(BLD)]
+  assert.strictEqual(replaced.length, 2, `${replaced}`)
+  const tallest = replaced.reduce((a, b) => (BLD.height[a] > BLD.height[b] ? a : b))
+  assert.ok(Math.abs(BLD.height[tallest] - 82.3) < 0.1 && BLD.floors[tallest] === 18)
+  const d = LANDMARK_MODELS[0]
+  const [x, z] = landmarkToLocal(d, 12.5, -40)
+  const [u, v] = localToLandmark(d, x, z)
+  assert.ok(Math.abs(u - 12.5) < 1e-6 && Math.abs(v + 40) < 1e-6, "좌표 왕복")
+})
