@@ -305,8 +305,8 @@ export default function DumpingMap({
     toonRef.current?.setVisible(toonOn)
     try {
       if (map.getLayer(L_BUILDINGS_NSDI)) map.setLayoutProperty(L_BUILDINGS_NSDI, "visibility", tiltRef.current && !toonOn ? "visible" : "none")
-      // 구 밖 배경 건물(24라운드: 빌드 때 구 밖만 뽑아 구 안 유령 건물이 없다). 26라운드 모형은 구를 잘라 낸 디오라마라 구 밖은 탁자(배경 건물 숨김)
-      map.setLayoutProperty(L_BUILDINGS, "visibility", tiltRef.current && !toonOn ? "visible" : "none")
+      // 구 밖 배경 건물(24라운드: 빌드 때 구 밖만 뽑아 구 안 유령 건물이 없다). 모형에서도 이웃 구 건물은 그대로(26라운드 후속 4)
+      map.setLayoutProperty(L_BUILDINGS, "visibility", tiltRef.current ? "visible" : "none")
       // 모형이면 기둥은 칠한 블록(three, toon-beams)이 그리고 지도 기둥은 투명으로 툴팁만 받는다
       for (const id of BEAM_LAYERS) map.setPaintProperty(id, "fill-extrusion-opacity", toonOn ? 0 : 1)
     } catch {
@@ -334,7 +334,7 @@ export default function DumpingMap({
       // 땅의 빛·봉투 더미(어디) + 불투명 원기둥(얼마). 26라운드 후속 3: 빛만으로는 건물 사이에 묻혔다
       t.hotspots.setData(fc)
       t.hotspots.setFilter(filter)
-      t.beams.setData(id, modelCircleCols(fc), undefined, 0.55, 5)
+      t.beams.setData(id, modelCircleCols(fc), undefined, 0.3, 6)
       t.beams.setFilter(id, filter)
     } else {
       t.beams.setData(id, fc, BEAM_COLOR[id], BEAM_THIN[id], BEAM_MIN_PX[id])
@@ -386,7 +386,7 @@ export default function DumpingMap({
         const toon = new ToonLayer({ dark: themeRef.current === "dark", exag: TERRAIN_EXAG })
         toonRef.current = toon
         toon.setWeather(skyRef.current)
-        if (dataRef.current) toon.setRing(dataRef.current.ring)
+        // 디오라마 블록 옆면(setRing → skirtGroup)은 이웃 구가 보이면 땅 위에 벽처럼 뜬다(26라운드 후속 4) → 세우지 않는다
         for (const [id, b] of beamDataRef.current) toBeams(id, b.fc, b.filter)
         toon.routes.setData(routesFcRef.current)
         // 지도 압출 건물과 같은 자리(기둥·말뚝보다 먼저 그려 깊이를 나눈다)

@@ -16,12 +16,20 @@ export interface Landmark {
 export const LANDMARK_MODEL_HIDE_ZOOM = 16.8
 export const LANDMARK_TIER_ZOOM = [12.4, 13.2, 14.2] as const
 
+const RAIL_STATIONS: Landmark[] = [
+  { name: "건대입구역", lat: 37.540443, lng: 127.070864, rank: 4.1, tier: 1 },
+  { name: "구의역", lat: 37.537168, lng: 127.08622, rank: 4.2, tier: 1 },
+  { name: "강변역", lat: 37.535111, lng: 127.094741, rank: 4.3, tier: 1 },
+]
+
 export const LANDMARKS: Landmark[] = [
   { name: "광진구청", lat: 37.53635, lng: 127.08764, rank: 0, tier: 0, model: true },
   { name: "강변테크노마트", lat: 37.53557, lng: 127.09519, rank: 1, tier: 1 },
   { name: "건국대학교", lat: 37.54185, lng: 127.07711, rank: 2, tier: 1 },
   { name: "서울어린이대공원", lat: 37.54889, lng: 127.08047, rank: 3, tier: 1 },
   { name: "건대 스타시티", lat: 37.5385, lng: 127.0718, rank: 4, tier: 1 },
+  // 2호선 지상 고가역(26라운드 후속 4, toon-rail 이 역사를 세운다). 자리는 바탕 타일 역 점
+  ...RAIL_STATIONS,
   { name: "세종대학교", lat: 37.5508, lng: 127.0748, rank: 5, tier: 1 },
   { name: "동서울종합터미널", lat: 37.53461, lng: 127.09425, rank: 6, tier: 2 },
   { name: "그랜드 워커힐", lat: 37.55533, lng: 127.11015, rank: 7, tier: 1 },

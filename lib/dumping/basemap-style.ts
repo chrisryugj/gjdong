@@ -209,7 +209,8 @@ export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme 
   // 빼지 않고 visibility 로만 숨겨 네 조합(테마 × 표현)의 레이어 구성을 같게 둔다(dumping-map 은 setStyle 대신 칠하기만 바꾼다, restyleBasemap)
   const layers: LayerSpecification[] = basemapLayers(BASEMAP_SOURCE, flavor, { lang: "ko" })
     .filter((l) => !DROP.has(l.id))
-    .map((l) => (l.type === "symbol" ? ({ ...l, layout: { ...l.layout, visibility: model && diorama ? "none" : "visible" } } as LayerSpecification) : l))
+    // 26라운드 후속 4: 이웃 구가 보이니 지명(places_*)은 살린다. 길·물·건물 이름은 지붕 위에 떠서 계속 숨김
+    .map((l) => (l.type === "symbol" ? ({ ...l, layout: { ...l.layout, visibility: model && diorama && !l.id.startsWith("places") ? "none" : "visible" } } as LayerSpecification) : l))
     .map((l) => {
       if (l.id !== "places_subplace") return l
       const filter: FilterSpecification = [

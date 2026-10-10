@@ -19,6 +19,7 @@ import { ToonTraffic } from "./toon-traffic"
 import { ToonHotspots } from "./toon-hotspots"
 import { ToonLandmarks, landmarkReplaces } from "./toon-landmark"
 import { ToonRoutes } from "./toon-routes"
+import { ToonRail, type RailData } from "./toon-rail"
 import { haloMaterial, SKIRT_M, skirtGroup } from "./toon-diorama"
 import { cellLookup } from "./map-geo"
 import { weatherLook, type SkyWeather } from "@/lib/dumping/map-weather"
@@ -109,6 +110,8 @@ export class ToonLayer implements CustomLayerInterface {
   readonly hotspots = new ToonHotspots()
   // 청소차 노선 띠벽(26라운드 후속 3): 땅의 선은 건물 사이에 묻혔다
   readonly routes = new ToonRoutes()
+  // 2호선 고가·역사·전동차(26라운드 후속 4): 모형 건물 자료엔 고가 역사가 없고 선로는 처음부터 없었다
+  readonly rail = new ToonRail()
   // 랜드마크 모델(광진구청 신청사, 블렌더 glb). 같은 자리의 일반 건물은 덩어리에서 뺀다. 눈·구름 그늘 유니폼은 생성자에서 bldU 와 나눈다
   readonly landmarks: ToonLandmarks
   readonly traffic: ToonTraffic
@@ -203,7 +206,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.decor = new ToonDecor(this.cloudU, this.exag, opts.dark)
     this.landmarks = new ToonLandmarks({ uRoofSnow: this.bldU.uRoofSnow, uSnowC: this.bldU.uSnowC, uCloudDark: this.bldU.uCloudDark, ...this.cloudU })
     this.traffic = new ToonTraffic(opts.dark)
-    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group, this.landmarks.group, this.routes.group)
+    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group, this.landmarks.group, this.routes.group, this.rail.group)
     this.skirtU.uSunDir.value.copy(this.cloudU.uSunDir.value)
     this.setTheme(opts.dark)
   }
@@ -291,6 +294,17 @@ export class ToonLayer implements CustomLayerInterface {
     void this.loadDecor(get).catch(() => {
       // 나무·구름은 장식이라 못 받아도 건물·데이터는 그대로
     })
+    void get("toon-rail.json")
+      .then((buf) => {
+        if (this.disposed || !this.ground) return
+        this.rail.build(JSON.parse(new TextDecoder().decode(buf)) as RailData, this.ground, this.exag)
+        this.rail.setTheme(this.dark)
+        this.shadowDirty = true
+        this.map?.triggerRepaint()
+      })
+      .catch(() => {
+        // 고가가 없어도 건물·데이터는 그대로
+      })
     void get("toon-traffic.bin")
       .then((buf) => {
         if (this.disposed) return
@@ -410,6 +424,7 @@ export class ToonLayer implements CustomLayerInterface {
   setTheme(dark: boolean) {
     this.dark = dark
     this.landmarks.setTheme(dark)
+    this.rail.setTheme(dark)
     this.routes.setTheme(dark)
     const t = dark ? THEMES.dark : THEMES.light
     this.receiver.material.color.set(t.receiver.color)
@@ -662,7 +677,7 @@ export class ToonLayer implements CustomLayerInterface {
     const pxK = (Math.hypot(((b.x / b.w - ax) * w) / 2, ((b.y / b.w - ay) * h) / 2) / 10) * aw
     const decor = this.decor.frame(proj, zoom, this.center, pxK, h, this.cloudU, g)
     const rising = this.beams.frame(proj, pxK)
-    const moving = this.traffic.frame(zoom)
+    const moving = this.traffic.frame(zoom) || this.rail.frame()
     const spreading = this.hotspots.frame(proj, pxK, zoom)
     const wave = this.bldU.uWave.value
     if (wave.w > 0.5) {
@@ -695,6 +710,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.hotspots.dispose()
     this.landmarks.dispose()
     this.routes.dispose()
+    this.rail.dispose()
     this.decor.dispose()
     this.beams.dispose()
     this.traffic.dispose()

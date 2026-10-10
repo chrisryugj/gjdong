@@ -294,10 +294,11 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
   const table = look === "model" && diorama
   const ink = dark ? "#ece7dc" : "#14201c"
   const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(251,249,243,0.94)"
-  // 26라운드 모형은 구를 잘라 낸 디오라마: 구 밖은 불투명한 탁자(모형 하늘 modelSkyFor 의 안개색과 같다). 도면은 예전처럼 옅게 덮기만
+  // 26라운드 후속 4(2026-10-10 사용자 "다른 구를 없애 버리는 건 아닌 것 같다"): 구 밖을 불투명 탁자로 지우던 디오라마를 걷었다.
+  // 이웃 구의 땅·길·건물은 그대로 보이고, 구 밖은 옅은 막(모형 0.38·도면 0.55)으로만 눌러 광진구가 앞에 선다
   if (map.getLayer(S.mask)) {
-    map.setPaintProperty(S.mask, "fill-color", table ? (dark ? "#101a1f" : "#e9e5dd") : dark ? "#0c1114" : "#ffffff")
-    map.setPaintProperty(S.mask, "fill-opacity", table ? 1 : 0.55)
+    map.setPaintProperty(S.mask, "fill-color", table ? (dark ? "#101a1f" : "#efebe3") : dark ? "#0c1114" : "#ffffff")
+    map.setPaintProperty(S.mask, "fill-opacity", table ? 0.38 : 0.55)
   }
   // NSDI 건물은 바탕 effect가 칸 값으로 칠한다(중립색도 거기서 테마별로). 여기서는 구 밖 OSM 건물만
   // 모형 보기(23라운드)는 구 밖 건물도 모형 땅색에 맞춘 흰 모형 톤(구 안은 three 건물이 그린다)
@@ -321,8 +322,8 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
   for (const id of [L_ROUTES_FOCUS, L_ROUTES_GENERAL]) if (map.getLayer(id)) map.setPaintProperty(id, "line-color", dark ? "#e879f9" : "#c026d3")
   if (map.getLayer(S.ring)) {
     map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
-    // 모형은 블록 모서리가 구 경계라 점선은 쉰다
-    map.setPaintProperty(S.ring, "line-opacity", table ? 0 : 0.8)
+    // 구 경계 점선은 모형에서도 그린다(이웃 구가 보이니 경계가 필요하다)
+    map.setPaintProperty(S.ring, "line-opacity", 0.8)
   }
   // 핫스팟 바닥 배지(S.hotLabels)는 흰 글자+벽돌 후광이라 테마와 무관
   for (const id of [S.dongLabel, S.critLabels, L_COL_LABEL, S.dongColLabels]) {

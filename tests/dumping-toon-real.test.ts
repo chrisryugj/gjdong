@@ -161,3 +161,11 @@ test("광진구청 모델: glb 는 역할 재질·간판 UV 를 갖고 높이 82
   const [u, v] = localToLandmark(d, x, z)
   assert.ok(Math.abs(u - 12.5) < 1e-6 && Math.abs(v + 40) < 1e-6, "좌표 왕복")
 })
+
+// 26라운드 후속 4(2026-10-10 사용자 "구의역·건대입구역도 전혀 구현이 안 되어 있네"): 2호선 지상 고가(scripts/dumping-toon-rail.mjs)
+test("2호선 고가 자료: 2호선·성수지선만(7호선 청담대교 아래층 제외), 건대입구·구의·강변 역과 승강장이 있다", () => {
+  const d = JSON.parse(readFileSync(new URL("../public/dumping/basemap/toon-rail.json", import.meta.url), "utf8")) as { lines: { name: string; coords: number[][] }[]; platforms: unknown[]; stations: { name: string }[] }
+  assert.ok(d.lines.length >= 5 && d.lines.every((l) => l.name === "2호선" || l.name === "성수지선"), d.lines.map((l) => l.name).join(","))
+  for (const s of ["건대입구", "구의", "강변"]) assert.ok(d.stations.some((x) => x.name === s), s)
+  assert.ok(d.platforms.length >= 6)
+})
