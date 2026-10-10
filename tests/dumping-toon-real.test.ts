@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert"
 import { readFileSync } from "node:fs"
-import { BuildingUse, crc32, decodeBuildings, decodeGround, decodeSat, decodeTraffic, groundAt, lngLatToLocal, SAT_PITCH_KNOWN, SAT_PITCHED, SAT_ROOF, TrafficKind, type ToonBuildings } from "../lib/dumping/toon-world"
+import { BuildingUse, crc32, decodeBuildings, decodeGround, decodeSat, decodeTraffic, groundAt, lngLatToLocal, SAT_PITCH_KNOWN, SAT_PITCHED, SAT_ROOF, TrafficClass, TrafficKind, type ToonBuildings } from "../lib/dumping/toon-world"
 import { endWalls, minRect, Part, ringOf, roofPlan, ToonBuilder, addBuilding } from "../components/dumping/toon-geom"
 import { fromPhoto, satOf, toonMaterials, TEXELS_PER_BUILDING } from "../components/dumping/toon-palette"
 
@@ -99,7 +99,7 @@ test("사진 색 보정: 어두운 색은 밝히고 흰색은 그대로, 색상 
   assert.strictEqual(satOf(sat, 0).wall, undefined, "외벽 표시가 없으면 팔레트")
 })
 
-test("도로 경로(TNR1): 차로 500km 넘게·보행 줄·주차 줄이 있고 경로는 꼭짓점 둘 이상, 보행 붐빔은 1~6배", () => {
+test("도로 경로(TNR2): 차로 500km 넘게·보행 줄·주차 줄이 있고 경로는 꼭짓점 둘 이상, 보행 붐빔은 1~6배", () => {
   const t = decodeTraffic(read("toon-traffic.bin"))
   const len = [0, 0, 0]
   for (let i = 0; i < t.count; i++) {
@@ -112,4 +112,18 @@ test("도로 경로(TNR1): 차로 500km 넘게·보행 줄·주차 줄이 있고
   assert.ok(len[TrafficKind.lane] > 500_000, `차로 ${len[0]}`)
   assert.ok(len[TrafficKind.walk] > 200_000 && len[TrafficKind.park] > 100_000, `${len}`)
   assert.strictEqual(t.first[t.count - 1] + t.n[t.count - 1], t.y.length)
+})
+
+// 26라운드(2026-10-10 사용자 "학교나 공원 같은 유동인구 많은 곳엔 사람들이 있어야지"): 모임 자리마다 사람들이 거닌다
+test("모임 자리(TNR2): 공원·학교·광장·캠퍼스 수천 곳, 등급 9~12, 거니는 반지름 1.5~12m, 전부 구 근처", () => {
+  const s = decodeTraffic(read("toon-traffic.bin")).spots
+  assert.ok(s.count > 3000, `${s.count}`)
+  const by = new Map<number, number>()
+  for (let i = 0; i < s.count; i++) {
+    assert.ok(s.cls[i] >= TrafficClass.park && s.cls[i] <= TrafficClass.campus, `등급 ${s.cls[i]}`)
+    assert.ok(s.r[i] >= 1.5 && s.r[i] <= 12, `반지름 ${s.r[i]}`)
+    assert.ok(Math.abs(s.xz[i * 2]) < 4000 && Math.abs(s.xz[i * 2 + 1]) < 4000)
+    by.set(s.cls[i], (by.get(s.cls[i]) ?? 0) + 1)
+  }
+  for (const c of [TrafficClass.park, TrafficClass.school, TrafficClass.plaza, TrafficClass.campus]) assert.ok((by.get(c) ?? 0) > 100, `등급 ${c}: ${by.get(c)}`)
 })

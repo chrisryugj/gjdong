@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, MapMode, VizAction, WeatherKey } from "@/lib/dumping/types"
-import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, type CandidateFocus, type FlyKind } from "./map-geo"
+import { BIN_RECO_COLOR, BIN_RECO_LABEL, BASE_DEF, CIRCLE_DEF, COMP_COLOR, ENF_COLOR, INFRA_STYLE, REAL_BUILDING, ZERO_CELL, greyRamp, leadMetric, type CandidateFocus, type FlyKind } from "./map-geo"
 import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
-import { modelSwatches } from "./toon-palette"
+import { MODEL_DATA, modelSwatches } from "./toon-palette"
 import type { BasemapLook } from "@/lib/dumping/basemap-style"
 import { SKY_CHOICES, type SkyChoice } from "@/lib/dumping/map-weather"
 import { nbParen } from "@/lib/dumping/nobreak"
@@ -78,6 +78,12 @@ const NONE_MEANING_MODEL = (
 )
 const NONE_DESC_MODEL =
   "바탕 지표 없이 원·기둥·시설만 봅니다. 지붕 색은 브이월드 위성영상에서 동마다 가장 많은 색을 뽑았고, 박공지붕 여부도 같은 사진의 지붕 밝기 차로 가렸습니다. 외벽은 사진에 거의 보이지 않아 건축물대장의 용도·사용승인 연대·구조로 고른 재질입니다(벽이 찍힌 고층 일부만 사진 색)."
+
+// 26라운드 모형 보기 데이터 바탕(2026-10-10 "색입히는게 적절한 시각화 방식일지"): 다가구·단독은 땅 칸이 아니라 그 집들만 초록으로 칠하고(아파트를 칸 값으로 칠하던 오독 제거),
+// 다른 바탕은 건물을 무채색으로 두고 땅의 칸만 칠한다(toon-palette toonColors). 원(과태료·민원)은 땅의 빛 원·쓰레기봉투 더미·상위 3칸 숫자 카드(toon-hotspots)
+const UNM_MEANING_MODEL = "초록 건물은 건축물대장 주용도가 단독주택(다가구 포함)인 집. 적발 기록과 같이 움직이는 조건(판정은 과태료 기준)"
+const UNM_DESC_MODEL =
+  "모형에서는 땅을 칠하지 않고 집을 칠합니다. 초록은 주용도가 단독주택(다가구 포함)인 동이고 아파트·다세대·상가 등은 무채색입니다. 분석 변수 다가구·단독 밀집은 100m 칸마다 다가구 가구 수와 일반단독 동 수를 더한 값입니다."
 
 // 도움말을 펼쳤을 때 보이는 긴 설명. 수치는 데이터에서
 const baseDesc = (m: BaseMode, data: DumpingMapData | null): string => {
@@ -318,7 +324,7 @@ export function MapLayerPanel({ data, view, onChange, active, liveWeather = null
               <button
                 key={c.id}
                 aria-pressed={skyChoice === c.id}
-                title={c.id === "live" ? "광진구 지금 날씨(기상청 단기예보 실황)를 지도에 입힙니다" : `지도를 ${c.label} 날씨로 봅니다. 데이터 색은 그대로`}
+                title={c.id === "live" ? "광진구 지금 날씨(기상청 초단기실황)를 지도에 입힙니다" : `지도를 ${c.label} 날씨로 봅니다. 데이터 색은 그대로`}
                 onClick={() => onSky(c.id)}
                 className={`${CHIP_SM} ${skyChoice === c.id ? CHIP_ON : CHIP_OFF}`}
               >
@@ -506,12 +512,13 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
   const def = BASE_DEF[view.base === "none" ? "unm" : view.base]
   const grey = view.candidates && !selectedDong && !none // 후보 표시 중: 바탕 램프가 회색 단계(dumping-map greyMode)
   const model = none && view.tilt && look === "model"
+  const modelUnm = view.base === "unm" && view.tilt && look === "model"
 
   return (
     <div className="text-[13.5px] leading-snug text-[var(--cp-text)]">
       <div className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? (model ? "바탕 없음 · 건물 재질" : "바탕 없음 · 건물 층수") : `${def.legend} · 100m`}</span>
+          <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">{none ? (model ? "바탕 없음 · 건물 재질" : "바탕 없음 · 건물 층수") : modelUnm ? "다가구·단독 · 건물 주용도" : `${def.legend} · 100m`}</span>
         </div>
         {model ? (
           <ul className="flex flex-wrap gap-x-3 gap-y-1">
@@ -521,6 +528,21 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
                   {m.colors.map((c) => (
                     <i key={c} className="h-full flex-1" style={{ background: c }} />
                   ))}
+                </span>
+                {m.label}
+              </li>
+            ))}
+          </ul>
+        ) : modelUnm ? (
+          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+            {[
+              { label: "다가구·단독주택", c: MODEL_DATA[theme].house },
+              { label: "그 밖의 건물", c: MODEL_DATA[theme].other },
+            ].map((m) => (
+              <li key={m.label} className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-[var(--cp-text)]">
+                <span className="flex h-3 w-3.5 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-black/10" aria-hidden>
+                  <i className="h-full flex-1" style={{ background: m.c.roof }} />
+                  <i className="h-full flex-1" style={{ background: m.c.wall }} />
                 </span>
                 {m.label}
               </li>
@@ -540,8 +562,8 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
           </div>
         )}
         <p className="text-[var(--cp-text-muted)]">
-          {model ? NONE_MEANING_MODEL : BASE_MEANING[view.base]}
-          {view.tilt && !none && !grey && " 입체에서는 건물도 제 칸 색으로 칠함"}
+          {model ? NONE_MEANING_MODEL : modelUnm ? UNM_MEANING_MODEL : BASE_MEANING[view.base]}
+          {view.tilt && !none && !grey && !modelUnm && (look === "model" ? " 모형에서는 건물을 무채색으로 두고 땅의 칸만 칠함" : " 입체에서는 건물도 제 칸 색으로 칠함")}
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
         </p>
         {/* 22라운드(심사 냉독): 켜진 원·원기둥은 지도에서 가장 큰 요소라 설명 한 줄은 늘 보인다. 빈 칸 설명만 "자세한 설명" 안에 */}
@@ -552,7 +574,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
               style={{ borderColor: WEATHER_DEF[view.weather].color, background: `${WEATHER_DEF[view.weather].color}30` }}
             />
             <span>
-              원은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, 클수록 많음. 접수일 기준이라 투기 시각은 아님
+              {view.tilt ? "원기둥" : "원"}은 {WEATHER_DEF[view.weather].label}에 접수된 민원을 하루당으로 환산한 값, {view.tilt ? "높을수록" : "클수록"} 많음. 접수일 기준이라 투기 시각은 아님
               {data?.env.weatherDays && ` · 그 조건 ${data.env.weatherDays[view.weather]}일`}
             </span>
           </p>
@@ -565,7 +587,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
               />
               <span>
                 {view.tilt && !view.grid3d && look === "model"
-                  ? `${c === "comp" ? "청회" : "앰버"} 빛기둥은 ${CIRCLE_DEF[c].label} 건수, 높을수록 많음. 바닥 테는 평면 원과 같은 크기(칸 가운데)`
+                  ? `땅의 ${c === "comp" ? "청회" : "앰버"} 빛 원은 ${CIRCLE_DEF[c].label} 건수, 넓고 진할수록 많음${c === leadMetric(view.circles) ? `. 상위 24칸엔 쓰레기봉투 더미(봉투 하나에 약 3건)${view.dongBars ? "" : ", 상위 3칸엔 숫자 카드"}` : ""}`
                   : view.tilt && !view.grid3d
                   ? `${c === "comp" ? "청회" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
                   : `${c === "comp" ? "청회" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
@@ -596,7 +618,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
         </div>
         {showHelp && (
           <p className="border-t border-[var(--cp-border-faint)] pt-1.5 text-[13.5px] leading-relaxed text-[var(--cp-text-muted)]">
-            {model ? NONE_DESC_MODEL : baseDesc(view.base, data)}
+            {model ? NONE_DESC_MODEL : modelUnm ? UNM_DESC_MODEL : baseDesc(view.base, data)}
             {view.circles.length > 0 &&
               ` 그 위에 겹친 ${view.circles.map((c) => `${CIRCLE_DEF[c].label} 원`).join("과 ")}은 바탕(조건 쪽)과 결과를 한 칸에서 비교하려고 올린 것입니다.`}
           </p>

@@ -284,11 +284,17 @@ export function declareLayers(map: MlMap) {
 }
 
 // 테마에 따라 달라지는 지도 색. 데이터 색(램프·원·기둥)은 안 바꾼다. 마스크·격자선·동 외곽선·구 경계·건물·라벨 후광만
-export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLook = "paper") {
+/** diorama: 모형 + 입체(디오라마가 실제로 선 때). 탁자 마스크·경계 점선 끔은 그때만(평면에선 도면처럼) */
+export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLook = "paper", diorama = look === "model") {
   const dark = theme === "dark"
+  const table = look === "model" && diorama
   const ink = dark ? "#ece7dc" : "#14201c"
   const halo = dark ? "rgba(16,22,26,0.9)" : "rgba(251,249,243,0.94)"
-  if (map.getLayer(S.mask)) map.setPaintProperty(S.mask, "fill-color", dark ? "#0c1114" : "#ffffff")
+  // 26라운드 모형은 구를 잘라 낸 디오라마: 구 밖은 불투명한 탁자(모형 하늘 modelSkyFor 의 안개색과 같다). 도면은 예전처럼 옅게 덮기만
+  if (map.getLayer(S.mask)) {
+    map.setPaintProperty(S.mask, "fill-color", table ? (dark ? "#101a1f" : "#e9e5dd") : dark ? "#0c1114" : "#ffffff")
+    map.setPaintProperty(S.mask, "fill-opacity", table ? 1 : 0.55)
+  }
   // NSDI 건물은 바탕 effect가 칸 값으로 칠한다(중립색도 거기서 테마별로). 여기서는 구 밖 OSM 건물만
   // 모형 보기(23라운드)는 구 밖 건물도 모형 땅색에 맞춘 흰 모형 톤(구 안은 three 건물이 그린다)
   // 모형 보기(24라운드 실사)는 구 밖도 거의 불투명한 회백 배경 건물(구가 섬처럼 떠 보이지 않게)
@@ -307,7 +313,11 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
   const icons = map.getLayer("dump-icons3d") as unknown as { implementation?: { setTheme: (d: boolean) => void } } | undefined
   icons?.implementation?.setTheme(dark)
   map.setPaintProperty(S.dongColLabels, "text-halo-width", 2.6)
-  if (map.getLayer(S.ring)) map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
+  if (map.getLayer(S.ring)) {
+    map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
+    // 모형은 블록 모서리가 구 경계라 점선은 쉰다
+    map.setPaintProperty(S.ring, "line-opacity", table ? 0 : 0.8)
+  }
   // 핫스팟 바닥 배지(S.hotLabels)는 흰 글자+벽돌 후광이라 테마와 무관
   for (const id of [S.dongLabel, S.critLabels, L_COL_LABEL, S.dongColLabels]) {
     if (!map.getLayer(id)) continue

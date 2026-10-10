@@ -822,12 +822,37 @@ export function circleColumnsFC(data: DumpingMapData, circles: CircleId[]): FC {
       const lng = both ? lng0 + ((k === 0 ? -1 : 1) * 20) / (111320 * Math.cos((lat * Math.PI) / 180)) : lng0
       feats.push({
         type: "Feature",
-        properties: { dong: c[7] || "", v, h: CYL_MIN_M + (v / maxV) * (CYL_MAX_M - CYL_MIN_M), color: cdef.color, tip: cellTooltip(c, max) },
+        properties: { dong: c[7] || "", cid, v, h: CYL_MIN_M + (v / maxV) * (CYL_MAX_M - CYL_MIN_M), color: cdef.color, tip: cellTooltip(c, max) },
         geometry: discPolygon(lng, lat, r),
       })
     }
   })
   return fc(feats)
+}
+
+/** 26라운드 모형 숫자 카드·봉투 더미가 순위를 매길 지표: 과태료가 있으면 과태료(판정 기준), 없으면 민원 */
+export function leadMetric(cids: Iterable<unknown>): CircleId {
+  for (const c of cids) if (c === "enf") return "enf"
+  return "comp"
+}
+
+// 26라운드 모형 보기 숫자 카드: 원기둥(circleColumnsFC) 중 건수 상위 n칸. dong 은 지도 거르기와 같은 뜻(null 전부 · 동 이름 그 동만 · "\u0000" 없음),
+// cid 를 주면 그 지표만(두 원을 같이 켜면 지표가 섞여 순위가 틀렸다). 같은 건수면 먼저 온 칸
+export function topCells(cols: FC, n: number, dong: string | null, cid?: CircleId): { rank: number; lng: number; lat: number; dong: string; v: number; cid: CircleId }[] {
+  const cells: { lng: number; lat: number; dong: string; v: number; cid: CircleId }[] = []
+  for (const f of cols.features) {
+    const p = f.properties ?? {}
+    if (dong !== null && p.dong !== dong) continue
+    if (cid && p.cid !== cid) continue
+    if (f.geometry.type !== "Polygon") continue
+    const ring = f.geometry.coordinates[0].slice(0, -1)
+    if (!ring.length) continue
+    cells.push({ lng: ring.reduce((s, q) => s + q[0], 0) / ring.length, lat: ring.reduce((s, q) => s + q[1], 0) / ring.length, dong: String(p.dong ?? ""), v: Number(p.v) || 0, cid: p.cid as CircleId })
+  }
+  return cells
+    .sort((a, b) => b.v - a.v)
+    .slice(0, n)
+    .map((c, i) => ({ rank: i + 1, ...c }))
 }
 
 // 날씨별 원을 원기둥으로. 평면과 같은 상대 크기(조건 안 최댓값 대비)

@@ -1,5 +1,5 @@
 // /dumping 지도 날씨(23라운드, 2026-10-09 사용자: "현재 날씨에 따라 지도에 반영, 수동으로도 설정"). 순수 계산.
-// 실황은 헤더가 이미 받는 기상청 단기예보(/api/snow/forecast, WMO 코드로 옮긴 값)이고, 비·눈·안개 판정은 /snow와 같은 lib/snow/weather.ts weatherFx.
+// 실황은 헤더가 이미 받는 기상청 초단기실황(/api/snow/forecast now, WMO 코드로 옮긴 값. 2026-10-10 전엔 단기예보 이번 시각 칸)이고, 비·눈·안개 판정은 /snow와 같은 lib/snow/weather.ts weatherFx.
 // 여기서는 그 위에 맑음·흐림을 가르고(WMO 0~2 맑음, 3 흐림), 날씨마다 지도 분위기 값(조명 배율·그림자·구름 수·눈 덮임·젖은 땅·하늘 안개)을 정한다.
 // 데이터 문법은 안 건드린다: 지도 압출·모형 건물의 칸 색, 기둥·숫자는 그대로이고, 눈은 데이터 색이 없는 지붕(바탕 없음)에만 쌓인다(toon-layer)
 import type { SkySpecification } from "maplibre-gl"
@@ -93,6 +93,14 @@ export function mapSkyFor(w: SkyWeather, dark: boolean): SkySpecification {
     case "fog":
       return dark ? sky("#2a313a", "#3a424c", "#363e47", 0.32 - 0.2 * lv, 1) : sky("#e6e9ea", "#eef0f0", "#eceeee", 0.32 - 0.2 * lv, 1)
   }
+}
+
+/** 모형 보기 하늘(26라운드 디오라마): 맑으면 탁자와 같은 색의 촬영 배경(지평선이 구 밖 탁자로 이어진다), 날씨가 있으면 그 하늘 */
+export function modelSkyFor(w: SkyWeather, dark: boolean): SkySpecification {
+  if (w.kind !== "clear") return mapSkyFor(w, dark)
+  return dark
+    ? { "sky-color": "#0e171c", "horizon-color": "#16222a", "fog-color": "#111c22", "fog-ground-blend": 0.55, "horizon-fog-blend": 0.9, "sky-horizon-blend": 0.9, "atmosphere-blend": 0 }
+    : { "sky-color": "#ece8e1", "horizon-color": "#f3f0ea", "fog-color": "#e9e5dd", "fog-ground-blend": 0.55, "horizon-fog-blend": 0.9, "sky-horizon-blend": 0.9, "atmosphere-blend": 0 }
 }
 
 /** 화면 전체 옅은 색조(weather-overlay, 움직이지 않는 덮개). 조망처럼 하늘이 안 보이는 화면에서도 날씨가 읽히게. 데이터 색이 흐려지지 않게 12% 아래 */

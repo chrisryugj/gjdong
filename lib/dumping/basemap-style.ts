@@ -122,13 +122,13 @@ const NIGHT: Partial<Flavor> = {
   ocean_label: "#6f8fae",
 }
 
-// 모형 보기(23라운드 카툰 → 24라운드 실사): 밝은 회백 도시 땅 · 흰 길 · 자연 녹지 · 푸른 강. 항공사진을 깨끗하게 칠한 톤.
+// 모형 보기(23라운드 카툰 → 24라운드 실사 → 26라운드 디오라마): 밝은 회백 도시 땅 · 흰 길 · 자연 녹지 · 청록 강(레퍼런스 강릉 지도 물빛). 항공사진을 깨끗하게 칠한 톤.
 // 데이터 램프(초록·파랑·앰버·청회)가 건물 위에 서야 해서 땅은 채도를 눌렀다(녹지·물만 색이 있다)
 const TOON: Partial<Flavor> = {
   background: "#dcd9d2",
   earth: "#e4e2dc",
   buildings: "#d9d5cc",
-  water: "#a2c4cf",
+  water: "#93c5be",
   park_a: "#bfd3a4",
   park_b: "#b2ca95",
   wood_a: "#a8c48c",
@@ -199,15 +199,17 @@ export type BasemapTheme = "light" | "dark"
 export type BasemapLook = "paper" | "model"
 // 지형 과장 배율. 지도 setTerrain 과 모형 건물·나무 바닥 높이가 같은 값을 써야 땅에 붙는다
 export const TERRAIN_EXAG = 1.4
-export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme = "light", look: BasemapLook = "paper"): StyleSpecification {
+/** diorama: 모형 디오라마가 실제로 서 있을 때(모형 + 입체). 평면이면 모형 표현이라도 바탕 기호를 살린다(평면엔 three 건물이 없어 지명이 가려질 일이 없다, 26라운드 검증) */
+export function buildBasemapStyle(ring: [number, number][], theme: BasemapTheme = "light", look: BasemapLook = "paper", diorama = look === "model"): StyleSpecification {
   const model = look === "model"
   const flavor: Flavor = theme === "dark" ? { ...namedFlavor("dark"), ...(model ? TOON_NIGHT : NIGHT) } : { ...namedFlavor("light"), ...(model ? TOON : PAPER) }
   const ringPoly = { type: "Polygon" as const, coordinates: [ring.map((p) => [p[1], p[0]])] }
-  // 모형은 골목길 이름을 숨긴다: 기호 레이어는 건물에 가려지지 않아 가까이 보면 지붕 위에 길 이름이 떠 있었다(24라운드 근접 캡처).
+  // 모형은 바탕 기호(길 이름·지명·물 이름)를 전부 숨긴다: 기호는 건물에 가려지지 않아 지붕 위에 길 이름이 떴고(24라운드),
+  // 26라운드 디오라마는 구 밖이 탁자라 구 밖 지명이 허공에 뜬다. 이름은 우리 동 라벨·랜드마크 이름표가 맡는다.
   // 빼지 않고 visibility 로만 숨겨 네 조합(테마 × 표현)의 레이어 구성을 같게 둔다(dumping-map 은 setStyle 대신 칠하기만 바꾼다, restyleBasemap)
   const layers: LayerSpecification[] = basemapLayers(BASEMAP_SOURCE, flavor, { lang: "ko" })
     .filter((l) => !DROP.has(l.id))
-    .map((l) => (l.id === "roads_labels_minor" ? ({ ...l, layout: { ...l.layout, visibility: model ? "none" : "visible" } } as LayerSpecification) : l))
+    .map((l) => (l.type === "symbol" ? ({ ...l, layout: { ...l.layout, visibility: model && diorama ? "none" : "visible" } } as LayerSpecification) : l))
     .map((l) => {
       if (l.id !== "places_subplace") return l
       const filter: FilterSpecification = [

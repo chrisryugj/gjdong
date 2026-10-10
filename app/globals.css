@@ -931,6 +931,36 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px rgba(28, 26, 21, 0.16);
 }
 :root[data-theme="dark"] .dumping-map .dump-focus-label { background: rgba(20, 27, 32, 0.82); border-color: rgba(255, 255, 255, 0.14); }
+/* 26라운드 모형 숫자 카드(원기둥 상위 세 칸). 지도가 움직일 때마다 자리를 옮기니 흐림(backdrop-filter) 없이 거의 불투명한 종이 카드 + 아래 꼬리 */
+.dumping-map .dump-callout {
+  /* position 은 건드리지 않는다: maplibre 마커의 absolute 를 relative 로 덮으면 지도 폭 전체 띠가 된다(첫 캡처 실측) */
+  pointer-events: none;
+  padding: 6px 11px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.3;
+  color: var(--cp-text-strong, #1c1a15);
+  background: rgba(251, 249, 243, 0.96);
+  border: 1px solid rgba(28, 26, 21, 0.12);
+  box-shadow: 0 8px 20px rgba(28, 26, 21, 0.2);
+}
+.dumping-map .dump-callout::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-bottom: 0;
+  border-top-color: rgba(251, 249, 243, 0.96);
+}
+.dumping-map .dump-callout b { display: block; font-size: 13px; font-weight: 700; }
+.dumping-map .dump-callout span { display: block; font-size: 12.5px; color: var(--cp-text-dim, #5c574c); }
+.dumping-map .dump-callout i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 9999px; vertical-align: 1px; }
+.dumping-map .dump-callout em { font-style: normal; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--cp-text-strong, #1c1a15); }
+:root[data-theme="dark"] .dumping-map .dump-callout { background: rgba(20, 27, 32, 0.94); border-color: rgba(255, 255, 255, 0.14); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); }
+:root[data-theme="dark"] .dumping-map .dump-callout::after { border-top-color: rgba(20, 27, 32, 0.94); }
 
 /* ── /dumping 시연 다듬기 (2026-09-15). 모노 숫자 옆 한글 폴백·등장 애니메이션·청취/생각 중 표시·동별 3D 막대 ── */
 /* Tailwind 모노 스택(Consolas 등)에 한글이 없어 "배·곳·건"이 굴림 계열로 떨어졌다(윈도 실측). 한글은 본문 서체(SUIT)로 */

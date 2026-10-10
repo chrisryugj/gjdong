@@ -32,6 +32,17 @@ const TRUCK_SPEED = 9 // m/s(약 32km/h)
 const APPEAR_MS = 650
 const LAT0 = 37.546
 const metersPerPixel = (z: number) => (156543.03392 * Math.cos((LAT0 * Math.PI) / 180)) / Math.pow(2, z)
+// 26라운드 모형 보기(2026-10-10 사용자: "3D 개체 가독·가시성이 지금 3D 지도에 맞는지"): 위 식은 256px 타일 공식이라 실제(maplibre 512px)의 2배다(/snow 6라운드 실측).
+// 도면 보기 크기는 그대로 두고(동결), 모형 보기만 실제 값으로 잰다. 시설은 집만 한 크기(실물 4배 × 2)로 동네를 덮었다 → 화면 MODEL_PX 를 목표로 하되 실물 MODEL_MIN~MODEL_MAX 배 안에서만.
+// 시설은 늘 위에 그린다: 주소로 찍은 좌표라 의류수거함 81%·재활용정거장 93%·이동식 CCTV 93%가 건물 윤곽 안이다(2026-10-10 실측). 건물 깊이와 겨루게 했더니 거의 다 건물 속에 묻혔다.
+// 도로 위를 달리는 청소차만 건물과 깊이를 겨룬다(뒤에 있으면 가려진다)
+const MODEL_PX = 16
+const MODEL_MIN = 1.5
+const MODEL_MAX = 4
+const MODEL_TRUCK = { px: 14, min: 1.3, max: 3 }
+const WORLD = 1 // 모형 보기에서 건물과 깊이를 겨루는 층(청소차)
+const MARK = 2 // 늘 위에 그리는 층(시설·후보 핀·고리·순위 숫자)
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2)
 
 interface Part {
@@ -43,6 +54,7 @@ interface KindDef {
   height: number // 모델 높이(m). 화면 크기 계산 기준
   maxScale: number // 화면 크기 유지를 위한 확대 상한(배)
   parts: Part[]
+  real?: number // 시설 실물 높이(m). 모형 보기 크기의 기준(없으면 마커라 도면 규칙 그대로)
 }
 
 const lambert = (color: string, extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color, ...extra })
@@ -85,6 +97,7 @@ function buildDefs(): Record<IconKind, KindDef> {
     cctvMobile: {
       height: 12.6,
       maxScale: DENSE_MAX,
+      real: 5.5,
       parts: [
         plate(1.4, dark),
         pole(0.42, 11, mobile),
@@ -96,11 +109,13 @@ function buildDefs(): Record<IconKind, KindDef> {
     cctvFixed: {
       height: 11.5,
       maxScale: DENSE_MAX,
+      real: 6,
       parts: [plate(1.4, dark), pole(0.42, 10, fixed), { geom: new THREE.SphereGeometry(1.3, 14, 10), mat: lambert(fixed), local: at(0, 10.4, 0) }],
     },
     clothBins: {
       height: 11,
       maxScale: DENSE_MAX,
+      real: 1.9,
       parts: [
         { geom: new THREE.BoxGeometry(5.2, 8.4, 4.0), mat: lambert(cloth), local: at(0, 4.2, 0) },
         { geom: new THREE.BoxGeometry(5.9, 1.2, 4.7), mat: lambert("#0a5d70"), local: at(0, 9.0, 0) },
@@ -110,6 +125,7 @@ function buildDefs(): Record<IconKind, KindDef> {
     recycling: {
       height: 8,
       maxScale: DENSE_MAX,
+      real: 2.2,
       parts: [
         { geom: new THREE.BoxGeometry(11, 1.0, 7), mat: lambert("#6b7280"), local: at(0, 0.5, 0) },
         { geom: new THREE.CylinderGeometry(1.7, 1.5, 5.4, 12), mat: lambert(recy), local: at(-3.4, 3.7, 0) },
@@ -120,6 +136,7 @@ function buildDefs(): Record<IconKind, KindDef> {
     bins: {
       height: 8,
       maxScale: DENSE_MAX,
+      real: 1.2,
       parts: [
         { geom: new THREE.CylinderGeometry(2.1, 1.9, 6.4, 14), mat: lambert(bin), local: at(0, 3.2, 0) },
         { geom: new THREE.CylinderGeometry(2.4, 2.4, 0.9, 14), mat: lambert("#1f2937"), local: at(0, 6.85, 0) },
@@ -143,6 +160,7 @@ function buildDefs(): Record<IconKind, KindDef> {
     binReco: {
       height: 8,
       maxScale: DENSE_MAX,
+      real: 1.2,
       parts: [
         { geom: new THREE.CylinderGeometry(2.1, 1.9, 6.4, 14), mat: lambert(BIN_RECO_COLOR, { transparent: true, opacity: 0.55 }), local: at(0, 3.2, 0) },
         { geom: new THREE.CylinderGeometry(2.4, 2.4, 0.9, 14), mat: lambert(BIN_RECO_COLOR, { transparent: true, opacity: 0.75 }), local: at(0, 6.85, 0) },
@@ -244,6 +262,7 @@ export class Icons3DLayer implements CustomLayerInterface {
   private readonly hull = hullMaterial(this.hullU, "#2a2722", 1)
   private accent = "#c0741a"
   private dark = false
+  private modelLook = false
   private anchor = maplibregl.MercatorCoordinate.fromLngLat(ANCHOR, 0)
   private scale = this.anchor.meterInMercatorCoordinateUnits()
   // 모델 원점 행렬: 원점 이동, Z 180도, X 90도, 미터 스케일(x 뒤집기). maplibre 5 내부 transform.getMatrixForModel(ANCHOR, 0) 과 같은 값인데
@@ -258,6 +277,9 @@ export class Icons3DLayer implements CustomLayerInterface {
     const hemi = new THREE.HemisphereLight(0xffffff, 0x8f8a7c, 1.1)
     const sun = new THREE.DirectionalLight(0xffffff, 1.4)
     sun.position.set(0.5, 1, 0.7)
+    // 빛은 두 층(WORLD·MARK) 모두 비춘다(three 는 빛도 층으로 거른다)
+    hemi.layers.enableAll()
+    sun.layers.enableAll()
     this.scene.add(hemi, sun)
   }
 
@@ -357,6 +379,14 @@ export class Icons3DLayer implements CustomLayerInterface {
     this.map?.triggerRepaint()
   }
 
+  /** 모형 보기면 시설·청소차를 실물에 가까운 크기로, 청소차는 건물과 깊이를 겨루게(26라운드) */
+  setLook(model: boolean) {
+    if (this.modelLook === model) return
+    this.modelLook = model
+    this.lastZoom = -1
+    this.map?.triggerRepaint()
+  }
+
   /** 종류의 점 전체를 바꾼다. 빈 배열이면 치운다. 새로 놓인 아이콘은 솟아오르며 나타난다 */
   setPoints(kind: IconKind, points: IconPoint[]) {
     this.rebuild(kind, points, true)
@@ -417,6 +447,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     const meshes = def.parts.map((part) => {
       const mesh = new THREE.InstancedMesh(part.geom, part.mat, points.length)
       mesh.frustumCulled = false
+      mesh.layers.set(MARK)
       this.scene.add(mesh)
       return mesh
     })
@@ -426,6 +457,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       points.forEach((p, i) => {
         const rank = p.rank ?? i + 1
         const coin = makeDigit(String(rank), this.digitColor(kind, p, rank), this.dark ? DIGIT_PAPER.dark : DIGIT_PAPER.light)
+        for (const c of coin.children) c.layers.set(MARK)
         coins.push(coin)
         this.scene.add(coin)
         // 후보 상위 3: 바닥에 앰버 고리(초점 고리와 같은 문법). 오른쪽 목록의 채운 배지 1·2·3과 짝
@@ -433,6 +465,7 @@ export class Icons3DLayer implements CustomLayerInterface {
           const ring = new THREE.Mesh(RING_GEOM, new THREE.MeshBasicMaterial({ color: CRIT_COLOR, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }))
           ring.rotation.x = -Math.PI / 2
           ring.renderOrder = 5
+          ring.layers.set(MARK)
           rings.push(ring)
           this.scene.add(ring)
         }
@@ -454,6 +487,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     if (!map || !defs) return false
     const zoom = map.getZoom()
     const mpp = metersPerPixel(zoom)
+    const mppTrue = mpp / 2
     // 숫자는 카메라 방위를 따라 선다. 모델 행렬이 x를 뒤집어(getMatrixForModel scale -x) 부호가 반대: rotation.y = -bearing(방위 90·-18 실측)
     const face = (-map.getBearing() * Math.PI) / 180
     // 조망이면 종류마다 상위 DIGIT_TOP_N개 숫자만. 문턱 근처에서 줌이 흔들려도 들락거리지 않게 히스테리시스
@@ -468,7 +502,10 @@ export class Icons3DLayer implements CustomLayerInterface {
       const appearing = st.appearAt > 0 && now - st.appearAt < APPEAR_MS
       const zoomChanged = Math.abs(zoom - this.lastZoom) >= 0.01
       animating ||= appearing
-      const k = Math.min(def.maxScale, Math.max(1, (TARGET_PX * mpp) / def.height))
+      const k =
+        this.modelLook && def.real
+          ? clamp((MODEL_PX * mppTrue) / def.height, (MODEL_MIN * def.real) / def.height, (MODEL_MAX * def.real) / def.height)
+          : Math.min(def.maxScale, Math.max(1, (TARGET_PX * mpp) / def.height))
       const a = appearing ? easeOutBack(Math.min(1, (now - st.appearAt) / APPEAR_MS)) : 1
       if (st.meshes.length && (appearing || zoomChanged)) {
         st.pos.forEach((p, i) => {
@@ -524,7 +561,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     // 청소차: 체인 위를 등속으로. 방향은 진행 방향
     if (this.trucks.length && this.truckMeshes.length) {
       const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 0
-      const kt = Math.min(TRUCK_MAX_SCALE, Math.max(1, (TRUCK_PX * mpp) / TRUCK_LEN))
+      const kt = this.modelLook ? clamp((MODEL_TRUCK.px * mppTrue) / TRUCK_LEN, MODEL_TRUCK.min, MODEL_TRUCK.max) : Math.min(TRUCK_MAX_SCALE, Math.max(1, (TRUCK_PX * mpp) / TRUCK_LEN))
       this.trucks.forEach((t, i) => {
         const total = t.cum[t.cum.length - 1]
         t.dist += t.dir * TRUCK_SPEED * dt
@@ -543,7 +580,10 @@ export class Icons3DLayer implements CustomLayerInterface {
         const x = A.x + (B.x - A.x) * f
         const z = A.z + (B.z - A.z) * f
         const heading = Math.atan2((B.z - A.z) * t.dir, (B.x - A.x) * t.dir)
-        const y = map.queryTerrainElevation([t.chain.coords[j - 1][0], t.chain.coords[j - 1][1]]) ?? 0
+        // 높이는 차가 선 자리에서(구간 시작 꼭짓점 하나로 재면 경사로에서 최대 26m 묻혔다. 모형 보기는 깊이를 겨뤄 안 보였다, 검증 실측)
+        const c0 = t.chain.coords[j - 1]
+        const c1 = t.chain.coords[j]
+        const y = map.queryTerrainElevation([c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f]) ?? 0
         sc.makeScale(kt, kt, kt)
         const rot = new THREE.Matrix4().makeRotationY(-heading)
         this.truckMeshes.forEach((mesh, m) => {
@@ -581,6 +621,7 @@ export class Icons3DLayer implements CustomLayerInterface {
     this.truckMeshes = this.truckParts.map((part) => {
       const mesh = new THREE.InstancedMesh(part.geom, part.mat, this.trucks.length)
       mesh.frustumCulled = false
+      mesh.layers.set(WORLD)
       this.scene.add(mesh)
       return mesh
     })
@@ -597,11 +638,25 @@ export class Icons3DLayer implements CustomLayerInterface {
     const proj = new THREE.Matrix4().fromArray(Array.from(args.defaultProjectionData.mainMatrix as unknown as ArrayLike<number>))
     this.camera.projectionMatrix = proj.multiply(this.model)
     // 건물·기둥 깊이를 지우고 그린다(카메라가 움직일 때 4~13px 핀이 건물 뒤로 들락거리며 깜박이던 것. /snow 0ed2bdd와 같은 수리).
-    // 핀·청소차는 마커처럼 늘 위, 핀끼리는 깊이 검사 유지. 이 층 뒤는 라벨(깊이 없음)뿐
-    _gl.depthMask(true)
-    _gl.clear(_gl.DEPTH_BUFFER_BIT)
+    // 핀·청소차는 마커처럼 늘 위, 핀끼리는 깊이 검사 유지. 이 층 뒤는 라벨(깊이 없음)뿐.
+    // 26라운드 모형 보기: 청소차(WORLD)는 먼저 건물 깊이와 겨뤄 그리고(도로 위 실물 크기라 건물 뒤면 가려진다), 깊이를 지운 뒤 시설·핀·숫자(MARK)를 늘 위에
+    const clearDepth = () => {
+      _gl.depthMask(true)
+      _gl.clear(_gl.DEPTH_BUFFER_BIT)
+      this.renderer?.resetState()
+    }
     this.renderer.resetState()
-    this.renderer.render(this.scene, this.camera)
+    if (this.modelLook) {
+      this.camera.layers.set(WORLD)
+      this.renderer.render(this.scene, this.camera)
+      clearDepth()
+      this.camera.layers.set(MARK)
+      this.renderer.render(this.scene, this.camera)
+    } else {
+      clearDepth()
+      this.camera.layers.enableAll()
+      this.renderer.render(this.scene, this.camera)
+    }
     if (animating) map.triggerRepaint()
   }
 }

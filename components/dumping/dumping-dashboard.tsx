@@ -256,22 +256,27 @@ export default function DumpingDashboard() {
     }
   }, [auth, loadSeq])
 
-  // 지금 날씨(/snow 이식): 기상청 단기예보 광진구 격자(/api/snow/forecast, 30분 캐시). 헤더 "지금 N° 날씨"와 날씨별 민원 원의 "지금 조건" 표시가 쓴다.
+  // 지금 날씨(/snow 이식): 기상청 광진구 격자(/api/snow/forecast, 10분 캐시). 헤더 "지금 N° 날씨"와 날씨별 민원 원의 "지금 조건" 표시가 쓴다.
   // 23라운드(사용자 요청 "현재 날씨에 따라 지도에 반영, 수동으로도"): 16라운드에 장식이라 뺐던 눈·비 표현을 지도 날씨(skyOf)로 들였다. 데이터 색·기둥은 그대로이고
   // 날씨별 원(그 조건에 접수된 민원)은 따로 있는 데이터 층이다(liveWeather)
+  // 2026-10-10: 로그인 때 한 번만 받아 켜 둔 화면의 "지금"이 안 바뀌었다 → 서버 캐시(10분)와 같은 간격으로 다시 받는다. 값은 초단기실황(라우트 nowBasis)
   const [wx, setWx] = useState<{ temp: number; code: number } | null>(null)
   useEffect(() => {
     if (auth !== "open") return
     let alive = true
-    fetch("/api/snow/forecast")
-      .then((r) => (r.ok ? (r.json() as Promise<SnowForecast>) : null))
-      .then((f) => {
-        const now = f?.now ?? f?.hours?.[0] ?? null
-        if (alive && now) setWx({ temp: now.temp, code: now.code })
-      })
-      .catch(() => {})
+    const pull = () =>
+      fetch("/api/snow/forecast")
+        .then((r) => (r.ok ? (r.json() as Promise<SnowForecast>) : null))
+        .then((f) => {
+          const now = f?.now ?? f?.hours?.[0] ?? null
+          if (alive && now) setWx((w) => (w && w.temp === now.temp && w.code === now.code ? w : { temp: now.temp, code: now.code }))
+        })
+        .catch(() => {})
+    pull()
+    const id = window.setInterval(pull, 10 * 60 * 1000)
     return () => {
       alive = false
+      window.clearInterval(id)
     }
   }, [auth])
   const liveWeather = wx ? liveWeatherKey(wx.temp, wx.code) : null

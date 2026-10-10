@@ -7,9 +7,9 @@ import type { ForecastHour, SnowForecast, SnowWarning } from "@/lib/snow/types"
 //   발표 시각은 02·05·08·11·14·17·20·23시, 각 발표는 약 10분 뒤에 열린다 → 가장 최근 발표 시각(지금-10분 기준)을 쓴다
 // 특보: WthrWrnInfoService getPwnStatus stnId=109(서울). t6=현재 특보 텍스트("o 없 음" 또는 "o 대설주의보 : 서울…"). 대설만 단계 판정에 쓴다
 // 폴백: Open-Meteo best_match(키 없음). ★kma_seamless 모델은 이 좌표에서 전부 null(2026-09-20 실측). null 시각은 버린다(0으로 바꾸면 "최저 0도 결빙" 거짓 화면)
-// 서버 30분 캐시. 브라우저·CDN도 같은 시간(s-maxage)
+// 서버 10분 캐시(지금 날씨가 실황이라 30분에서 줄임). 브라우저·CDN도 같은 시간(s-maxage)
 
-export const revalidate = 1800
+export const revalidate = 600
 
 const LAT = 37.5385
 const LNG = 127.0823
@@ -49,6 +49,44 @@ interface KmaItem {
   fcstValue: string
 }
 
+// WMO 비슷하게: 눈이면 71, 비/눈 68, 비 61, 흐림 3, 구름 2, 맑음 0
+const wmoOf = (pty?: number, sky?: number) =>
+  pty === 3 || pty === 7 ? 71 : pty === 2 || pty === 6 ? 68 : pty === 1 || pty === 4 || pty === 5 ? 61 : sky === 4 ? 3 : sky === 3 ? 2 : 0
+
+const kmaGet = async (op: string, base: { base_date: string; base_time: string }) => {
+  const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/${op}?serviceKey=${KEY}&numOfRows=100&pageNo=1&dataType=JSON&base_date=${base.base_date}&base_time=${base.base_time}&nx=${NX}&ny=${NY}`
+  const r = await fetch(url, { next: { revalidate } })
+  if (!r.ok) return []
+  // eslint-disable-next-line no-control-regex
+  const j = JSON.parse((await r.text()).replace(/[\x00-\x1f]/g, " ")) as { response?: { header?: { resultCode?: string }; body?: { items?: { item?: (Partial<KmaItem> & { category: string; obsrValue?: string })[] } } } }
+  return j.response?.header?.resultCode === "00" ? (j.response?.body?.items?.item ?? []) : []
+}
+
+// 지금 날씨(2026-10-10 사용자 "실시간 날씨 제대로 작동하나"): 단기예보의 이번 시각 칸은 최대 3시간 전 예측이라 갑자기 오는 비를 늦게 안다.
+// 기온·강수 형태는 초단기실황(매시 정각 관측, 10분 뒤 열림. 아직이면 한 시간 전), 하늘 상태는 실황에 없어 초단기예보(매시 30분 발표, 45분 뒤 열림)의 가장 가까운 시각
+async function fromNowcast(now: Date): Promise<{ temp: number; pty: number; sky: number | null; at: string } | null> {
+  if (!KEY) return null
+  const hourBase = (minus: number) => {
+    const t = new Date(now.getTime() - minus * 60 * 1000)
+    return { base_date: ymd(t), base_time: `${pad(t.getHours())}00` }
+  }
+  let base = hourBase(10)
+  let obs = await kmaGet("getUltraSrtNcst", base)
+  if (!obs.length) {
+    base = hourBase(70)
+    obs = await kmaGet("getUltraSrtNcst", base)
+  }
+  const val = (c: string) => obs.find((it) => it.category === c)?.obsrValue
+  const temp = parseFloat(val("T1H") ?? "")
+  if (!Number.isFinite(temp)) return null
+  const pty = parseInt(val("PTY") ?? "0", 10)
+  const t30 = new Date(now.getTime() - 45 * 60 * 1000)
+  const fc = await kmaGet("getUltraSrtFcst", { base_date: ymd(t30), base_time: `${pad(t30.getHours())}30` })
+  const mins = (it: Partial<KmaItem>) => Math.abs(new Date(`${it.fcstDate?.slice(0, 4)}-${it.fcstDate?.slice(4, 6)}-${it.fcstDate?.slice(6, 8)}T${it.fcstTime?.slice(0, 2)}:${it.fcstTime?.slice(2, 4)}:00`).getTime() - now.getTime())
+  const sky = fc.filter((it) => it.category === "SKY").sort((a, b) => mins(a) - mins(b))[0]?.fcstValue
+  return { temp, pty: Number.isFinite(pty) ? pty : 0, sky: sky ? parseInt(sky, 10) : null, at: `${base.base_time.slice(0, 2)}시 관측` }
+}
+
 async function fromKma(now: Date): Promise<Omit<SnowForecast, "warning"> | null> {
   if (!KEY) return null
   const base = latestBase(now)
@@ -75,9 +113,7 @@ async function fromKma(now: Date): Promise<Omit<SnowForecast, "warning"> | null>
   const hours: ForecastHour[] = []
   for (const [t, v] of [...byT.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (t < nowKey || v.temp == null) continue
-    // WMO 비슷하게: 눈이면 71, 비/눈 68, 비 61, 흐림 3, 구름 2, 맑음 0
-    const code = v.pty === 3 || v.pty === 7 ? 71 : v.pty === 2 || v.pty === 6 ? 68 : v.pty === 1 || v.pty === 4 || v.pty === 5 ? 61 : v.sky === 4 ? 3 : v.sky === 3 ? 2 : 0
-    hours.push({ t, temp: v.temp, snow: v.snow ?? 0, code })
+    hours.push({ t, temp: v.temp, snow: v.snow ?? 0, code: wmoOf(v.pty, v.sky) })
   }
   if (!hours.length) return null
   const sum = (n: number) => hours.slice(0, n).reduce((s, x) => s + x.snow, 0)
@@ -155,9 +191,14 @@ export async function GET() {
       base = null
     }
     if (!base) base = await fromOpenMeteo(now)
-    const warning = await fromWarning()
-    const body: SnowForecast = { ...base, warning }
-    return NextResponse.json(body, { headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=600" } })
+    const [warning, cast] = await Promise.all([fromWarning(), fromNowcast(now).catch(() => null)])
+    // 적설(cm)은 실황에 없어 이번 시각 예보 칸 값을 그대로 둔다. 하늘 상태를 못 받았고 강수도 없으면 가장 가까운 예보 칸의 하늘(맑음·구름·흐림)을 쓴다.
+    // 단기예보 이번 칸(base.now)은 매 발표 직후 한 시간 동안 비어 있어(첫 예보 시각이 발표 다음 시각) 다음 칸으로, 그 칸이 비·눈·안개여도 관측엔 강수가 없으니 흐림만
+    const near = base.now ?? base.hours[0] ?? null
+    const code = cast ? (cast.sky == null && cast.pty === 0 ? (near ? (near.code >= 45 ? 3 : near.code) : 0) : wmoOf(cast.pty, cast.sky ?? undefined)) : 0
+    const nowRow = cast ? { temp: cast.temp, code, snow: base.now?.snow ?? base.hours[0]?.snow ?? 0 } : base.now
+    const body: SnowForecast = { ...base, now: nowRow, nowBasis: cast ? `기상청 초단기실황(${cast.at})` : base.now ? `${base.model} 이번 시각` : undefined, warning }
+    return NextResponse.json(body, { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=300" } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "forecast failed" }, { status: 502 })
   }

@@ -17,8 +17,9 @@ import type { IconKind, IconPoint, Icons3DLayer } from "./icons3d"
 import type { ToonLayer } from "./toon-layer"
 import WeatherOverlay from "./weather-overlay"
 import FlightHud from "./flight-hud"
+import { MapCallouts } from "./map-callouts"
 import { FreeFlight, runIntro, type CameraPose, type IntroEvent } from "./map-flight"
-import { NO_SKY, mapSkyFor, type SkyWeather } from "@/lib/dumping/map-weather"
+import { NO_SKY, mapSkyFor, modelSkyFor, type SkyWeather } from "@/lib/dumping/map-weather"
 import { tallyInfra } from "@/lib/dumping/facts"
 import "maplibre-gl/dist/maplibre-gl.css"
 import type { BaseMode, CircleId, DumpingMapData, InfraLayerId, WeatherKey } from "@/lib/dumping/types"
@@ -154,9 +155,11 @@ function pillIcon(dark: boolean): { data: ImageData; pixelRatio: number; stretch
   return { data: ctx.getImageData(0, 0, w, h), pixelRatio: ratio, stretchX: [[h / 2, w - h / 2]], stretchY: [[h / 2 - ratio, h / 2 + ratio]], content: [h / 2 - 2 * ratio, 4 * ratio, w - h / 2 + 2 * ratio, h - 4 * ratio] }
 }
 
-// 모형 보기 빛기둥(24라운드): 지도 기둥 레이어와 같은 데이터·색. 상습격자는 레이어 고정색. 굵기는 발자국 반지름 비율(동별 기둥은 조금 굵게)
+// 모형 보기 기둥(24라운드 빛기둥 → 26라운드 칠한 블록, toon-beams): 지도 기둥 레이어와 같은 데이터·색. 상습격자는 레이어 고정색.
+// 굵기는 지도 발자국 비율(동별 96m → 60m, 격자 60m → 36m, 핫스팟 72m → 40m), 화면 최소 폭(px)은 조망에서도 막대로 읽히게(동별은 15곳이라 굵게)
 const BEAM_COLOR: Partial<Record<string, string>> = { [S.critCols]: CRIT_COLOR }
-const BEAM_THIN: Partial<Record<string, number>> = { [S.dongCols]: 0.4, [S.cols]: 0.34, [S.critCols]: 0.34 }
+const BEAM_THIN: Partial<Record<string, number>> = { [S.dongCols]: 0.62, [S.cols]: 0.6, [S.critCols]: 0.6, [S.hotCols]: 0.55, [S.weatherCols]: 0.55 }
+const BEAM_MIN_PX: Partial<Record<string, number>> = { [S.dongCols]: 11, [S.cols]: 5, [S.critCols]: 7, [S.hotCols]: 8, [S.weatherCols]: 5 }
 
 interface DumpingMapProps {
   data: DumpingMapData | null
@@ -301,9 +304,9 @@ export default function DumpingMap({
     toonRef.current?.setVisible(toonOn)
     try {
       if (map.getLayer(L_BUILDINGS_NSDI)) map.setLayoutProperty(L_BUILDINGS_NSDI, "visibility", tiltRef.current && !toonOn ? "visible" : "none")
-      // 구 밖 배경 건물(24라운드: 빌드 때 구 밖만 뽑아 구 안 유령 건물이 없다). 두 표현 다 세운다(모형에서 구가 섬처럼 뜨지 않게)
-      map.setLayoutProperty(L_BUILDINGS, "visibility", tiltRef.current ? "visible" : "none")
-      // 모형이면 기둥은 빛기둥(three)이 그리고 지도 기둥은 투명으로 툴팁만 받는다
+      // 구 밖 배경 건물(24라운드: 빌드 때 구 밖만 뽑아 구 안 유령 건물이 없다). 26라운드 모형은 구를 잘라 낸 디오라마라 구 밖은 탁자(배경 건물 숨김)
+      map.setLayoutProperty(L_BUILDINGS, "visibility", tiltRef.current && !toonOn ? "visible" : "none")
+      // 모형이면 기둥은 칠한 블록(three, toon-beams)이 그리고 지도 기둥은 투명으로 툴팁만 받는다
       for (const id of BEAM_LAYERS) map.setPaintProperty(id, "fill-extrusion-opacity", toonOn ? 0 : 1)
     } catch {
       // 지도를 내리는 중 등(레이어가 없을 때)
@@ -314,28 +317,58 @@ export default function DumpingMap({
   const applySky = (map: MlMap) => {
     toonRef.current?.setWeather(skyRef.current)
     try {
-      map.setSky(tiltRef.current ? mapSkyFor(skyRef.current, themeRef.current === "dark") : NO_SKY)
+      map.setSky(tiltRef.current ? (lookRef.current === "model" ? modelSkyFor(skyRef.current, themeRef.current === "dark") : mapSkyFor(skyRef.current, themeRef.current === "dark")) : NO_SKY)
     } catch {
       // 지도를 내리는 중 등
     }
   }
-  // 빛기둥(24라운드): 지도 기둥 레이어에 실은 데이터·거르기·솟기를 three 빛기둥에도 똑같이. 툰 층이 아직 없으면 마지막 값을 들고 있다가 생길 때 넘긴다
+  // 모형 기둥(24라운드 빛기둥, 26라운드 블록): 지도 기둥 레이어에 실은 데이터·거르기·솟기를 three 블록에도 똑같이. 툰 층이 아직 없으면 마지막 값을 들고 있다가 생길 때 넘긴다
   const beamDataRef = useRef(new Map<string, { fc: FC; filter: string | null }>())
+  // 26라운드: 과태료·민원 원(원기둥)은 모형에서 땅의 열점·쓰레기봉투 더미(toon-hotspots). 나머지 기둥 5종은 블록
+  const toBeams = (id: string, fc: FC, filter: string | null) => {
+    const t = toonRef.current
+    if (!t) return
+    if (id === S.circleCols) {
+      t.hotspots.setData(fc)
+      t.hotspots.setFilter(filter)
+    } else {
+      t.beams.setData(id, fc, BEAM_COLOR[id], BEAM_THIN[id], BEAM_MIN_PX[id])
+      t.beams.setFilter(id, filter)
+    }
+  }
+  // 26라운드 숫자 카드(map-callouts): 모형 보기에서 원기둥 상위 세 칸 위에. 동별 막대가 서면 동 순위가 주인공이라 칸 순위 카드는 쉰다
+  const calloutsRef = useRef(new MapCallouts())
+  const dongBarsRef = useRef(showDongBars)
+  dongBarsRef.current = showDongBars
+  const calloutRead = () => {
+    const b = beamDataRef.current.get(S.circleCols)
+    return b && tiltRef.current && lookRef.current === "model" && !dongBarsRef.current ? b : null
+  }
+  const placeCallouts = (map: MlMap) => calloutsRef.current.place(map, calloutRead)
   const setCols = (map: MlMap, id: string, data: FC) => {
     setFC(map, id, data)
-    beamDataRef.current.set(id, { fc: data, filter: beamDataRef.current.get(id)?.filter ?? null })
-    toonRef.current?.beams.setData(id, data, BEAM_COLOR[id], BEAM_THIN[id])
+    const filter = beamDataRef.current.get(id)?.filter ?? null
+    beamDataRef.current.set(id, { fc: data, filter })
+    toBeams(id, data, filter)
+    if (id === S.circleCols) placeCallouts(map)
   }
   /** dong: 지도 거르기와 같은 뜻(null 전부 · 동 이름 그 동만 · "\u0000" 전부 숨김) */
   const filterCols = (map: MlMap, id: string, dong: string | null) => {
     map.setFilter(id, dong === null ? null : ["==", ["get", "dong"], dong])
     const b = beamDataRef.current.get(id)
     if (b) b.filter = dong
-    toonRef.current?.beams.setFilter(id, dong)
+    if (id === S.circleCols) {
+      toonRef.current?.hotspots.setFilter(dong)
+      placeCallouts(map)
+    } else toonRef.current?.beams.setFilter(id, dong)
   }
   const rise = (map: MlMap, id: string, withBase = false, ms = 900) => {
     riseColumns(map, id, withBase, ms)
-    toonRef.current?.beams.rise(id, ms)
+    if (id === S.circleCols) {
+      toonRef.current?.hotspots.rise(ms)
+      calloutsRef.current.hold(Math.max(ms, 1200))
+      placeCallouts(map)
+    } else toonRef.current?.beams.rise(id, ms)
   }
   const ensureToon = (map: MlMap) => {
     if (toonRef.current || toonLoadingRef.current || !tiltRef.current || lookRef.current !== "model") return
@@ -346,10 +379,8 @@ export default function DumpingMap({
         const toon = new ToonLayer({ dark: themeRef.current === "dark", exag: TERRAIN_EXAG })
         toonRef.current = toon
         toon.setWeather(skyRef.current)
-        for (const [id, b] of beamDataRef.current) {
-          toon.beams.setData(id, b.fc, BEAM_COLOR[id], BEAM_THIN[id])
-          toon.beams.setFilter(id, b.filter)
-        }
+        if (dataRef.current) toon.setRing(dataRef.current.ring)
+        for (const [id, b] of beamDataRef.current) toBeams(id, b.fc, b.filter)
         // 지도 압출 건물과 같은 자리(기둥·말뚝보다 먼저 그려 깊이를 나눈다)
         try {
           if (map.getLayer(S.circleCols)) map.addLayer(toon, S.circleCols)
@@ -403,7 +434,7 @@ export default function DumpingMap({
     const suit = getComputedStyle(document.documentElement).getPropertyValue("--font-suit").trim()
     const map = new maplibregl.Map({
       container: boxRef.current,
-      style: buildBasemapStyle(data.ring, themeRef.current, lookRef.current),
+      style: buildBasemapStyle(data.ring, themeRef.current, lookRef.current, lookRef.current === "model" && tiltRef.current),
       center: [127.085, 37.546],
       zoom: 13.4,
       pitch: tiltRef.current ? TILT_PITCH : 0,
@@ -426,7 +457,7 @@ export default function DumpingMap({
     map.on("load", () => {
       if (mapRef.current !== map) return
       declareLayers(map)
-      applyThemePaint(map, themeRef.current, lookRef.current)
+      applyThemePaint(map, themeRef.current, lookRef.current, lookRef.current === "model" && tiltRef.current)
       setReady(true)
       onStageRef.current?.("map")
       ensureToon(map)
@@ -435,6 +466,7 @@ export default function DumpingMap({
         const icons = new Icons3DLayer()
         icons.visible = tiltRef.current
         icons.setTheme(themeRef.current === "dark")
+        icons.setLook(lookRef.current === "model")
         map.addLayer(icons, S.infraPosts) // 투명 말뚝(툴팁 조회용) 바로 아래. 라벨은 그 위
         iconsRef.current = icons
         setIconsReady(true)
@@ -583,6 +615,7 @@ export default function DumpingMap({
         if (map.getLayer(icons.id)) map.removeLayer(icons.id)
         icons.dispose()
       }
+      calloutsRef.current.dispose()
       map.remove()
       mapRef.current = null
       popupRef.current = null
@@ -642,9 +675,13 @@ export default function DumpingMap({
       const positive: ExpressionSpecification = [">", ["get", prop], 0]
       // 값 0인 칸도 옅은 테두리로 그린다. 안 그리면 "격자가 없는 곳은 뭐냐"는 물음에 답이 없다(흐림 상태에선 숨김)
       map.setPaintProperty(S.grid, "fill-color", ["case", positive, stepExpr(prop, def.stops, greyMode ? greyRamp(themeRef.current, def.pal.length) : def.pal) as ExpressionSpecification, ZERO_CELL])
-      map.setPaintProperty(S.grid, "fill-opacity", ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]])
+      // 26라운드 모형 입체의 다가구·단독은 그 집들을 초록으로 칠해 말한다(toon-palette): 땅의 초록 칸이 겹치면 집과 칸이 두 번 말해 칸은 쉰다
+      // 조망에서는 집 하나가 몇 픽셀이라 지붕 초록이 그늘·골목과 섞여 흙빛으로 뭉개졌다 → 줌 14.8 아래에서만 땅 칸을 옅게 칠하고 가까이 가면 집에 넘긴다
+      const quiet = base === "unm" && tilt && look === "model"
+      const cellOpacity: ExpressionSpecification = ["case", positive, ["case", dimmed, muted ? 0.25 : 0.18, 0.8], ["case", dimmed, 0, 0.12]]
+      map.setPaintProperty(S.grid, "fill-opacity", quiet ? ["interpolate", ["linear"], ["zoom"], 13.4, ["case", positive, ["case", dimmed, 0.12, 0.6], 0], 14.8, 0] : cellOpacity)
       map.setPaintProperty(L_GRID_LINE, "line-color", ["case", positive, "#ffffff", ZERO_CELL])
-      map.setPaintProperty(L_GRID_LINE, "line-opacity", ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
+      map.setPaintProperty(L_GRID_LINE, "line-opacity", quiet ? 0 : ["case", positive, ["case", dimmed, 0.25, 0.7], ["case", dimmed, 0, 0.55]])
     }
     const dimPt: ExpressionSpecification = selectedDong ? ["!=", ["get", "dong"], selectedDong] : ["literal", muted && !selectedDong]
     // 날씨별 원이 켜져 있으면 보통 원 대신 그쪽만
@@ -679,7 +716,7 @@ export default function DumpingMap({
         map.setPaintProperty(L_BUILDINGS_NSDI, "fill-extrusion-color", ["case", dimB, neutral, [">", val, 0], stepExpr(prop, def.stops, pal, val) as ExpressionSpecification, neutral])
       }
     }
-  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme, showDongBars])
+  }, [data, ready, base, circles, selectedDong, layers, showCandidates, showBinRecos, showHotspots, showCritical, weather, grid3d, theme, showDongBars, tilt, look])
 
   // 모형 건물(23라운드)도 위와 같은 규칙(toon-palette): 동마다 벽·지붕 색 텍스처만 다시 올린다(three 텍스처만 만진다).
   // 툰 상태를 MapLibre 칠하기 effect deps 에 걸지 않는다: 툰이 설 때마다 원기둥이 다시 솟았다(23라운드)
@@ -817,19 +854,21 @@ export default function DumpingMap({
   // 테마(17라운드)·표현(23라운드 도면/모형). 24라운드부터 바탕을 setStyle 로 갈지 않고 같은 레이어의 칠하기만 바꾼다(map-layers restyleBasemap):
   // 예전엔 새 스타일이 뜨는 30~90ms 사이 다른 토글이 setPaintProperty 를 부르면 오류 화면으로 떨어졌다. 소스·feature-state·커스텀 층이 그대로라 다시 붙일 것도 없다.
   // 첫 스타일은 초기화에서 이미 반영했으니 바뀔 때만
-  const themeAppliedRef = useRef(`${theme}:${look}`)
+  const themeAppliedRef = useRef(`${theme}:${look}:${tilt}`)
   useEffect(() => {
     const map = mapRef.current
-    const key = `${theme}:${look}`
+    const key = `${theme}:${look}:${tilt}`
     if (!map || !ready || !data || themeAppliedRef.current === key) return
     themeAppliedRef.current = key
-    restyleBasemap(map, buildBasemapStyle(data.ring, theme, look))
-    applyThemePaint(map, theme, look)
+    restyleBasemap(map, buildBasemapStyle(data.ring, theme, look, look === "model" && tilt))
+    applyThemePaint(map, theme, look, look === "model" && tilt)
     toonRef.current?.setTheme(theme === "dark")
     iconsRef.current?.setTheme(theme === "dark")
+    iconsRef.current?.setLook(look === "model")
     showBuildings(map)
     applySky(map)
-  }, [ready, data, theme, look])
+    placeCallouts(map)
+  }, [ready, data, theme, look, tilt])
 
   // 지도 날씨(23라운드). 바뀔 때·테마·입체 전환 때 다시
   useEffect(() => {
@@ -846,6 +885,7 @@ export default function DumpingMap({
     for (const id of TILT_ONLY) map.setLayoutProperty(id, "visibility", tilt ? "visible" : "none")
     iconsRef.current?.setVisible(tilt)
     if (tilt) for (const id of [S.circleCols, S.weatherCols]) rise(map, id)
+    else placeCallouts(map)
     map.setTerrain(tilt ? { source: DEM_SOURCE, exaggeration: TERRAIN_EXAG } : null)
     map.easeTo({ pitch: tilt ? TILT_PITCH : 0, bearing: tilt ? TILT_BEARING : 0, duration: 700 })
   }, [ready, tilt])
@@ -971,6 +1011,7 @@ export default function DumpingMap({
     // 1~3위 배지를 기둥 꼭대기에(입체에서만 보이는 아이콘 레이어). 기둥이 다 솟은 뒤 나타나게 살짝 늦춘다
     // 기둥 값 라벨이 동 이름을 같이 달고 있으니 지도 동 라벨은 겹치지 않게 숨긴다
     map.setLayoutProperty(S.dongLabel, "visibility", showDongBars ? "none" : "visible")
+    placeCallouts(map)
     const icons = iconsRef.current
     if (!icons) return
     if (!showDongBars) {

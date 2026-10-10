@@ -6,7 +6,9 @@
  - 주차 줄: 골목(residential·living_street·unclassified)은 양쪽 가장자리, service 는 한쪽. 런타임이 6.2m 칸마다 일부를 채운다
  - 보행 줄: 간선·보조·국지 도로는 바깥 보도(차로 끝 + 1.8m), 골목은 양쪽 가장자리, OSM 보도·보행로는 그 선. 붐빔은 경로 60m 안 가게(식당·카페·술집·편의점 등) 수와
    지하철역 250m 안이면 더 키운다(건대입구 맛의거리가 붐비고 주택가 골목은 한산하게)
-높이는 dem.pmtiles z14(지도 지형과 같은 원자료, 과장 전). 바이트 형식 정본은 lib/dumping/toon-world.ts(TNR1).
+26라운드(디오라마): 경로는 구 경계 안쪽만 남긴다(구 밖은 탁자라 차가 허공을 달렸다). 공원·학교 운동장·광장·대학 캠퍼스에는 사람이 모여 거니는 자리(spot)를
+  격자로 흩어 둔다(건물 윤곽 안 자리는 뺀다. toon-buildings.bin). 사용자: "학교나 공원 같은 유동인구 많을 곳엔 사람이 있어야지"
+높이는 dem.pmtiles z14(지도 지형과 같은 원자료, 과장 전). 바이트 형식 정본은 lib/dumping/toon-world.ts(TNR2).
 
 쓰는 법: python3 -I scripts/dumping-toon-traffic.py   (data/dumping/map.json 의 구 경계를 읽는다)
 필요: ogr2ogr(GDAL 3.8+ PMTiles) · pmtiles CLI. 파이썬 표준 라이브러리만(모형 자료 스크립트의 도우미를 불러 쓴다)
@@ -41,6 +43,13 @@ CLASS = {
 WALK = {"footway": 8, "pedestrian": 8, "sidewalk": 7, "path": 8, "crossing": 8}
 SHOPS = {"restaurant", "cafe", "bar", "pub", "fast_food", "convenience", "beauty", "hairdresser", "bank", "pharmacy", "supermarket", "bakery", "clothes", "ice_cream", "mobile_phone", "cosmetics"}
 KIND_LANE, KIND_PARK, KIND_WALK = 0, 1, 2
+# 모임 자리: landuse kind → (등급 9 공원 · 10 학교·놀이터·운동장 · 11 광장 · 12 캠퍼스, 격자 간격 m, 남길 확률, 반지름 m 범위)
+SPOT = {
+    "park": (9, 26, 0.45, (3, 9)), "garden": (9, 26, 0.45, (3, 8)), "recreation_ground": (9, 24, 0.5, (3, 9)),
+    "school": (10, 16, 0.6, (4, 10)), "kindergarten": (10, 12, 0.6, (3, 6)), "playground": (10, 10, 0.85, (2, 5)), "pitch": (10, 14, 0.7, (4, 10)),
+    "pedestrian": (11, 12, 0.7, (3, 6)),
+    "university": (12, 22, 0.5, (3, 9)), "college": (12, 22, 0.5, (3, 9)),
+}
 
 
 def lines(geom):
@@ -151,6 +160,44 @@ def offset(pts, d):
     return out
 
 
+def clip_inside(pts, inside):
+    """경로를 구 안쪽 구간들로 자른다(경계를 넘나드는 길은 여러 토막)"""
+    runs, cur = [], []
+    for p in pts:
+        if inside(*p):
+            cur.append(p)
+        elif cur:
+            runs.append(cur)
+            cur = []
+    if cur:
+        runs.append(cur)
+    return [r for r in runs if len(r) >= 2 and length(r) >= MIN_LEN_M]
+
+
+def building_hash(path):
+    """toon-buildings.bin(TNB2·TNB3) 윤곽을 칸 해시로. 모임 자리가 건물 안에 서지 않게"""
+    with open(path, "rb") as fp:
+        b = fp.read()
+    head = 20 if b[:4] == b"TNB3" else 18
+    (count,) = struct.unpack_from("<I", b, 4)
+    o = 24
+    h = W.Hash(30)
+    for _ in range(count):
+        (n,) = struct.unpack_from("<H", b, o)
+        x, z = struct.unpack_from("<ii", b, o + head - 8)
+        o += head
+        ring = [(x / 10, z / 10)]
+        for _ in range(n - 1):
+            dx, dz = struct.unpack_from("<hh", b, o)
+            o += 4
+            x += dx
+            z += dz
+            ring.append((x / 10, z / 10))
+        x0, z0, x1, z1 = W.bbox(ring)
+        h.add(x0, z0, x1, z1, ring)
+    return h
+
+
 def length(pts):
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
 
@@ -249,12 +296,14 @@ def main():
             b *= 1.6
         return min(6.0, b)
 
+    inside = lambda x, z: W.point_in_ring(x, z, gu)
+    clipped = [(run, kind, cls) for pts, kind, cls in paths for run in clip_inside(pts, inside)]
     out_paths = bytearray()
     out_verts = bytearray()
     nv = 0
     kinds = [0, 0, 0]
     total_len = [0.0, 0.0, 0.0]
-    for pts, kind, cls in paths:
+    for pts, kind, cls in clipped:
         if len(pts) < 2 or len(pts) > 65535:
             continue
         b = boost(pts) if kind == KIND_WALK else 1.0
@@ -265,11 +314,44 @@ def main():
         nv += len(pts)
         kinds[kind] += 1
         total_len[kind] += length(pts)
+    # 모임 자리: 공원·학교·광장·캠퍼스 다각형 안 격자점(건물 윤곽 밖), 자리마다 거니는 원 반지름
+    blds = building_hash(os.path.join(W.BASEMAP, "toon-buildings.bin"))
+    in_building = lambda x, z: any(W.point_in_ring(x, z, r) for r in blds.near(x, z))
+    landuse = W.ogr_geojson(W.OSM, os.path.join(work, "landuse.geojson"), ["landuse", "-oo", "ZOOM_LEVEL=15", "-t_srs", "EPSG:4326"])
+    out_spots = bytearray()
+    spot_n = {9: 0, 10: 0, 11: 0, 12: 0}
+    taken = set()
+    for f in landuse:
+        spec_ = SPOT.get(f["properties"].get("kind"))
+        if not spec_:
+            continue
+        cls, step, keep, (r0, r1) = spec_
+        for poly in W.polygons(f["geometry"]):
+            outer = [W.local(lng, lat) for lng, lat in poly[0]]
+            holes = [[W.local(lng, lat) for lng, lat in h] for h in poly[1:]]
+            x0, z0, x1, z1 = W.bbox(outer)
+            gx = math.floor(x0 / step) * step + step / 2
+            while gx < x1:
+                gz = math.floor(z0 / step) * step + step / 2
+                while gz < z1:
+                    key = (round(gx), round(gz))
+                    if key not in taken and W.point_in_ring(gx, gz, outer) and not any(W.point_in_ring(gx, gz, h) for h in holes) and inside(gx, gz) and W.h32("spot", *key) < keep and not in_building(gx, gz):
+                        taken.add(key)
+                        jx = (W.h32("jx", *key) - 0.5) * step * 0.6
+                        jz = (W.h32("jz", *key) - 0.5) * step * 0.6
+                        r = r0 + (r1 - r0) * W.h32("r", *key)
+                        y = dem.elevation(*W.lnglat(gx + jx, gz + jz))
+                        out_spots += struct.pack("<iihBB", round((gx + jx) * 10), round((gz + jz) * 10), round(y * 10), cls, min(255, round(r * 10)))
+                        spot_n[cls] += 1
+                    gz += step
+                gx += step
+    ns = sum(spot_n.values())
     n = sum(kinds)
-    out = bytearray(b"TNR1") + struct.pack("<II", n, nv) + out_paths + out_verts
+    out = bytearray(b"TNR2") + struct.pack("<III", n, nv, ns) + out_paths + out_verts + out_spots
     with open(OUT, "wb") as fp:
         fp.write(out)
     print(f"차로 {kinds[0]:,}줄 {total_len[0] / 1000:.0f}km · 주차 줄 {kinds[1]:,}줄 {total_len[1] / 1000:.0f}km · 보행 줄 {kinds[2]:,}줄 {total_len[2] / 1000:.0f}km · 꼭짓점 {nv:,}")
+    print(f"모임 자리 공원 {spot_n[9]:,} · 학교·놀이터·운동장 {spot_n[10]:,} · 광장 {spot_n[11]:,} · 캠퍼스 {spot_n[12]:,}")
     print(f"→ {os.path.relpath(OUT, W.ROOT)} ({len(out) / 1024:.0f}KB)")
 
 

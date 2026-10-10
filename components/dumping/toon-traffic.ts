@@ -4,6 +4,9 @@
 // 골목·진입로 주차 차량은 6.2m 칸 일부만 채운 정지 인스턴스. 차는 줌 15쯤부터, 사람은 16쯤부터 나타난다(그보다 멀면 점보다 작다).
 // 그림자는 차 밑 어두운 판으로 대신한다(움직이는 것까지 그림자맵을 프레임마다 다시 그리면 무겁다). 건물 그림자는 받는다. 밤엔 전조등·미등이 켜진다.
 // 1km 덩어리마다 메시를 나눠 화면 밖 덩어리는 three 가 그리지 않는다. 색은 서울 등록 차량 색 분포(흰·검정·회색·은색이 대부분), 버스는 간선 파랑·지선 초록·광역 빨강
+// 26라운드(사용자: "사람들은 안 그렸어? 학교·공원처럼 유동인구 많을 곳엔 사람이 있어야지"): 사람을 모형 비율로 키우고(1.6배, 키 2.6~3m) 옷 색을 또렷하게,
+//   공원·학교 운동장·광장·캠퍼스 모임 자리(TNR2 spots)에서 원을 그리며 거닐거나 서 있게(학교는 아이 키, 밤엔 공원·학교 사람 대부분이 들어간다),
+//   보도·모임 자리 사람 수는 그 칸 생활인구(중앙값 대비 제곱근, 0.35~2.4배)로 맞춘다. 줌 15쯤부터 보인다
 import * as THREE from "three"
 import { TrafficClass, TrafficKind, type ToonTraffic as TrafficData } from "@/lib/dumping/toon-world"
 
@@ -12,6 +15,9 @@ const CHUNK_M = 1024
 const SLOT_M = 6.2
 const LIFT_M = 0.5 // 지도 지형 그물(약 15m 칸)과 경로 높이(DEM 쌍선형)의 차로 차가 땅에 묻히지 않게
 const WALK_SPEED = 1.25
+const PERSON_SCALE = 1.6 // 모형 비율(키 2.6~3m). 실제 크기면 줌 16에서 2~3화소라 안 보였다
+/** 모임 자리 등급별 사람 수(생활인구 배율 곱하기 전) · 아이 비율 · 걷는 속도(m/s) */
+const SPOT_PEOPLE: Record<number, [number, number, number]> = { [TrafficClass.park]: [3, 0.2, 0.8], [TrafficClass.school]: [5, 0.75, 1.7], [TrafficClass.plaza]: [4, 0.1, 0.9], [TrafficClass.campus]: [3, 0, 1.0] }
 
 /** 차로 등급별 차로 하나 1km 당 대수 · 속도(m/s) */
 const LANE: Record<number, [number, number]> = {
@@ -34,7 +40,7 @@ const CAR_COLORS: [string, number][] = [
 const TAXI = ["#e3892c", "#e3892c", "#d8dadb"]
 const TRUCK = ["#f0f0ec", "#f0f0ec", "#2e5ea7"]
 const BUS = ["#2b6cc5", "#2b6cc5", "#48993c", "#c33a30"]
-const SHIRT = ["#f2f1ec", "#1f2226", "#2f3d57", "#8a8d91", "#c9b99a", "#a33a36", "#3f6a9a", "#4d6b4f", "#d9c7b8", "#6b4f7a", "#e7d36a", "#d98b8b"]
+const SHIRT = ["#f2f1ec", "#1f2226", "#2f3d57", "#8a8d91", "#e05a47", "#f2c94c", "#3f7fd0", "#4caf6e", "#f08a3c", "#e889b0", "#7b5fc4", "#2bb3b1"]
 /** 크기(길이·높이·너비 m): 0 승용 · 1 SUV · 2 1톤 트럭 · 3 택시 · 4 버스 */
 const SIZE: [number, number, number][] = [[4.6, 1.45, 1.82], [4.75, 1.72, 1.9], [5.0, 2.0, 1.74], [4.7, 1.48, 1.8], [11, 3.15, 2.5]]
 
@@ -131,6 +137,7 @@ function personShape(): THREE.BufferGeometry {
 
 // ─── 셰이더(한국어 주석은 템플릿 밖에: 카피 게이트가 문자열 안 한글을 화면 문구로 읽는다) ───
 // 꼭짓점: aPath = (첫 꼭짓점, 꼭짓점 수, 경로 길이, 속도). 꼭짓점 수 0 이면 정지(aCar = 위치 x·y·z, 방위각).
+// aPath.x 가 −1 이면 모임 자리: aPath = (−1, 반지름, 각속도, 밤에 숨김), aCar = (가운데 x·y·z, 처음 각). 각속도 0 은 서 있는 사람
 // 움직이면 aCar = (출발 거리, 옆으로, 씨앗, ·). 경로 텍스처 텍셀 = (x, 지면 y × 과장 + 띄움, z, 누적 거리). 누적 거리로 이분 탐색
 const VERT_PARS = /* glsl */ `
 attribute float aPartV;
@@ -151,10 +158,19 @@ vec3 tpPos;
 vec3 tpFwd;
 vec3 tpRight;
 float tpScale;
+float tpMove;
+uniform float uNight;
 vec4 tpTex(int i) { int w = int(uPathW); return texelFetch(uPath, ivec2(i % w, i / w), 0); }
 void tpFrame() {
   tpScale = 1.0;
-  if (aPath.y < 0.5) {
+  tpMove = 1.0;
+  if (aPath.x < -0.5) {
+    float th = aCar.w + aPath.z * uTime;
+    tpPos = aCar.xyz + vec3(cos(th), 0.0, sin(th)) * aPath.y;
+    tpFwd = abs(aPath.z) < 0.0001 ? vec3(cos(aCar.w), 0.0, sin(aCar.w)) : vec3(-sin(th), 0.0, cos(th)) * sign(aPath.z);
+    tpMove = step(0.0001, abs(aPath.z));
+    tpScale = 1.0 - uNight * step(0.5, aPath.w);
+  } else if (aPath.y < 0.5) {
     tpPos = aCar.xyz;
     tpFwd = vec3(cos(aCar.w), 0.0, sin(aCar.w));
   } else {
@@ -193,7 +209,7 @@ void tpFrame() {
   vTColor = aColor;
   vTPart = aPartV;
   vTY = position.y;
-  vTSeed = aPath.y < 0.5 ? 0.0 : aCar.z;
+  vTSeed = aPath.x < -0.5 ? fract(aCar.w * 0.159) : aPath.y < 0.5 ? 0.0 : aCar.z;
 }`
 const VERT_NORMAL = /* glsl */ `
 tpFrame();
@@ -202,7 +218,7 @@ vec3 objectNormal = vec3(tpH.x, 0.0, tpH.y) * normal.x + vec3(0.0, normal.y, 0.0
 const VERT_POS = /* glsl */ `
 vec3 tpL = position * aSize * (tpScale * uFade);
 vec3 transformed = tpPos + tpFwd * tpL.x + vec3(0.0, tpL.y, 0.0) + tpRight * tpL.z;
-transformed.y += uBob * abs(sin(uTime * 7.5 + vTSeed * 6.2832)) * 0.045 * aSize.y;`
+transformed.y += uBob * tpMove * abs(sin(uTime * 7.5 + vTSeed * 6.2832)) * 0.045 * aSize.y;`
 const FRAG_PARS = /* glsl */ `
 uniform float uNight;
 uniform vec3 uGlassT;
@@ -288,8 +304,8 @@ export class ToonTraffic {
     this.walkU.uNight.value = dark ? 1 : 0
   }
 
-  /** 경로를 텍스처에 올리고 차·주차·사람 인스턴스를 1km 덩어리 메시로 세운다 */
-  setData(t: TrafficData, exag: number) {
+  /** 경로를 텍스처에 올리고 차·주차·사람 인스턴스를 1km 덩어리 메시로 세운다. density(x, z) 는 그 자리 사람 배율(생활인구) */
+  setData(t: TrafficData, exag: number, density: (x: number, z: number) => number = () => 1) {
     const nv = t.y.length
     const rows = Math.max(1, Math.ceil(nv / PATH_TEX_W))
     const tex = new Float32Array(PATH_TEX_W * rows * 4)
@@ -392,7 +408,7 @@ export class ToonTraffic {
         }
       } else if (t.kind[i] === TrafficKind.walk) {
         const base = WALK_PER_100[t.cls[i]] ?? 0.5
-        let n = Math.floor((L / 100) * base * t.boost[i] * (0.7 + 0.6 * r()) + r())
+        let n = Math.floor((L / 100) * base * t.boost[i] * density(mx, mz) * (0.7 + 0.6 * r()) + r())
         n = Math.min(n, Math.floor(L / 2.5))
         if (n <= 0) continue
         for (const dir of [1, -1]) {
@@ -407,10 +423,35 @@ export class ToonTraffic {
             b.path.push(t.first[i], t.n[i], L, speed)
             b.car.push(start + k * gap + (r() - 0.5) * gap * 0.7, 0.45 + 0.25 * r(), r(), 0)
             const h = 1.6 + 0.25 * r()
-            b.size.push(1.25, h * 1.25, 1.25)
+            b.size.push(PERSON_SCALE, h * PERSON_SCALE, PERSON_SCALE)
             pushColor(b, SHIRT[Math.floor(r() * SHIRT.length)])
           }
         }
+      }
+    }
+    // 모임 자리: 원을 그리며 거닐거나(각속도 ±v/반지름) 서 있다. 학교는 아이가 많고 빠르다, 공원·학교는 밤에 거의 들어간다
+    const sp = t.spots
+    for (let k = 0; k < sp.count; k++) {
+      const spec = SPOT_PEOPLE[sp.cls[k]]
+      if (!spec) continue
+      const r = rng(k * 2246822519 + 911)
+      const x = sp.xz[k * 2], z = sp.xz[k * 2 + 1], y = sp.y[k] * exag + LIFT_M
+      const n = Math.min(8, Math.round(spec[0] * density(x, z) * (0.6 + 0.8 * r())))
+      if (n <= 0) continue
+      const b = batchAt("person", x, z)
+      b.lo[0] = Math.min(b.lo[0], x - 12); b.lo[1] = Math.min(b.lo[1], y); b.lo[2] = Math.min(b.lo[2], z - 12)
+      b.hi[0] = Math.max(b.hi[0], x + 12); b.hi[1] = Math.max(b.hi[1], y + 5); b.hi[2] = Math.max(b.hi[2], z + 12)
+      const nightHide = sp.cls[k] === TrafficClass.park || sp.cls[k] === TrafficClass.school ? 1 : 0
+      for (let j = 0; j < n; j++) {
+        const kid = r() < spec[1]
+        const idle = !kid && r() < 0.3
+        const rad = Math.max(1.5, sp.r[k] * (0.45 + 0.55 * r()))
+        const w = idle ? 0 : ((kid ? 1.4 : 0.85) * spec[2] * (0.8 + 0.4 * r())) / rad * (r() < 0.5 ? 1 : -1)
+        b.path.push(-1, rad, w, nightHide && r() < 0.8 ? 1 : 0)
+        b.car.push(x, y, z, r() * Math.PI * 2)
+        const h = (kid ? 1.15 : 1.6 + 0.25 * r()) * PERSON_SCALE
+        b.size.push(PERSON_SCALE * (kid ? 0.8 : 1), h, PERSON_SCALE * (kid ? 0.8 : 1))
+        pushColor(b, SHIRT[Math.floor(r() * SHIRT.length)])
       }
     }
     for (const c of [...this.group.children]) {
@@ -443,7 +484,7 @@ export class ToonTraffic {
   /** 줌에 따라 나타나기·시간. 움직이는 것이 보이면 true(계속 다시 그려야 한다) */
   frame(zoom: number): boolean {
     const car = THREE.MathUtils.smoothstep(zoom, 14.6, 15.3)
-    const walk = THREE.MathUtils.smoothstep(zoom, 15.8, 16.4)
+    const walk = THREE.MathUtils.smoothstep(zoom, 15.0, 15.6)
     const t = ((performance.now() - this.t0) / 1000) % 100000
     this.common.uTime.value = t
     this.carU.uFade.value = car

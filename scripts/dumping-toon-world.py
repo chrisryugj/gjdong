@@ -59,10 +59,11 @@ CONTEXT_MARGIN_M = 1500  # 구 밖 배경 건물은 경계에서 이만큼까지
 ANCHOR = (127.085, 37.546)
 EARTH_R = 6371008.8  # maplibre earthRadius
 DEM_Z = 14
-TREE_MARGIN_M = 400  # 구 경계 밖으로 이만큼까지 나무를 심는다(아차산 능선이 경계라 반대편 비탈도 조금)
+TREE_MARGIN_M = 0  # 26라운드 디오라마: 구를 잘라 낸 블록이라 구 안에만 심는다(예전엔 400m 밖까지 심어 탁자 위에 나무가 섰다)
 
-# 건물 유형(toon-buildings.bin 의 유형 바이트 아래 4비트). 정본은 lib/dumping/toon-world.ts BuildingUse
-ANNEX, HOUSE, VILLA, APT, SHOP, OFFICE, SCHOOL, CIVIC, INDUSTRY = range(9)
+# 건물 유형(toon-buildings.bin 의 유형 바이트 아래 4비트). 정본은 lib/dumping/toon-world.ts BuildingUse.
+# 26라운드: VILLA 는 주용도 단독주택 3층 이상(다가구)만, 공동주택 중 아파트가 아닌 것(다세대·연립)은 ROWHOUSE 로 나눴다(모형이 다가구·단독 집만 칠한다)
+ANNEX, HOUSE, VILLA, APT, SHOP, OFFICE, SCHOOL, CIVIC, INDUSTRY, ROWHOUSE = range(10)
 SHOP_USES = ("판매시설", "숙박시설", "위락시설", "관광휴게시설", "자동차관련시설")
 SCHOOL_USES = ("교육연구시설", "노유자시설", "수련시설", "교육연구및복지시설")
 CIVIC_USES = ("문화및집회시설", "종교시설", "의료시설", "운동시설", "교정및군사시설")
@@ -353,7 +354,7 @@ def use_class(use, floors, name):
     if u.startswith("단독") or u == "다가구주택":
         return HOUSE if floors <= 2 else VILLA
     if u.startswith("공동"):
-        return APT if floors >= 6 or "아파트" in nm else VILLA
+        return APT if floors >= 6 or "아파트" in nm else ROWHOUSE
     if "근린생활" in u or u in SHOP_USES:
         return OFFICE if floors >= 8 else SHOP
     if u in ("업무시설", "방송통신시설"):
@@ -364,7 +365,7 @@ def use_class(use, floors, name):
         return CIVIC
     if u in INDUSTRY_USES:
         return INDUSTRY
-    return ANNEX if floors <= 2 else VILLA
+    return ANNEX if floors <= 2 else ROWHOUSE
 
 
 def dong_label(name):
@@ -716,7 +717,7 @@ def main():
         for b in blds:
             uses[b["style"] & 15] = uses.get(b["style"] & 15, 0) + 1
         print(f"건물 {len(blds):,}동 · 꼭짓점 {nverts:,} · {len(out) / 1024:.0f}KB → {os.path.relpath(OUT_BLD, ROOT)}")
-        print("  유형 " + " · ".join(f"{['기타', '단독', '다가구·빌라', '아파트', '상가', '업무', '학교', '공공', '공장'][k]} {v:,}" for k, v in sorted(uses.items())))
+        print("  유형 " + " · ".join(f"{['기타', '단독', '다가구', '아파트', '상가', '업무', '학교', '공공', '공장', '다세대·연립'][k]} {v:,}" for k, v in sorted(uses.items())))
 
         # ─── 도면 보기 건물 타일(같은 건물 집합). 속성은 지도 압출 식이 쓰는 층수·높이·UFID 만 ───
         def write_fc(path, items):

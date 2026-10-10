@@ -267,7 +267,8 @@ function addRooftop(B: Builder, b: ToonBuildings, i: number, ring: XZ[], plan: R
       if (!(big && long > 18) || placed >= 2) break
     }
   }
-  if ((use === BuildingUse.villa || use === BuildingUse.house) && plan.area >= 45 && hash01(i, 41) < 0.4) {
+  // 다세대·연립(26라운드 rowhouse, villa 에서 나눔)도 옥상 물탱크(나눈 뒤 1,496동에서 빠졌다, 검증 실측)
+  if ((use === BuildingUse.villa || use === BuildingUse.house || use === BuildingUse.rowhouse) && plan.area >= 45 && hash01(i, 41) < 0.4) {
     const c = at(plan.rect.c, long * 0.55 * (hash01(i, 43) < 0.5 ? -1 : 1), short * 0.45 * (hash01(i, 45) < 0.5 ? -1 : 1))
     if (fits(c, 0.85, 0.65)) addBox(B, c, u, 0.85, 0.65, top - 0.1, top + 1.35, i, Part.tank, Part.tank)
   }
@@ -332,6 +333,40 @@ export function buildChunk(b: ToonBuildings, ids: number[], exag: number, plans?
   const B = new Builder()
   for (const i of ids) addBuilding(B, b, i, exag, plans?.[i])
   return { position: Float32Array.from(B.P), normal: Int8Array.from(B.N), info: Float32Array.from(B.I), wall: Float32Array.from(B.W), index: Uint32Array.from(B.T), ids }
+}
+
+/** 접지 그늘(26라운드): 동 바닥 둘레 바깥으로 띠(높을수록 넓게 2~6m). 꼭짓점 알파 = 안쪽 1 · 바깥 0(셰이더가 진하기를 곱한다).
+ * 그림자맵만으로는 건물 밑이 땅에서 떠 보였다(모형 사진의 접지 그늘이 없다) */
+export function haloChunk(b: ToonBuildings, ids: number[], exag: number): { position: Float32Array; alpha: Float32Array; index: Uint32Array } {
+  const P: number[] = []
+  const A: number[] = []
+  const I: number[] = []
+  for (const i of ids) {
+    const ring = ringOf(b, i)
+    const n = ring.length
+    if (n < 3) continue
+    const y = b.groundMid[i] * exag + 0.35
+    const w = Math.min(6, Math.max(2, 1.6 + 0.05 * heightOf(b, i)))
+    const o = P.length / 3
+    for (let k = 0; k < n; k++) {
+      const p = ring[(k + n - 1) % n], c = ring[k], q = ring[(k + 1) % n]
+      const l1 = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1
+      const l2 = Math.hypot(q[0] - c[0], q[1] - c[1]) || 1
+      // 변 a→c 의 바깥 법선은 (dz, −dx)
+      let nx = (c[1] - p[1]) / l1 + (q[1] - c[1]) / l2
+      let nz = -(c[0] - p[0]) / l1 - (q[0] - c[0]) / l2
+      const nl = Math.hypot(nx, nz) || 1
+      nx /= nl
+      nz /= nl
+      P.push(c[0], y, c[1], c[0] + nx * w, y, c[1] + nz * w)
+      A.push(1, 0)
+    }
+    for (let k = 0; k < n; k++) {
+      const a0 = o + k * 2, a1 = o + ((k + 1) % n) * 2
+      I.push(a0, a0 + 1, a1 + 1, a0, a1 + 1, a1)
+    }
+  }
+  return { position: Float32Array.from(P), alpha: Float32Array.from(A), index: Uint32Array.from(I) }
 }
 
 /** 첫 꼭짓점 기준 CHUNK_M 칸으로 동을 묶는다. 키는 "ix:iz" */

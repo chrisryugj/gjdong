@@ -9,20 +9,24 @@
 //   건물 집합은 GIS건물통합정보 + 건축물대장으로 대조한 OSM 신축(스크립트 머리 주석). 연대는 0 1960년대 이전 · 1 70 · 2 80 · 3 90 · 4 2000 · 5 2010 · 6 2020 · 7 모름
 // toon-sat.bin        "TNS1"(25라운드, scripts/dumping-toon-sat.py) · u32 동 수 · u32 toon-buildings.bin 전체의 CRC32(다르면 버린다: 건물 순서가 바뀐 것), 이어서 동마다 8바이트
 //   u8×3 지붕 sRGB · u8×3 외벽 sRGB · u8 표시(SAT_* 비트) · u8 지붕 확신(0~255). 색은 브이월드 위성영상에서 뽑은 그대로(밝기 보정은 toon-palette)
-// toon-traffic.bin    "TNR1"(25라운드, scripts/dumping-toon-traffic.py) · u32 경로 수 · u32 꼭짓점 수, 이어서 경로마다 9바이트
+// toon-traffic.bin    "TNR2"(26라운드, "TNR1"도 읽는다: 모임 자리 0, scripts/dumping-toon-traffic.py) · u32 경로 수 · u32 꼭짓점 수 · u32 모임 자리 수(TNR2 만), 이어서 경로마다 9바이트
 //   u32 첫 꼭짓점 · u16 꼭짓점 수 · u8 종류(0 차로 · 1 주차 줄 · 2 보행 줄) · u8 등급(TrafficClass) · u8 붐빔(×0.1, 보행 줄만. 가게·역이 가까울수록 크다)
-//   뒤이어 꼭짓점마다 i32 x · i32 z(0.1m) · i16 지면(0.1m, 과장 전). 경로는 진행 방향 순서(차로는 우측통행으로 이미 옮긴 선)
+//   뒤이어 꼭짓점마다 i32 x · i32 z(0.1m) · i16 지면(0.1m, 과장 전). 경로는 진행 방향 순서(차로는 우측통행으로 이미 옮긴 선, 구 경계 안쪽만)
+//   뒤이어 모임 자리마다 12바이트 i32 x · i32 z(0.1m) · i16 지면(0.1m) · u8 등급(9 공원 · 10 학교·놀이터·운동장 · 11 광장 · 12 캠퍼스) · u8 거니는 반지름(0.1m)
 // toon-trees.bin      "TNT1" · u32 그루 수, 이어서 그루마다 i16 x · i16 z(0.5m) · i16 지면(0.1m) · u8 꼴(0 활엽 · 1 침엽 · 2 관목) · u8 크기(0~255)
 // toon-ground.bin     "TNG1" · u16 nx · u16 nz · f32 x0 · f32 z0 · f32 칸(m), 이어서 nz행 × nx열 i16 지면(0.1m)
 // 지면 고도는 dem.pmtiles z14(지도 지형과 같은 원자료)이고 과장 배율은 곱하지 않은 값이다(런타임이 TERRAIN_EXAG를 곱한다)
 
-/** 건물 용도(유형 바이트 아래 4비트). 스크립트 use_class 와 같은 번호 */
-export const BuildingUse = { annex: 0, house: 1, villa: 2, apartment: 3, shop: 4, office: 5, school: 6, civic: 7, industry: 8 } as const
+/** 건물 용도(유형 바이트 아래 4비트). 스크립트 use_class 와 같은 번호.
+ * house 는 주용도 단독주택 1~2층, villa 는 단독주택 3층 이상(다가구), rowhouse 는 공동주택 중 아파트가 아닌 것(다세대·연립, 26라운드에 villa 에서 나눴다) */
+export const BuildingUse = { annex: 0, house: 1, villa: 2, apartment: 3, shop: 4, office: 5, school: 6, civic: 7, industry: 8, rowhouse: 9 } as const
 export type BuildingUseId = (typeof BuildingUse)[keyof typeof BuildingUse]
 export const useOf = (style: number): number => style & 15
 /** 사용승인 연대 0~6(1960년대 이전 ~ 2020년대), 7 모름 */
 export const decadeOf = (style: number): number => (style >> 4) & 7
 export const isBrick = (style: number): boolean => (style & 128) !== 0
+/** 주용도 단독주택(단독·다가구). 분석의 "다가구·단독"과 같은 집합 */
+export const isDandok = (style: number): boolean => useOf(style) === BuildingUse.house || useOf(style) === BuildingUse.villa
 
 export const TOON_ANCHOR: [number, number] = [127.085, 37.546]
 
@@ -152,8 +156,8 @@ export function decodeSat(buf: ArrayBuffer, buildings: ArrayBuffer, count: numbe
 
 /** 도로 위 경로 종류 */
 export const TrafficKind = { lane: 0, park: 1, walk: 2 } as const
-/** 경로 등급: 0 고속·도시고속 · 1 간선 · 2 보조간선 · 3 국지 · 4 연결로 · 5 골목 · 6 단지·건물 진입로 · 7 큰길 보도 · 8 보행로 */
-export const TrafficClass = { trunk: 0, primary: 1, secondary: 2, tertiary: 3, link: 4, alley: 5, service: 6, sidewalk: 7, footway: 8 } as const
+/** 경로 등급: 0 고속·도시고속 · 1 간선 · 2 보조간선 · 3 국지 · 4 연결로 · 5 골목 · 6 단지·건물 진입로 · 7 큰길 보도 · 8 보행로 · (모임 자리) 9 공원 · 10 학교·운동장 · 11 광장 · 12 캠퍼스 */
+export const TrafficClass = { trunk: 0, primary: 1, secondary: 2, tertiary: 3, link: 4, alley: 5, service: 6, sidewalk: 7, footway: 8, park: 9, school: 10, plaza: 11, campus: 12 } as const
 
 export interface ToonTraffic {
   count: number
@@ -167,16 +171,22 @@ export interface ToonTraffic {
   xz: Float32Array
   /** 꼭짓점 지면(m, 과장 전) */
   y: Float32Array
+  /** 모임 자리(공원·학교·광장·캠퍼스): x·z 교대 · 지면 · 등급 · 거니는 반지름(m) */
+  spots: { count: number; xz: Float32Array; y: Float32Array; cls: Uint8Array; r: Float32Array }
 }
 
 export function decodeTraffic(buf: ArrayBuffer): ToonTraffic {
   const v = new DataView(buf)
-  magic(v, "TNR1")
+  const v2 = String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3)) === "TNR2"
+  if (!v2) magic(v, "TNR1")
   const count = v.getUint32(4, true)
   const nv = v.getUint32(8, true)
-  if (12 + count * 9 + nv * 10 !== buf.byteLength) throw new Error("모형 도로 자료 길이가 맞지 않습니다")
-  const t: ToonTraffic = { count, first: new Uint32Array(count), n: new Uint16Array(count), kind: new Uint8Array(count), cls: new Uint8Array(count), boost: new Float32Array(count), xz: new Float32Array(nv * 2), y: new Float32Array(nv) }
-  let o = 12
+  const ns = v2 ? v.getUint32(12, true) : 0
+  const head = v2 ? 16 : 12
+  if (head + count * 9 + nv * 10 + ns * 12 !== buf.byteLength) throw new Error("모형 도로 자료 길이가 맞지 않습니다")
+  const spots = { count: ns, xz: new Float32Array(ns * 2), y: new Float32Array(ns), cls: new Uint8Array(ns), r: new Float32Array(ns) }
+  const t: ToonTraffic = { count, first: new Uint32Array(count), n: new Uint16Array(count), kind: new Uint8Array(count), cls: new Uint8Array(count), boost: new Float32Array(count), xz: new Float32Array(nv * 2), y: new Float32Array(nv), spots }
+  let o = head
   for (let i = 0; i < count; i++, o += 9) {
     t.first[i] = v.getUint32(o, true)
     t.n[i] = v.getUint16(o + 4, true)
@@ -188,6 +198,13 @@ export function decodeTraffic(buf: ArrayBuffer): ToonTraffic {
     t.xz[k * 2] = v.getInt32(o, true) / 10
     t.xz[k * 2 + 1] = v.getInt32(o + 4, true) / 10
     t.y[k] = v.getInt16(o + 8, true) / 10
+  }
+  for (let k = 0; k < ns; k++, o += 12) {
+    spots.xz[k * 2] = v.getInt32(o, true) / 10
+    spots.xz[k * 2 + 1] = v.getInt32(o + 4, true) / 10
+    spots.y[k] = v.getInt16(o + 8, true) / 10
+    spots.cls[k] = v.getUint8(o + 10)
+    spots.r[k] = v.getUint8(o + 11) / 10
   }
   return t
 }

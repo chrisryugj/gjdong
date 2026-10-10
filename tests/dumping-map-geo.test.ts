@@ -34,6 +34,8 @@ import {
   REAL_BUILDING,
   DONG_MIN_GAP_M,
   stepExpr,
+  topCells,
+  leadMetric,
 } from "../components/dumping/map-geo"
 import { DEFAULT_VIEW } from "../components/dumping/map-controls"
 
@@ -205,6 +207,26 @@ test("원기둥은 평면 원과 같은 칸·같은 반지름 규칙, 높이는 
   // 두 지표를 같이 켜면 한 칸에 두 기둥이 좌우로 비켜 선다
   const both = circleColumnsFC(map!, ["comp", "enf"])
   assert.ok(both.features.length > cols.features.length)
+})
+
+// 26라운드 모형 숫자 카드: 원기둥 중 건수 상위 칸. 지도 거르기와 같은 뜻(동 이름 그 동만 · "\u0000" 없음)
+test("숫자 카드 상위 칸: 원기둥 건수 내림차순 1~3위, 동 거르기·전부 숨김을 따른다", withMap, () => {
+  const cols = circleColumnsFC(map!, ["enf"])
+  const top = topCells(cols, 3, null)
+  const want = map!.grid.map((c) => c[5]).sort((a, b) => b - a).slice(0, 3)
+  assert.deepStrictEqual(top.map((c) => c.v), want)
+  assert.deepStrictEqual(top.map((c) => c.rank), [1, 2, 3])
+  assert.ok(top.every((c) => c.cid === "enf" && Math.abs(c.lng - 127.08) < 0.06 && Math.abs(c.lat - 37.545) < 0.04))
+  const dong = top[0].dong
+  assert.ok(topCells(cols, 3, dong).every((c) => c.dong === dong))
+  assert.strictEqual(topCells(cols, 3, "\u0000").length, 0)
+  // 두 원을 같이 켜면 지표가 섞이지 않게 대표 지표(과태료가 있으면 과태료)로만 매긴다(26라운드 검증: 민원 115건이 1위, 과태료 1위 칸이 2위로 섞였다)
+  const both = circleColumnsFC(map!, ["comp", "enf"])
+  assert.strictEqual(leadMetric(both.features.map((f) => f.properties.cid)), "enf")
+  assert.strictEqual(leadMetric(["comp"]), "comp")
+  const lead = topCells(both, 3, null, "enf")
+  assert.deepStrictEqual(lead.map((c) => c.v), want)
+  assert.ok(lead.every((c) => c.cid === "enf"))
 })
 
 test("말뚝은 점의 속성(툴팁·색)을 그대로 들고 발자국만 원판", () => {

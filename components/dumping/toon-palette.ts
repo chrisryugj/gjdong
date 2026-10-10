@@ -6,9 +6,12 @@
 // 재질은 용도·연대·구조로 고른다: 벽돌조 빨간 벽돌 · 2000년대 이후 빌라 석재·타일 · 아파트 흰 도장 · 업무 유리 · 학교 크림 · 공장 금속판.
 // 평지붕은 서울 옥상 초록 방수 도장이 절반 남짓, 나머지 회색 콘크리트. 박공은 기와·슬레이트 색. 같은 유형 안에서는 동 번호 해시로 돌린다
 // 25라운드(2026-10-10 "건물색 거의 비슷한데 현실감 있게"): 위성 색(toon-sat, 브이월드 영상에서 동마다 뽑은 지붕·외벽)이 있으면 그것을 먼저 쓰고 팔레트는 없을 때만
+// 26라운드(2026-10-10 "실사와 카툰 사이 어중간" → 정교한 모형 방향, 사용자 채택): 지붕 위성 색은 고른 팔레트(세이지·슬레이트·테라코타·모래·회색)로 맞추고
+//   외벽은 모형 도료처럼 크림 쪽으로 22% 섞는다(색상은 실물 계열 그대로). 데이터 바탕은 건물 전체를 칸 값으로 칠하지 않는다(아파트까지 다가구 초록이 됐다):
+//   다가구·단독 바탕은 그 집(주용도 단독주택)만 초록, 나머지는 크림. 민원·과태료·생활인구 바탕은 건물은 크림이고 데이터는 땅의 칸이 맡는다
 import type { BaseMode, GridCell } from "@/lib/dumping/types"
-import { BuildingUse, decadeOf, isBrick, SAT_ROOF, SAT_WALL, useOf, type ToonSat } from "@/lib/dumping/toon-world"
-import { BASE_DEF, colorOf, greyRamp, mixHex } from "./map-geo"
+import { BuildingUse, decadeOf, isBrick, isDandok, SAT_ROOF, SAT_WALL, useOf, type ToonSat } from "@/lib/dumping/toon-world"
+import { mixHex } from "./map-geo"
 
 type Theme = "light" | "dark"
 
@@ -24,6 +27,14 @@ export const DATA_NONE = 0
 export const TOON_NEUTRAL: Record<Theme, { wall: string; roof: string }> = {
   light: { wall: "#e9e5dc", roof: "#d9d4c8" },
   dark: { wall: "#323c43", roof: "#3c4750" },
+}
+
+/** 데이터 바탕의 모형 색(26라운드): 다가구·단독 집 비취 초록(도면 램프 PAL_GREEN 계열, 나무 올리브와 색상각 60° 차) · 나머지 크림.
+ * 처음엔 레퍼런스(강릉·이탈리아 지도의 크림 벽 + 주황 지붕)대로 주황이었는데 과태료 앰버와 같은 계열이라 과태료 빛 원·기둥이 집에 묻혔다(같은 날 3D 개체 검토).
+ * 지붕은 채도 높은 비취(#36b07f): 진한 초록은 조망에서 그늘과 겹쳐 검게 읽혀 청회 민원 블록이 묻혔고, 도면 램프의 탁한 초록은 조망 채도가 0.08로 흙빛이었다 */
+export const MODEL_DATA: Record<Theme, { house: { wall: string; roof: string }; other: { wall: string; roof: string } }> = {
+  light: { house: { wall: "#9ad9bc", roof: "#36b07f" }, other: { wall: "#f1ece3", roof: "#ddd6ca" } },
+  dark: { house: { wall: "#3f9a78", roof: "#2c8f68" }, other: { wall: "#36414a", roof: "#414c55" } },
 }
 
 // 외벽은 서울 저층 주거지 실물 기준(25라운드): 1980~90년대 치장벽돌(적색·갈색), 2000년대 화강석·드라이비트, 2010년대 도시형생활주택 벽돌 타일·짙은 회색 패널,
@@ -82,6 +93,7 @@ export function materialOf(i: number, style: number, floors: number, gable: bool
       wall = brick ? by([[P.brickRed, 0.85], [P.stucco, 1]]) : dec <= 3 ? by([[P.brickRed, 0.5], [P.stucco, 0.85], [P.stone, 1]]) : by([[P.stucco, 0.45], [P.stone, 0.7], [P.whitePanel, 0.85], [P.brickTile, 1]])
       break
     case BuildingUse.villa:
+    case BuildingUse.rowhouse:
       // 1990년대까지의 다세대·다가구는 구조와 무관하게 치장벽돌 외벽이 흔하다(철근콘크리트조도 겉은 벽돌)
       wall = brick
         ? by([[P.brickRed, 0.85], [P.stucco, 1]])
@@ -144,12 +156,41 @@ export function fromPhoto(r: number, g: number, b: number, lift = 1.6, sat = 1.1
 }
 
 /** 동 i 의 위성 색(있는 것만) */
+/** 모형 지붕 팔레트(26라운드). 위성 색의 색상 계열을 지키되 고른 칸으로 맞춘다(사진 그대로는 탁하고 제각각이라 장난감 도시처럼 어수선했다) */
+const ROOF = {
+  sage: ["#a3c2aa", "#97b8a0", "#adc9b2"],
+  slate: ["#93a9bd", "#a1b5c7", "#879db2"],
+  terracotta: ["#cc8b6c", "#d3977b", "#bf7e61"],
+  sand: ["#dccb9f", "#e3d5ae"],
+  charcoal: ["#7d8287", "#8a8f93"],
+  grey: ["#bfbab0", "#c9c4ba", "#b4afa5"],
+  white: ["#e8e3d9", "#eeeae2"],
+} as const
+export function snapRoof(hex: string, i: number): string {
+  const c = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16) / 255)
+  const mx = Math.max(...c), mn = Math.min(...c), d = mx - mn
+  const l = (mx + mn) / 2
+  const sat = d < 1e-6 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  let h = 0
+  if (d > 1e-6) h = mx === c[0] ? 60 * (((c[1] - c[2]) / d) % 6) : mx === c[1] ? 60 * ((c[2] - c[0]) / d + 2) : 60 * ((c[0] - c[1]) / d + 4)
+  if (h < 0) h += 360
+  const list =
+    sat > 0.12 && h >= 105 && h < 200 ? ROOF.sage
+    : sat > 0.14 && h >= 200 && h < 260 ? ROOF.slate
+    : sat > 0.18 && (h < 35 || h >= 330) ? ROOF.terracotta
+    : sat > 0.16 && h >= 35 && h < 75 ? ROOF.sand
+    : l < 0.42 ? ROOF.charcoal
+    : l > 0.8 ? ROOF.white
+    : ROOF.grey
+  return pick(list, i, 61)
+}
+
 export function satOf(sat: ToonSat | null | undefined, i: number): { roof?: string; wall?: string } {
   if (!sat) return {}
   const f = sat.flags[i]
   const o = i * 3
   return {
-    roof: f & SAT_ROOF ? fromPhoto(sat.roof[o], sat.roof[o + 1], sat.roof[o + 2]) : undefined,
+    roof: f & SAT_ROOF ? snapRoof(fromPhoto(sat.roof[o], sat.roof[o + 1], sat.roof[o + 2]), i) : undefined,
     wall: f & SAT_WALL ? fromPhoto(sat.wall[o], sat.wall[o + 1], sat.wall[o + 2], 1.45) : undefined,
   }
 }
@@ -171,7 +212,8 @@ export function toonMaterials(count: number, style: Uint8Array, floors: Uint8Arr
   for (let i = 0; i < count; i++) {
     const p = materialOf(i, style[i], floors[i], gable[i] === 1)
     const s = satOf(sat, i)
-    const m = { wall: s.wall ?? p.wall, roof: s.roof ?? p.roof }
+    // 외벽은 모형 도료처럼 크림 쪽으로(실물 색상 계열은 지킨다)
+    const m = { wall: mixHex(s.wall ?? p.wall, "#f3ede2", 0.22), roof: s.roof ?? p.roof }
     const o = i * STRIDE
     put(out, o + 8, theme === "dark" ? night(m.wall) : m.wall, style[i])
     put(out, o + 12, theme === "dark" ? night(m.roof, 0.7) : m.roof, Math.min(255, Math.max(1, floors[i] || 2)))
@@ -179,14 +221,15 @@ export function toonMaterials(count: number, style: Uint8Array, floors: Uint8Arr
   return out
 }
 
-/** 범례(바탕 없음 · 모형): 외벽 대표 재질과 지붕(위성 사진 색, 흔한 셋) */
+/** 범례(바탕 없음 · 모형): 외벽 대표 재질과 지붕(위성 사진 색을 맞춘 팔레트, 흔한 셋) */
 export function modelSwatches(): { label: string; colors: string[] }[] {
+  const paint = (c: string) => mixHex(c, "#f3ede2", 0.22)
   return [
-    { label: "벽돌", colors: [P.brickRed[1]] },
-    { label: "석재·도장", colors: [P.stone[0]] },
-    { label: "아파트", colors: [P.aptNew[1]] },
-    { label: "유리", colors: [P.glass[1]] },
-    { label: "지붕 사진 색", colors: [fromPhoto(78, 118, 100), fromPhoto(150, 150, 146), fromPhoto(70, 105, 150)] },
+    { label: "벽돌", colors: [paint(P.brickRed[1])] },
+    { label: "석재·도장", colors: [paint(P.stone[0])] },
+    { label: "아파트", colors: [paint(P.aptNew[1])] },
+    { label: "유리", colors: [paint(P.glass[1])] },
+    { label: "지붕 사진 색", colors: [ROOF.sage[0], ROOF.grey[0], ROOF.slate[0]] },
   ]
 }
 
@@ -196,6 +239,8 @@ export interface ToonPaint {
   grid: GridCell[]
   /** 동 → 격자 칸 번호(-1 칸 밖) */
   cellOf: Int32Array
+  /** 동마다 유형 바이트(toon-world). 다가구·단독 바탕이 그 집만 칠할 때 쓴다 */
+  style: Uint8Array
   selectedDong: string | null
   /** 동별 기둥: 기둥이 주인공이라 건물은 흐린 재질(지도 압출 dimB와 같다) */
   dongBars: boolean
@@ -205,15 +250,14 @@ export interface ToonPaint {
   pointsOn: boolean
 }
 
-/** 데이터 텍셀(0·1)을 쓴다. out 을 주면 거기(길이 count×16) */
+/** 데이터 텍셀(0·1)을 쓴다. out 을 주면 거기(길이 count×16).
+ * 바탕 없음: 재질 그대로(후보 표시 중엔 흐린 재질) · 다가구·단독: 그 집만 초록, 나머지 크림 · 민원·과태료·생활인구: 모두 크림(데이터는 땅의 칸).
+ * 동을 고르면 그 동 밖은 흐린 재질, 동별 기둥을 세우면 기둥이 주인공이라 모두 크림 */
 export function toonColors(p: ToonPaint, out?: Uint8Array): Uint8Array {
   const n = p.cellOf.length
   const buf = out ?? new Uint8Array(n * STRIDE)
   const neutral = TOON_NEUTRAL[p.theme]
-  const cache = new Map<string, string>()
-  const lift = (c: string) => cache.get(c) ?? cache.set(c, mixHex(c, p.theme === "dark" ? "#000000" : "#ffffff", 0.12)).get(c)!
   if (p.base === "none") {
-    // 실사 재질 그대로. 후보 표시 중(동 선택 없음)은 지도 압출처럼 흐린 재질
     const a = p.candidates && !p.selectedDong ? DATA_MUTED : DATA_NONE
     for (let i = 0; i < n; i++) {
       put(buf, i * STRIDE, neutral.wall, a)
@@ -221,23 +265,21 @@ export function toonColors(p: ToonPaint, out?: Uint8Array): Uint8Array {
     }
     return buf
   }
-  const def = BASE_DEF[p.base]
-  const grey = p.candidates && !p.selectedDong
-  const pal = grey ? greyRamp(p.theme, def.pal.length) : p.pointsOn ? def.pal.map((c) => mixHex(c, neutral.wall, 0.55)) : def.pal
+  const m = MODEL_DATA[p.theme]
+  // 시설·후보·배치추천이 서면 집 초록을 크림 쪽으로 55% 눌러 그것들이 앞에 선다(지도 압출 pointsOn·greyMode 와 같은 문법. 초록 재활용정거장이 초록 집에 묻혔다)
+  const house = (p.pointsOn || p.candidates) && !p.selectedDong ? { wall: mixHex(m.house.wall, m.other.wall, 0.55), roof: mixHex(m.house.roof, m.other.roof, 0.55) } : m.house
   for (let i = 0; i < n; i++) {
     const o = i * STRIDE
     const ci = p.cellOf[i]
     const cell = ci >= 0 ? p.grid[ci] : null
-    const dim = p.selectedDong ? !cell || (cell[7] || "") !== p.selectedDong : p.dongBars
-    const v = cell ? cell[def.idx] : 0
-    if (dim || v <= 0) {
+    if (p.selectedDong && (!cell || (cell[7] || "") !== p.selectedDong)) {
       put(buf, o, neutral.wall, DATA_MUTED)
       put(buf, o + 4, neutral.roof, 255)
       continue
     }
-    const c = colorOf(v, def.stops, pal)
-    put(buf, o, c, DATA_COLOR)
-    put(buf, o + 4, lift(c), 255)
+    const c = p.base === "unm" && !p.dongBars && isDandok(p.style[i]) ? house : m.other
+    put(buf, o, c.wall, DATA_COLOR)
+    put(buf, o + 4, c.roof, 255)
   }
   return buf
 }

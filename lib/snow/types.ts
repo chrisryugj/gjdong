@@ -237,6 +237,7 @@ export interface SnowForecast {
   snow48: number
   minTemp24: number
   now: { temp: number; snow: number; code: number } | null
+  nowBasis?: string // 지금 값의 출처(기상청 초단기실황 n시 관측, 못 받으면 예보 이번 시각)
   warning?: SnowWarning | null // 기상특보(서울). 없으면 null
 }
 // 기상청 기상특보 현황(getPwnStatus stnId=109 서울). 대설 주의보·경보만 단계 판정에 쓴다

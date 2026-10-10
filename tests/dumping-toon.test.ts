@@ -3,8 +3,7 @@ import assert from "node:assert"
 import { readFileSync } from "node:fs"
 import { BuildingUse, decadeOf, decodeBuildings, decodeGround, decodeTrees, groundAt, isBrick, lngLatToLocal, localToLngLat, TOON_ANCHOR, useOf, type ToonBuildings } from "../lib/dumping/toon-world"
 import { buildChunk, chunkIds, gableChance, insetRing, Part, ringOf, roofPlan, signedArea } from "../components/dumping/toon-geom"
-import { DATA_COLOR, DATA_MUTED, DATA_NONE, hash01, materialOf, toonColors, toonMaterials, TOON_NEUTRAL } from "../components/dumping/toon-palette"
-import { BASE_DEF, colorOf, greyRamp, stepExpr } from "../components/dumping/map-geo"
+import { DATA_COLOR, DATA_MUTED, DATA_NONE, hash01, materialOf, MODEL_DATA, toonColors, toonMaterials, TOON_NEUTRAL } from "../components/dumping/toon-palette"
 import { LANDMARK_TIER_ZOOM, LANDMARKS } from "../lib/dumping/landmarks"
 import type { GridCell } from "../lib/dumping/types"
 
@@ -16,7 +15,7 @@ const read = (f: string) => {
 }
 const BLD = decodeBuildings(read("toon-buildings.bin"))
 
-test("모형 건물 자료(TNB2): 통합정보 + 대장 대조 신축 27,098동, 원점 ±3.5km 안, 지면은 한강~아차산, 유형 바이트가 있다", () => {
+test("모형 건물 자료(TNB3): 통합정보 + 대장 대조 신축 27,098동, 원점 ±3.5km 안, 지면은 한강~아차산, 유형 바이트가 있다", () => {
   const b = BLD
   assert.strictEqual(b.count, 27098)
   assert.strictEqual(b.start[b.count], b.xz.length / 2)
@@ -35,9 +34,9 @@ test("모형 건물 자료(TNB2): 통합정보 + 대장 대조 신축 27,098동,
     assert.ok(b.groundMin[i] > -5 && b.groundMid[i] > -5 && b.groundMin[i] < 400 && b.groundMid[i] < 400, `동 ${i} 지면 ${b.groundMin[i]} ${b.groundMid[i]}`)
     uses[useOf(b.style[i])]++
   }
-  // 광진은 단독·다가구가 대부분, 아파트 1천여 동, 벽돌조가 많다
-  assert.ok(uses[BuildingUse.house] > 7000 && uses[BuildingUse.villa] > 8000 && uses[BuildingUse.apartment] > 900, uses.join(","))
-  assert.ok(uses.slice(9).every((v) => v === 0), "유형 번호는 0~8")
+  // 광진은 단독·다가구가 대부분, 아파트 1천여 동, 벽돌조가 많다. 26라운드부터 다세대·연립(rowhouse)은 다가구(villa)와 따로
+  assert.ok(uses[BuildingUse.house] > 7000 && uses[BuildingUse.villa] > 5000 && uses[BuildingUse.rowhouse] > 3000 && uses[BuildingUse.apartment] > 900, uses.join(","))
+  assert.ok(uses.slice(10).every((v) => v === 0), "유형 번호는 0~9")
   let brick = 0
   for (let i = 0; i < b.count; i++) if (isBrick(b.style[i])) brick++
   assert.ok(brick > 8000, `벽돌조 ${brick}`)
@@ -70,9 +69,10 @@ test("광진구청 신청사(자양동 870, 18층 82.3m)와 이스트폴 48층�
   assert.deepStrictEqual(near(80).filter((i) => BLD.height[i] > 0 && BLD.height[i] < 10 && decadeOf(BLD.style[i]) < 6), [])
 })
 
-test("모형 나무·지면 자료: 나무는 숲·공원 자리 4만여 그루, 지면 격자는 원점에서 DEM 고도(10~60m)", () => {
+// 26라운드 디오라마: 구 밖은 탁자라 나무를 구 안에만 심는다(4만 4천 → 2만 8천)
+test("모형 나무·지면 자료: 나무는 구 안 숲·공원 자리 2만여 그루, 지면 격자는 원점에서 DEM 고도(10~60m)", () => {
   const t = decodeTrees(read("toon-trees.bin"))
-  assert.ok(t.count > 30000 && t.count < 60000, `${t.count}`)
+  assert.ok(t.count > 20000 && t.count < 40000, `${t.count}`)
   for (let i = 0; i < t.count; i += 97) {
     assert.ok(Math.abs(t.x[i]) < 4000 && Math.abs(t.z[i]) < 4000)
     assert.ok(t.form[i] <= 2 && t.size[i] >= 0 && t.size[i] <= 1)
@@ -178,12 +178,6 @@ test("덩어리 나누기: 모든 동이 정확히 한 덩어리에 들고, 부�
   for (let i = 0; i < BLD.count; i += 211) assert.ok(signedArea(ringOf(BLD, i)) > 0)
 })
 
-// maplibre step 식을 값 하나로 계산(지도 압출 건물 색과 모형 건물 색이 같은 경계를 쓰는지 비교용)
-function evalStep(expr: unknown[], v: number): string {
-  let out = expr[2] as string
-  for (let i = 3; i < expr.length; i += 2) if (v >= (expr[i] as number)) out = expr[i + 1] as string
-  return out
-}
 
 const cell = (vals: Partial<Record<4 | 5 | 6 | 8, number>>, dong = "화양동"): GridCell => {
   const c = [37.54, 127.07, 37.541, 127.071, 0, 0, 0, dong, 0] as unknown as GridCell
@@ -193,34 +187,31 @@ const cell = (vals: Partial<Record<4 | 5 | 6 | 8, number>>, dong = "화양동"):
 const hex = (buf: Uint8Array, o: number) => `#${[0, 1, 2].map((k) => buf[o + k].toString(16).padStart(2, "0")).join("")}`
 const STRIDE = 16
 
-test("데이터 색: 바탕 램프·경계가 지도 압출 step 식과 같고(알파 255), 값 0·칸 밖·다른 동·동별 기둥은 흐린 재질(128), 바탕 없음은 재질 그대로(0)", () => {
-  const vals = [0, 1, 2, 3, 7, 8, 9, 30, 61, 150, 151, 900]
-  const grid = vals.map((v) => cell({ 6: v, 5: v }))
-  const cellOf = Int32Array.from([...grid.map((_, i) => i), -1])
-  for (const base of ["unm", "enf"] as const) {
-    const def = BASE_DEF[base]
-    const out = toonColors({ theme: "light", base, grid, cellOf, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
-    const prop = { 4: "comp", 5: "enf", 6: "unm", 8: "lp" }[def.idx]
-    const expr = stepExpr(prop, def.stops, def.pal)
-    vals.forEach((v, i) => {
-      if (v > 0) {
-        assert.strictEqual(hex(out, i * STRIDE), evalStep(expr, v), `${base} ${v}`)
-        assert.strictEqual(hex(out, i * STRIDE), colorOf(v, def.stops, def.pal))
-        assert.strictEqual(out[i * STRIDE + 3], DATA_COLOR)
-      } else assert.strictEqual(out[i * STRIDE + 3], DATA_MUTED, `${base} 0은 흐린 재질`)
-    })
-    assert.strictEqual(out[vals.length * STRIDE + 3], DATA_MUTED, "칸 밖")
+test("데이터 색(26라운드 모형): 다가구·단독 바탕은 주용도 단독주택 집만 주황, 나머지 크림. 다른 바탕은 모두 크림(데이터는 땅의 칸), 다른 동은 흐린 재질, 바탕 없음은 재질 그대로", () => {
+  const H = BuildingUse.house, V = BuildingUse.villa, R = BuildingUse.rowhouse, A = BuildingUse.apartment
+  const style = Uint8Array.from([H, V, R, A, BuildingUse.shop])
+  const grid = [cell({ 6: 300, 5: 9 })]
+  const cellOf = new Int32Array(5).fill(0)
+  const unm = toonColors({ theme: "light", base: "unm", grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
+  assert.deepStrictEqual([0, 1, 2, 3, 4].map((i) => hex(unm, i * STRIDE)), [MODEL_DATA.light.house.wall, MODEL_DATA.light.house.wall, MODEL_DATA.light.other.wall, MODEL_DATA.light.other.wall, MODEL_DATA.light.other.wall], "단독·다가구만 초록(다세대·아파트·상가는 크림)")
+  assert.ok([0, 1, 2, 3, 4].every((i) => unm[i * STRIDE + 3] === DATA_COLOR))
+  // 시설·후보가 서면 집 초록을 크림 쪽으로 눌러 그것들이 앞에 선다(지도 압출 pointsOn 과 같은 문법)
+  const quiet = toonColors({ theme: "light", base: "unm", grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: true })
+  const lum = (h: string) => [1, 3, 5].reduce((a, k) => a + parseInt(h.slice(k, k + 2), 16), 0)
+  assert.ok(hex(quiet, 0) !== MODEL_DATA.light.house.wall && lum(hex(quiet, 0)) > lum(MODEL_DATA.light.house.wall), "시설이 서면 집 초록이 옅어진다")
+  assert.strictEqual(hex(quiet, 2 * STRIDE), MODEL_DATA.light.other.wall)
+  for (const base of ["enf", "comp", "lp"] as const) {
+    const o = toonColors({ theme: "light", base, grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
+    assert.ok([0, 1, 2, 3, 4].every((i) => hex(o, i * STRIDE) === MODEL_DATA.light.other.wall), `${base} 는 건물을 칠하지 않는다`)
   }
-  const sel = toonColors({ theme: "light", base: "unm", grid: [cell({ 6: 300 }, "화양동"), cell({ 6: 300 }, "군자동")], cellOf: Int32Array.from([0, 1]), selectedDong: "군자동", dongBars: false, candidates: false, pointsOn: false })
+  const sel = toonColors({ theme: "light", base: "unm", grid: [cell({ 6: 300 }, "화양동"), cell({ 6: 300 }, "군자동")], cellOf: Int32Array.from([0, 1]), style: Uint8Array.from([H, H]), selectedDong: "군자동", dongBars: false, candidates: false, pointsOn: false })
   assert.strictEqual(sel[3], DATA_MUTED, "다른 동은 흐림")
-  assert.strictEqual(hex(sel, STRIDE), colorOf(300, BASE_DEF.unm.stops, BASE_DEF.unm.pal))
-  const bars = toonColors({ theme: "dark", base: "unm", grid: [cell({ 6: 300 })], cellOf: Int32Array.from([0]), selectedDong: null, dongBars: true, candidates: false, pointsOn: false })
-  assert.strictEqual(bars[3], DATA_MUTED, "동별 기둥이면 건물은 흐린 재질")
-  const grey = toonColors({ theme: "light", base: "enf", grid: [cell({ 5: 9 })], cellOf: Int32Array.from([0]), selectedDong: null, dongBars: false, candidates: true, pointsOn: false })
-  assert.strictEqual(hex(grey, 0), colorOf(9, BASE_DEF.enf.stops, greyRamp("light", 6)), "후보 표시 중은 회색 단계")
-  const none = toonColors({ theme: "light", base: "none", grid: [], cellOf: new Int32Array(3).fill(-1), selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
+  assert.strictEqual(hex(sel, STRIDE), MODEL_DATA.light.house.wall)
+  const bars = toonColors({ theme: "dark", base: "unm", grid, cellOf: Int32Array.from([0]), style: Uint8Array.from([H]), selectedDong: null, dongBars: true, candidates: false, pointsOn: false })
+  assert.strictEqual(hex(bars, 0), MODEL_DATA.dark.other.wall, "동별 기둥이면 집도 크림(기둥이 주인공)")
+  const none = toonColors({ theme: "light", base: "none", grid: [], cellOf: new Int32Array(3).fill(-1), style: new Uint8Array(3), selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
   assert.deepStrictEqual([none[3], none[STRIDE + 3], none[2 * STRIDE + 3]], [DATA_NONE, DATA_NONE, DATA_NONE])
-  const noneCand = toonColors({ theme: "light", base: "none", grid: [], cellOf: new Int32Array(1).fill(-1), selectedDong: null, dongBars: false, candidates: true, pointsOn: false })
+  const noneCand = toonColors({ theme: "light", base: "none", grid: [], cellOf: new Int32Array(1).fill(-1), style: new Uint8Array(1), selectedDong: null, dongBars: false, candidates: true, pointsOn: false })
   assert.strictEqual(noneCand[3], DATA_MUTED, "바탕 없음 + 후보 표시는 흐린 재질")
   assert.strictEqual(hex(noneCand, 0), TOON_NEUTRAL.light.wall)
 })
@@ -253,7 +244,7 @@ test("재질: 유형 바이트·층수를 알파에 싣고, 박공이면 기와 
   assert.ok(parseInt(glass.slice(5, 7), 16) > parseInt(glass.slice(1, 3), 16), `유리 ${glass}`)
 })
 
-test("빛기둥: 지도 기둥 GeoJSON 그대로 받아 거르기(동)·솟기를 따른다", async () => {
+test("데이터 블록(26라운드): 지도 기둥 GeoJSON 그대로 받아 불투명·그림자 블록으로, 발자국은 thin 비율, 거르기(동)·솟기를 따른다", async () => {
   const { ToonBeams } = await import("../components/dumping/toon-beams")
   const beams = new ToonBeams()
   const disc = (lng: number, lat: number, r: number, dong: string) => {
@@ -265,22 +256,34 @@ test("빛기둥: 지도 기둥 GeoJSON 그대로 받아 거르기(동)·솟기�
     return { type: "Feature" as const, properties: { h: 120, color: "#c0741a", dong }, geometry: { type: "Polygon" as const, coordinates: [ring] } }
   }
   const fc = { type: "FeatureCollection" as const, features: [disc(127.08, 37.54, 30, "화양동"), disc(127.09, 37.54, 20, "군자동")] }
-  beams.setData("cols", fc)
-  const verts = () => beams.group.children.reduce((s, m) => s + ((m as unknown as { geometry: { getAttribute: (k: string) => { count: number } } }).geometry.getAttribute("position").count), 0) / 2
+  beams.setData("cols", fc, undefined, 0.5, 6)
+  type M = { geometry: { getAttribute: (k: string) => { count: number; array: ArrayLike<number> }; computeBoundingBox: () => void; boundingBox: { min: { x: number; y: number }; max: { x: number; y: number } } }; material: { transparent: boolean }; castShadow: boolean; receiveShadow: boolean }
+  const mesh = () => beams.group.children[0] as unknown as M
+  const verts = () => beams.group.children.reduce((n, m) => n + (m as unknown as M).geometry.getAttribute("position").count, 0)
   const all = verts()
-  assert.ok(all > 0 && beams.group.children.length === 2, "앞뒤 두 장")
+  assert.ok(all > 0 && beams.group.children.length === 1, "블록 한 장")
+  assert.strictEqual(mesh().material.transparent, false, "불투명(반투명 몸통이 뒤 건물 색과 섞였다)")
+  assert.ok(mesh().castShadow && mesh().receiveShadow, "해 그림자를 드리우고 받는다")
+  // 윗면 표시(aTop 1)가 있고, 발자국은 반지름 × thin(화양동 30m × 0.5 = 15m 언저리)
+  const top = Array.from(mesh().geometry.getAttribute("aTop").array)
+  assert.ok(top.includes(1) && top.includes(0), "윗면·옆면")
+  beams.setFilter("cols", "화양동")
+  mesh().geometry.computeBoundingBox()
+  const bb = mesh().geometry.boundingBox
+  assert.ok(Math.abs((bb.max.x - bb.min.x) / 2 - 15) < 2, `반폭 ${((bb.max.x - bb.min.x) / 2).toFixed(1)}m`)
+  assert.ok(bb.max.y - bb.min.y > 110, "높이 h")
   beams.setFilter("cols", "군자동")
-  assert.strictEqual(verts(), all / 2, "한 동만")
+  assert.ok(verts() > 0 && verts() < all, "한 동만")
   beams.setFilter("cols", "\u0000")
   assert.strictEqual(beams.group.children.length, 0, "전부 숨김")
   beams.setFilter("cols", null)
   beams.rise("cols", 10)
-  const { Vector3 } = await import("three")
+  const { Matrix4 } = await import("three")
   const start = performance.now()
   while (performance.now() - start < 20) {
     // 10ms 솟기가 끝나길 기다린다
   }
-  assert.strictEqual(beams.frame(new Vector3()), false, "솟기 끝")
+  assert.strictEqual(beams.frame(new Matrix4(), 1), false, "솟기 끝")
   beams.dispose()
 })
 
