@@ -36,9 +36,9 @@ const metersPerPixel = (z: number) => (156543.03392 * Math.cos((LAT0 * Math.PI) 
 // 도면 보기 크기는 그대로 두고(동결), 모형 보기만 실제 값으로 잰다. 시설은 집만 한 크기(실물 4배 × 2)로 동네를 덮었다 → 화면 MODEL_PX 를 목표로 하되 실물 MODEL_MIN~MODEL_MAX 배 안에서만.
 // 시설은 늘 위에 그린다: 주소로 찍은 좌표라 의류수거함 81%·재활용정거장 93%·이동식 CCTV 93%가 건물 윤곽 안이다(2026-10-10 실측). 건물 깊이와 겨루게 했더니 거의 다 건물 속에 묻혔다.
 // 도로 위를 달리는 청소차만 건물과 깊이를 겨룬다(뒤에 있으면 가려진다)
-const MODEL_PX = 16
+const MODEL_PX = 24 // 26라운드 후속 3(사용자 "시설 객체가 눈에 안 들어오고 구분이 안 된다"): 16 → 24, 상한 실물 4 → 6배
 const MODEL_MIN = 1.5
-const MODEL_MAX = 4
+const MODEL_MAX = 6
 const MODEL_TRUCK = { px: 14, min: 1.3, max: 3 }
 const WORLD = 1 // 모형 보기에서 건물과 깊이를 겨루는 층(청소차)
 const MARK = 2 // 늘 위에 그리는 층(시설·후보 핀·고리·순위 숫자)
@@ -67,6 +67,18 @@ const plate = (r: number, color: string): Part => ({ geom: new THREE.CylinderGeo
 // 스티커처럼 뒷면 껍질 윤곽선을 한 겹 두른다(화면 크기를 지키는 아이콘이라 거리로 거두지 않는다)
 const ASSET_OF: Partial<Record<IconKind, string>> = { cctvMobile: "cctv-mobile", cctvFixed: "cctv-fixed", clothBins: "cloth-bin", recycling: "recycling", bins: "street-bin", binReco: "street-bin" }
 const ROLE_COLOR: Partial<Record<AssetRole, string>> = { ink: "#2a2722", paper: "#f7f3ea", glass: "#6f8ea3", metal: "#a9a69e", tire: "#33312d" }
+// 시설 발치 원판(26라운드 후속 3): 종류색 원 + 흰 테. 아이콘이 건물 지붕·초록 집 위에 겹쳐도 "여기 이 종류"가 색 점으로 먼저 읽힌다(모델 단위, 아이콘과 같은 배율)
+const BASE_DISC = new THREE.CircleGeometry(5.2, 28).rotateX(-Math.PI / 2).translate(0, 0.25, 0)
+const BASE_RIM = new THREE.RingGeometry(5.2, 6.4, 28).rotateX(-Math.PI / 2).translate(0, 0.3, 0)
+function baseParts(color: string): Part[] {
+  const id = new THREE.Matrix4()
+  return [
+    { geom: BASE_DISC.clone(), mat: new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.62, depthWrite: false }), local: id },
+    { geom: BASE_RIM.clone(), mat: new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.92, depthWrite: false }), local: id },
+  ]
+}
+const FACILITY_KINDS = ["cctvMobile", "cctvFixed", "clothBins", "recycling", "bins"] as const
+
 function assetParts(parts: AssetPart[], body: string, opts: { reco?: boolean; hull?: THREE.ShaderMaterial } = {}): Part[] {
   const id = new THREE.Matrix4()
   // 기하는 층마다 복사본(모듈 캐시 기하에 렌더러 dispose 리스너가 붙으면 지도를 새로 만들 때마다 옛 렌더러가 붙잡혔다). glb 는 법선이 없어 재질은 평면 셰이딩 툰
@@ -291,7 +303,10 @@ export class Icons3DLayer implements CustomLayerInterface {
       this.renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true })
       this.renderer.autoClear = false
     }
-    if (!this.defs) this.defs = buildDefs()
+    if (!this.defs) {
+      this.defs = buildDefs()
+      for (const k of FACILITY_KINDS) this.defs[k].parts = [...baseParts(INFRA_STYLE[k].color), ...this.defs[k].parts]
+    }
     // 이미 받은 점이 있으면(스타일 교체 뒤 재추가) 다시 세운다
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
     if (!this.assetsAsked) {
@@ -314,7 +329,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       const parts = by.get(name)
       if (!parts?.length) continue
       const body = kind === "binReco" ? BIN_RECO_COLOR : INFRA_STYLE[kind as keyof typeof INFRA_STYLE].color
-      defs[kind].parts = assetParts(parts, body, kind === "binReco" ? { reco: true } : { hull: this.hull })
+      defs[kind].parts = [...(kind === "binReco" ? [] : baseParts(body)), ...assetParts(parts, body, kind === "binReco" ? { reco: true } : { hull: this.hull })]
     }
     const truck = by.get("truck")
     if (truck?.length) this.truckParts = assetParts(truck, TRUCK_BODY, { hull: this.hull })

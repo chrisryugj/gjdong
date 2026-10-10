@@ -11,7 +11,7 @@
 //   다가구·단독 바탕은 그 집(주용도 단독주택)만 초록, 나머지는 크림. 민원·과태료·생활인구 바탕은 건물은 크림이고 데이터는 땅의 칸이 맡는다
 import type { BaseMode, GridCell } from "@/lib/dumping/types"
 import { BuildingUse, decadeOf, isBrick, isDandok, SAT_ROOF, SAT_WALL, useOf, type ToonSat } from "@/lib/dumping/toon-world"
-import { mixHex } from "./map-geo"
+import { BASE_DEF, colorOf, greyRamp, mixHex } from "./map-geo"
 
 type Theme = "light" | "dark"
 
@@ -251,7 +251,7 @@ export interface ToonPaint {
 }
 
 /** 데이터 텍셀(0·1)을 쓴다. out 을 주면 거기(길이 count×16).
- * 바탕 없음: 재질 그대로(후보 표시 중엔 흐린 재질) · 다가구·단독: 그 집만 초록, 나머지 크림 · 민원·과태료·생활인구: 모두 크림(데이터는 땅의 칸).
+ * 바탕 없음: 재질 그대로(후보 표시 중엔 흐린 재질) · 다가구·단독: 그 집만 초록, 나머지 크림 · 민원·과태료·생활인구: 그 칸 값의 램프 색(도면 압출과 같은 문턱, 값 0은 크림).
  * 동을 고르면 그 동 밖은 흐린 재질, 동별 기둥을 세우면 기둥이 주인공이라 모두 크림 */
 export function toonColors(p: ToonPaint, out?: Uint8Array): Uint8Array {
   const n = p.cellOf.length
@@ -267,7 +267,7 @@ export function toonColors(p: ToonPaint, out?: Uint8Array): Uint8Array {
   }
   const m = MODEL_DATA[p.theme]
   // 시설·후보·배치추천이 서면 집 초록을 크림 쪽으로 55% 눌러 그것들이 앞에 선다(지도 압출 pointsOn·greyMode 와 같은 문법. 초록 재활용정거장이 초록 집에 묻혔다)
-  const house = (p.pointsOn || p.candidates) && !p.selectedDong ? { wall: mixHex(m.house.wall, m.other.wall, 0.55), roof: mixHex(m.house.roof, m.other.roof, 0.55) } : m.house
+  const house = (p.pointsOn || p.candidates) && !p.selectedDong ? { wall: mixHex(m.house.wall, m.other.wall, 0.72), roof: mixHex(m.house.roof, m.other.roof, 0.72) } : m.house
   for (let i = 0; i < n; i++) {
     const o = i * STRIDE
     const ci = p.cellOf[i]
@@ -276,6 +276,19 @@ export function toonColors(p: ToonPaint, out?: Uint8Array): Uint8Array {
       put(buf, o, neutral.wall, DATA_MUTED)
       put(buf, o + 4, neutral.roof, 255)
       continue
+    }
+    // 26라운드 후속 3(사용자 "바탕이 눈에 안 들어온다"): 민원·과태료·생활인구 바탕은 땅 칸만 칠하면 건물 사이에 묻혔다 →
+    // 그 칸 값의 램프 색으로 건물을 칠한다(도면 압출과 같은 램프·문턱. 값 0·칸 밖은 크림). 다가구·단독은 그 집만 초록 그대로
+    if (p.base !== "unm" && !p.dongBars && cell) {
+      const def = BASE_DEF[p.base as "comp" | "enf" | "lp"]
+      const v = cell[def.idx] ?? 0
+      if (v > 0) {
+        const pal = p.candidates && !p.selectedDong ? greyRamp(p.theme, def.pal.length) : p.pointsOn ? def.pal.map((x) => mixHex(x, m.other.wall, 0.55)) : def.pal
+        const col = colorOf(v, def.stops, pal)
+        put(buf, o, mixHex(col, "#ffffff", 0.18), DATA_COLOR)
+        put(buf, o + 4, col, 255)
+        continue
+      }
     }
     const c = p.base === "unm" && !p.dongBars && isDandok(p.style[i]) ? house : m.other
     put(buf, o, c.wall, DATA_COLOR)

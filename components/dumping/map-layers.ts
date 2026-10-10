@@ -109,8 +109,8 @@ export function declareLayers(map: MlMap) {
       "circle-pitch-scale": "map",
     },
   })
-  under({ id: L_ROUTES_GENERAL, type: "line", source: S.routes, filter: ["==", ["get", "focus"], 0], paint: { "line-color": "#64748b", "line-width": 3, "line-opacity": 0.6 } })
-  under({ id: L_ROUTES_FOCUS, type: "line", source: S.routes, filter: ["==", ["get", "focus"], 1], paint: { "line-color": "#1c1a15", "line-width": 5, "line-opacity": 0.8 } })
+  under({ id: L_ROUTES_GENERAL, type: "line", source: S.routes, filter: ["==", ["get", "focus"], 0], paint: { "line-color": "#c026d3", "line-width": 3, "line-opacity": 0.55 } })
+  under({ id: L_ROUTES_FOCUS, type: "line", source: S.routes, filter: ["==", ["get", "focus"], 1], paint: { "line-color": "#c026d3", "line-width": 6, "line-opacity": 0.95 } })
   under({ id: L_CRIT_FILL, type: "fill", source: S.critCells, paint: { "fill-color": CRIT_COLOR, "fill-opacity": 0.18 } })
   under({ id: L_CRIT_LINE, type: "line", source: S.critCells, paint: { "line-color": CRIT_COLOR, "line-width": 2.5, "line-opacity": 0.95 } })
   under({ id: L_GRID_LINE, type: "line", source: S.grid, paint: { "line-color": "#ffffff", "line-width": 0.8, "line-opacity": 0 } })
@@ -317,8 +317,8 @@ export function applyThemePaint(map: MlMap, theme: BasemapTheme, look: BasemapLo
   const icons = map.getLayer("dump-icons3d") as unknown as { implementation?: { setTheme: (d: boolean) => void } } | undefined
   icons?.implementation?.setTheme(dark)
   map.setPaintProperty(S.dongColLabels, "text-halo-width", 2.6)
-  // 집중관리도로는 잉크 굵은 선(26라운드 후속: 앰버 #d97706 이 과태료 앰버와 같아 다크에선 종이색)
-  if (map.getLayer(L_ROUTES_FOCUS)) map.setPaintProperty(L_ROUTES_FOCUS, "line-color", ink)
+  // 청소차 노선은 자홍 한 색(26라운드 후속 3: 앰버는 과태료와, 회색·잉크는 길·건물과 묻혔다). 굵기·진하기로 집중/일반, 다크는 밝은 자홍
+  for (const id of [L_ROUTES_FOCUS, L_ROUTES_GENERAL]) if (map.getLayer(id)) map.setPaintProperty(id, "line-color", dark ? "#e879f9" : "#c026d3")
   if (map.getLayer(S.ring)) {
     map.setPaintProperty(S.ring, "line-color", dark ? "#a19b8f" : "#64748b")
     // 모형은 블록 모서리가 구 경계라 점선은 쉰다

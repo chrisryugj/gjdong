@@ -64,6 +64,7 @@ import {
   hotspotsFC,
   infraFC,
   mixHex,
+  modelCircleCols,
   postsFC,
   realBuildingExpr,
   ringFC,
@@ -324,13 +325,17 @@ export default function DumpingMap({
   }
   // 모형 기둥(24라운드 빛기둥, 26라운드 블록): 지도 기둥 레이어에 실은 데이터·거르기·솟기를 three 블록에도 똑같이. 툰 층이 아직 없으면 마지막 값을 들고 있다가 생길 때 넘긴다
   const beamDataRef = useRef(new Map<string, { fc: FC; filter: string | null }>())
+  const routesFcRef = useRef<FC | null>(null)
   // 26라운드: 과태료·민원 원(원기둥)은 모형에서 땅의 열점·쓰레기봉투 더미(toon-hotspots). 나머지 기둥 5종은 블록
   const toBeams = (id: string, fc: FC, filter: string | null) => {
     const t = toonRef.current
     if (!t) return
     if (id === S.circleCols) {
+      // 땅의 빛·봉투 더미(어디) + 불투명 원기둥(얼마). 26라운드 후속 3: 빛만으로는 건물 사이에 묻혔다
       t.hotspots.setData(fc)
       t.hotspots.setFilter(filter)
+      t.beams.setData(id, modelCircleCols(fc), undefined, 0.55, 5)
+      t.beams.setFilter(id, filter)
     } else {
       t.beams.setData(id, fc, BEAM_COLOR[id], BEAM_THIN[id], BEAM_MIN_PX[id])
       t.beams.setFilter(id, filter)
@@ -359,6 +364,7 @@ export default function DumpingMap({
     if (b) b.filter = dong
     if (id === S.circleCols) {
       toonRef.current?.hotspots.setFilter(dong)
+      toonRef.current?.beams.setFilter(id, dong)
       placeCallouts(map)
     } else toonRef.current?.beams.setFilter(id, dong)
   }
@@ -366,6 +372,7 @@ export default function DumpingMap({
     riseColumns(map, id, withBase, ms)
     if (id === S.circleCols) {
       toonRef.current?.hotspots.rise(ms)
+      toonRef.current?.beams.rise(id, ms)
       calloutsRef.current.hold(Math.max(ms, 1200))
       placeCallouts(map)
     } else toonRef.current?.beams.rise(id, ms)
@@ -381,6 +388,7 @@ export default function DumpingMap({
         toon.setWeather(skyRef.current)
         if (dataRef.current) toon.setRing(dataRef.current.ring)
         for (const [id, b] of beamDataRef.current) toBeams(id, b.fc, b.filter)
+        toon.routes.setData(routesFcRef.current)
         // 지도 압출 건물과 같은 자리(기둥·말뚝보다 먼저 그려 깊이를 나눈다)
         try {
           if (map.getLayer(S.circleCols)) map.addLayer(toon, S.circleCols)
@@ -787,6 +795,8 @@ export default function DumpingMap({
     if (!map || !ready) return
     if (!showRoutes) {
       setFC(map, S.routes, emptyFC())
+      routesFcRef.current = null
+      toonRef.current?.routes.setData(null)
       iconsRef.current?.setTrucks([])
       return
     }
@@ -795,14 +805,18 @@ export default function DumpingMap({
       const m = mapRef.current
       if (!alive || !m) return
       const links = (roads.default as unknown as { links: { n?: string; p: number[][] }[] }).links
-      setFC(m, S.routes, routesFC(links))
+      const rf = routesFC(links)
+      setFC(m, S.routes, rf)
+      // 모형 보기는 길 위 자홍 띠벽(toon-routes). 툰이 늦게 서면 ensureToon 이 이 값을 넘긴다
+      routesFcRef.current = rf
+      toonRef.current?.routes.setData(rf)
       // 청소차(18라운드 후속): 노선 체인마다 1~2대가 왕복한다(icons3d)
       iconsRef.current?.setTrucks(routeChains(links))
     })
     return () => {
       alive = false
     }
-  }, [ready, showRoutes, iconsReady])
+  }, [ready, showRoutes, iconsReady, toonState])
 
   // 예측 핫스팟 20 기둥+순위(운영·전망 탭). 순위는 입체에서 기둥 꼭대기 입체 숫자(재배치 후보와 같은 문법, 21라운드: 바닥 라벨은 기둥에 깔려 안 읽혔다), 평면에서 바닥 배지
   useEffect(() => {

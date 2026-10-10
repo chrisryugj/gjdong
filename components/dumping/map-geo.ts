@@ -21,7 +21,7 @@ export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }>
   cctvFixed: { color: "#7c2d12", label: "고정 CCTV" }, // 26라운드 후속: 앰버 갈색(#b45309)이 과태료 앰버와 같은 계열이라 짙은 적갈색으로
   cctvMobile: { color: "#7c3aed", label: "이동식 CCTV" },
   recycling: { color: "#059669", label: "재활용정거장" },
-  bins: { color: "#475569", label: "가로쓰레기통" },
+  bins: { color: "#1f2937", label: "가로쓰레기통" }, // 26라운드 후속 3: 청회 #475569 는 회백 건물·길과 묻혔다 → 잉크
 }
 
 // 배치 추천은 설치 현황이 아니라 제안이라 인프라 레이어와 색·모양을 갈라 둔다(점선 원 = 아직 없는 것)
@@ -855,6 +855,23 @@ export function topCells(cols: FC, n: number, dong: string | null, cid?: CircleI
     .sort((a, b) => b.v - a.v)
     .slice(0, n)
     .map((c, i) => ({ rank: i + 1, ...c }))
+}
+
+// 26라운드 후속 3(2026-10-10 사용자 "민원·과태료가 3D 건물 사이에 2D로 깔려 거의 안 보이고 희미하다"): 모형 보기 원기둥 높이.
+// 도면 원기둥(30~240m)은 1건 칸도 30m 라 동네가 기둥 숲이었다 → 모형은 지붕 높이에서 시작하지 않고 6m(단독 처마)부터 건수에 정비례해
+// 최댓값 칸이 206m. 적은 칸은 지붕 사이로 색 머리만 보이고, 많은 칸이 지붕 위로 솟는다. 지표마다 따로 최댓값(두 원을 같이 켜도 각자의 비율)
+export const MODEL_CYL_MIN_M = 6
+export const MODEL_CYL_MAX_M = 206
+export function modelCircleCols(cols: FC): FC {
+  const max = new Map<string, number>()
+  for (const f of cols.features) max.set(String(f.properties?.cid), Math.max(max.get(String(f.properties?.cid)) ?? 1, Number(f.properties?.v) || 0))
+  return fc(
+    cols.features.map((f) => {
+      const p = f.properties ?? {}
+      const v = Number(p.v) || 0
+      return { ...f, properties: { ...p, h: MODEL_CYL_MIN_M + (v / (max.get(String(p.cid)) ?? 1)) * (MODEL_CYL_MAX_M - MODEL_CYL_MIN_M) } } as Feature
+    }),
+  )
 }
 
 // 날씨별 원을 원기둥으로. 평면과 같은 상대 크기(조건 안 최댓값 대비)

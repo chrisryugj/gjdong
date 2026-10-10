@@ -568,7 +568,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
         )}
         <p className="text-[var(--cp-text-muted)]">
           {model ? NONE_MEANING_MODEL : modelUnm ? UNM_MEANING_MODEL : BASE_MEANING[view.base]}
-          {view.tilt && !none && !grey && !modelUnm && (look === "model" ? " 모형에서는 건물을 무채색으로 두고 땅의 칸만 칠함" : " 입체에서는 건물도 제 칸 색으로 칠함")}
+          {view.tilt && !none && !grey && !modelUnm && " 입체에서는 건물도 제 칸 색으로 칠함"}
           {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음, 핀이 색을 갖게)"}
         </p>
         {/* 22라운드(심사 냉독): 켜진 원·원기둥은 지도에서 가장 큰 요소라 설명 한 줄은 늘 보인다. 빈 칸 설명만 "자세한 설명" 안에 */}
@@ -593,7 +593,7 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
               />
               <span>
                 {view.tilt && !view.grid3d && look === "model"
-                  ? `땅의 ${c === "comp" ? "파랑" : "앰버"} 빛 원은 ${CIRCLE_DEF[c].label} 건수, 넓고 진할수록 많음${c === leadMetric(view.circles) ? `. 상위 24칸엔 쓰레기봉투 더미(봉투 하나에 약 3건)${view.dongBars ? "" : ", 상위 3칸엔 숫자 카드"}` : ""}`
+                  ? `${c === "comp" ? "파랑" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높을수록 많음(발치의 빛 원은 그 칸)${c === leadMetric(view.circles) ? `. 상위 24칸엔 쓰레기봉투 더미(봉투 하나에 약 3건)${view.dongBars ? "" : ", 상위 3칸엔 숫자 카드"}` : ""}`
                   : view.tilt && !view.grid3d
                   ? `${c === "comp" ? "파랑" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
                   : `${c === "comp" ? "파랑" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}

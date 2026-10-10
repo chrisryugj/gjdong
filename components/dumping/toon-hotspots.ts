@@ -55,10 +55,11 @@ void main() {
   // 조망은 또렷한 점(가운데 평평·가장자리만 부드럽게): 넓게 번지면 초록 집과 앰버가 섞여 흙빛이 됐다
   float a = mix(pow(1.0 - clamp(vR, 0.0, 1.0), 1.7), 1.0 - smoothstep(0.45, 1.0, vR), uOver);
   float ring = smoothstep(0.86, 0.93, vR) * (1.0 - smoothstep(0.93, 1.0, vR));
-  vec3 c = mix(vC, vec3(1.0), 0.18 * (1.0 - uDark) * (1.0 - a) * (1.0 - uOver));
+  vec3 c = vC;
   c += (1.0 - c) * 0.22 * uOver;
   float w = mix(1.0, 0.25 + 0.75 * vW, uOver);
-  gl_FragColor = vec4(c, clamp((mix(0.62, 0.85, uOver) * a + 0.22 * ring) * uOpacity * w, 0.0, 1.0));
+  // 26라운드 후속 3: 가까이서 희미했다(0.62, 가장자리 흰빛 섞임) → 0.82, 테두리 0.35
+  gl_FragColor = vec4(c, clamp((mix(0.82, 0.85, uOver) * a + 0.35 * ring) * uOpacity * w, 0.0, 1.0));
   #include <colorspace_fragment>
 }`
 

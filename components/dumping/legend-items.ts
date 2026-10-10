@@ -68,7 +68,7 @@ export function objectLegend(c: LegendCtx): LegendItem[] {
   // 시설은 주소로 찍은 자리라 대부분 건물 윤곽 안: 입체에선 늘 건물 위에 그린다(같은 말을 줄마다 되풀이하지 않게 한 번만)
   if (tilt && view.layers.length) out.push({ key: "infra-note", swatch: "none", colors: [], text: "시설은 주소 자리라 건물 위에 겹쳐 보임" })
   if (view.routes)
-    out.push({ key: "routes", swatch: "line", colors: [c.dark ? "#ece7dc" : "#14201c", "#64748b"], text: `굵은 선은 집중관리도로, 회색 선은 일반관리도로${tilt ? ". 움직이는 청소차는 노선을 도는 그림(실제 위치 아님)" : ""}` })
+    out.push({ key: "routes", swatch: "line", colors: [c.dark ? "#e879f9" : "#c026d3"], text: `자홍 ${c.model ? "띠벽" : "선"}은 청소차 노선. 높고 진한 쪽이 집중관리도로, 낮고 옅은 쪽이 일반관리도로${tilt ? ". 움직이는 청소차는 노선을 도는 그림(실제 위치 아님)" : ""}` })
   if (c.model)
     out.push({ key: "decor", swatch: "none", colors: [], text: "차·나무·구름은 분위기 그림. 길과 공원·학교의 사람 수만 생활인구가 많은 칸일수록 많게" })
   return out

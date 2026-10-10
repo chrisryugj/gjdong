@@ -18,6 +18,7 @@ import { ToonBeams } from "./toon-beams"
 import { ToonTraffic } from "./toon-traffic"
 import { ToonHotspots } from "./toon-hotspots"
 import { ToonLandmarks, landmarkReplaces } from "./toon-landmark"
+import { ToonRoutes } from "./toon-routes"
 import { haloMaterial, SKIRT_M, skirtGroup } from "./toon-diorama"
 import { cellLookup } from "./map-geo"
 import { weatherLook, type SkyWeather } from "@/lib/dumping/map-weather"
@@ -106,6 +107,8 @@ export class ToonLayer implements CustomLayerInterface {
   private readonly decor: ToonDecor
   readonly beams = new ToonBeams()
   readonly hotspots = new ToonHotspots()
+  // 청소차 노선 띠벽(26라운드 후속 3): 땅의 선은 건물 사이에 묻혔다
+  readonly routes = new ToonRoutes()
   // 랜드마크 모델(광진구청 신청사, 블렌더 glb). 같은 자리의 일반 건물은 덩어리에서 뺀다. 눈·구름 그늘 유니폼은 생성자에서 bldU 와 나눈다
   readonly landmarks: ToonLandmarks
   readonly traffic: ToonTraffic
@@ -200,7 +203,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.decor = new ToonDecor(this.cloudU, this.exag, opts.dark)
     this.landmarks = new ToonLandmarks({ uRoofSnow: this.bldU.uRoofSnow, uSnowC: this.bldU.uSnowC, uCloudDark: this.bldU.uCloudDark, ...this.cloudU })
     this.traffic = new ToonTraffic(opts.dark)
-    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group, this.landmarks.group)
+    this.scene.add(this.decor.group, this.beams.group, this.traffic.group, this.hotspots.group, this.landmarks.group, this.routes.group)
     this.skirtU.uSunDir.value.copy(this.cloudU.uSunDir.value)
     this.setTheme(opts.dark)
   }
@@ -222,6 +225,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.addTint(this.ground)
     this.beams.setGround(this.ground, this.exag)
     this.hotspots.setGround(this.ground, this.exag)
+    this.routes.setGround(this.ground, this.exag)
     this.buildSkirt()
     // 지붕 계획(박공·처마 높이)을 먼저 전부: 재질(박공이면 기와)과 정보 텍스처(지면·벽 꼭대기·층수)가 그 값을 쓴다. 박공은 위성 판정이 있으면 그것으로
     const n = bld.count
@@ -406,6 +410,7 @@ export class ToonLayer implements CustomLayerInterface {
   setTheme(dark: boolean) {
     this.dark = dark
     this.landmarks.setTheme(dark)
+    this.routes.setTheme(dark)
     const t = dark ? THEMES.dark : THEMES.light
     this.receiver.material.color.set(t.receiver.color)
     const u = this.bldU
@@ -689,6 +694,7 @@ export class ToonLayer implements CustomLayerInterface {
     this.disposeSkirt()
     this.hotspots.dispose()
     this.landmarks.dispose()
+    this.routes.dispose()
     this.decor.dispose()
     this.beams.dispose()
     this.traffic.dispose()

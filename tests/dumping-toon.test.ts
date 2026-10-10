@@ -5,6 +5,7 @@ import { BuildingUse, decadeOf, decodeBuildings, decodeGround, decodeTrees, grou
 import { buildChunk, chunkIds, gableChance, insetRing, Part, ringOf, roofPlan, signedArea } from "../components/dumping/toon-geom"
 import { DATA_COLOR, DATA_MUTED, DATA_NONE, hash01, materialOf, MODEL_DATA, toonColors, toonMaterials, TOON_NEUTRAL } from "../components/dumping/toon-palette"
 import { LANDMARK_TIER_ZOOM, LANDMARKS } from "../lib/dumping/landmarks"
+import { BASE_DEF, colorOf } from "../components/dumping/map-geo"
 import type { GridCell } from "../lib/dumping/types"
 
 // 23라운드 모형 보기 → 24라운드 실사. 정적 자료(scripts/dumping-toon-world.py)의 형식·범위·대장 대조 신축, 지붕·면 방향·법선, 데이터 색이 지도 압출 식과 같은지를 핀으로 박는다
@@ -187,7 +188,7 @@ const cell = (vals: Partial<Record<4 | 5 | 6 | 8, number>>, dong = "화양동"):
 const hex = (buf: Uint8Array, o: number) => `#${[0, 1, 2].map((k) => buf[o + k].toString(16).padStart(2, "0")).join("")}`
 const STRIDE = 16
 
-test("데이터 색(26라운드 모형): 다가구·단독 바탕은 주용도 단독주택 집만 주황, 나머지 크림. 다른 바탕은 모두 크림(데이터는 땅의 칸), 다른 동은 흐린 재질, 바탕 없음은 재질 그대로", () => {
+test("데이터 색(26라운드 모형): 다가구·단독 바탕은 주용도 단독주택 집만 초록, 나머지 크림. 다른 바탕은 칸 값 램프로 건물을 칠함, 다른 동은 흐린 재질, 바탕 없음은 재질 그대로", () => {
   const H = BuildingUse.house, V = BuildingUse.villa, R = BuildingUse.rowhouse, A = BuildingUse.apartment
   const style = Uint8Array.from([H, V, R, A, BuildingUse.shop])
   const grid = [cell({ 6: 300, 5: 9 })]
@@ -200,10 +201,15 @@ test("데이터 색(26라운드 모형): 다가구·단독 바탕은 주용도 �
   const lum = (h: string) => [1, 3, 5].reduce((a, k) => a + parseInt(h.slice(k, k + 2), 16), 0)
   assert.ok(hex(quiet, 0) !== MODEL_DATA.light.house.wall && lum(hex(quiet, 0)) > lum(MODEL_DATA.light.house.wall), "시설이 서면 집 초록이 옅어진다")
   assert.strictEqual(hex(quiet, 2 * STRIDE), MODEL_DATA.light.other.wall)
-  for (const base of ["enf", "comp", "lp"] as const) {
-    const o = toonColors({ theme: "light", base, grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
-    assert.ok([0, 1, 2, 3, 4].every((i) => hex(o, i * STRIDE) === MODEL_DATA.light.other.wall), `${base} 는 건물을 칠하지 않는다`)
+  // 26라운드 후속 3: 민원·과태료·생활인구 바탕은 그 칸 값의 램프 색으로 건물을 칠한다(땅 칸만으론 건물 사이에 묻혔다). 값 0 칸은 크림
+  {
+    const o = toonColors({ theme: "light", base: "enf", grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
+    const want = colorOf(9, BASE_DEF.enf.stops, BASE_DEF.enf.pal)
+    assert.ok([0, 1, 2, 3, 4].every((i) => hex(o, i * STRIDE + 4) === want), "과태료 9건 칸의 건물 지붕은 과태료 램프 색")
+    const zero = toonColors({ theme: "light", base: "comp", grid, cellOf, style, selectedDong: null, dongBars: false, candidates: false, pointsOn: false })
+    assert.ok([0, 1, 2, 3, 4].every((i) => hex(zero, i * STRIDE) === MODEL_DATA.light.other.wall), "민원 0 칸은 크림")
   }
+
   const sel = toonColors({ theme: "light", base: "unm", grid: [cell({ 6: 300 }, "화양동"), cell({ 6: 300 }, "군자동")], cellOf: Int32Array.from([0, 1]), style: Uint8Array.from([H, H]), selectedDong: "군자동", dongBars: false, candidates: false, pointsOn: false })
   assert.strictEqual(sel[3], DATA_MUTED, "다른 동은 흐림")
   assert.strictEqual(hex(sel, STRIDE), MODEL_DATA.light.house.wall)
