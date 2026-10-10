@@ -293,3 +293,30 @@ test("실사 건물 색 식: 층수 보간 + UFID 끝자리 흔들림, 테마별
   assert.deepEqual(cols, [...REAL_BUILDING.light])
   assert.notDeepEqual(realBuildingExpr("dark").slice(3).filter((_, i) => i % 2 === 1), cols)
 })
+
+// 26라운드 후속(2026-10-10 사용자 "모든 지도상 3D 객체 범례 전수조사"): 켜진 개체마다 범례 한 줄, 꺼지면 없음. 민원·과태료는 색상각이 갈라진 짝
+test("지도 위 개체 범례: 켜진 층마다 한 줄(동별 막대·상습격자·핫스팟·후보·배치추천·시설·노선·분위기 그림), 꺼진 층은 없음", withMap, async () => {
+  const { objectLegend } = await import("../components/dumping/legend-items")
+  const { COMP_COLOR, ENF_COLOR } = await import("../components/dumping/map-geo")
+  const base = { ...DEFAULT_VIEW }
+  assert.deepStrictEqual(objectLegend({ view: base, model: false, hotspots: false, critical: false, data: map }), [])
+  const all = objectLegend({
+    view: { ...base, dongBars: true, candidates: true, binRecos: true, routes: true, layers: ["clothBins", "cctvMobile"] },
+    model: true,
+    hotspots: true,
+    critical: true,
+    data: map,
+  })
+  assert.deepStrictEqual(all.map((o) => o.key), ["dong", "critical", "hotspots", "candidates", "binRecos", "infra-clothBins", "infra-cctvMobile", "infra-note", "routes", "decor"])
+  assert.ok(all.find((o) => o.key === "critical")!.text.includes(`${map!.decision.kpi.criticalCells.length}곳`))
+  assert.ok(all.find((o) => o.key === "infra-cctvMobile")!.text.includes("대"))
+  for (const o of all) assert.ok(!/=|→|\.\.\.|…/.test(o.text), o.text)
+  const hue = (h: string) => {
+    const [r, g, b] = [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16) / 255)
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
+    const x = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4
+    return (x * 60 + 360) % 360
+  }
+  const gap = Math.abs(hue(COMP_COLOR) - hue(ENF_COLOR))
+  assert.ok(Math.min(gap, 360 - gap) > 150, `민원·과태료 색상각 차 ${gap}`)
+})

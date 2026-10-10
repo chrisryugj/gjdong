@@ -18,7 +18,7 @@ export const ZERO_CELL = "#94a3b8" // 값 0인 칸의 옅은 테두리. 범례�
 
 export const INFRA_STYLE: Record<InfraLayerId, { color: string; label: string }> = {
   clothBins: { color: "#0e7490", label: "의류수거함" },
-  cctvFixed: { color: "#b45309", label: "고정 CCTV" },
+  cctvFixed: { color: "#7c2d12", label: "고정 CCTV" }, // 26라운드 후속: 앰버 갈색(#b45309)이 과태료 앰버와 같은 계열이라 짙은 적갈색으로
   cctvMobile: { color: "#7c3aed", label: "이동식 CCTV" },
   recycling: { color: "#059669", label: "재활용정거장" },
   bins: { color: "#475569", label: "가로쓰레기통" },
@@ -48,9 +48,11 @@ export const BASE_DEF: Record<DataBase, { idx: 4 | 5 | 6 | 8; stops: number[]; u
 }
 
 // 원(점) 오버레이는 바탕 위에 자유 중첩
-// 18라운드 후속: 지도 색을 테마 계열로 통일. 민원 = 잉크 청회(차가움), 과태료 = 앰버(따뜻함, 결과지표라 액센트), 상습·핫스팟 = 벽돌.
+// 18라운드 후속: 지도 색을 테마 계열로 통일. 과태료 = 앰버(따뜻함, 결과지표라 액센트), 상습·핫스팟 = 벽돌.
+// 26라운드 후속(2026-10-10 사용자 "민원·과태료 구분이 아예 안 된다"): 민원은 잉크 청회(#3f4f66)에서 코발트 파랑으로. 청회는 실사 모형의 어두운 유리·그늘·짙은 패널과
+// 같은 색이라 민원 기둥·빛이 건물로 읽혔고, 그늘진 옆면에서 앰버와 둘 다 흙빛이 됐다. 파랑·앰버는 색상각 정반대(색약에도 갈리는 짝)
 // 옛 빨강·보라는 종이·앰버 테마 위에서 튀었다(유저 지적)
-export const COMP_COLOR = "#3f4f66"
+export const COMP_COLOR = "#2563c9"
 export const ENF_COLOR = "#c0741a"
 export const CIRCLE_DEF: Record<CircleId, { idx: 4 | 5; color: string; label: string }> = {
   comp: { idx: 4, color: COMP_COLOR, label: "민원" },

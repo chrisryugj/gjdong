@@ -94,7 +94,7 @@ export class ToonBeams {
         filter: null,
         rise: null,
         mesh: null,
-        uniforms: { uRise: { value: 1 }, uMinPx: { value: minPx }, uGlow: { value: this.dark ? 0.45 : 0 }, ...this.shared },
+        uniforms: { uRise: { value: 1 }, uMinPx: { value: minPx }, uGlow: { value: this.dark ? 0.45 : 0.14 }, ...this.shared },
       })
     this.build(id)
   }
@@ -117,7 +117,8 @@ export class ToonBeams {
 
   setTheme(dark: boolean) {
     this.dark = dark
-    for (const s of this.sets.values()) s.uniforms.uGlow.value = dark ? 0.45 : 0
+    // 라이트도 제 색을 조금 내게(그늘진 옆면에서 파랑·앰버가 둘 다 흙빛으로 가라앉지 않게, 26라운드 후속)
+    for (const s of this.sets.values()) s.uniforms.uGlow.value = dark ? 0.45 : 0.14
   }
 
   /** 매 프레임: 본 카메라 행렬·화면 1m 픽셀×깊이(toon-layer pxK, 장치 픽셀)·솟는 중인 배율. 솟는 중이면 true */

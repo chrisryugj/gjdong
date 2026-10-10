@@ -131,11 +131,11 @@ export function helpForKeys(keys: string[]): string[] {
 import type { WeatherKey } from "./types"
 export type DongMode = "total" | "channel" | "year"
 export const DONG_MODE_LABEL: Record<DongMode, string> = { total: "합계", channel: "채널", year: "연도" }
-// 채널 스택 색. 민원 잉크 청회(map-geo COMP_COLOR) 안에서 진하기로 구분(앱이 가장 많아 진하게)
+// 채널 스택 색. 민원 파랑(map-geo COMP_COLOR) 안에서 진하기로 구분(앱이 가장 많아 진하게)
 export const CHANNEL_DEF = {
-  app: { label: "앱 신고", front: "#3f4f66", side: "#2b3747", top: "#6f7f96" },
-  c120: { label: "120", front: "#7d8ba0", side: "#5c6a80", top: "#a3aebf" },
-  direct: { label: "직접", front: "#b9c1cd", side: "#96a0ae", top: "#d6dbe3" },
+  app: { label: "앱 신고", front: "#2563c9", side: "#1a4a9a", top: "#5b8de0" },
+  c120: { label: "120", front: "#6d97de", side: "#4f78bf", top: "#9bbbec" },
+  direct: { label: "직접", front: "#b3cbf0", side: "#8eaedf", top: "#d6e3f7" },
 } as const
 export const WEATHER_DEF: Record<WeatherKey, { label: string; short: string; color: string }> = {
   hot: { label: "더운 날(일평균 25도 이상)", short: "더움", color: "#c0741a" },

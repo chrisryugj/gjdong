@@ -188,8 +188,10 @@ interface Truck {
 }
 // 청소차 모델(길이 7m, 앞이 +x): 앰버 적재함(종이 지도에 안 묻힌다) + 잉크 운전석 + 흰 경광등 + 바퀴
 const TRUCK_LEN = 7
+// 26라운드 후속: 적재함 앰버가 과태료 앰버·빛 원과 같은 색이라 짙은 청록 회색으로(청소차는 데이터가 아니라 노선을 도는 그림)
+const TRUCK_BODY = "#3d5a5b"
 const TRUCK_PARTS: Part[] = [
-  { geom: new THREE.BoxGeometry(4.4, 2.4, 2.3), mat: new THREE.MeshLambertMaterial({ color: "#c0741a" }), local: at(-1.1, 1.9, 0) },
+  { geom: new THREE.BoxGeometry(4.4, 2.4, 2.3), mat: new THREE.MeshLambertMaterial({ color: TRUCK_BODY }), local: at(-1.1, 1.9, 0) },
   { geom: new THREE.BoxGeometry(2.0, 2.0, 2.3), mat: new THREE.MeshLambertMaterial({ color: "#1c1a15" }), local: at(2.2, 1.7, 0) },
   { geom: new THREE.BoxGeometry(0.8, 0.4, 1.2), mat: new THREE.MeshLambertMaterial({ color: "#fbf9f3", emissive: new THREE.Color("#fbf9f3"), emissiveIntensity: 0.7 }), local: at(2.2, 2.9, 0) },
   { geom: new THREE.CylinderGeometry(0.55, 0.55, 2.5, 10).rotateX(Math.PI / 2), mat: new THREE.MeshLambertMaterial({ color: "#262626" }), local: at(2.0, 0.55, 0) },
@@ -315,7 +317,7 @@ export class Icons3DLayer implements CustomLayerInterface {
       defs[kind].parts = assetParts(parts, body, kind === "binReco" ? { reco: true } : { hull: this.hull })
     }
     const truck = by.get("truck")
-    if (truck?.length) this.truckParts = assetParts(truck, "#c0741a", { hull: this.hull })
+    if (truck?.length) this.truckParts = assetParts(truck, TRUCK_BODY, { hull: this.hull })
     for (const [kind, st] of this.kinds) this.rebuild(kind, st.points, false)
     if (this.trucks.length) this.setTrucks([...new Set(this.trucks.map((t) => t.chain))])
   }

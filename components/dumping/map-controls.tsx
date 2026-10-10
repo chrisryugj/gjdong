@@ -7,6 +7,7 @@ import { tallyInfra } from "@/lib/dumping/facts"
 import { Ico } from "./icons"
 import { useTheme } from "./theme"
 import { MODEL_DATA, modelSwatches } from "./toon-palette"
+import { objectLegend } from "./legend-items"
 import type { BasemapLook } from "@/lib/dumping/basemap-style"
 import { SKY_CHOICES, type SkyChoice } from "@/lib/dumping/map-weather"
 import { nbParen } from "@/lib/dumping/nobreak"
@@ -501,9 +502,11 @@ interface LegendProps {
   selectedDong?: string | null // 격자 대체 표를 선택 동으로 좁힌다
   circlesMuted?: boolean // 다른 층이 켜져 지도가 원·원기둥을 숨긴 상태(대시보드가 dumping-map muted와 같은 조건으로 계산)
   look?: BasemapLook // 모형이면 바탕 없음 건물 띠가 모형 팔레트
+  hotspots?: boolean // 운영 탭 예측 핫스팟 기둥이 섰나(지도 위 개체 줄)
+  critical?: boolean // 상습격자 강조가 섰나
 }
 
-export function MapLegend({ data, view, selectedDong = null, circlesMuted = false, look = "paper" }: LegendProps) {
+export function MapLegend({ data, view, selectedDong = null, circlesMuted = false, look = "paper", hotspots = false, critical = false }: LegendProps) {
   const [showHelp, setShowHelp] = useState(false)
   const [showTable, setShowTable] = useState(false)
   const theme = useTheme()
@@ -513,6 +516,8 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
   const grey = view.candidates && !selectedDong && !none // 후보 표시 중: 바탕 램프가 회색 단계(dumping-map greyMode)
   const model = none && view.tilt && look === "model"
   const modelUnm = view.base === "unm" && view.tilt && look === "model"
+  // 26라운드 후속: 켜진 3D 개체마다 한 줄(legend-items). 동별 막대·상습격자·핫스팟·후보·배치추천·시설·청소차·분위기 그림
+  const objects = objectLegend({ view, model: view.tilt && look === "model", hotspots, critical, data, dark: theme === "dark" })
 
   return (
     <div className="text-[13.5px] leading-snug text-[var(--cp-text)]">
@@ -564,10 +569,11 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
         <p className="text-[var(--cp-text-muted)]">
           {model ? NONE_MEANING_MODEL : modelUnm ? UNM_MEANING_MODEL : BASE_MEANING[view.base]}
           {view.tilt && !none && !grey && !modelUnm && (look === "model" ? " 모형에서는 건물을 무채색으로 두고 땅의 칸만 칠함" : " 입체에서는 건물도 제 칸 색으로 칠함")}
-          {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음). 핀은 재배치 후보(기록이 많은데 이동식 CCTV가 없는 칸): 상위 3 벽돌색·바닥 고리, 나머지 앰버. 보라는 현 이동식 CCTV"}
+          {grey && " 후보를 표시하는 동안은 회색 단계(진할수록 기록 많음, 핀이 색을 갖게)"}
         </p>
         {/* 22라운드(심사 냉독): 켜진 원·원기둥은 지도에서 가장 큰 요소라 설명 한 줄은 늘 보인다. 빈 칸 설명만 "자세한 설명" 안에 */}
-        {circlesMuted && !selectedDong && !showHelp ? null : view.weather ? (
+        {/* 입체에서 격자 기둥을 켜면 원기둥·땅의 빛 원은 쉬고 기둥 줄만 말한다(26라운드 후속 범례 검수: 사라진 원 설명이 남았다) */}
+        {(circlesMuted && !selectedDong && !showHelp) || (view.tilt && view.grid3d && !view.weather) ? null : view.weather ? (
           <p className="flex items-center gap-1.5">
             <i
               className="h-3 w-3 shrink-0 rounded-full border"
@@ -587,18 +593,39 @@ export function MapLegend({ data, view, selectedDong = null, circlesMuted = fals
               />
               <span>
                 {view.tilt && !view.grid3d && look === "model"
-                  ? `땅의 ${c === "comp" ? "청회" : "앰버"} 빛 원은 ${CIRCLE_DEF[c].label} 건수, 넓고 진할수록 많음${c === leadMetric(view.circles) ? `. 상위 24칸엔 쓰레기봉투 더미(봉투 하나에 약 3건)${view.dongBars ? "" : ", 상위 3칸엔 숫자 카드"}` : ""}`
+                  ? `땅의 ${c === "comp" ? "파랑" : "앰버"} 빛 원은 ${CIRCLE_DEF[c].label} 건수, 넓고 진할수록 많음${c === leadMetric(view.circles) ? `. 상위 24칸엔 쓰레기봉투 더미(봉투 하나에 약 3건)${view.dongBars ? "" : ", 상위 3칸엔 숫자 카드"}` : ""}`
                   : view.tilt && !view.grid3d
-                  ? `${c === "comp" ? "청회" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
-                  : `${c === "comp" ? "청회" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
+                  ? `${c === "comp" ? "파랑" : "앰버"} 원기둥은 ${CIRCLE_DEF[c].label} 건수, 높고 굵을수록 많음(칸 가운데)`
+                  : `${c === "comp" ? "파랑" : "앰버"} 원은 ${CIRCLE_DEF[c].label} 건수, 클수록·진할수록 많음(원은 제 칸 안)`}
               </span>
             </p>
           ))
         )}
         {view.grid3d && (
           <p className="text-[var(--cp-text-muted)]">
-            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 청회·과태료 앰버). 5건 이상 칸만, 확대하면 값도 보임
+            기둥은 칸의 {(view.circles.length ? view.circles : ["enf" as CircleId]).map((c) => CIRCLE_DEF[c].label).join("·")} 건수, 높을수록 많음. 색은 원과 같음(민원 파랑·과태료 앰버). 5건 이상 칸만, 확대하면 값도 보임
           </p>
+        )}
+        {objects.length > 0 && (
+          <div className="mt-0.5 flex flex-col gap-1 border-t border-[var(--cp-border-faint)] pt-1.5">
+            <span className="dump-kicker text-[11px] text-[var(--cp-text-faint)]">지도 위 개체</span>
+            {objects.map((o) => (
+              <p key={o.key} className={`flex items-start gap-1.5 ${o.swatch === "none" ? "text-[var(--cp-text-muted)]" : ""}`}>
+                {o.swatch !== "none" && (
+                  <span className="mt-[3px] flex shrink-0 gap-[2px]" aria-hidden>
+                    {o.colors.map((col) => (
+                      <i
+                        key={col}
+                        className={o.swatch === "dot" ? "h-3 w-3 rounded-full" : o.swatch === "line" ? "mt-[5px] h-[3px] w-3.5 rounded-full" : o.swatch === "pin" ? "h-3 w-2.5 rounded-t-full rounded-b-[2px]" : "h-3 w-2.5 rounded-[2px]"}
+                        style={{ background: col }}
+                      />
+                    ))}
+                  </span>
+                )}
+                <span>{o.text}</span>
+              </p>
+            ))}
+          </div>
         )}
         {showHelp && (
           <p className="flex items-center gap-1.5 text-[var(--cp-text-muted)]">

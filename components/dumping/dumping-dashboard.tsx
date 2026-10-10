@@ -464,7 +464,7 @@ export default function DumpingDashboard() {
       {
         title: "동별 비교",
         caption: topDong ? `${topDong.d}이 민원 ${topDong.comp.toLocaleString()}건 · 과태료 ${topDong.enf.toLocaleString()}건으로 ${mapData.dong.length}개 동 가운데 1위입니다.` : "",
-        note: "청회 기둥은 민원, 앰버 기둥은 과태료 · 1~3위는 꼭대기 배지 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
+        note: "파랑 기둥은 민원, 앰버 기둥은 과태료 · 1~3위는 꼭대기 배지 · 높이는 구 최댓값 대비 · 기둥에 마우스를 올리면 순위·천명당",
         apply: () => {
           setTab("policy")
           setView({ ...DEFAULT_VIEW, circles: [], orbit: true })
@@ -645,7 +645,7 @@ export default function DumpingDashboard() {
   const criticalOn = showCritical && (tab === "ops" || tab === "policy")
   // 지도는 다른 층(시설·후보·배치추천·핫스팟·상습격자)이 켜지면 원·원기둥을 숨긴다(dumping-map muted). 범례도 같은 조건으로 그 줄을 뺀다
   const circlesMuted = view.layers.length > 0 || view.candidates || view.binRecos || hotspotsOn || criticalOn
-  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} circlesMuted={circlesMuted} look={look === "model" && toonOk ? "model" : "paper"} />
+  const legend = <MapLegend data={mapData} view={view} selectedDong={selectedDong} circlesMuted={circlesMuted} look={look === "model" && toonOk ? "model" : "paper"} hotspots={hotspotsOn} critical={criticalOn} />
   const candidates =
     view.candidates && mapData ? (
       <CandidateList

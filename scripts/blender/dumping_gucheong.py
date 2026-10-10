@@ -33,6 +33,8 @@ PAL = {
     "leaf": "#5d8a4a",
     "trunk": "#6e5a48",
     "mech": "#b9b7b0",
+    "lattice": "#d9dcdf",
+    "pergola": "#2a2d31",
     "sign_gc": "#ffffff",
     "sign_council": "#ffffff",
     "sign_health": "#ffffff",
@@ -48,7 +50,7 @@ HU0, HU1, HV0, HV1, H_TOP = 11.1, 44.9, -56.0, -19.7, 20.0  # 보건소
 SLOT_V0, SLOT_V1, SLOT_TOP = -4.6, CV0, 42.3  # 정면 커튼월 입구
 
 
-PART = ""  # 지금 짓는 부분의 재질 꼬리("" 탑·북쪽 띠, "@c" 구의회, "@h" 보건소)
+PART = ""  # 지금 짓는 부분의 재질 꼬리("" 탑·북쪽 띠, "@c" 구의회, "@h" 보건소, "@p" 이스트폴 저층부)
 
 
 def mat(role):
@@ -376,6 +378,73 @@ def health():
     PART = ""
 
 
+# ─── 이스트폴 판매시설(북측) 저층부(2026-10-10 사용자 "의회 쪽 건물은 옆 건물이랑 저층이 이어져 있어" + 항공 사진 3장) ─────────
+# 건축물대장 "이스트폴 판매시설(북측) 및 지하주차장": 지상 4층 32.3m, 건폐율 20.06% → 건축면적 약 11,100㎡. 이스트폴 사무 타워 두 동(148.5m·147.5m)이
+# 이 저층부 위에 서고, 남쪽 면이 구의회 북쪽 면에 붙는다(모형 건물 자료엔 타워 두 동만 땅에서 솟고 저층부가 통째로 없었다).
+# 자리는 위성 z19 지붕 테두리(32m 밀림 보정)로: 서쪽 면 u −51(구의회보다 길 쪽으로 21m 나온다), 남쪽 v 33, 서쪽 덩이 북쪽 v 108,
+# 동쪽 덩이는 사무 타워 B 아래까지(u 32~75, v 44~134). 사진: 서쪽·남쪽 면은 은색 마름모 격자 외벽(남서 모서리를 둥글게 감싼다),
+# 1층은 안으로 들인 어두운 유리, 옥상은 테라스·검은 퍼걸러·유리 상자. 격자 무늬는 런타임 셰이더(toon-landmark lattice)가 그린다
+PU0, PV0, P_TOP = -51.0, 33.0, 26.0
+
+
+def offset_poly(pts, d):
+    """반시계 다각형을 안쪽으로 d(모서리는 이웃 두 변 법선의 이등분선, 꼭짓점 수 그대로)"""
+    n = len(pts)
+    out = []
+    for i in range(n):
+        p0, p1, p2 = Vector((*pts[i - 1], 0)), Vector((*pts[i], 0)), Vector((*pts[(i + 1) % n], 0))
+        e0 = (p1 - p0).normalized()
+        e1 = (p2 - p1).normalized()
+        n0 = Vector((-e0.y, e0.x, 0))
+        n1 = Vector((-e1.y, e1.x, 0))
+        b = n0 + n1
+        k = d / max(0.3, b.dot(n1)) if b.length > 1e-6 else d
+        q = p1 + (b.normalized() * k if b.length > 1e-6 else n1 * d)
+        out.append((q.x, q.y))
+    return out
+
+
+def podium_outline():
+    """반시계(위에서 볼 때). 남서 모서리(구의회 북서 모서리 앞)는 반지름 9m 로 둥글게(사진: 격자 외벽이 모서리를 감싸 돈다)"""
+    r = 9.0
+    cu, cv = PU0 + r, PV0 + r
+    arc = [(cu + r * math.cos(math.radians(a)), cv + r * math.sin(math.radians(a))) for a in range(180, 271, 15)]
+    return arc + [(32.3, PV0), (32.3, 44.0), (75.0, 44.0), (75.0, 134.0), (32.3, 134.0), (32.3, 108.0), (PU0, 108.0)]
+
+
+def podium():
+    global PART
+    PART = "@p"
+    outer = podium_outline()
+    # 1층: 4m 안으로 들인 어두운 유리(사진: 격자 외벽 아래 그늘진 입구), 그 위 격자 외벽 몸통
+    prism("p_ground", offset_poly(outer, 4.0), BURY, 6.0, "curtain", top=False)
+    cut = offset_poly(outer, 0.0)
+    prism("p_body", cut, 6.0, P_TOP, "lattice", top=False, bottom=True)
+    # 외벽 위쪽 띠와 옥상 난간(격자 외벽이 지붕 위로 1.4m 올라와 테라스를 감싼다)
+    ring("p_parapet", outer, offset_poly(outer, 1.0), P_TOP, P_TOP + 1.4, "lattice")
+    prism("p_deck", offset_poly(outer, 1.0), P_TOP - 0.4, P_TOP + 0.1, "roof")
+    # 서쪽 테라스: 검은 퍼걸러(기둥 + 가로 보 격자)
+    pu0, pu1, pv0, pv1 = PU0 + 4, PU0 + 26, PV0 + 10, PV0 + 62
+    for i in range(5):
+        for j in range(7):
+            u = pu0 + (pu1 - pu0) * i / 4
+            v = pv0 + (pv1 - pv0) * j / 6
+            cube(f"p_post{i}{j}", u - 0.2, u + 0.2, v - 0.2, v + 0.2, P_TOP, P_TOP + 4.2, "pergola")
+    for i in range(5):
+        u = pu0 + (pu1 - pu0) * i / 4
+        cube(f"p_beam_v{i}", u - 0.18, u + 0.18, pv0, pv1, P_TOP + 4.0, P_TOP + 4.4, "pergola")
+    for j in range(7):
+        v = pv0 + (pv1 - pv0) * j / 6
+        cube(f"p_beam_u{j}", pu0, pu1, v - 0.18, v + 0.18, P_TOP + 4.0, P_TOP + 4.4, "pergola")
+    # 사무 타워 A 남쪽 앞 유리 상자(사진 26141 가운데 위 검은 유리 상자) + 옥상 정원 띠
+    cube("p_glassbox", -22.0, 4.0, 64.0, 80.0, P_TOP, P_TOP + 6.3, "glass")
+    cube("p_glassbox_top", -22.4, 4.4, 63.6, 80.4, P_TOP + 6.3, P_TOP + 6.7, "frame")
+    prism("p_green", [(5.0, 46.0), (30.0, 46.0), (30.0, 88.0), (5.0, 88.0)], P_TOP + 0.1, P_TOP + 0.45, "green")
+    for k, (u, v) in enumerate(((10.0, 52.0), (18.0, 60.0), (25.0, 52.0), (12.0, 72.0), (24.0, 80.0), (16.0, 84.0))):
+        tree(f"p_tree{k}", u, v, P_TOP + 0.45, 0.85)
+    PART = ""
+
+
 def preview(name, direction, target, dist, size=1280):
     """워크벤치 미리보기(검수용, 레포에 안 넣는다). direction 은 표적에서 카메라로"""
     os.makedirs(A.PREVIEW, exist_ok=True)
@@ -406,6 +475,7 @@ def build():
     council()
     north_strip()
     health()
+    podium()
     A.join_by_material()
     path = os.path.join(A.OUT, "gucheong.glb")
     bpy.ops.export_scene.gltf(

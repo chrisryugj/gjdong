@@ -140,8 +140,8 @@ test("광진구청 모델: glb 는 역할 재질·간판 UV 를 갖고 높이 82
     accessors: { min?: number[]; max?: number[] }[]
   }
   const roles = new Set(gltf.materials.map((m) => m.name.split("@")[0]))
-  for (const r of ["frame", "glass", "curtain", "membrane", "solar", "green", "sign_gc", "sign_council", "sign_health"]) assert.ok(roles.has(r), r)
-  assert.ok(gltf.materials.some((m) => m.name.endsWith("@c")) && gltf.materials.some((m) => m.name.endsWith("@h")), "구의회·보건소 부분 표시")
+  for (const r of ["frame", "glass", "curtain", "membrane", "solar", "green", "lattice", "pergola", "sign_gc", "sign_council", "sign_health"]) assert.ok(roles.has(r), r)
+  assert.ok(["@c", "@h", "@p"].every((t) => gltf.materials.some((m) => m.name.endsWith(t))), "구의회·보건소·이스트폴 저층부 부분 표시")
   let yMax = -Infinity, yMin = Infinity
   for (const mesh of gltf.meshes)
     for (const p of mesh.primitives) {
